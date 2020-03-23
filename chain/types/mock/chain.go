@@ -27,7 +27,7 @@ func MkMessage(from, to address.Address, nonce uint64, w *wallet.Wallet) *types.
 		From:     from,
 		Value:    types.NewInt(1),
 		Nonce:    nonce,
-		GasLimit: types.NewInt(1),
+		GasLimit: 1,
 		GasPrice: types.NewInt(0),
 	}
 
@@ -68,7 +68,7 @@ func MkBlock(parents *types.TipSet, weightInc uint64, ticketNonce uint64) *types
 		},
 		Parents:               pcids,
 		ParentMessageReceipts: c,
-		BLSAggregate:          crypto.Signature{Type: crypto.SigTypeBLS, Data: []byte("boo! im a signature")},
+		BLSAggregate:          &crypto.Signature{Type: crypto.SigTypeBLS, Data: []byte("boo! im a signature")},
 		ParentWeight:          weight,
 		Messages:              c,
 		Height:                height,
