@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"runtime/debug"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -28,21 +27,24 @@ import (
 type Runtime struct {
 	ctx context.Context
 
-	vm     *VM
-	state  *state.StateTree
-	msg    *types.Message
-	height abi.ChainEpoch
-	cst    cbor.IpldStore
+	vm        *VM
+	state     *state.StateTree
+	msg       *types.Message
+	height    abi.ChainEpoch
+	cst       cbor.IpldStore
+	pricelist Pricelist
 
-	gasAvailable types.BigInt
-	gasUsed      types.BigInt
+	gasAvailable int64
+	gasUsed      int64
 
 	sys runtime.Syscalls
 
 	// address that started invoke chain
-	origin address.Address
+	origin      address.Address
+	originNonce uint64
 
 	internalExecutions []*ExecutionResult
+	numActorsCreated   uint64
 }
 
 func (rs *Runtime) ResolveAddress(address address.Address) (ret address.Address, ok bool) {
@@ -75,13 +77,11 @@ func (rs *Runtime) shimCall(f func() interface{}) (rval []byte, aerr aerrors.Act
 	defer func() {
 		if r := recover(); r != nil {
 			if ar, ok := r.(aerrors.ActorError); ok {
-				log.Warn("VM.Call failure: ", ar)
-				debug.PrintStack()
+				log.Errorf("VM.Call failure: %+v", ar)
 				aerr = ar
 				return
 			}
-			debug.PrintStack()
-			log.Errorf("ERROR")
+			log.Errorf("spec actors failure: %s", r)
 			aerr = aerrors.Newf(1, "spec actors failure: %s", r)
 		}
 	}()
@@ -158,19 +158,14 @@ func (rs *Runtime) Store() vmr.Store {
 
 func (rt *Runtime) NewActorAddress() address.Address {
 	var b bytes.Buffer
-	if err := rt.Message().Caller().MarshalCBOR(&b); err != nil { // todo: spec says cbor; why not just bytes?
+	if err := rt.origin.MarshalCBOR(&b); err != nil { // todo: spec says cbor; why not just bytes?
 		rt.Abortf(exitcode.ErrSerialization, "writing caller address into a buffer: %v", err)
 	}
 
-	act, err := rt.state.GetActor(rt.origin)
-	if err != nil {
-		rt.Abortf(exitcode.SysErrInternal, "getting top level actor: %v", err)
-	}
-
-	if err := binary.Write(&b, binary.BigEndian, act.Nonce); err != nil {
+	if err := binary.Write(&b, binary.BigEndian, rt.originNonce); err != nil {
 		rt.Abortf(exitcode.ErrSerialization, "writing nonce address into a buffer: %v", err)
 	}
-	if err := binary.Write(&b, binary.BigEndian, uint64(0)); err != nil { // TODO: expose on vm
+	if err := binary.Write(&b, binary.BigEndian, rt.numActorsCreated); err != nil { // TODO: expose on vm
 		rt.Abortf(exitcode.ErrSerialization, "writing callSeqNum address into a buffer: %v", err)
 	}
 	addr, err := address.NewActorAddress(b.Bytes())
@@ -178,10 +173,12 @@ func (rt *Runtime) NewActorAddress() address.Address {
 		rt.Abortf(exitcode.ErrSerialization, "create actor address: %v", err)
 	}
 
+	rt.incrementNumActorsCreated()
 	return addr
 }
 
 func (rt *Runtime) CreateActor(codeId cid.Cid, address address.Address) {
+	rt.ChargeGas(rt.Pricelist().OnCreateActor())
 	var err error
 
 	err = rt.state.SetActor(address, &types.Actor{
@@ -196,6 +193,7 @@ func (rt *Runtime) CreateActor(codeId cid.Cid, address address.Address) {
 }
 
 func (rt *Runtime) DeleteActor() {
+	rt.ChargeGas(rt.Pricelist().OnDeleteActor())
 	act, err := rt.state.GetActor(rt.Message().Receiver())
 	if err != nil {
 		rt.Abortf(exitcode.SysErrInternal, "failed to load actor in delete actor: %s", err)
@@ -316,33 +314,36 @@ func (rt *Runtime) internalSend(to address.Address, method abi.MethodNum, value 
 		return nil, aerrors.Fatalf("snapshot failed: %s", err)
 	}
 	defer st.ClearSnapshot()
+	rt.ChargeGas(rt.Pricelist().OnMethodInvocation(value, method))
 
-	ret, err, subrt := rt.vm.send(ctx, msg, rt, 0)
-	if err != nil {
-		if err := st.Revert(); err != nil {
-			return nil, aerrors.Escalate(err, "failed to revert state tree after failed subcall")
+	ret, errSend, subrt := rt.vm.send(ctx, msg, rt, 0)
+	if errSend != nil {
+		if errRevert := st.Revert(); errRevert != nil {
+			return nil, aerrors.Escalate(errRevert, "failed to revert state tree after failed subcall")
 		}
 	}
 
 	mr := types.MessageReceipt{
-		ExitCode: exitcode.ExitCode(aerrors.RetCode(err)),
+		ExitCode: exitcode.ExitCode(aerrors.RetCode(errSend)),
 		Return:   ret,
-		GasUsed:  types.EmptyInt,
+		GasUsed:  0,
 	}
 
-	var es = ""
-	if err != nil {
-		es = err.Error()
-	}
 	er := ExecutionResult{
-		Msg:      msg,
-		MsgRct:   &mr,
-		Error:    es,
-		Subcalls: subrt.internalExecutions,
+		Msg:    msg,
+		MsgRct: &mr,
 	}
 
+	if errSend != nil {
+		er.Error = errSend.Error()
+	}
+
+	if subrt != nil {
+		er.Subcalls = subrt.internalExecutions
+		rt.numActorsCreated = subrt.numActorsCreated
+	}
 	rt.internalExecutions = append(rt.internalExecutions, &er)
-	return ret, err
+	return ret, errSend
 }
 
 func (rs *Runtime) State() vmr.StateHandle {
@@ -400,8 +401,6 @@ func (rt *Runtime) GetBalance(a address.Address) (types.BigInt, aerrors.ActorErr
 }
 
 func (rt *Runtime) stateCommit(oldh, newh cid.Cid) aerrors.ActorError {
-	rt.ChargeGas(gasCommit)
-
 	// TODO: we can make this more efficient in the future...
 	act, err := rt.state.GetActor(rt.Message().Receiver())
 	if err != nil {
@@ -421,10 +420,25 @@ func (rt *Runtime) stateCommit(oldh, newh cid.Cid) aerrors.ActorError {
 	return nil
 }
 
-func (rt *Runtime) ChargeGas(amount uint64) {
-	toUse := types.NewInt(amount)
-	rt.gasUsed = types.BigAdd(rt.gasUsed, toUse)
-	if rt.gasUsed.GreaterThan(rt.gasAvailable) {
-		rt.Abortf(exitcode.SysErrOutOfGas, "not enough gas: used=%s, available=%s", rt.gasUsed, rt.gasAvailable)
+func (rt *Runtime) ChargeGas(toUse int64) {
+	err := rt.chargeGasSafe(toUse)
+	if err != nil {
+		panic(err)
 	}
+}
+
+func (rt *Runtime) chargeGasSafe(toUse int64) aerrors.ActorError {
+	rt.gasUsed += toUse
+	if rt.gasUsed > rt.gasAvailable {
+		return aerrors.Newf(uint8(exitcode.SysErrOutOfGas), "not enough gas: used=%d, available=%d", rt.gasUsed, rt.gasAvailable)
+	}
+	return nil
+}
+
+func (rt *Runtime) Pricelist() Pricelist {
+	return rt.pricelist
+}
+
+func (rt *Runtime) incrementNumActorsCreated() {
+	rt.numActorsCreated++
 }

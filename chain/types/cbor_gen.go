@@ -9,7 +9,7 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"github.com/filecoin-project/specs-actors/actors/runtime/exitcode"
-	"github.com/ipfs/go-cid"
+	cid "github.com/ipfs/go-cid"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	xerrors "golang.org/x/xerrors"
 )
@@ -133,7 +133,7 @@ func (t *BlockHeader) UnmarshalCBOR(r io.Reader) error {
 	{
 
 		if err := t.Miner.UnmarshalCBOR(br); err != nil {
-			return err
+			return xerrors.Errorf("unmarshaling t.Miner: %w", err)
 		}
 
 	}
@@ -153,7 +153,7 @@ func (t *BlockHeader) UnmarshalCBOR(r io.Reader) error {
 		} else {
 			t.Ticket = new(Ticket)
 			if err := t.Ticket.UnmarshalCBOR(br); err != nil {
-				return err
+				return xerrors.Errorf("unmarshaling t.Ticket pointer: %w", err)
 			}
 		}
 
@@ -163,7 +163,7 @@ func (t *BlockHeader) UnmarshalCBOR(r io.Reader) error {
 	{
 
 		if err := t.EPostProof.UnmarshalCBOR(br); err != nil {
-			return err
+			return xerrors.Errorf("unmarshaling t.EPostProof: %w", err)
 		}
 
 	}
@@ -198,7 +198,7 @@ func (t *BlockHeader) UnmarshalCBOR(r io.Reader) error {
 	{
 
 		if err := t.ParentWeight.UnmarshalCBOR(br); err != nil {
-			return err
+			return xerrors.Errorf("unmarshaling t.ParentWeight: %w", err)
 		}
 
 	}
@@ -267,8 +267,20 @@ func (t *BlockHeader) UnmarshalCBOR(r io.Reader) error {
 
 	{
 
-		if err := t.BLSAggregate.UnmarshalCBOR(br); err != nil {
+		pb, err := br.PeekByte()
+		if err != nil {
 			return err
+		}
+		if pb == cbg.CborNull[0] {
+			var nbuf [1]byte
+			if _, err := br.Read(nbuf[:]); err != nil {
+				return err
+			}
+		} else {
+			t.BLSAggregate = new(crypto.Signature)
+			if err := t.BLSAggregate.UnmarshalCBOR(br); err != nil {
+				return xerrors.Errorf("unmarshaling t.BLSAggregate pointer: %w", err)
+			}
 		}
 
 	}
@@ -302,7 +314,7 @@ func (t *BlockHeader) UnmarshalCBOR(r io.Reader) error {
 		} else {
 			t.BlockSig = new(crypto.Signature)
 			if err := t.BlockSig.UnmarshalCBOR(br); err != nil {
-				return err
+				return xerrors.Errorf("unmarshaling t.BlockSig pointer: %w", err)
 			}
 		}
 
@@ -656,9 +668,15 @@ func (t *Message) MarshalCBOR(w io.Writer) error {
 		return err
 	}
 
-	// t.GasLimit (big.Int) (struct)
-	if err := t.GasLimit.MarshalCBOR(w); err != nil {
-		return err
+	// t.GasLimit (int64) (int64)
+	if t.GasLimit >= 0 {
+		if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajUnsignedInt, uint64(t.GasLimit))); err != nil {
+			return err
+		}
+	} else {
+		if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajNegativeInt, uint64(-t.GasLimit)-1)); err != nil {
+			return err
+		}
 	}
 
 	// t.Method (abi.MethodNum) (uint64)
@@ -701,7 +719,7 @@ func (t *Message) UnmarshalCBOR(r io.Reader) error {
 	{
 
 		if err := t.To.UnmarshalCBOR(br); err != nil {
-			return err
+			return xerrors.Errorf("unmarshaling t.To: %w", err)
 		}
 
 	}
@@ -710,7 +728,7 @@ func (t *Message) UnmarshalCBOR(r io.Reader) error {
 	{
 
 		if err := t.From.UnmarshalCBOR(br); err != nil {
-			return err
+			return xerrors.Errorf("unmarshaling t.From: %w", err)
 		}
 
 	}
@@ -733,7 +751,7 @@ func (t *Message) UnmarshalCBOR(r io.Reader) error {
 	{
 
 		if err := t.Value.UnmarshalCBOR(br); err != nil {
-			return err
+			return xerrors.Errorf("unmarshaling t.Value: %w", err)
 		}
 
 	}
@@ -742,18 +760,34 @@ func (t *Message) UnmarshalCBOR(r io.Reader) error {
 	{
 
 		if err := t.GasPrice.UnmarshalCBOR(br); err != nil {
-			return err
+			return xerrors.Errorf("unmarshaling t.GasPrice: %w", err)
 		}
 
 	}
-	// t.GasLimit (big.Int) (struct)
-
+	// t.GasLimit (int64) (int64)
 	{
-
-		if err := t.GasLimit.UnmarshalCBOR(br); err != nil {
+		maj, extra, err := cbg.CborReadHeader(br)
+		var extraI int64
+		if err != nil {
 			return err
 		}
+		switch maj {
+		case cbg.MajUnsignedInt:
+			extraI = int64(extra)
+			if extraI < 0 {
+				return fmt.Errorf("int64 positive overflow")
+			}
+		case cbg.MajNegativeInt:
+			extraI = int64(extra)
+			if extraI < 0 {
+				return fmt.Errorf("int64 negative oveflow")
+			}
+			extraI = -1 - extraI
+		default:
+			return fmt.Errorf("wrong type for int64 field: %d", maj)
+		}
 
+		t.GasLimit = int64(extraI)
 	}
 	// t.Method (abi.MethodNum) (uint64)
 
@@ -830,7 +864,7 @@ func (t *SignedMessage) UnmarshalCBOR(r io.Reader) error {
 	{
 
 		if err := t.Message.UnmarshalCBOR(br); err != nil {
-			return err
+			return xerrors.Errorf("unmarshaling t.Message: %w", err)
 		}
 
 	}
@@ -839,7 +873,7 @@ func (t *SignedMessage) UnmarshalCBOR(r io.Reader) error {
 	{
 
 		if err := t.Signature.UnmarshalCBOR(br); err != nil {
-			return err
+			return xerrors.Errorf("unmarshaling t.Signature: %w", err)
 		}
 
 	}
@@ -1004,7 +1038,7 @@ func (t *Actor) UnmarshalCBOR(r io.Reader) error {
 	{
 
 		if err := t.Balance.UnmarshalCBOR(br); err != nil {
-			return err
+			return xerrors.Errorf("unmarshaling t.Balance: %w", err)
 		}
 
 	}
@@ -1043,9 +1077,15 @@ func (t *MessageReceipt) MarshalCBOR(w io.Writer) error {
 		return err
 	}
 
-	// t.GasUsed (big.Int) (struct)
-	if err := t.GasUsed.MarshalCBOR(w); err != nil {
-		return err
+	// t.GasUsed (int64) (int64)
+	if t.GasUsed >= 0 {
+		if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajUnsignedInt, uint64(t.GasUsed))); err != nil {
+			return err
+		}
+	} else {
+		if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajNegativeInt, uint64(-t.GasUsed)-1)); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1107,14 +1147,30 @@ func (t *MessageReceipt) UnmarshalCBOR(r io.Reader) error {
 	if _, err := io.ReadFull(br, t.Return); err != nil {
 		return err
 	}
-	// t.GasUsed (big.Int) (struct)
-
+	// t.GasUsed (int64) (int64)
 	{
-
-		if err := t.GasUsed.UnmarshalCBOR(br); err != nil {
+		maj, extra, err := cbg.CborReadHeader(br)
+		var extraI int64
+		if err != nil {
 			return err
 		}
+		switch maj {
+		case cbg.MajUnsignedInt:
+			extraI = int64(extra)
+			if extraI < 0 {
+				return fmt.Errorf("int64 positive overflow")
+			}
+		case cbg.MajNegativeInt:
+			extraI = int64(extra)
+			if extraI < 0 {
+				return fmt.Errorf("int64 negative oveflow")
+			}
+			extraI = -1 - extraI
+		default:
+			return fmt.Errorf("wrong type for int64 field: %d", maj)
+		}
 
+		t.GasUsed = int64(extraI)
 	}
 	return nil
 }
@@ -1194,7 +1250,7 @@ func (t *BlockMsg) UnmarshalCBOR(r io.Reader) error {
 		} else {
 			t.Header = new(BlockHeader)
 			if err := t.Header.UnmarshalCBOR(br); err != nil {
-				return err
+				return xerrors.Errorf("unmarshaling t.Header pointer: %w", err)
 			}
 		}
 
