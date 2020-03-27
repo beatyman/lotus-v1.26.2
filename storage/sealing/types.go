@@ -1,18 +1,12 @@
 package sealing
 
 import (
+	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/lotus/api"
 )
-
-type Piece struct {
-	DealID *abi.DealID
-
-	Size  abi.UnpaddedPieceSize
-	CommP cid.Cid
-}
 
 type Log struct {
 	Timestamp uint64
@@ -33,7 +27,7 @@ type SectorInfo struct {
 
 	// Packing
 
-	Pieces []Piece
+	Pieces []sectorbuilder.Piece
 
 	// PreCommit
 	CommD  *cid.Cid

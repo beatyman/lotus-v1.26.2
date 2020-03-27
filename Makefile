@@ -73,6 +73,13 @@ lotus-seal-worker: $(BUILD_DEPS)
 .PHONY: lotus-seal-worker
 BINS+=lotus-seal-worker
 
+lotus-worker: $(BUILD_DEPS)
+	rm -f lotus-worker
+	go build $(GOFLAGS) -o lotus-worker ./cmd/lotus-worker
+	go run github.com/GeertJohan/go.rice/rice append --exec lotus-worker -i ./build
+.PHONY: lotus-worker
+BINS+=lotus-worker
+
 lotus-shed: $(BUILD_DEPS)
 	rm -f lotus-shed
 	go build $(GOFLAGS) -o lotus-shed ./cmd/lotus-shed

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 
@@ -39,6 +40,9 @@ type StorageMinerAPI struct {
 	Full            api.FullNode
 	StorageMgr      *sectorstorage.Manager `optional:"true"`
 	*stores.Index
+
+	// implement by hlm
+	SectorBuilder *sectorbuilder.SectorBuilder
 }
 
 func (sm *StorageMinerAPI) ServeRemote(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +51,10 @@ func (sm *StorageMinerAPI) ServeRemote(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: missing write permission"})
 		return
 	}
+
+	mux := mux.NewRouter()
+
+	mux.HandleFunc("/remote/{type}/{id}", sm.remoteGetSector).Methods("GET")
 
 	sm.StorageMgr.ServeHTTP(w, r)
 }

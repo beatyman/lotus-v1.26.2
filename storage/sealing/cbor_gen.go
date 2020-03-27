@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	xerrors "golang.org/x/xerrors"
@@ -13,165 +14,6 @@ import (
 
 var _ = xerrors.Errorf
 
-func (t *Piece) MarshalCBOR(w io.Writer) error {
-	if t == nil {
-		_, err := w.Write(cbg.CborNull)
-		return err
-	}
-	if _, err := w.Write([]byte{163}); err != nil {
-		return err
-	}
-
-	// t.DealID (abi.DealID) (uint64)
-	if len("DealID") > cbg.MaxLength {
-		return xerrors.Errorf("Value in field \"DealID\" was too long")
-	}
-
-	if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajTextString, uint64(len("DealID")))); err != nil {
-		return err
-	}
-	if _, err := w.Write([]byte("DealID")); err != nil {
-		return err
-	}
-
-	if t.DealID == nil {
-		if _, err := w.Write(cbg.CborNull); err != nil {
-			return err
-		}
-	} else {
-		if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajUnsignedInt, uint64(*t.DealID))); err != nil {
-			return err
-		}
-	}
-
-	// t.Size (abi.UnpaddedPieceSize) (uint64)
-	if len("Size") > cbg.MaxLength {
-		return xerrors.Errorf("Value in field \"Size\" was too long")
-	}
-
-	if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajTextString, uint64(len("Size")))); err != nil {
-		return err
-	}
-	if _, err := w.Write([]byte("Size")); err != nil {
-		return err
-	}
-
-	if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajUnsignedInt, uint64(t.Size))); err != nil {
-		return err
-	}
-
-	// t.CommP (cid.Cid) (struct)
-	if len("CommP") > cbg.MaxLength {
-		return xerrors.Errorf("Value in field \"CommP\" was too long")
-	}
-
-	if _, err := w.Write(cbg.CborEncodeMajorType(cbg.MajTextString, uint64(len("CommP")))); err != nil {
-		return err
-	}
-	if _, err := w.Write([]byte("CommP")); err != nil {
-		return err
-	}
-
-	if err := cbg.WriteCid(w, t.CommP); err != nil {
-		return xerrors.Errorf("failed to write cid field t.CommP: %w", err)
-	}
-
-	return nil
-}
-
-func (t *Piece) UnmarshalCBOR(r io.Reader) error {
-	br := cbg.GetPeeker(r)
-
-	maj, extra, err := cbg.CborReadHeader(br)
-	if err != nil {
-		return err
-	}
-	if maj != cbg.MajMap {
-		return fmt.Errorf("cbor input should be of type map")
-	}
-
-	if extra > cbg.MaxLength {
-		return fmt.Errorf("Piece: map struct too large (%d)", extra)
-	}
-
-	var name string
-	n := extra
-
-	for i := uint64(0); i < n; i++ {
-
-		{
-			sval, err := cbg.ReadString(br)
-			if err != nil {
-				return err
-			}
-
-			name = string(sval)
-		}
-
-		switch name {
-		// t.DealID (abi.DealID) (uint64)
-		case "DealID":
-
-			{
-
-				pb, err := br.PeekByte()
-				if err != nil {
-					return err
-				}
-				if pb == cbg.CborNull[0] {
-					var nbuf [1]byte
-					if _, err := br.Read(nbuf[:]); err != nil {
-						return err
-					}
-				} else {
-					maj, extra, err = cbg.CborReadHeader(br)
-					if err != nil {
-						return err
-					}
-					if maj != cbg.MajUnsignedInt {
-						return fmt.Errorf("wrong type for uint64 field")
-					}
-					typed := abi.DealID(extra)
-					t.DealID = &typed
-				}
-
-			}
-			// t.Size (abi.UnpaddedPieceSize) (uint64)
-		case "Size":
-
-			{
-
-				maj, extra, err = cbg.CborReadHeader(br)
-				if err != nil {
-					return err
-				}
-				if maj != cbg.MajUnsignedInt {
-					return fmt.Errorf("wrong type for uint64 field")
-				}
-				t.Size = abi.UnpaddedPieceSize(extra)
-
-			}
-			// t.CommP (cid.Cid) (struct)
-		case "CommP":
-
-			{
-
-				c, err := cbg.ReadCid(br)
-				if err != nil {
-					return xerrors.Errorf("failed to read cid field t.CommP: %w", err)
-				}
-
-				t.CommP = c
-
-			}
-
-		default:
-			return fmt.Errorf("unknown struct field %d: '%s'", i, name)
-		}
-	}
-
-	return nil
-}
 func (t *SectorInfo) MarshalCBOR(w io.Writer) error {
 	if t == nil {
 		_, err := w.Write(cbg.CborNull)
@@ -608,11 +450,11 @@ func (t *SectorInfo) UnmarshalCBOR(r io.Reader) error {
 				return fmt.Errorf("expected cbor array")
 			}
 			if extra > 0 {
-				t.Pieces = make([]Piece, extra)
+				t.Pieces = make([]sectorbuilder.Piece, extra)
 			}
 			for i := 0; i < int(extra); i++ {
 
-				var v Piece
+				var v sectorbuilder.Piece
 				if err := v.UnmarshalCBOR(br); err != nil {
 					return err
 				}

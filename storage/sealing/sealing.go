@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
@@ -137,7 +138,7 @@ func (m *Sealing) SealPiece(ctx context.Context, size abi.UnpaddedPieceSize, r i
 		return xerrors.Errorf("bad sector size: %w", err)
 	}
 
-	return m.newSector(sectorID, rt, []Piece{
+	return m.newSector(sectorID, rt, []sectorbuilder.Piece{
 		{
 			DealID: &dealID,
 
@@ -147,7 +148,7 @@ func (m *Sealing) SealPiece(ctx context.Context, size abi.UnpaddedPieceSize, r i
 	})
 }
 
-func (m *Sealing) newSector(sid abi.SectorNumber, rt abi.RegisteredProof, pieces []Piece) error {
+func (m *Sealing) newSector(sid abi.SectorNumber, rt abi.RegisteredProof, pieces []sectorbuilder.Piece) error {
 	log.Infof("Start sealing %d", sid)
 	return m.sectors.Send(uint64(sid), SectorStart{
 		ID:         sid,
