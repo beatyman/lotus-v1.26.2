@@ -1,0 +1,220 @@
+package sealing
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/go-sectorbuilder/database"
+	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-actors/actors/crypto"
+	"github.com/ipfs/go-cid"
+	"golang.org/x/xerrors"
+
+	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/gwaylib/errors"
+)
+
+type pledge interface {
+	// Message communication
+	MpoolPushMessage(context.Context, *types.Message) (*types.SignedMessage, error) // get nonce, sign, push
+	StateWaitMsg(context.Context, cid.Cid) (*api.MsgLookup, error)
+
+	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
+}
+
+type Pledge struct {
+	SectorID abi.SectorID
+	Sealing  *Sealing
+
+	Api           pledge
+	SectorBuilder *sectorbuilder.SectorBuilder
+
+	ActAddr    address.Address
+	WorkerAddr address.Address
+
+	ExistingPieceSizes []abi.UnpaddedPieceSize
+	Sizes              []abi.UnpaddedPieceSize
+}
+
+func (g *Pledge) PledgeSector(ctx context.Context) ([]sectorbuilder.Piece, error) {
+	sectorID := g.SectorID
+	sizes := g.Sizes
+	existingPieceSizes := g.ExistingPieceSizes
+	log.Infof("DEBUG:PledgeSector in, %d,%d", sectorID, len(sizes))
+	defer log.Infof("DEBUG:PledgeSector out, %d", sectorID)
+
+	if len(sizes) == 0 {
+		log.Infof("DEBGUG:PledgeSector no sizes, %d", sectorID)
+		return nil, nil
+	}
+
+	log.Infof("Pledge %d, contains %+v", sectorID, existingPieceSizes)
+
+	out := make([]sectorbuilder.Piece, len(sizes))
+	for i, size := range sizes {
+		ppi, err := g.Sealing.sealer.AddPiece(ctx, sectorID, existingPieceSizes, size, g.Sealing.pledgeReader(size))
+		if err != nil {
+			return nil, xerrors.Errorf("add piece: %w", err)
+		}
+
+		g.ExistingPieceSizes = append(g.ExistingPieceSizes, size)
+		out[i] = sectorbuilder.Piece{
+			Size:  ppi.Size.Unpadded(),
+			CommP: ppi.PieceCID,
+		}
+	}
+
+	return out, nil
+}
+
+func (m *Sealing) PledgeRemoteSector() error {
+	ctx := context.TODO() // we can't use the context from command which invokes
+	// this, as we run everything here async, and it's cancelled when the
+	// command exits
+
+	size := abi.PaddedPieceSize(m.sealer.SectorSize()).Unpadded()
+
+	_, rt, err := api.ProofTypeFromSectorSize(m.sealer.SectorSize())
+	if err != nil {
+		return errors.As(err)
+	}
+	sid, err := m.sc.Next()
+	if err != nil {
+		return errors.As(err)
+	}
+	if err := m.sealer.NewSector(ctx, m.minerSector(sid)); err != nil {
+		return errors.As(err)
+	}
+
+	pieces, err := m.PledgeSector(sid, []uint64{size}, func(sidIn uint64, sizes []uint64) (*sectorbuilder.WorkerCfg, []sectorbuilder.Piece, error) {
+		// local pledge no need workerid
+		ps, err := m.pledgeLocalSector(ctx, sidIn, []uint64{}, size)
+		return &sectorbuilder.WorkerCfg{}, ps, err
+	})
+	if err != nil {
+		return errors.As(err)
+	}
+
+	if err := m.newSector(context.TODO(), sid, pieces[0].GetDealID(), pieces[0].PPI()); err != nil {
+		return errors.As(err)
+	}
+	return nil
+}
+
+var (
+	pledgeExit    = make(chan bool, 1)
+	pledgeRunning = false
+	pledgeSync    = sync.Mutex{}
+)
+
+var (
+	taskConsumed = make(chan int, 1)
+)
+
+func (m *Sealing) addConsumeTask() {
+	select {
+	case taskConsumed <- 1:
+	default:
+		// ignore
+	}
+}
+
+func (m *Sealing) RunPledgeSector() error {
+	pledgeSync.Lock()
+	defer pledgeSync.Unlock()
+	if pledgeRunning {
+		return errors.New("In running")
+	}
+	pledgeRunning = true
+
+	// if task has consumed, auto do the next pledge.
+	m.sb.SetAddPieceListener(func(t sectorbuilder.WorkerTask) {
+		// success consume
+		m.addConsumeTask()
+	})
+	m.addConsumeTask() // for init
+
+	gcTimer := time.NewTicker(10 * time.Minute)
+
+	go func() {
+		defer func() {
+			pledgeRunning = false
+			m.sb.SetAddPieceListener(nil)
+			gcTimer.Stop()
+			log.Info("Pledge daemon exited.")
+
+			// auto recover for panic
+			if err := recover(); err != nil {
+				log.Error(errors.New("Pledge daemon not exit by normal, goto auto restart").As(err))
+				m.RunPledgeSector()
+			}
+		}()
+		for {
+			pledgeRunning = true
+			select {
+			case <-pledgeExit:
+				return
+			case now := <-gcTimer.C:
+				log.Info("GC CurWork")
+				if err := database.GcCurWork(now.Add(-48 * time.Hour)); err != nil {
+					log.Error(errors.As(err))
+				}
+				log.Info("GC CurWork Done")
+				// just replenish
+				m.addConsumeTask()
+			case <-taskConsumed:
+				stats := m.sb.WorkerStats()
+				// not accurate, if missing the taskConsumed event, it should replenish in gcTime.
+				if stats.AddPieceWait > 0 {
+					continue
+				}
+				go func() {
+					// daemon check
+					if err := m.pledgeSector(); err != nil {
+						if errors.ErrNoData.Equal(err) {
+							log.Error("No storage to allocate")
+						} else {
+							log.Errorf("%+v", err)
+						}
+
+						// if err happend, need to control the times.
+						time.Sleep(10e9)
+
+						// fast to do generate one addpiece event.
+						m.addConsumeTask()
+					}
+				}()
+			}
+		}
+	}()
+	return nil
+}
+
+func (m *Sealing) StatusPledgeSector() (int, error) {
+	pledgeSync.Lock()
+	defer pledgeSync.Unlock()
+	if !pledgeRunning {
+		return 0, nil
+	}
+	return 1, nil
+}
+
+func (m *Sealing) ExitPledgeSector() error {
+	pledgeSync.Lock()
+	if !pledgeRunning {
+		pledgeSync.Unlock()
+		return errors.New("Not in running")
+	}
+	if len(pledgeExit) > 0 {
+		pledgeSync.Unlock()
+		return errors.New("Exiting")
+	}
+	pledgeSync.Unlock()
+
+	pledgeExit <- true
+	return nil
+}
