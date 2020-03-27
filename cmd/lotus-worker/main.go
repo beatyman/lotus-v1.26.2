@@ -7,6 +7,7 @@ import (
 
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/go-sectorbuilder/fs"
 	"github.com/mitchellh/go-homedir"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -204,31 +205,33 @@ var runCmd = &cli.Command{
 			return errors.As(err)
 		}
 
-		if err := paramfetch.GetParams(build.ParametersJson(), ssize); err != nil {
+		if err := paramfetch.GetParams(build.ParametersJson(), uint64(ssize)); err != nil {
 			return xerrors.Errorf("get params: %w", err)
 		}
 
 		if err := os.MkdirAll(r, 0755); err != nil {
 			return errors.As(err, r)
 		}
-		sb, err := sectorbuilder.NewStandalone(&sectorbuilder.Config{
-			SectorSize:    ssize,
-			Miner:         act,
-			WorkerThreads: workers,
-			Paths:         sectorbuilder.SimplePath(r),
-		})
+		_, spt, err := api.ProofTypeFromSectorSize(ssize)
+		if err != nil {
+			return xerrors.Errorf("getting proof type: %w", err)
+		}
+		cfg := &sectorbuilder.Config{
+			SealProofType: spt,
+		}
+
+		sb, err := sectorbuilder.NewStandalone(&fs.Basic{
+			Root: r,
+		}, cfg)
 		if err != nil {
 			return err
 		}
 		if err := os.MkdirAll(sealedRepo, 0755); err != nil {
 			return errors.As(err, sealedRepo)
 		}
-		sealedSB, err := sectorbuilder.NewStandalone(&sectorbuilder.Config{
-			SectorSize:    ssize,
-			Miner:         act,
-			WorkerThreads: workers,
-			Paths:         sectorbuilder.SimplePath(sealedRepo),
-		})
+		sealedSB, err := sectorbuilder.NewStandalone(&fs.Basic{
+			Root: r,
+		}, cfg)
 		if err != nil {
 			return errors.As(err, sealedRepo)
 		}

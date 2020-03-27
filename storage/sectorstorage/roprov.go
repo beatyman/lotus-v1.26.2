@@ -14,6 +14,17 @@ type readonlyProvider struct {
 	stor *stores.Local
 }
 
+func (l *readonlyProvider) RepoPath() string {
+	local, err := l.stor.Local(context.TODO())
+	if err != nil {
+		panic(err)
+	}
+	for _, p := range local {
+		return p.LocalPath
+	}
+	panic("No RepoPath")
+}
+
 func (l *readonlyProvider) AcquireSector(ctx context.Context, id abi.SectorID, existing sectorbuilder.SectorFileType, allocate sectorbuilder.SectorFileType, sealing bool) (sectorbuilder.SectorPaths, func(), error) {
 	if allocate != 0 { // 0 - don't allocate anything
 		return sectorbuilder.SectorPaths{}, nil, xerrors.New("read-only storage")

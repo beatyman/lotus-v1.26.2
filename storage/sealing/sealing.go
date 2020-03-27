@@ -76,6 +76,14 @@ type Sealing struct {
 	sc      SectorIDCounter
 }
 
+func NewSealPiece(maddr address.Address, worker address.Address, sealer *sectorbuilder.SectorBuilder) *Sealing {
+	s := &Sealing{
+		maddr:  maddr,
+		worker: worker,
+		sealer: sealer,
+	}
+	return s
+}
 func New(api sealingApi, events *events.Events, maddr address.Address, worker address.Address, ds datastore.Batching, sealer sectorstorage.SectorManager, sc SectorIDCounter, tktFn TicketFn) *Sealing {
 	s := &Sealing{
 		api:    api,

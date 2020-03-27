@@ -219,12 +219,12 @@ type StorageMinerStruct struct {
 		WorkerDone         func(ctx context.Context, res sectorbuilder.SealRes) error                                      `perm:"admin"`
 		WorkerDisable      func(ctx context.Context, wid string, disable bool) error                                       `perm:"write"`
 
-		AddStorage     func(ctx context.Context, sInfo database.StorageInfo) error       `perm:"write"`
-		DisableStorage func(ctx context.Context, id int64) error                         `perm:"write"`
-		MountStorage   func(ctx context.Context, id int64) error                         `perm:"write"`
-		UMountStorage  func(ctx context.Context, id int64) error                         `perm:"write"`
-		RelinkStorage  func(ctx context.Context, id int64) error                         `perm:"write"`
-		ScaleStorage   func(ctx context.Context, id int64, size int64, work int64) error `perm:"write"`
+		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error       `perm:"write"`
+		DisableHLMStorage func(ctx context.Context, id int64) error                         `perm:"write"`
+		MountHLMStorage   func(ctx context.Context, id int64) error                         `perm:"write"`
+		UMountHLMStorage  func(ctx context.Context, id int64) error                         `perm:"write"`
+		RelinkHLMStorage  func(ctx context.Context, id int64) error                         `perm:"write"`
+		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error `perm:"write"`
 	}
 }
 
@@ -843,24 +843,24 @@ func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disa
 	return c.Internal.WorkerDisable(ctx, wid, disable)
 }
 
-func (c *StorageMinerStruct) AddStorage(ctx context.Context, sInfo database.StorageInfo) error {
-	return c.Internal.AddStorage(ctx, sInfo)
+func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
+	return c.Internal.AddHLMStorage(ctx, sInfo)
 }
-func (c *StorageMinerStruct) DisableStorage(ctx context.Context, id int64) error {
-	return c.Internal.DisableStorage(ctx, id)
+func (c *StorageMinerStruct) DisableHLMStorage(ctx context.Context, id int64) error {
+	return c.Internal.DisableHLMStorage(ctx, id)
 }
-func (c *StorageMinerStruct) MountStorage(ctx context.Context, id int64) error {
-	return c.Internal.MountStorage(ctx, id)
+func (c *StorageMinerStruct) MountHLMStorage(ctx context.Context, id int64) error {
+	return c.Internal.MountHLMStorage(ctx, id)
 }
-func (c *StorageMinerStruct) UMountStorage(ctx context.Context, id int64) error {
-	return c.Internal.UMountStorage(ctx, id)
+func (c *StorageMinerStruct) UMountHLMStorage(ctx context.Context, id int64) error {
+	return c.Internal.UMountHLMStorage(ctx, id)
 }
-func (c *StorageMinerStruct) RelinkStorage(ctx context.Context, id int64) error {
-	return c.Internal.RelinkStorage(ctx, id)
+func (c *StorageMinerStruct) RelinkHLMStorage(ctx context.Context, id int64) error {
+	return c.Internal.RelinkHLMStorage(ctx, id)
 }
 
-func (c *StorageMinerStruct) ScaleStorage(ctx context.Context, id int64, size int64, work int64) error {
-	return c.Internal.ScaleStorage(ctx, id, size, work)
+func (c *StorageMinerStruct) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
+	return c.Internal.ScaleHLMStorage(ctx, id, size, work)
 }
 
 // implements by hlm end

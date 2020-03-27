@@ -10,8 +10,7 @@ import (
 	"path/filepath"
 
 	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
-	"github.com/filecoin-project/go-sectorbuilder/fs"
-	"github.com/gwaylib/errors"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	files "github.com/ipfs/go-ipfs-files"
 	"golang.org/x/xerrors"
 	"gopkg.in/cheggaaa/pb.v1"
@@ -27,7 +26,7 @@ func (w *worker) sizeForType(typ string) int64 {
 	return size
 }
 
-func (w *worker) fetch(typ string, sectorID uint64) error {
+func (w *worker) fetch(typ string, sectorID abi.SectorID) error {
 	// Close the fetch in the miner storage directory.
 	// TODO: fix to env
 	if filepath.Base(w.repo) == ".lotusstorage" {
@@ -36,7 +35,7 @@ func (w *worker) fetch(typ string, sectorID uint64) error {
 
 	outname := filepath.Join(w.repo, typ, w.sb.SectorName(sectorID))
 
-	url := w.minerEndpoint + "/remote/" + typ + "/" + fmt.Sprint(sectorID)
+	url := w.minerEndpoint + "/remote/" + typ + "/" + fmt.Sprint(sectorID.Number)
 	log.Infof("Fetch %s %s", typ, url)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -85,28 +84,21 @@ func (w *worker) fetch(typ string, sectorID uint64) error {
 
 }
 
-func (w *worker) push(ctx context.Context, typ string, sectorID uint64) error {
+func (w *worker) push(ctx context.Context, typ string, sectorID string) error {
 	// Close the fetch in the miner storage directory.
 	// TODO: fix to env
 	if filepath.Base(w.repo) == ".lotusstorage" {
 		return nil
 	}
 
-	fromPath, err := w.sb.SectorPath(fs.DataType(typ), sectorID)
-	if err != nil {
-		return errors.As(err, fs.DataType(typ), sectorID)
-	}
-
+	fromPath := w.sb.SectorPath(typ, sectorID)
 	stat, err := os.Stat(string(fromPath))
 	if err != nil {
 		return err
 	}
 
 	// save to target storage
-	toPath, err := w.sealedSB.SectorPath(fs.DataType(typ), sectorID)
-	if err != nil {
-		return errors.As(err, fs.DataType(typ), sectorID)
-	}
+	toPath := w.sealedSB.SectorPath(typ, sectorID)
 
 	if stat.IsDir() {
 		if err := CopyFile(ctx, string(fromPath)+"/", string(toPath)+"/"); err != nil {
@@ -144,23 +136,17 @@ func (w *worker) push(ctx context.Context, typ string, sectorID uint64) error {
 	return nil
 }
 
-func (w *worker) remove(typ string, sectorID uint64) error {
+func (w *worker) remove(typ string, sectorID abi.SectorID) error {
 	filename := filepath.Join(w.repo, typ, w.sb.SectorName(sectorID))
 	log.Infof("Remove file: %s", filename)
 	return os.RemoveAll(filename)
 }
 
-func (w *worker) fetchSector(sectorID uint64, typ sectorbuilder.WorkerTaskType) error {
+func (w *worker) fetchSector(sectorID abi.SectorID, typ sectorbuilder.WorkerTaskType) error {
 	var err error
 	switch typ {
-	case sectorbuilder.WorkerPreCommit:
+	case sectorbuilder.WorkerPreCommit1:
 		err = w.fetch("staging", sectorID)
-	case sectorbuilder.WorkerCommit:
-		err = w.fetch("sealed", sectorID)
-		if err != nil {
-			return xerrors.Errorf("fetch sealed: %w", err)
-		}
-		err = w.fetch("cache", sectorID)
 	}
 	if err != nil {
 		return xerrors.Errorf("fetch failed: %w", err)

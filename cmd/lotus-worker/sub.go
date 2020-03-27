@@ -126,21 +126,15 @@ loop:
 
 func (w *worker) addPiece(ctx context.Context, task sectorbuilder.WorkerTask) ([]sectorbuilder.Piece, error) {
 	sizes := task.PieceSizes
-	api, err := GetNodeApi()
-	if err != nil {
-		return nil, errors.As(err)
-	}
 
 	s := sealing.NewSealPiece(w.actAddr, w.workerAddr, w.sb)
 	g := &sealing.Pledge{
-		SectorNum:          task.SectorNum,
-		Sealing:            s,
-		Api:                api,
-		SectorBuilder:      w.sb,
-		ActAddr:            w.actAddr,
-		WorkerAddr:         w.workerAddr,
-		ExistingPieceSizes: []uint64{},
-		Sizes:              sizes,
+		SectorID:      task.SectorID,
+		Sealing:       s,
+		SectorBuilder: w.sb,
+		ActAddr:       w.actAddr,
+		WorkerAddr:    w.workerAddr,
+		Sizes:         sizes,
 	}
 	return g.PledgeSector(ctx)
 }
@@ -243,11 +237,11 @@ func (w *worker) pushCache(ctx context.Context, task sectorbuilder.WorkerTask) e
 		return errors.As(err)
 	}
 	// "sealed" is created during previous step
-	if err := w.push(ctx, "sealed", task.SectorNum); err != nil {
+	if err := w.push(ctx, "sealed", sectorbuilder.SectorName(task.SectorID)); err != nil {
 		return errors.As(err)
 	}
 
-	if err := w.push(ctx, "cache", task.SectorNum); err != nil {
+	if err := w.push(ctx, "cache", sectorbuilder.SectorName(task.SectorID)); err != nil {
 		return errors.As(err)
 	}
 
@@ -327,8 +321,10 @@ func (w *worker) workerDone(ctx context.Context, task sectorbuilder.WorkerTask, 
 func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask) sectorbuilder.SealRes {
 	switch task.Type {
 	case sectorbuilder.WorkerAddPiece:
-	case sectorbuilder.WorkerPreCommit:
-	case sectorbuilder.WorkerCommit:
+	case sectorbuilder.WorkerPreCommit1:
+	case sectorbuilder.WorkerPreCommit2:
+	case sectorbuilder.WorkerCommit1:
+	case sectorbuilder.WorkerCommit2:
 	default:
 		return errRes(errors.New("unknown task type").As(task.Type, w.workerCfg), task)
 	}
@@ -360,31 +356,35 @@ func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask)
 		// if err := w.push("staging", task.SectorID); err != nil {
 		// 	return errRes(xerrors.Errorf("pushing unsealed data: %w", err))
 		// }
-		res.Piece = rsp[0]
+		res.Pieces = rsp
 
-	case sectorbuilder.WorkerPreCommit:
+	case sectorbuilder.WorkerPreCommit1:
 		// checking staging data
-		stagedFile := filepath.Join(w.repo, "staging", w.sb.SectorName(task.SectorNum))
+		stagedFile := filepath.Join(w.repo, "staging", w.sb.SectorName(task.SectorID))
 		if _, err := os.Lstat(stagedFile); err != nil {
 			if !os.IsNotExist(err) {
 				return errRes(errors.As(err, w.workerCfg), task)
 			}
 
-			log.Infof("not found %d local staging data, try fetch", task.SectorNum)
+			log.Infof("not found %d local staging data, try fetch", task.SectorID)
 			// not found local staging data, try fetch
-			if err := w.fetchSector(task.SectorNum, task.Type); err != nil {
+			if err := w.fetchSector(task.SectorID, task.Type); err != nil {
 				// return the err task not found and drop it.
 				return errRes(sectorbuilder.ErrTaskNotFound.As(err, task), task)
 			}
 			// pass
 		}
-		rspco, err := w.sb.SealPreCommit(ctx, task.SectorNum, task.SealTicket, task.Pieces)
+		pieceInfo, err := sectorbuilder.DecodePieceInfo(task.Pieces)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
-		res.Rspco = rspco.ToJson()
-	case sectorbuilder.WorkerCommit:
-		proof, err := w.sb.SealCommit(ctx, task.SectorNum, task.SealTicket, task.SealSeed, task.Pieces, task.Rspco)
+		rspco, err := w.sb.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+		res.PreCommit1Out = rspco
+	case sectorbuilder.WorkerPreCommit2:
+		out, err := w.sb.SealPreCommit2(ctx, task.SectorID, task.PreCommit1Out)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
@@ -393,7 +393,37 @@ func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask)
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 
-		res.Proof = proof
+		res.PreCommit2Out = sectorbuilder.SectorCids{
+			Unsealed: out.Unsealed.String(),
+			Sealed:   out.Sealed.String(),
+		}
+	case sectorbuilder.WorkerCommit1:
+		pieceInfo, err := sectorbuilder.DecodePieceInfo(task.Pieces)
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+		cids, err := task.Cids.Decode()
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+		out, err := w.sb.SealCommit1(ctx, task.SectorID, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+
+		res.Commit1Out = out
+
+	case sectorbuilder.WorkerCommit2:
+		out, err := w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+
+		if err := w.pushCommit(ctx, task); err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+
+		res.Commit2Out = out
 	}
 
 	return res

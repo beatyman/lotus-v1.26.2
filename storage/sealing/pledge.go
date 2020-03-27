@@ -8,29 +8,17 @@ import (
 	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/go-sectorbuilder/database"
 	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
-	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/gwaylib/errors"
 )
-
-type pledge interface {
-	// Message communication
-	MpoolPushMessage(context.Context, *types.Message) (*types.SignedMessage, error) // get nonce, sign, push
-	StateWaitMsg(context.Context, cid.Cid) (*api.MsgLookup, error)
-
-	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
-}
 
 type Pledge struct {
 	SectorID abi.SectorID
 	Sealing  *Sealing
 
-	Api           pledge
 	SectorBuilder *sectorbuilder.SectorBuilder
 
 	ActAddr    address.Address
@@ -40,6 +28,7 @@ type Pledge struct {
 	Sizes              []abi.UnpaddedPieceSize
 }
 
+// Export the garbage.go#sealing.pledgeSector, so they should have same logic.
 func (g *Pledge) PledgeSector(ctx context.Context) ([]sectorbuilder.Piece, error) {
 	sectorID := g.SectorID
 	sizes := g.Sizes
@@ -71,6 +60,7 @@ func (g *Pledge) PledgeSector(ctx context.Context) ([]sectorbuilder.Piece, error
 	return out, nil
 }
 
+// export Sealing.PledgeSector for remote worker for calling.
 func (m *Sealing) PledgeRemoteSector() error {
 	ctx := context.TODO() // we can't use the context from command which invokes
 	// this, as we run everything here async, and it's cancelled when the
@@ -86,20 +76,17 @@ func (m *Sealing) PledgeRemoteSector() error {
 	if err != nil {
 		return errors.As(err)
 	}
-	if err := m.sealer.NewSector(ctx, m.minerSector(sid)); err != nil {
+	sectorID := m.minerSector(sid)
+	if err := m.sealer.NewSector(ctx, sectorID); err != nil {
 		return errors.As(err)
 	}
 
-	pieces, err := m.PledgeSector(sid, []uint64{size}, func(sidIn uint64, sizes []uint64) (*sectorbuilder.WorkerCfg, []sectorbuilder.Piece, error) {
-		// local pledge no need workerid
-		ps, err := m.pledgeLocalSector(ctx, sidIn, []uint64{}, size)
-		return &sectorbuilder.WorkerCfg{}, ps, err
-	})
+	pieces, err := m.sealer.(*sectorbuilder.SectorBuilder).PledgeSector(sectorID, []abi.UnpaddedPieceSize{size})
 	if err != nil {
 		return errors.As(err)
 	}
 
-	if err := m.newSector(context.TODO(), sid, pieces[0].GetDealID(), pieces[0].PPI()); err != nil {
+	if err := m.newSector(sid, rt, pieces); err != nil {
 		return errors.As(err)
 	}
 	return nil
@@ -131,8 +118,10 @@ func (m *Sealing) RunPledgeSector() error {
 	}
 	pledgeRunning = true
 
+	sb := m.sealer.(*sectorbuilder.SectorBuilder)
+
 	// if task has consumed, auto do the next pledge.
-	m.sb.SetAddPieceListener(func(t sectorbuilder.WorkerTask) {
+	sb.SetAddPieceListener(func(t sectorbuilder.WorkerTask) {
 		// success consume
 		m.addConsumeTask()
 	})
@@ -143,7 +132,7 @@ func (m *Sealing) RunPledgeSector() error {
 	go func() {
 		defer func() {
 			pledgeRunning = false
-			m.sb.SetAddPieceListener(nil)
+			sb.SetAddPieceListener(nil)
 			gcTimer.Stop()
 			log.Info("Pledge daemon exited.")
 
@@ -167,14 +156,14 @@ func (m *Sealing) RunPledgeSector() error {
 				// just replenish
 				m.addConsumeTask()
 			case <-taskConsumed:
-				stats := m.sb.WorkerStats()
+				stats := sb.WorkerStats()
 				// not accurate, if missing the taskConsumed event, it should replenish in gcTime.
 				if stats.AddPieceWait > 0 {
 					continue
 				}
 				go func() {
 					// daemon check
-					if err := m.pledgeSector(); err != nil {
+					if err := m.PledgeRemoteSector(); err != nil {
 						if errors.ErrNoData.Equal(err) {
 							log.Error("No storage to allocate")
 						} else {
