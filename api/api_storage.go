@@ -8,7 +8,10 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
+	"github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/go-sectorbuilder/database"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-actors/actors/crypto"
 
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/storage/sectorstorage/stores"
@@ -127,6 +130,33 @@ type StorageMiner interface {
 	DealsList(ctx context.Context) ([]storagemarket.StorageDeal, error)
 
 	StorageAddLocal(ctx context.Context, path string) error
+
+	// implements by hlm
+	RunPledgeSector(context.Context) error
+	StatusPledgeSector(context.Context) (int, error)
+	StopPledgeSector(context.Context) error
+
+	// Message communication
+	MpoolPushMessage(context.Context, *types.Message) (*types.SignedMessage, error) // get nonce, sign, push
+	StateWaitMsg(context.Context, cid.Cid) (*MsgLookup, error)
+	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
+
+	SectorsListAll(context.Context) ([]SectorInfo, error)
+	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)
+	WorkerStatsAll(ctx context.Context) ([]sectorbuilder.WorkerRemoteStats, error)
+	WorkerQueue(context.Context, sectorbuilder.WorkerCfg) (<-chan sectorbuilder.WorkerTask, error)
+	WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error)
+	WorkerPushing(ctx context.Context, taskKey string) error
+	WorkerDone(ctx context.Context, res sectorbuilder.SealRes) error
+	WorkerDisable(ctx context.Context, wid string, disable bool) error
+
+	//Storage
+	AddStorage(ctx context.Context, sInfo database.StorageInfo) error
+	DisableStorage(ctx context.Context, id int64) error
+	MountStorage(ctx context.Context, id int64) error
+	UMountStorage(ctx context.Context, id int64) error
+	RelinkStorage(ctx context.Context, id int64) error
+	ScaleStorage(ctx context.Context, id int64, size int64, work int64) error
 }
 
 type SealRes struct {

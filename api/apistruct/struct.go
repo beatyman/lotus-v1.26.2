@@ -10,6 +10,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/go-sectorbuilder/database"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
@@ -199,6 +200,31 @@ type StorageMinerStruct struct {
 		DealsList       func(ctx context.Context) ([]storagemarket.StorageDeal, error)    `perm:"read"`
 
 		StorageAddLocal func(ctx context.Context, path string) error `perm:"admin"`
+
+		// implements by hlm
+		// Message communication
+		MpoolPushMessage func(context.Context, *types.Message) (*types.SignedMessage, error)       `perm:"write"`
+		StateWaitMsg     func(context.Context, cid.Cid) (*api.MsgLookup, error)                    `perm:"read"`
+		WalletSign       func(context.Context, address.Address, []byte) (*crypto.Signature, error) `perm:"sign"`
+
+		RunPledgeSector    func(context.Context) error                                                                     `perm:"write"`
+		StatusPledgeSector func(context.Context) (int, error)                                                              `perm:"read"`
+		StopPledgeSector   func(context.Context) error                                                                     `perm:"write"`
+		SectorsListAll     func(context.Context) ([]api.SectorInfo, error)                                                 `perm:"read"`
+		WorkerAddress      func(context.Context, address.Address, types.TipSetKey) (address.Address, error)                `perm:"read"`
+		WorkerStatsAll     func(context.Context) ([]sectorbuilder.WorkerRemoteStats, error)                                `perm:"read"`
+		WorkerQueue        func(ctx context.Context, cfg sectorbuilder.WorkerCfg) (<-chan sectorbuilder.WorkerTask, error) `perm:"admin"` // TODO: worker perm
+		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)                     `perm:"read"`
+		WorkerPushing      func(ctx context.Context, taskKey string) error                                                 `perm:"write"`
+		WorkerDone         func(ctx context.Context, res sectorbuilder.SealRes) error                                      `perm:"admin"`
+		WorkerDisable      func(ctx context.Context, wid string, disable bool) error                                       `perm:"write"`
+
+		AddStorage     func(ctx context.Context, sInfo database.StorageInfo) error       `perm:"write"`
+		DisableStorage func(ctx context.Context, id int64) error                         `perm:"write"`
+		MountStorage   func(ctx context.Context, id int64) error                         `perm:"write"`
+		UMountStorage  func(ctx context.Context, id int64) error                         `perm:"write"`
+		RelinkStorage  func(ctx context.Context, id int64) error                         `perm:"write"`
+		ScaleStorage   func(ctx context.Context, id int64, size int64, work int64) error `perm:"write"`
 	}
 }
 
@@ -770,6 +796,74 @@ func (w *WorkerStruct) SealCommit2(ctx context.Context, sector abi.SectorID, c1o
 func (w *WorkerStruct) FinalizeSector(ctx context.Context, sector abi.SectorID) error {
 	return w.Internal.FinalizeSector(ctx, sector)
 }
+
+// implements by hlm start
+func (c *StorageMinerStruct) MpoolPushMessage(ctx context.Context, msg *types.Message) (*types.SignedMessage, error) {
+	return c.Internal.MpoolPushMessage(ctx, msg)
+}
+func (c *StorageMinerStruct) StateWaitMsg(ctx context.Context, msgc cid.Cid) (*api.MsgLookup, error) {
+	return c.Internal.StateWaitMsg(ctx, msgc)
+}
+func (c *StorageMinerStruct) WalletSign(ctx context.Context, k address.Address, msg []byte) (*crypto.Signature, error) {
+	return c.Internal.WalletSign(ctx, k, msg)
+}
+
+func (c *StorageMinerStruct) RunPledgeSector(ctx context.Context) error {
+	return c.Internal.RunPledgeSector(ctx)
+}
+func (c *StorageMinerStruct) StatusPledgeSector(ctx context.Context) (int, error) {
+	return c.Internal.StatusPledgeSector(ctx)
+}
+func (c *StorageMinerStruct) StopPledgeSector(ctx context.Context) error {
+	return c.Internal.StopPledgeSector(ctx)
+}
+
+func (c *StorageMinerStruct) SectorsListAll(ctx context.Context) ([]api.SectorInfo, error) {
+	return c.Internal.SectorsListAll(ctx)
+}
+func (c *StorageMinerStruct) WorkerAddress(ctx context.Context, act address.Address, tsk types.TipSetKey) (address.Address, error) {
+	return c.Internal.WorkerAddress(ctx, act, tsk)
+}
+func (c *StorageMinerStruct) WorkerStatsAll(ctx context.Context) ([]sectorbuilder.WorkerRemoteStats, error) {
+	return c.Internal.WorkerStatsAll(ctx)
+}
+func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg sectorbuilder.WorkerCfg) (<-chan sectorbuilder.WorkerTask, error) {
+	return c.Internal.WorkerQueue(ctx, cfg)
+}
+func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
+	return c.Internal.WorkerWorking(ctx, workerId)
+}
+func (c *StorageMinerStruct) WorkerPushing(ctx context.Context, taskKey string) error {
+	return c.Internal.WorkerPushing(ctx, taskKey)
+}
+func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res sectorbuilder.SealRes) error {
+	return c.Internal.WorkerDone(ctx, res)
+}
+func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disable bool) error {
+	return c.Internal.WorkerDisable(ctx, wid, disable)
+}
+
+func (c *StorageMinerStruct) AddStorage(ctx context.Context, sInfo database.StorageInfo) error {
+	return c.Internal.AddStorage(ctx, sInfo)
+}
+func (c *StorageMinerStruct) DisableStorage(ctx context.Context, id int64) error {
+	return c.Internal.DisableStorage(ctx, id)
+}
+func (c *StorageMinerStruct) MountStorage(ctx context.Context, id int64) error {
+	return c.Internal.MountStorage(ctx, id)
+}
+func (c *StorageMinerStruct) UMountStorage(ctx context.Context, id int64) error {
+	return c.Internal.UMountStorage(ctx, id)
+}
+func (c *StorageMinerStruct) RelinkStorage(ctx context.Context, id int64) error {
+	return c.Internal.RelinkStorage(ctx, id)
+}
+
+func (c *StorageMinerStruct) ScaleStorage(ctx context.Context, id int64, size int64, work int64) error {
+	return c.Internal.ScaleStorage(ctx, id, size, work)
+}
+
+// implements by hlm end
 
 var _ api.Common = &CommonStruct{}
 var _ api.FullNode = &FullNodeStruct{}
