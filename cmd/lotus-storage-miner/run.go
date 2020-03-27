@@ -25,6 +25,9 @@ import (
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
+
+	"github.com/filecoin-project/go-sectorbuilder/database"
+	"github.com/gwaylib/errors"
 )
 
 var runCmd = &cli.Command{
@@ -93,6 +96,12 @@ var runCmd = &cli.Command{
 		}
 		if !ok {
 			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-storage-miner init' to set it up", storageRepoPath)
+		}
+
+		// init storage database
+		database.InitDB(storageRepoPath)
+		if err := database.MountAllStorage(); err != nil {
+			return errors.As(err)
 		}
 
 		var minerapi api.StorageMiner

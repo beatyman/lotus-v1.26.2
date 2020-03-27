@@ -45,6 +45,8 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealing"
 	"github.com/filecoin-project/lotus/storage/sectorstorage"
 	"github.com/filecoin-project/lotus/storage/sectorstorage/stores"
+
+	"github.com/gwaylib/errors"
 )
 
 var initCmd = &cli.Command{
@@ -135,6 +137,14 @@ var initCmd = &cli.Command{
 		log.Info("Checking if repo exists")
 
 		repoPath := cctx.String(FlagStorageRepo)
+		if _, err := os.Stat(repoPath); err != nil {
+			if !os.IsNotExist(err) {
+				return errors.As(err, repoPath)
+			}
+			if err := os.MkdirAll(repoPath, 0755); err != nil {
+				return errors.As(err)
+			}
+		}
 		r, err := repo.NewFS(repoPath)
 		if err != nil {
 			return err
@@ -273,7 +283,7 @@ func migratePreSealMeta(ctx context.Context, api lapi.FullNode, metadata string,
 		info := &sealing.SectorInfo{
 			State:    lapi.Proving,
 			SectorID: sector.SectorID,
-			Pieces: []sealing.Piece{
+			Pieces: []sectorbuilder.Piece{
 				{
 					DealID: &dealID,
 					Size:   abi.PaddedPieceSize(meta.SectorSize).Unpadded(),

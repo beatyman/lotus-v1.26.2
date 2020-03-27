@@ -151,12 +151,12 @@ type StorageMiner interface {
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 
 	//Storage
-	AddStorage(ctx context.Context, sInfo database.StorageInfo) error
-	DisableStorage(ctx context.Context, id int64) error
-	MountStorage(ctx context.Context, id int64) error
-	UMountStorage(ctx context.Context, id int64) error
-	RelinkStorage(ctx context.Context, id int64) error
-	ScaleStorage(ctx context.Context, id int64, size int64, work int64) error
+	AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error
+	DisableHLMStorage(ctx context.Context, id int64) error
+	MountHLMStorage(ctx context.Context, id int64) error
+	UMountHLMStorage(ctx context.Context, id int64) error
+	RelinkHLMStorage(ctx context.Context, id int64) error
+	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
 }
 
 type SealRes struct {

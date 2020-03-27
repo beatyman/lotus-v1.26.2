@@ -40,3 +40,16 @@ func (m *Miner) PledgeSector() error {
 func (m *Miner) ForceSectorState(ctx context.Context, id abi.SectorNumber, state api.SectorState) error {
 	return m.sealing.ForceSectorState(ctx, id, state)
 }
+
+// implements by hlm start
+func (m *Miner) RunPledgeSector() error {
+	return m.sealing.RunPledgeSector()
+}
+func (m *Miner) StatusPledgeSector() (int, error) {
+	return m.sealing.StatusPledgeSector()
+}
+func (m *Miner) ExitPledgeSector() error {
+	return m.sealing.ExitPledgeSector()
+}
+
+// implements by hlm end

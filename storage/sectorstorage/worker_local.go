@@ -63,6 +63,17 @@ type localWorkerPathProvider struct {
 	w *LocalWorker
 }
 
+func (l *localWorkerPathProvider) RepoPath() string {
+	paths, err := l.w.localStore.Local(context.TODO())
+	if err != nil {
+		panic(err)
+	}
+	for _, p := range paths {
+		return p.LocalPath
+	}
+	panic("No RepoPath")
+}
+
 func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector abi.SectorID, existing sectorbuilder.SectorFileType, allocate sectorbuilder.SectorFileType, sealing bool) (sectorbuilder.SectorPaths, func(), error) {
 	paths, storageIDs, done, err := l.w.storage.AcquireSector(ctx, sector, existing, allocate, sealing)
 	if err != nil {

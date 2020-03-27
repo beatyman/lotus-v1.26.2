@@ -31,6 +31,11 @@ func main() {
 		storageCmd,
 		setPriceCmd,
 		workersCmd,
+
+		// implement by hlm
+		hlmStorageCmd,
+		hlmWorkerCmd,
+		hlmFaucetCmd,
 	}
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {

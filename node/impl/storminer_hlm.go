@@ -63,7 +63,7 @@ func (sm *StorageMinerAPI) StatusPledgeSector(ctx context.Context) (int, error) 
 	return sm.Miner.StatusPledgeSector()
 }
 func (sm *StorageMinerAPI) StopPledgeSector(ctx context.Context) error {
-	return sm.Miner.StopPledgeSector()
+	return sm.Miner.ExitPledgeSector()
 }
 
 // Message communication
@@ -117,23 +117,23 @@ func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res sectorbuilder.Sea
 func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return sm.SectorBuilder.DisableWorker(ctx, wid, disable)
 }
-func (sm *StorageMinerAPI) AddStorage(ctx context.Context, sInfo database.StorageInfo) error {
+func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
 	return sm.SectorBuilder.AddStorage(ctx, sInfo)
 }
-func (sm *StorageMinerAPI) DisableStorage(ctx context.Context, id int64) error {
+func (sm *StorageMinerAPI) DisableHLMStorage(ctx context.Context, id int64) error {
 	return sm.SectorBuilder.DisableStorage(ctx, id)
 }
-func (sm *StorageMinerAPI) MountStorage(ctx context.Context, id int64) error {
+func (sm *StorageMinerAPI) MountHLMStorage(ctx context.Context, id int64) error {
 	return sm.SectorBuilder.MountStorage(ctx, id)
 }
 
-func (sm *StorageMinerAPI) UMountStorage(ctx context.Context, id int64) error {
+func (sm *StorageMinerAPI) UMountHLMStorage(ctx context.Context, id int64) error {
 	return sm.SectorBuilder.UMountStorage(ctx, id)
 }
 
-func (sm *StorageMinerAPI) RelinkStorage(ctx context.Context, id int64) error {
+func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return sm.SectorBuilder.RelinkStorage(ctx, id)
 }
-func (sm *StorageMinerAPI) ScaleStorage(ctx context.Context, id int64, size int64, work int64) error {
+func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return sm.SectorBuilder.ScaleStorage(ctx, id, size, work)
 }
