@@ -26,7 +26,7 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 
-	"github.com/filecoin-project/go-sectorbuilder/database"
+	"github.com/filecoin-project/sector-storage/database"
 	"github.com/gwaylib/errors"
 )
 

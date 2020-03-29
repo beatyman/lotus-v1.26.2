@@ -7,8 +7,8 @@ import (
 
 	"gopkg.in/urfave/cli.v2"
 
-	"github.com/filecoin-project/go-sectorbuilder/database"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/sector-storage/database"
 )
 
 var hlmStorageCmd = &cli.Command{

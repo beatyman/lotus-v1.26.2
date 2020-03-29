@@ -122,4 +122,4 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 replace github.com/coreos/go-systemd => github.com/coreos/go-systemd/v22 v22.0.0
 
-replace github.com/filecoin-project/go-sectorbuilder => git.grandhelmsman.com/filecoin-project/go-sectorbuilder v0.0.0-20200329021203-78694e35eb21
+replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200329143827-f41f7a3c2d40

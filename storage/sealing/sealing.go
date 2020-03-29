@@ -2,11 +2,10 @@ package sealing
 
 import (
 	"context"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"io"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
@@ -77,7 +76,7 @@ type Sealing struct {
 	sc      SectorIDCounter
 }
 
-func NewSealPiece(maddr address.Address, worker address.Address, sealer *sectorbuilder.SectorBuilder) *Sealing {
+func NewSealPiece(maddr address.Address, worker address.Address, sealer *ffiwrapper.Sealer) *Sealing {
 	s := &Sealing{
 		maddr:  maddr,
 		worker: worker,
@@ -147,7 +146,7 @@ func (m *Sealing) SealPiece(ctx context.Context, size abi.UnpaddedPieceSize, r i
 		return xerrors.Errorf("bad sector size: %w", err)
 	}
 
-	return m.newSector(sectorID, rt, []sectorbuilder.Piece{
+	return m.newSector(sectorID, rt, []ffiwrapper.Piece{
 		{
 			DealID: &dealID,
 
@@ -157,7 +156,7 @@ func (m *Sealing) SealPiece(ctx context.Context, size abi.UnpaddedPieceSize, r i
 	})
 }
 
-func (m *Sealing) newSector(sid abi.SectorNumber, rt abi.RegisteredProof, pieces []sectorbuilder.Piece) error {
+func (m *Sealing) newSector(sid abi.SectorNumber, rt abi.RegisteredProof, pieces []ffiwrapper.Piece) error {
 	log.Infof("Start sealing %d", sid)
 	return m.sectors.Send(uint64(sid), SectorStart{
 		ID:         sid,

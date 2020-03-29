@@ -8,8 +8,8 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
-	"github.com/filecoin-project/go-sectorbuilder"
-	"github.com/filecoin-project/go-sectorbuilder/database"
+	"github.com/filecoin-project/sector-storage/database"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 
@@ -144,11 +144,11 @@ type StorageMiner interface {
 
 	SectorsListAll(context.Context) ([]SectorInfo, error)
 	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)
-	WorkerStatsAll(ctx context.Context) ([]sectorbuilder.WorkerRemoteStats, error)
-	WorkerQueue(context.Context, sectorbuilder.WorkerCfg) (<-chan sectorbuilder.WorkerTask, error)
+	WorkerStatsAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error)
+	WorkerQueue(context.Context, ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error)
 	WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error)
 	WorkerPushing(ctx context.Context, taskKey string) error
-	WorkerDone(ctx context.Context, res sectorbuilder.SealRes) error
+	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 
 	//Storage

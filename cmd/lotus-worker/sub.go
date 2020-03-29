@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/go-sectorbuilder"
-	"github.com/filecoin-project/go-sectorbuilder/database"
+	"github.com/filecoin-project/sector-storage/database"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 
 	"github.com/filecoin-project/lotus/storage/sealing"
 	"github.com/gwaylib/errors"
@@ -26,16 +26,16 @@ type worker struct {
 	actAddr    address.Address
 	workerAddr address.Address
 
-	sb        *sectorbuilder.SectorBuilder
-	sealedSB  *sectorbuilder.SectorBuilder
-	workerCfg sectorbuilder.WorkerCfg
+	sb        *ffiwrapper.Sealer
+	sealedSB  *ffiwrapper.Sealer
+	workerCfg ffiwrapper.WorkerCfg
 
 	workMu sync.Mutex
-	workOn map[string]sectorbuilder.WorkerTask // task key
+	workOn map[string]ffiwrapper.WorkerTask // task key
 }
 
 func acceptJobs(ctx context.Context,
-	sb, sealedSB *sectorbuilder.SectorBuilder,
+	sb, sealedSB *ffiwrapper.Sealer,
 	act, workerAddr address.Address,
 	endpoint string, auth http.Header,
 	repo, sealedRepo string,
@@ -43,7 +43,7 @@ func acceptJobs(ctx context.Context,
 	workerId := GetWorkerID(repo)
 	netIp := os.Getenv("NETIP")
 
-	workerCfg := sectorbuilder.WorkerCfg{
+	workerCfg := ffiwrapper.WorkerCfg{
 		ID: workerId,
 		IP: netIp,
 	}
@@ -60,7 +60,7 @@ func acceptJobs(ctx context.Context,
 		workerAddr: workerAddr,
 		sealedSB:   sealedSB,
 		workerCfg:  workerCfg,
-		workOn:     map[string]sectorbuilder.WorkerTask{},
+		workOn:     map[string]ffiwrapper.WorkerTask{},
 	}
 
 	api, err := GetNodeApi()
@@ -87,7 +87,7 @@ loop:
 			}
 		case task := <-tasks:
 			log.Infof("New task: %s, sector %s, action: %d", task.Key(), task.GetSectorID(), task.Type)
-			go func(task sectorbuilder.WorkerTask) {
+			go func(task ffiwrapper.WorkerTask) {
 				taskKey := task.Key()
 				w.workMu.Lock()
 				if _, ok := w.workOn[taskKey]; ok {
@@ -124,7 +124,7 @@ loop:
 	return nil
 }
 
-func (w *worker) addPiece(ctx context.Context, task sectorbuilder.WorkerTask) ([]sectorbuilder.Piece, error) {
+func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]ffiwrapper.Piece, error) {
 	sizes := task.PieceSizes
 
 	s := sealing.NewSealPiece(w.actAddr, w.workerAddr, w.sb)
@@ -216,7 +216,7 @@ func (w *worker) cleanCache(ctx context.Context) error {
 	return nil
 }
 
-func (w *worker) pushCache(ctx context.Context, task sectorbuilder.WorkerTask) error {
+func (w *worker) pushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
 	log.Infof("pushCache:%+v", task.GetSectorID())
 	defer log.Infof("pushCache done:%+v", task.GetSectorID())
 	ss := task.SectorStorage
@@ -237,11 +237,11 @@ func (w *worker) pushCache(ctx context.Context, task sectorbuilder.WorkerTask) e
 		return errors.As(err)
 	}
 	// "sealed" is created during previous step
-	if err := w.push(ctx, "sealed", sectorbuilder.SectorName(task.SectorID)); err != nil {
+	if err := w.push(ctx, "sealed", ffiwrapper.SectorName(task.SectorID)); err != nil {
 		return errors.As(err)
 	}
 
-	if err := w.push(ctx, "cache", sectorbuilder.SectorName(task.SectorID)); err != nil {
+	if err := w.push(ctx, "cache", ffiwrapper.SectorName(task.SectorID)); err != nil {
 		return errors.As(err)
 	}
 
@@ -252,11 +252,11 @@ func (w *worker) pushCache(ctx context.Context, task sectorbuilder.WorkerTask) e
 
 }
 
-func (w *worker) pushCommit(ctx context.Context, task sectorbuilder.WorkerTask) error {
+func (w *worker) pushCommit(ctx context.Context, task ffiwrapper.WorkerTask) error {
 repush:
 	select {
 	case <-ctx.Done():
-		return sectorbuilder.ErrWorkerExit.As(task)
+		return ffiwrapper.ErrWorkerExit.As(task)
 	default:
 		api, err := GetNodeApi()
 		if err != nil {
@@ -286,7 +286,7 @@ repush:
 	return nil
 }
 
-func (w *worker) workerDone(ctx context.Context, task sectorbuilder.WorkerTask, res sectorbuilder.SealRes) {
+func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res ffiwrapper.SealRes) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -318,13 +318,13 @@ func (w *worker) workerDone(ctx context.Context, task sectorbuilder.WorkerTask, 
 	}
 }
 
-func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask) sectorbuilder.SealRes {
+func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ffiwrapper.SealRes {
 	switch task.Type {
-	case sectorbuilder.WorkerAddPiece:
-	case sectorbuilder.WorkerPreCommit1:
-	case sectorbuilder.WorkerPreCommit2:
-	case sectorbuilder.WorkerCommit1:
-	case sectorbuilder.WorkerCommit2:
+	case ffiwrapper.WorkerAddPiece:
+	case ffiwrapper.WorkerPreCommit1:
+	case ffiwrapper.WorkerPreCommit2:
+	case ffiwrapper.WorkerCommit1:
+	case ffiwrapper.WorkerCommit2:
 	default:
 		return errRes(errors.New("unknown task type").As(task.Type, w.workerCfg), task)
 	}
@@ -335,14 +335,14 @@ func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask)
 	//
 	// log.Infof("Data fetched, starting computation")
 
-	res := sectorbuilder.SealRes{
+	res := ffiwrapper.SealRes{
 		Type:      task.Type,
 		TaskID:    task.Key(),
 		WorkerCfg: w.workerCfg,
 	}
 
 	switch task.Type {
-	case sectorbuilder.WorkerAddPiece:
+	case ffiwrapper.WorkerAddPiece:
 		// keep cache clean, the task will lock the cache.
 		if err := w.cleanCache(ctx); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
@@ -358,7 +358,7 @@ func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask)
 		// }
 		res.Pieces = rsp
 
-	case sectorbuilder.WorkerPreCommit1:
+	case ffiwrapper.WorkerPreCommit1:
 		// checking staging data
 		stagedFile := filepath.Join(w.repo, "staging", w.sb.SectorName(task.SectorID))
 		if _, err := os.Lstat(stagedFile); err != nil {
@@ -370,11 +370,11 @@ func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask)
 			// not found local staging data, try fetch
 			if err := w.fetchSector(task.SectorID, task.Type); err != nil {
 				// return the err task not found and drop it.
-				return errRes(sectorbuilder.ErrTaskNotFound.As(err, task), task)
+				return errRes(ffiwrapper.ErrTaskNotFound.As(err, task), task)
 			}
 			// pass
 		}
-		pieceInfo, err := sectorbuilder.DecodePieceInfo(task.Pieces)
+		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
@@ -383,7 +383,7 @@ func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask)
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 		res.PreCommit1Out = rspco
-	case sectorbuilder.WorkerPreCommit2:
+	case ffiwrapper.WorkerPreCommit2:
 		out, err := w.sb.SealPreCommit2(ctx, task.SectorID, task.PreCommit1Out)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
@@ -393,12 +393,12 @@ func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask)
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 
-		res.PreCommit2Out = sectorbuilder.SectorCids{
+		res.PreCommit2Out = ffiwrapper.SectorCids{
 			Unsealed: out.Unsealed.String(),
 			Sealed:   out.Sealed.String(),
 		}
-	case sectorbuilder.WorkerCommit1:
-		pieceInfo, err := sectorbuilder.DecodePieceInfo(task.Pieces)
+	case ffiwrapper.WorkerCommit1:
+		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
@@ -413,7 +413,7 @@ func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask)
 
 		res.Commit1Out = out
 
-	case sectorbuilder.WorkerCommit2:
+	case ffiwrapper.WorkerCommit2:
 		out, err := w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
@@ -429,13 +429,13 @@ func (w *worker) processTask(ctx context.Context, task sectorbuilder.WorkerTask)
 	return res
 }
 
-func errRes(err error, task sectorbuilder.WorkerTask) sectorbuilder.SealRes {
-	return sectorbuilder.SealRes{
+func errRes(err error, task ffiwrapper.WorkerTask) ffiwrapper.SealRes {
+	return ffiwrapper.SealRes{
 		Type:   task.Type,
 		TaskID: task.Key(),
 		Err:    err.Error(),
 		GoErr:  err,
-		WorkerCfg: sectorbuilder.WorkerCfg{
+		WorkerCfg: ffiwrapper.WorkerCfg{
 			//
 			ID: task.WorkerID,
 		},
