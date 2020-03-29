@@ -116,17 +116,27 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, cfg
 
 	go m.runSched()
 
-	localTasks := []sealtasks.TaskType{
-		sealtasks.TTAddPiece, sealtasks.TTCommit1, sealtasks.TTFinalize,
+	localTasks := []sealtasks.TaskType{}
+	if !sc.RemoteMode && sc.AllowAddPiece {
+		localTasks = append(localTasks, sealtasks.TTAddPiece)
 	}
-	if sc.AllowPreCommit1 {
+	if !sc.RemoteMode && sc.AllowPreCommit1 {
 		localTasks = append(localTasks, sealtasks.TTPreCommit1)
 	}
-	if sc.AllowPreCommit2 {
+	if !sc.RemoteMode && sc.AllowPreCommit2 {
 		localTasks = append(localTasks, sealtasks.TTPreCommit2)
 	}
-	if sc.AllowCommit {
+	if !sc.RemoteMode && sc.AllowCommit1 {
+		localTasks = append(localTasks, sealtasks.TTCommit1)
+	}
+	if !sc.RemoteMode && sc.AllowCommit2 {
 		localTasks = append(localTasks, sealtasks.TTCommit2)
+	}
+	if !sc.RemoteMode && sc.AllowFinalize {
+		localTasks = append(localTasks, sealtasks.TTFinalize)
+	}
+	if !sc.RemoteMode && sc.AllowEpost {
+		localTasks = append(localTasks, sealtasks.TTEpost)
 	}
 
 	err = m.AddWorker(ctx, NewLocalWorker(WorkerConfig{

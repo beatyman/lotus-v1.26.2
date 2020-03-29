@@ -54,9 +54,15 @@ type Metrics struct {
 // // Storage Miner
 type Storage struct {
 	// Local worker config
+	AllowAddPiece   bool
 	AllowPreCommit1 bool
 	AllowPreCommit2 bool
-	AllowCommit bool
+	AllowCommit1    bool
+	AllowCommit2    bool
+	AllowFinalize   bool
+	AllowEpost      bool
+
+	RemoteMode bool
 }
 
 func defCommon() Common {
@@ -91,9 +97,13 @@ func DefaultStorageMiner() *StorageMiner {
 		Common: defCommon(),
 
 		Storage: Storage{
+			AllowAddPiece:   true,
 			AllowPreCommit1: true,
 			AllowPreCommit2: true,
-			AllowCommit:     true,
+			AllowCommit1:    true,
+			AllowCommit2:    true,
+			AllowFinalize:   true,
+			AllowEpost:      true,
 		},
 	}
 	cfg.Common.API.ListenAddress = "/ip4/127.0.0.1/tcp/2345/http"

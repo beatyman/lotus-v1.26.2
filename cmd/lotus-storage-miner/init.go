@@ -417,7 +417,15 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 			smgr, err := sectorstorage.New(ctx, lr, stores.NewIndex(), &sectorbuilder.Config{
 				SealProofType: spt,
 				PoStProofType: ppt,
-			}, config.Storage{true, true, true}, nil, api)
+			}, config.Storage{
+				AllowAddPiece:   true,
+				AllowPreCommit1: true,
+				AllowPreCommit2: true,
+				AllowCommit1:    true,
+				AllowCommit2:    true,
+				AllowFinalize:   true,
+				AllowEpost:      true,
+			}, nil, api)
 			if err != nil {
 				return err
 			}
