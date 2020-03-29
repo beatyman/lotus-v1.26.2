@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/lotus/node/modules"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -23,7 +24,6 @@ import (
 	"github.com/filecoin-project/go-address"
 	cborutil "github.com/filecoin-project/go-cbor-util"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
-	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/market"
@@ -38,13 +38,13 @@ import (
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/genesis"
 	"github.com/filecoin-project/lotus/miner"
-	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
 	"github.com/filecoin-project/lotus/storage/sealing"
-	"github.com/filecoin-project/lotus/storage/sectorstorage"
-	"github.com/filecoin-project/lotus/storage/sectorstorage/stores"
+	"github.com/filecoin-project/sector-storage"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/sector-storage/stores"
 
 	"github.com/gwaylib/errors"
 )
@@ -181,7 +181,7 @@ var initCmd = &cli.Command{
 				return err
 			}
 
-			var localPaths []config.LocalPath
+			var localPaths []stores.LocalPath
 
 			if pssb := cctx.StringSlice("pre-sealed-sectors"); len(pssb) != 0 {
 				log.Infof("Setting up storage config with presealed sectors: %v", pssb)
@@ -191,7 +191,7 @@ var initCmd = &cli.Command{
 					if err != nil {
 						return err
 					}
-					localPaths = append(localPaths, config.LocalPath{
+					localPaths = append(localPaths, stores.LocalPath{
 						Path: psp,
 					})
 				}
@@ -212,12 +212,12 @@ var initCmd = &cli.Command{
 					return xerrors.Errorf("persisting storage metadata (%s): %w", filepath.Join(lr.Path(), "sectorstore.json"), err)
 				}
 
-				localPaths = append(localPaths, config.LocalPath{
+				localPaths = append(localPaths, stores.LocalPath{
 					Path: lr.Path(),
 				})
 			}
 
-			if err := lr.SetStorage(func(sc *config.StorageConfig) {
+			if err := lr.SetStorage(func(sc *stores.StorageConfig) {
 				sc.StoragePaths = append(sc.StoragePaths, localPaths...)
 			}); err != nil {
 				return xerrors.Errorf("set storage config: %w", err)
@@ -404,7 +404,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 				return err
 			}
 
-			ppt, spt, err := lapi.ProofTypeFromSectorSize(ssize)
+			ppt, spt, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
 			if err != nil {
 				return err
 			}
@@ -414,10 +414,15 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 				return xerrors.Errorf("getting id address: %w", err)
 			}
 
-			smgr, err := sectorstorage.New(ctx, lr, stores.NewIndex(), &sectorbuilder.Config{
+			sa, err := modules.StorageAuth(ctx, api)
+			if err != nil {
+				return err
+			}
+
+			smgr, err := sectorstorage.New(ctx, lr, stores.NewIndex(), &ffiwrapper.Config{
 				SealProofType: spt,
 				PoStProofType: ppt,
-			}, config.Storage{
+			}, sectorstorage.SeallerConfig{
 				AllowAddPiece:   true,
 				AllowPreCommit1: true,
 				AllowPreCommit2: true,
@@ -425,7 +430,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 				AllowCommit2:    true,
 				AllowFinalize:   true,
 				AllowEpost:      true,
-			}, nil, api)
+			}, nil, sa)
 			if err != nil {
 				return err
 			}

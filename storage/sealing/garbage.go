@@ -2,6 +2,7 @@ package sealing
 
 import (
 	"context"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"io"
 
 	"golang.org/x/xerrors"
@@ -9,7 +10,6 @@ import (
 	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
-	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/lib/nullreader"
 )
 
@@ -50,7 +50,7 @@ func (m *Sealing) PledgeSector() error {
 
 		size := abi.PaddedPieceSize(m.sealer.SectorSize()).Unpadded()
 
-		_, rt, err := api.ProofTypeFromSectorSize(m.sealer.SectorSize())
+		_, rt, err := ffiwrapper.ProofTypeFromSectorSize(m.sealer.SectorSize())
 		if err != nil {
 			log.Error(err)
 			return

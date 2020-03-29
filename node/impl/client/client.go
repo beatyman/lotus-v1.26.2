@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"io"
 	"os"
 
@@ -83,7 +84,7 @@ func (a *API) ClientStartDeal(ctx context.Context, params *api.StartDealParams) 
 		return nil, xerrors.Errorf("failed checking miners sector size: %w", err)
 	}
 
-	rt, _, err := api.ProofTypeFromSectorSize(ssize)
+	rt, _, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
 	if err != nil {
 		return nil, xerrors.Errorf("bad sector size: %w", err)
 	}
@@ -131,6 +132,7 @@ func (a *API) ClientListDeals(ctx context.Context) ([]api.DealInfo, error) {
 
 			PricePerEpoch: v.Proposal.StoragePricePerEpoch,
 			Duration:      uint64(v.Proposal.Duration()),
+			DealID:        v.DealID,
 		}
 	}
 
@@ -151,6 +153,7 @@ func (a *API) ClientGetDealInfo(ctx context.Context, d cid.Cid) (*api.DealInfo, 
 		Size:          uint64(v.Proposal.PieceSize.Unpadded()),
 		PricePerEpoch: v.Proposal.StoragePricePerEpoch,
 		Duration:      uint64(v.Proposal.Duration()),
+		DealID:        v.DealID,
 	}, nil
 }
 

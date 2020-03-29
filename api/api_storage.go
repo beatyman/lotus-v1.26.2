@@ -14,7 +14,8 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/storage/sectorstorage/stores"
+	"github.com/filecoin-project/sector-storage"
+	"github.com/filecoin-project/sector-storage/stores"
 )
 
 // alias because cbor-gen doesn't like non-alias types
@@ -117,7 +118,7 @@ type StorageMiner interface {
 
 	// WorkerConnect tells the node to connect to workers RPC
 	WorkerConnect(context.Context, string) error
-	WorkerStats(context.Context) (map[uint64]WorkerStats, error)
+	WorkerStats(context.Context) (map[uint64]sectorstorage.WorkerStats, error)
 
 	stores.SectorIndex
 

@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"net/http"
 	"reflect"
 
 	"github.com/ipfs/go-bitswap"
@@ -33,7 +34,6 @@ import (
 	smnet "github.com/filecoin-project/go-fil-markets/storagemarket/network"
 	"github.com/filecoin-project/go-fil-markets/storedcounter"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
-	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/go-statestore"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
@@ -44,14 +44,14 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/markets/retrievaladapter"
 	"github.com/filecoin-project/lotus/miner"
-	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/helpers"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
 	"github.com/filecoin-project/lotus/storage/sealing"
-	"github.com/filecoin-project/lotus/storage/sectorstorage"
-	"github.com/filecoin-project/lotus/storage/sectorstorage/stores"
+	"github.com/filecoin-project/sector-storage"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/sector-storage/stores"
 )
 
 func minerAddrFromDS(ds dtypes.MetadataDS) (address.Address, error) {
@@ -63,7 +63,7 @@ func minerAddrFromDS(ds dtypes.MetadataDS) (address.Address, error) {
 	return address.NewFromBytes(maddrb)
 }
 
-func GetParams(sbc *sectorbuilder.Config) error {
+func GetParams(sbc *ffiwrapper.Config) error {
 	ssize, err := sbc.SealProofType.SectorSize()
 	if err != nil {
 		return err
@@ -86,18 +86,18 @@ func MinerID(ma dtypes.MinerAddress) (dtypes.MinerID, error) {
 	return dtypes.MinerID(id), err
 }
 
-func SectorBuilderConfig(maddr dtypes.MinerAddress, fnapi lapi.FullNode) (*sectorbuilder.Config, error) {
+func ProofsConfig(maddr dtypes.MinerAddress, fnapi lapi.FullNode) (*ffiwrapper.Config, error) {
 	ssize, err := fnapi.StateMinerSectorSize(context.TODO(), address.Address(maddr), types.EmptyTSK)
 	if err != nil {
 		return nil, err
 	}
 
-	ppt, spt, err := lapi.ProofTypeFromSectorSize(ssize)
+	ppt, spt, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
 	if err != nil {
 		return nil, xerrors.Errorf("bad sector size: %w", err)
 	}
 
-	sb := &sectorbuilder.Config{
+	sb := &ffiwrapper.Config{
 		SealProofType: spt,
 		PoStProofType: ppt,
 	}
@@ -132,7 +132,7 @@ func StorageMiner(mctx helpers.MetricsCtx, lc fx.Lifecycle, api lapi.FullNode, h
 		return nil, err
 	}
 
-	ppt, _, err := lapi.ProofTypeFromSectorSize(sealer.SectorSize())
+	ppt, _, err := ffiwrapper.ProofTypeFromSectorSize(sealer.SectorSize())
 	if err != nil {
 		return nil, xerrors.Errorf("bad sector size: %w", err)
 	}
@@ -320,7 +320,7 @@ func StorageProvider(ctx helpers.MetricsCtx, fapi lapi.FullNode, h host.Host, ds
 		return nil, err
 	}
 
-	rt, _, err := lapi.ProofTypeFromSectorSize(ssize)
+	rt, _, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
 	if err != nil {
 		return nil, err
 	}
@@ -339,10 +339,10 @@ func RetrievalProvider(h host.Host, miner *storage.Miner, sealer sectorstorage.S
 	return retrievalimpl.NewProvider(address, adapter, network, pieceStore, ibs, ds)
 }
 
-func SectorStorage(mctx helpers.MetricsCtx, lc fx.Lifecycle, ls stores.LocalStorage, si stores.SectorIndex, cfg *sectorbuilder.Config, sc config.Storage, urls sectorstorage.URLs, ca lapi.Common) (*sectorstorage.Manager, error) {
+func SectorStorage(mctx helpers.MetricsCtx, lc fx.Lifecycle, ls stores.LocalStorage, si stores.SectorIndex, cfg *ffiwrapper.Config, sc sectorstorage.SealerConfig, urls sectorstorage.URLs, sa sectorstorage.StorageAuth) (*sectorstorage.Manager, error) {
 	ctx := helpers.LifecycleCtx(mctx, lc)
 
-	sst, err := sectorstorage.New(ctx, ls, si, cfg, sc, urls, ca)
+	sst, err := sectorstorage.New(ctx, ls, si, cfg, sc, urls, sa)
 	if err != nil {
 		return nil, err
 	}
@@ -358,4 +358,15 @@ func SectorStorage(mctx helpers.MetricsCtx, lc fx.Lifecycle, ls stores.LocalStor
 	})
 
 	return sst, nil
+}
+
+func StorageAuth(ctx helpers.MetricsCtx, ca lapi.Common) (sectorstorage.StorageAuth, error) {
+	token, err := ca.AuthNew(ctx, []lapi.Permission{"admin"})
+	if err != nil {
+		return nil, xerrors.Errorf("creating storage auth header: %w", err)
+	}
+
+	headers := http.Header{}
+	headers.Add("Authorization", "Bearer "+string(token))
+	return sectorstorage.StorageAuth(headers), nil
 }

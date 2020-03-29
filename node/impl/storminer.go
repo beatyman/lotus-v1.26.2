@@ -13,7 +13,6 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	storagemarket "github.com/filecoin-project/go-fil-markets/storagemarket"
-	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
 	"github.com/filecoin-project/lotus/api"
@@ -23,15 +22,15 @@ import (
 	"github.com/filecoin-project/lotus/node/impl/common"
 	"github.com/filecoin-project/lotus/storage"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
-	"github.com/filecoin-project/lotus/storage/sectorstorage"
-	"github.com/filecoin-project/lotus/storage/sectorstorage/stores"
+	"github.com/filecoin-project/sector-storage"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/sector-storage/stores"
 )
 
 type StorageMinerAPI struct {
 	common.CommonAPI
 
-	SectorBuilderConfig *sectorbuilder.Config
-	//SectorBuilder       sectorbuilder.Interface
+	ProofsConfig *ffiwrapper.Config
 	SectorBlocks *sectorblocks.SectorBlocks
 
 	StorageProvider storagemarket.StorageProvider
@@ -59,7 +58,7 @@ func (sm *StorageMinerAPI) ServeRemote(w http.ResponseWriter, r *http.Request) {
 	sm.StorageMgr.ServeHTTP(w, r)
 }
 
-func (sm *StorageMinerAPI) WorkerStats(context.Context) (map[uint64]api.WorkerStats, error) {
+func (sm *StorageMinerAPI) WorkerStats(context.Context) (map[uint64]sectorstorage.WorkerStats, error) {
 	return sm.StorageMgr.WorkerStats(), nil
 }
 
@@ -158,7 +157,7 @@ func (sm *StorageMinerAPI) SectorsUpdate(ctx context.Context, id abi.SectorNumbe
 }
 
 func (sm *StorageMinerAPI) WorkerConnect(ctx context.Context, url string) error {
-	w, err := sectorstorage.ConnectRemote(ctx, sm, url)
+	w, err := connectRemoteWorker(ctx, sm, url)
 	if err != nil {
 		return xerrors.Errorf("connecting remote storage failed: %w", err)
 	}
