@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"github.com/filecoin-project/lotus/lib/lotuslog"
+	"github.com/filecoin-project/lotus/storage/mockstorage"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"io/ioutil"
 	"net/http/httptest"
 	"testing"
@@ -18,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/filecoin-project/go-address"
-	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
@@ -41,8 +43,8 @@ import (
 	"github.com/filecoin-project/lotus/node/modules"
 	modtest "github.com/filecoin-project/lotus/node/modules/testing"
 	"github.com/filecoin-project/lotus/node/repo"
-	"github.com/filecoin-project/lotus/storage/sectorstorage"
-	"github.com/filecoin-project/lotus/storage/sectorstorage/mock"
+	"github.com/filecoin-project/sector-storage"
+	"github.com/filecoin-project/sector-storage/mock"
 )
 
 func init() {
@@ -309,7 +311,7 @@ func mockSbBuilder(t *testing.T, nFull int, storage []int) ([]test.TestNode, []t
 		if err != nil {
 			t.Fatal(err)
 		}
-		genm, k, err := mock.PreSeal(2048, maddr, nPreseal)
+		genm, k, err := mockstorage.PreSeal(2048, maddr, nPreseal)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -355,7 +357,7 @@ func mockSbBuilder(t *testing.T, nFull int, storage []int) ([]test.TestNode, []t
 			node.MockHost(mn),
 			node.Test(),
 
-			node.Override(new(sectorbuilder.Verifier), mock.MockVerifier),
+			node.Override(new(ffiwrapper.Verifier), mock.MockVerifier),
 
 			genesis,
 		)
@@ -454,6 +456,7 @@ func TestAPIDealFlowReal(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode")
 	}
+	lotuslog.SetupLogLevels()
 	logging.SetLogLevel("miner", "ERROR")
 	logging.SetLogLevel("chainstore", "ERROR")
 	logging.SetLogLevel("chain", "ERROR")

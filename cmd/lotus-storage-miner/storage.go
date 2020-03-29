@@ -16,12 +16,11 @@ import (
 	"gopkg.in/urfave/cli.v2"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/lotus/storage/sectorstorage/stores"
+	"github.com/filecoin-project/sector-storage/stores"
 )
 
 const metaFile = "sectorstore.json"
@@ -256,17 +255,17 @@ var storageFindCmd = &cli.Command{
 			Number: abi.SectorNumber(snum),
 		}
 
-		u, err := nodeApi.StorageFindSector(ctx, sid, sectorbuilder.FTUnsealed, false)
+		u, err := nodeApi.StorageFindSector(ctx, sid, stores.FTUnsealed, false)
 		if err != nil {
 			return xerrors.Errorf("finding unsealed: %w", err)
 		}
 
-		s, err := nodeApi.StorageFindSector(ctx, sid, sectorbuilder.FTSealed, false)
+		s, err := nodeApi.StorageFindSector(ctx, sid, stores.FTSealed, false)
 		if err != nil {
 			return xerrors.Errorf("finding sealed: %w", err)
 		}
 
-		c, err := nodeApi.StorageFindSector(ctx, sid, sectorbuilder.FTCache, false)
+		c, err := nodeApi.StorageFindSector(ctx, sid, stores.FTCache, false)
 		if err != nil {
 			return xerrors.Errorf("finding cache: %w", err)
 		}

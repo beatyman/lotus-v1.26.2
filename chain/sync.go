@@ -5,20 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/minio/blake2b-simd"
-
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/builtin"
-
 	"github.com/Gurpartap/async"
-	amt "github.com/filecoin-project/go-amt-ipld/v2"
-	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
-	"github.com/filecoin-project/specs-actors/actors/builtin/power"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
-	"github.com/filecoin-project/specs-actors/actors/util/adt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-cid"
 	dstore "github.com/ipfs/go-datastore"
@@ -27,6 +18,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/minio/blake2b-simd"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	"github.com/whyrusleeping/pubsub"
 	"go.opencensus.io/stats"
@@ -34,8 +26,13 @@ import (
 	"golang.org/x/xerrors"
 
 	bls "github.com/filecoin-project/filecoin-ffi"
-
 	"github.com/filecoin-project/go-address"
+	amt "github.com/filecoin-project/go-amt-ipld/v2"
+	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-actors/actors/builtin"
+	"github.com/filecoin-project/specs-actors/actors/builtin/power"
+	"github.com/filecoin-project/specs-actors/actors/crypto"
+	"github.com/filecoin-project/specs-actors/actors/util/adt"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -47,6 +44,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/sigs"
 	"github.com/filecoin-project/lotus/metrics"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 )
 
 var log = logging.Logger("chain")
@@ -623,7 +621,7 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) err
 		if err := h.Miner.MarshalCBOR(buf); err != nil {
 			return xerrors.Errorf("failed to marshal miner address to cbor: %w", err)
 		}
-		vrfBase, err := syncer.sm.ChainStore().GetRandomness(ctx, baseTs.Cids(), crypto.DomainSeparationTag_TicketProduction, int64(baseTs.Height()), buf.Bytes())
+		vrfBase, err := syncer.sm.ChainStore().GetRandomness(ctx, baseTs.Cids(), crypto.DomainSeparationTag_TicketProduction, int64(h.Height)-1, buf.Bytes())
 		if err != nil {
 			return xerrors.Errorf("failed to get randomness for verifying election proof: %w", err)
 		}
@@ -655,6 +653,23 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) err
 	for _, fut := range await {
 		if err := fut.AwaitContext(ctx); err != nil {
 			merr = multierror.Append(merr, err)
+		}
+	}
+	if merr != nil {
+		mulErr := merr.(*multierror.Error)
+		mulErr.ErrorFormat = func(es []error) string {
+			if len(es) == 1 {
+				return fmt.Sprintf("1 error occurred:\n\t* %+v\n\n", es[0])
+			}
+
+			points := make([]string, len(es))
+			for i, err := range es {
+				points[i] = fmt.Sprintf("* %+v", err)
+			}
+
+			return fmt.Sprintf(
+				"%d errors occurred:\n\t%s\n\n",
+				len(es), strings.Join(points, "\n\t"))
 		}
 	}
 
@@ -717,7 +732,7 @@ func (syncer *Syncer) VerifyElectionPoStProof(ctx context.Context, h *types.Bloc
 		return xerrors.Errorf("[TESTING] election post was invalid")
 	}
 
-	rt, _, err := api.ProofTypeFromSectorSize(ssize)
+	rt, _, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
 	if err != nil {
 		return err
 	}
@@ -733,7 +748,7 @@ func (syncer *Syncer) VerifyElectionPoStProof(ctx context.Context, h *types.Bloc
 	}
 
 	// TODO: why do we need this here?
-	challengeCount := sectorbuilder.ElectionPostChallengeCount(uint64(len(sectorInfo)), 0)
+	challengeCount := ffiwrapper.ElectionPostChallengeCount(uint64(len(sectorInfo)), 0)
 
 	hvrf := blake2b.Sum256(h.EPostProof.PostRand)
 	pvi := abi.PoStVerifyInfo{
@@ -745,7 +760,7 @@ func (syncer *Syncer) VerifyElectionPoStProof(ctx context.Context, h *types.Bloc
 		ChallengeCount:  challengeCount,
 	}
 
-	ok, err := sectorbuilder.ProofVerifier.VerifyElectionPost(ctx, pvi)
+	ok, err := ffiwrapper.ProofVerifier.VerifyElectionPost(ctx, pvi)
 	if err != nil {
 		return xerrors.Errorf("failed to verify election post: %w", err)
 	}
