@@ -7,7 +7,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/go-sectorbuilder"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
 	"github.com/filecoin-project/lotus/lib/nullreader"
@@ -17,14 +16,14 @@ func (m *Sealing) pledgeReader(size abi.UnpaddedPieceSize) io.Reader {
 	return io.LimitReader(&nullreader.Reader{}, int64(size))
 }
 
-func (m *Sealing) pledgeSector(ctx context.Context, sectorID abi.SectorID, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]sectorbuilder.Piece, error) {
+func (m *Sealing) pledgeSector(ctx context.Context, sectorID abi.SectorID, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]ffiwrapper.Piece, error) {
 	if len(sizes) == 0 {
 		return nil, nil
 	}
 
 	log.Infof("Pledge %d, contains %+v", sectorID, existingPieceSizes)
 
-	out := make([]sectorbuilder.Piece, len(sizes))
+	out := make([]ffiwrapper.Piece, len(sizes))
 	for i, size := range sizes {
 		ppi, err := m.sealer.AddPiece(ctx, sectorID, existingPieceSizes, size, m.pledgeReader(size))
 		if err != nil {
@@ -33,7 +32,7 @@ func (m *Sealing) pledgeSector(ctx context.Context, sectorID abi.SectorID, exist
 
 		existingPieceSizes = append(existingPieceSizes, size)
 
-		out[i] = sectorbuilder.Piece{
+		out[i] = ffiwrapper.Piece{
 			Size:  ppi.Size.Unpadded(),
 			CommP: ppi.PieceCID,
 		}

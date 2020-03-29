@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	xerrors "golang.org/x/xerrors"
@@ -450,11 +450,11 @@ func (t *SectorInfo) UnmarshalCBOR(r io.Reader) error {
 				return fmt.Errorf("expected cbor array")
 			}
 			if extra > 0 {
-				t.Pieces = make([]sectorbuilder.Piece, extra)
+				t.Pieces = make([]ffiwrapper.Piece, extra)
 			}
 			for i := 0; i < int(extra); i++ {
 
-				var v sectorbuilder.Piece
+				var v ffiwrapper.Piece
 				if err := v.UnmarshalCBOR(br); err != nil {
 					return err
 				}

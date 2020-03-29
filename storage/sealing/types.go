@@ -1,7 +1,7 @@
 package sealing
 
 import (
-	"github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
 
@@ -27,7 +27,7 @@ type SectorInfo struct {
 
 	// Packing
 
-	Pieces []sectorbuilder.Piece
+	Pieces []ffiwrapper.Piece
 
 	// PreCommit
 	CommD  *cid.Cid

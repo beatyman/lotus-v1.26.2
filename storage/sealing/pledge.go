@@ -5,13 +5,12 @@ import (
 	"sync"
 	"time"
 
-	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
-	"github.com/filecoin-project/go-sectorbuilder/database"
+	"github.com/filecoin-project/sector-storage/database"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/lotus/api"
 	"github.com/gwaylib/errors"
 )
 
@@ -19,7 +18,7 @@ type Pledge struct {
 	SectorID abi.SectorID
 	Sealing  *Sealing
 
-	SectorBuilder *sectorbuilder.SectorBuilder
+	SectorBuilder *ffiwrapper.Sealer
 
 	ActAddr    address.Address
 	WorkerAddr address.Address
@@ -29,7 +28,7 @@ type Pledge struct {
 }
 
 // Export the garbage.go#sealing.pledgeSector, so they should have same logic.
-func (g *Pledge) PledgeSector(ctx context.Context) ([]sectorbuilder.Piece, error) {
+func (g *Pledge) PledgeSector(ctx context.Context) ([]ffiwrapper.Piece, error) {
 	sectorID := g.SectorID
 	sizes := g.Sizes
 	existingPieceSizes := g.ExistingPieceSizes
@@ -43,7 +42,7 @@ func (g *Pledge) PledgeSector(ctx context.Context) ([]sectorbuilder.Piece, error
 
 	log.Infof("Pledge %d, contains %+v", sectorID, existingPieceSizes)
 
-	out := make([]sectorbuilder.Piece, len(sizes))
+	out := make([]ffiwrapper.Piece, len(sizes))
 	for i, size := range sizes {
 		ppi, err := g.Sealing.sealer.AddPiece(ctx, sectorID, existingPieceSizes, size, g.Sealing.pledgeReader(size))
 		if err != nil {
@@ -51,7 +50,7 @@ func (g *Pledge) PledgeSector(ctx context.Context) ([]sectorbuilder.Piece, error
 		}
 
 		g.ExistingPieceSizes = append(g.ExistingPieceSizes, size)
-		out[i] = sectorbuilder.Piece{
+		out[i] = ffiwrapper.Piece{
 			Size:  ppi.Size.Unpadded(),
 			CommP: ppi.PieceCID,
 		}
@@ -68,10 +67,11 @@ func (m *Sealing) PledgeRemoteSector() error {
 
 	size := abi.PaddedPieceSize(m.sealer.SectorSize()).Unpadded()
 
-	_, rt, err := api.ProofTypeFromSectorSize(m.sealer.SectorSize())
+	_, rt, err := ffiwrapper.ProofTypeFromSectorSize(m.sealer.SectorSize())
 	if err != nil {
 		return errors.As(err)
 	}
+
 	sid, err := m.sc.Next()
 	if err != nil {
 		return errors.As(err)
@@ -81,7 +81,7 @@ func (m *Sealing) PledgeRemoteSector() error {
 		return errors.As(err)
 	}
 
-	pieces, err := m.sealer.(*sectorbuilder.SectorBuilder).PledgeSector(sectorID, []abi.UnpaddedPieceSize{size})
+	pieces, err := m.sealer.(*ffiwrapper.Sealer).PledgeSector(sectorID, []abi.UnpaddedPieceSize{size})
 	if err != nil {
 		return errors.As(err)
 	}
@@ -118,10 +118,10 @@ func (m *Sealing) RunPledgeSector() error {
 	}
 	pledgeRunning = true
 
-	sb := m.sealer.(*sectorbuilder.SectorBuilder)
+	sb := m.sealer.(*ffiwrapper.Sealer)
 
 	// if task has consumed, auto do the next pledge.
-	sb.SetAddPieceListener(func(t sectorbuilder.WorkerTask) {
+	sb.SetAddPieceListener(func(t ffiwrapper.WorkerTask) {
 		// success consume
 		m.addConsumeTask()
 	})

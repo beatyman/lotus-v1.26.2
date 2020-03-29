@@ -7,11 +7,11 @@ import (
 	"os"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/go-sectorbuilder"
-	"github.com/filecoin-project/go-sectorbuilder/database"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/lib/tarutil"
+	"github.com/filecoin-project/sector-storage/database"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/sector-storage/tarutil"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
@@ -98,10 +98,10 @@ func (sm *StorageMinerAPI) WorkerAddress(ctx context.Context, act address.Addres
 	return sm.Full.StateMinerWorker(ctx, act, tsk)
 }
 
-func (sm *StorageMinerAPI) WorkerStatsAll(ctx context.Context) ([]sectorbuilder.WorkerRemoteStats, error) {
+func (sm *StorageMinerAPI) WorkerStatsAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error) {
 	return sm.SectorBuilder.WorkerRemoteStats()
 }
-func (sm *StorageMinerAPI) WorkerQueue(ctx context.Context, cfg sectorbuilder.WorkerCfg) (<-chan sectorbuilder.WorkerTask, error) {
+func (sm *StorageMinerAPI) WorkerQueue(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) {
 	return sm.SectorBuilder.AddWorker(ctx, cfg)
 }
 func (sm *StorageMinerAPI) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
@@ -111,7 +111,7 @@ func (sm *StorageMinerAPI) WorkerPushing(ctx context.Context, taskKey string) er
 	return sm.SectorBuilder.TaskPushing(ctx, taskKey)
 }
 
-func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res sectorbuilder.SealRes) error {
+func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return sm.SectorBuilder.TaskDone(ctx, res)
 }
 func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disable bool) error {

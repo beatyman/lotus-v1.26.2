@@ -1,7 +1,7 @@
 package sealing
 
 import (
-	"github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
@@ -52,7 +52,7 @@ func (evt SectorForceState) applyGlobal(state *SectorInfo) bool {
 type SectorStart struct {
 	ID         abi.SectorNumber
 	SectorType abi.RegisteredProof
-	Pieces     []sectorbuilder.Piece
+	Pieces     []ffiwrapper.Piece
 }
 
 func (evt SectorStart) apply(state *SectorInfo) {
@@ -61,7 +61,7 @@ func (evt SectorStart) apply(state *SectorInfo) {
 	state.SectorType = evt.SectorType
 }
 
-type SectorPacked struct{ Pieces []sectorbuilder.Piece }
+type SectorPacked struct{ Pieces []ffiwrapper.Piece }
 
 func (evt SectorPacked) apply(state *SectorInfo) {
 	state.Pieces = append(state.Pieces, evt.Pieces...)

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	paramfetch "github.com/filecoin-project/go-paramfetch"
-	"github.com/filecoin-project/go-sectorbuilder"
-	"github.com/filecoin-project/go-sectorbuilder/fs"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/sector-storage/ffiwrapper/basicfs"
 	"github.com/mitchellh/go-homedir"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -212,15 +212,16 @@ var runCmd = &cli.Command{
 		if err := os.MkdirAll(r, 0755); err != nil {
 			return errors.As(err, r)
 		}
-		_, spt, err := api.ProofTypeFromSectorSize(ssize)
+		_, spt, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
 		if err != nil {
 			return xerrors.Errorf("getting proof type: %w", err)
 		}
-		cfg := &sectorbuilder.Config{
+		cfg := &ffiwrapper.Config{
+			RemoteMode:    true,
 			SealProofType: spt,
 		}
 
-		sb, err := sectorbuilder.NewStandalone(&fs.Basic{
+		sb, err := ffiwrapper.New(&basicfs.Provider{
 			Root: r,
 		}, cfg)
 		if err != nil {
@@ -229,7 +230,7 @@ var runCmd = &cli.Command{
 		if err := os.MkdirAll(sealedRepo, 0755); err != nil {
 			return errors.As(err, sealedRepo)
 		}
-		sealedSB, err := sectorbuilder.NewStandalone(&fs.Basic{
+		sealedSB, err := ffiwrapper.New(&basicfs.Provider{
 			Root: r,
 		}, cfg)
 		if err != nil {

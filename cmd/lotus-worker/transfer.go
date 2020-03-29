@@ -9,7 +9,7 @@ import (
 
 	"path/filepath"
 
-	sectorbuilder "github.com/filecoin-project/go-sectorbuilder"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	files "github.com/ipfs/go-ipfs-files"
 	"golang.org/x/xerrors"
@@ -142,10 +142,10 @@ func (w *worker) remove(typ string, sectorID abi.SectorID) error {
 	return os.RemoveAll(filename)
 }
 
-func (w *worker) fetchSector(sectorID abi.SectorID, typ sectorbuilder.WorkerTaskType) error {
+func (w *worker) fetchSector(sectorID abi.SectorID, typ ffiwrapper.WorkerTaskType) error {
 	var err error
 	switch typ {
-	case sectorbuilder.WorkerPreCommit1:
+	case ffiwrapper.WorkerPreCommit1:
 		err = w.fetch("staging", sectorID)
 	}
 	if err != nil {

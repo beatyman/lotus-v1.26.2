@@ -7,11 +7,12 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/filecoin-project/lotus/node/modules"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/filecoin-project/lotus/node/modules"
 
 	"github.com/google/uuid"
 	"github.com/ipfs/go-datastore"
@@ -42,7 +43,7 @@ import (
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
 	"github.com/filecoin-project/lotus/storage/sealing"
-	"github.com/filecoin-project/sector-storage"
+	sectorstorage "github.com/filecoin-project/sector-storage"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/sector-storage/stores"
 
@@ -283,7 +284,7 @@ func migratePreSealMeta(ctx context.Context, api lapi.FullNode, metadata string,
 		info := &sealing.SectorInfo{
 			State:    lapi.Proving,
 			SectorID: sector.SectorID,
-			Pieces: []sectorbuilder.Piece{
+			Pieces: []ffiwrapper.Piece{
 				{
 					DealID: &dealID,
 					Size:   abi.PaddedPieceSize(meta.SectorSize).Unpadded(),
@@ -422,7 +423,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 			smgr, err := sectorstorage.New(ctx, lr, stores.NewIndex(), &ffiwrapper.Config{
 				SealProofType: spt,
 				PoStProofType: ppt,
-			}, sectorstorage.SeallerConfig{
+			}, sectorstorage.SealerConfig{
 				AllowAddPiece:   true,
 				AllowPreCommit1: true,
 				AllowPreCommit2: true,

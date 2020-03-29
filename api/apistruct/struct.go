@@ -25,8 +25,8 @@ import (
 	"github.com/filecoin-project/sector-storage/sealtasks"
 	"github.com/filecoin-project/sector-storage/stores"
 
-	"github.com/filecoin-project/go-sectorbuilder"
-	"github.com/filecoin-project/go-sectorbuilder/database"
+	"github.com/filecoin-project/sector-storage/database"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 )
 
 // All permissions are listed in permissioned.go
@@ -209,17 +209,17 @@ type StorageMinerStruct struct {
 		StateWaitMsg     func(context.Context, cid.Cid) (*api.MsgLookup, error)                    `perm:"read"`
 		WalletSign       func(context.Context, address.Address, []byte) (*crypto.Signature, error) `perm:"sign"`
 
-		RunPledgeSector    func(context.Context) error                                                                     `perm:"write"`
-		StatusPledgeSector func(context.Context) (int, error)                                                              `perm:"read"`
-		StopPledgeSector   func(context.Context) error                                                                     `perm:"write"`
-		SectorsListAll     func(context.Context) ([]api.SectorInfo, error)                                                 `perm:"read"`
-		WorkerAddress      func(context.Context, address.Address, types.TipSetKey) (address.Address, error)                `perm:"read"`
-		WorkerStatsAll     func(context.Context) ([]sectorbuilder.WorkerRemoteStats, error)                                `perm:"read"`
-		WorkerQueue        func(ctx context.Context, cfg sectorbuilder.WorkerCfg) (<-chan sectorbuilder.WorkerTask, error) `perm:"admin"` // TODO: worker perm
-		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)                     `perm:"read"`
-		WorkerPushing      func(ctx context.Context, taskKey string) error                                                 `perm:"write"`
-		WorkerDone         func(ctx context.Context, res sectorbuilder.SealRes) error                                      `perm:"admin"`
-		WorkerDisable      func(ctx context.Context, wid string, disable bool) error                                       `perm:"write"`
+		RunPledgeSector    func(context.Context) error                                                               `perm:"write"`
+		StatusPledgeSector func(context.Context) (int, error)                                                        `perm:"read"`
+		StopPledgeSector   func(context.Context) error                                                               `perm:"write"`
+		SectorsListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
+		WorkerAddress      func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
+		WorkerStatsAll     func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
+		WorkerQueue        func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
+		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
+		WorkerPushing      func(ctx context.Context, taskKey string) error                                           `perm:"write"`
+		WorkerDone         func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
+		WorkerDisable      func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
 
 		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error       `perm:"write"`
 		DisableHLMStorage func(ctx context.Context, id int64) error                         `perm:"write"`
@@ -826,10 +826,10 @@ func (c *StorageMinerStruct) SectorsListAll(ctx context.Context) ([]api.SectorIn
 func (c *StorageMinerStruct) WorkerAddress(ctx context.Context, act address.Address, tsk types.TipSetKey) (address.Address, error) {
 	return c.Internal.WorkerAddress(ctx, act, tsk)
 }
-func (c *StorageMinerStruct) WorkerStatsAll(ctx context.Context) ([]sectorbuilder.WorkerRemoteStats, error) {
+func (c *StorageMinerStruct) WorkerStatsAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error) {
 	return c.Internal.WorkerStatsAll(ctx)
 }
-func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg sectorbuilder.WorkerCfg) (<-chan sectorbuilder.WorkerTask, error) {
+func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) {
 	return c.Internal.WorkerQueue(ctx, cfg)
 }
 func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
@@ -838,7 +838,7 @@ func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string)
 func (c *StorageMinerStruct) WorkerPushing(ctx context.Context, taskKey string) error {
 	return c.Internal.WorkerPushing(ctx, taskKey)
 }
-func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res sectorbuilder.SealRes) error {
+func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return c.Internal.WorkerDone(ctx, res)
 }
 func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disable bool) error {
