@@ -90,7 +90,8 @@ func DefaultStorageMiner() *StorageMiner {
 			AllowCommit1:    true,
 			AllowCommit2:    true,
 			AllowFinalize:   true,
-			AllowEpost:      true,
+			AllowEpost:      false,
+			RemoteMode:      false,
 		},
 	}
 	cfg.Common.API.ListenAddress = "/ip4/127.0.0.1/tcp/2345/http"
