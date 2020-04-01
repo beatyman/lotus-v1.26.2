@@ -84,14 +84,10 @@ func DefaultStorageMiner() *StorageMiner {
 		Common: defCommon(),
 
 		Storage: sectorstorage.SealerConfig{
-			AllowAddPiece:   true,
 			AllowPreCommit1: true,
 			AllowPreCommit2: true,
-			AllowCommit1:    true,
-			AllowCommit2:    true,
-			AllowFinalize:   true,
-			AllowEpost:      false,
-			RemoteMode:      false,
+			AllowCommit:     true,
+			RemoteMode:      true,
 		},
 	}
 	cfg.Common.API.ListenAddress = "/ip4/127.0.0.1/tcp/2345/http"

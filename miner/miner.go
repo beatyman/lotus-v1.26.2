@@ -77,9 +77,11 @@ func (m *Miner) Register(addr address.Address) error {
 	m.lk.Lock()
 	defer m.lk.Unlock()
 
+	log.Infof("Register Miner:%s", addr)
+
 	if len(m.addresses) > 0 {
 		for _, a := range m.addresses {
-			if a == addr {
+			if fmt.Sprintf("%s", a) == fmt.Sprintf("%s", addr) {
 				log.Warnf("miner.Register called more than once for actor '%s'", addr)
 				return xerrors.Errorf("miner.Register called more than once for actor '%s'", addr)
 			}
@@ -105,7 +107,7 @@ func (m *Miner) Unregister(ctx context.Context, addr address.Address) error {
 	idx := -1
 
 	for i, a := range m.addresses {
-		if a == addr {
+		if fmt.Sprintf("%s", a) == fmt.Sprintf("%s", addr) {
 			idx = i
 			break
 		}
@@ -133,11 +135,16 @@ func (m *Miner) Unregister(ctx context.Context, addr address.Address) error {
 	return nil
 }
 
+func nextRoundTime(base *MiningBase) time.Time {
+	return time.Unix(int64(base.ts.MinTimestamp())+int64(build.BlockDelay*(base.nullRounds+1)), 0)
+}
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
 	defer span.End()
 
 	var lastBase MiningBase
+	var nextRound time.Time
+	const tryRounds = 1
 
 eventLoop:
 	for {
@@ -174,16 +181,27 @@ eventLoop:
 			log.Errorf("failed to get best mining candidate: %s", err)
 			continue
 		}
-		if base.ts.Equals(lastBase.ts) && lastBase.nullRounds == base.nullRounds {
-			log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.ts.Cids(), lastBase.nullRounds)
-			time.Sleep(build.BlockDelay * time.Second)
-			continue
+		if !base.ts.Equals(lastBase.ts) {
+			nextRound = nextRoundTime(base)
+			lastBase = *base
+		} else {
+			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.ts.Cids(), lastBase.nullRounds)
+
+			// if the base was dead, make the nullRound++ step by round actually change.
+			now := time.Now()
+			if (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
+				time.Sleep(1e9)
+				continue
+			}
+			lastBase.nullRounds++
+			nextRound = nextRoundTime(&lastBase)
 		}
-		lastBase = *base
 
 		blks := make([]*types.BlockMsg, 0)
 
-		for _, addr := range addrs {
+		// just premine the next round
+		for i, addr := range addrs {
+			log.Infof("mineOne addrs:%d,%s", i, addr)
 			b, err := m.mineOne(ctx, addr, base)
 			if err != nil {
 				log.Errorf("mining block failed: %+v", err)
@@ -220,7 +238,7 @@ eventLoop:
 				blkKey := fmt.Sprintf("%s-%d", b.Header.Miner, b.Header.Height)
 				if _, ok := m.minedBlockHeights.Get(blkKey); ok {
 					log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
-					continue
+					// continue
 				}
 
 				m.minedBlockHeights.Add(blkKey, true)
@@ -229,10 +247,14 @@ eventLoop:
 				}
 			}
 		} else {
-			nextRound := time.Unix(int64(base.ts.MinTimestamp()+uint64(build.BlockDelay*base.nullRounds)), 0)
-
+			now := time.Now()
+			if nextRound.Before(now) {
+				nextRound = now.Add(time.Duration(build.BlockDelay-(now.Unix()-nextRound.Unix())%build.BlockDelay) * time.Second)
+			}
+			// goto next round
+			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
 			select {
-			case <-time.After(time.Until(nextRound)):
+			case <-time.After(nextRound.Sub(now)):
 			case <-m.stop:
 				stopping := m.stopping
 				m.stop = nil
@@ -300,33 +322,46 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		base.nullRounds++
 		return nil, nil
 	}
+	log.Info("get pending message")
+	// make auto clean for pending messages every round.
+	pending, err := m.api.MpoolPending(context.TODO(), base.ts.Key())
+	if err != nil {
+		return nil, xerrors.Errorf("failed to get pending messages: %w", err)
+	}
+	log.Infof("all pending msgs len:%d", len(pending))
+	msgs, err := SelectMessages(context.TODO(), m.api.StateGetActor, base.ts, &MsgPool{FromApi: m.api, Msgs: pending})
+	if err != nil {
+		return nil, xerrors.Errorf("message filtering failed: %w", err)
+	}
+	if len(msgs) > build.BlockMessageLimit {
+		// log.Error("SelectMessages returned too many messages: ", len(msgs))
+		msgs = msgs[:build.BlockMessageLimit]
+	}
 
 	log.Infof("Time delta between now and our mining base: %ds (nulls: %d)", uint64(time.Now().Unix())-base.ts.MinTimestamp(), base.nullRounds)
 
-	ticket, err := m.computeTicket(ctx, addr, base)
-	if err != nil {
-		return nil, xerrors.Errorf("scratching ticket failed: %w", err)
-	}
-
+	log.Info("gen.IsRoundWinner")
 	proofin, err := gen.IsRoundWinner(ctx, base.ts, int64(base.ts.Height()+base.nullRounds+1), addr, m.epp, m.api)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to check if we win next round: %w", err)
 	}
 
 	if proofin == nil {
+		log.Info("Not Win")
 		base.nullRounds++
 		return nil, nil
 	}
 
-	// get pending messages early,
-	pending, err := m.api.MpoolPending(context.TODO(), base.ts.Key())
-	if err != nil {
-		return nil, xerrors.Errorf("failed to get pending messages: %w", err)
-	}
-
+	log.Info("gen.ComputeProof")
 	proof, err := gen.ComputeProof(ctx, m.epp, proofin)
 	if err != nil {
 		return nil, xerrors.Errorf("computing election proof: %w", err)
+	}
+
+	log.Info("m.createBlock")
+	ticket, err := m.computeTicket(ctx, addr, base)
+	if err != nil {
+		return nil, xerrors.Errorf("scratching ticket failed: %w", err)
 	}
 
 	b, err := m.createBlock(base, addr, ticket, proof, pending)
@@ -335,7 +370,13 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 	}
 
 	dur := time.Since(start)
-	log.Infow("mined new block", "cid", b.Cid(), "height", b.Header.Height, "took", dur)
+	log.Infow("mined new block",
+		"cid", b.Cid(),
+		"height", b.Header.Height,
+		"weight", b.Header.ParentWeight,
+		"rounds", base.nullRounds,
+		"took", dur,
+		"submit", time.Unix(int64(base.ts.MinTimestamp()+(uint64(base.nullRounds)+1)*build.BlockDelay), 0).Format(time.RFC3339))
 	if dur > time.Second*build.BlockDelay {
 		log.Warn("CAUTION: block production took longer than the block delay. Your computer may not be fast enough to keep up")
 	}
@@ -369,22 +410,13 @@ func (m *Miner) computeTicket(ctx context.Context, addr address.Address, base *M
 	}, nil
 }
 
-func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket, proof *types.EPostProof, pending []*types.SignedMessage) (*types.BlockMsg, error) {
-	msgs, err := SelectMessages(context.TODO(), m.api.StateGetActor, base.ts, pending)
-	if err != nil {
-		return nil, xerrors.Errorf("message filtering failed: %w", err)
-	}
-
-	if len(msgs) > build.BlockMessageLimit {
-		log.Error("SelectMessages returned too many messages: ", len(msgs))
-		msgs = msgs[:build.BlockMessageLimit]
-	}
-
+func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket, proof *types.EPostProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
 	uts := base.ts.MinTimestamp() + uint64(build.BlockDelay*(base.nullRounds+1))
 
 	nheight := base.ts.Height() + base.nullRounds + 1
 
 	// why even return this? that api call could just submit it for us
+	log.Infof("MinerCreateBlock validated pending msgs len:%d", len(msgs))
 	return m.api.MinerCreateBlock(context.TODO(), addr, base.ts.Key(), ticket, proof, msgs, nheight, uint64(uts))
 }
 
@@ -399,16 +431,30 @@ func countFrom(msgs []*types.SignedMessage, from address.Address) (out int) {
 	return out
 }
 
-func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, msgs []*types.SignedMessage) ([]*types.SignedMessage, error) {
+type MsgPool struct {
+	FromApi api.FullNode
+	Msgs    []*types.SignedMessage
+}
+
+func (p *MsgPool) Remove(ctx context.Context, msg *types.SignedMessage) {
+	// TODO: remove fault message
+	// if err := p.FromApi.MpoolRemove(ctx, msg.Message.From, msg.Message.Nonce); err != nil {
+	// 	log.Warn(errors.As(err))
+	// }
+}
+
+func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool *MsgPool) ([]*types.SignedMessage, error) {
 	out := make([]*types.SignedMessage, 0, build.BlockMessageLimit)
 	inclNonces := make(map[address.Address]uint64)
 	inclBalances := make(map[address.Address]types.BigInt)
 	inclCount := make(map[address.Address]int)
 
-	for _, msg := range msgs {
+	// TODO: too more log from here, and waiting upgrade from offical.
+	for _, msg := range mpool.Msgs {
 
 		if msg.Message.To == address.Undef {
 			log.Warnf("message in mempool had bad 'To' address")
+			mpool.Remove(ctx, msg)
 			continue
 		}
 
@@ -418,6 +464,7 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, msgs 
 			act, err := al(ctx, from, ts.Key())
 			if err != nil {
 				log.Warnf("failed to check message sender balance, skipping message: %+v", err)
+				mpool.Remove(ctx, msg)
 				continue
 			}
 
@@ -427,16 +474,29 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, msgs 
 
 		if inclBalances[from].LessThan(msg.Message.RequiredFunds()) {
 			log.Warnf("message in mempool does not have enough funds: %s", msg.Cid())
+			mpool.Remove(ctx, msg)
 			continue
 		}
 
 		if msg.Message.Nonce > inclNonces[from] {
-			log.Debugf("message in mempool has too high of a nonce (%d > %d, from %s, inclcount %d) %s (%d pending for orig)", msg.Message.Nonce, inclNonces[from], from, inclCount[from], msg.Cid(), countFrom(msgs, from))
+			log.Warnf("message in mempool has too high of a nonce (%d > %d, from %s, inclcount %d) %s (%d pending for orig)", msg.Message.Nonce, inclNonces[from], from, inclCount[from], msg.Cid(), countFrom(mpool.Msgs, from))
+			// TODO: fix this errors
+			/*
+				2020-03-25T09:42:51.141Z	WARN	miner	miner/miner.go:490	message in mempool has too high of a nonce (63 > 4, from t1d2xrzcslx7xlbbylc5c3d5lvandqw4iwl6epxba, inclcount 0) bafy2bzaceds3cp3dplzxnmysu5jtauim57d3pjtio7bdwlrbwcdn4a2e36ldy (1 pending for orig)
+						2020-03-25T09:43:30.434Z	ERROR	miner	miner/miner.go:254	failed to submit newly mined block: sync to submitted block failed: collectChain failed: collectChain syncMessages: message processing failed: validating block bafy2bzacedbs6oh4ulqttibej6bwaf2zgbwcirgkqg5kkgxrcuydp35yplcpc, t019125: 1 error occurred:
+					* block had invalid messages: block had invalid secpk message at index 0: wrong nonce (exp: 4, got: 63)
+
+
+				github.com/filecoin-project/lotus/miner.(*Miner).mine
+					/root/go/src/github.com/filecoin-project/lotus/miner/miner.go:254
+			*/
+			mpool.Remove(ctx, msg)
 			continue
 		}
 
 		if msg.Message.Nonce < inclNonces[from] {
-			log.Warnf("message in mempool has already used nonce (%d < %d), from %s, to %s, %s (%d pending for)", msg.Message.Nonce, inclNonces[from], msg.Message.From, msg.Message.To, msg.Cid(), countFrom(msgs, from))
+			log.Warnf("message in mempool has already used nonce (%d < %d), from %s, to %s, %s (%d pending for)", msg.Message.Nonce, inclNonces[from], msg.Message.From, msg.Message.To, msg.Cid(), countFrom(mpool.Msgs, from))
+			mpool.Remove(ctx, msg)
 			continue
 		}
 

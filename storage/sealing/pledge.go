@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	sectorstorage "github.com/filecoin-project/sector-storage"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -81,7 +82,8 @@ func (m *Sealing) PledgeRemoteSector() error {
 		return errors.As(err)
 	}
 
-	pieces, err := m.sealer.(*ffiwrapper.Sealer).PledgeSector(sectorID, []abi.UnpaddedPieceSize{size})
+	sb := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
+	pieces, err := sb.PledgeSector(sectorID, []abi.UnpaddedPieceSize{size})
 	if err != nil {
 		return errors.As(err)
 	}
@@ -118,7 +120,7 @@ func (m *Sealing) RunPledgeSector() error {
 	}
 	pledgeRunning = true
 
-	sb := m.sealer.(*ffiwrapper.Sealer)
+	sb := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
 
 	// if task has consumed, auto do the next pledge.
 	sb.SetAddPieceListener(func(t ffiwrapper.WorkerTask) {

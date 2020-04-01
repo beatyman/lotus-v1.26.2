@@ -38,8 +38,7 @@ func acceptJobs(ctx context.Context,
 	sb, sealedSB *ffiwrapper.Sealer,
 	act, workerAddr address.Address,
 	endpoint string, auth http.Header,
-	repo, sealedRepo string,
-	noaddpiece, noprecommit, nocommit bool) error {
+	repo, sealedRepo string) error {
 	workerId := GetWorkerID(repo)
 	netIp := os.Getenv("NETIP")
 
@@ -86,6 +85,12 @@ loop:
 				log.Warn(errors.As(err))
 			}
 		case task := <-tasks:
+			if task.SectorID.Number == 0 {
+				// connection is down.
+				ReleaseNodeApi(false)
+				return errors.New("Error sector id").As(task)
+			}
+
 			log.Infof("New task: %s, sector %s, action: %d", task.Key(), task.GetSectorID(), task.Type)
 			go func(task ffiwrapper.WorkerTask) {
 				taskKey := task.Key()
@@ -94,7 +99,7 @@ loop:
 					w.workMu.Unlock()
 					// when the miner restart, it should send the same task,
 					// and this worker is already working on, so drop this job.
-					log.Info("task(%s) is in working", taskKey)
+					log.Infof("task(%s) is in working", taskKey)
 					return
 				} else {
 					w.workOn[taskKey] = task
@@ -152,7 +157,8 @@ func (w *worker) cleanCache(ctx context.Context) error {
 
 	sealed := filepath.Join(w.repo, "sealed")
 	cache := filepath.Join(w.repo, "cache")
-	staged := filepath.Join(w.repo, "staging")
+	// staged := filepath.Join(w.repo, "staging")
+	unsealed := filepath.Join(w.repo, "unsealed")
 
 	sealedFiles, err := ioutil.ReadDir(sealed)
 	if err != nil {
@@ -187,19 +193,19 @@ func (w *worker) cleanCache(ctx context.Context) error {
 			}
 		}
 	}
-	stagedFiles, err := ioutil.ReadDir(staged)
+	unsealedFiles, err := ioutil.ReadDir(unsealed)
 	if err != nil {
 		log.Warn(errors.As(err))
 	} else {
 	stagedLoop:
-		for _, f := range stagedFiles {
+		for _, f := range unsealedFiles {
 			for _, s := range ws {
 				if s.ID == f.Name() {
 					continue stagedLoop
 				}
 			}
-			if err := os.RemoveAll(filepath.Join(staged, f.Name())); err != nil {
-				return errors.As(err, w.workerCfg.IP, filepath.Join(staged, f.Name()))
+			if err := os.RemoveAll(filepath.Join(unsealed, f.Name())); err != nil {
+				return errors.As(err, w.workerCfg.IP, filepath.Join(unsealed, f.Name()))
 			}
 		}
 	}
@@ -210,7 +216,7 @@ func (w *worker) cleanCache(ctx context.Context) error {
 	if err := os.MkdirAll(cache, 0755); err != nil {
 		return errors.As(err, w.workerCfg.IP)
 	}
-	if err := os.MkdirAll(staged, 0755); err != nil {
+	if err := os.MkdirAll(unsealed, 0755); err != nil {
 		return errors.As(err, w.workerCfg.IP)
 	}
 	return nil
@@ -325,6 +331,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerPreCommit2:
 	case ffiwrapper.WorkerCommit1:
 	case ffiwrapper.WorkerCommit2:
+	case ffiwrapper.WorkerFinalize:
 	default:
 		return errRes(errors.New("unknown task type").As(task.Type, w.workerCfg), task)
 	}
@@ -360,8 +367,8 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 
 	case ffiwrapper.WorkerPreCommit1:
 		// checking staging data
-		stagedFile := filepath.Join(w.repo, "staging", w.sb.SectorName(task.SectorID))
-		if _, err := os.Lstat(stagedFile); err != nil {
+		unsealedFile := filepath.Join(w.repo, "unsealed", w.sb.SectorName(task.SectorID))
+		if _, err := os.Lstat(unsealedFile); err != nil {
 			if !os.IsNotExist(err) {
 				return errRes(errors.As(err, w.workerCfg), task)
 			}
@@ -388,11 +395,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
-
-		if err := w.pushCommit(ctx, task); err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
-
 		res.PreCommit2Out = ffiwrapper.SectorCids{
 			Unsealed: out.Unsealed.String(),
 			Sealed:   out.Sealed.String(),
@@ -412,18 +414,20 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 
 		res.Commit1Out = out
-
 	case ffiwrapper.WorkerCommit2:
 		out, err := w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
 		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+		res.Commit2Out = out
+	case ffiwrapper.WorkerFinalize:
+		if err := w.sb.FinalizeSector(ctx, task.SectorID); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 
 		if err := w.pushCommit(ctx, task); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
-
-		res.Commit2Out = out
 	}
 
 	return res

@@ -17,7 +17,7 @@ func init() {
 var SectorSizes = []abi.SectorSize{2048}
 
 // Seconds
-const BlockDelay = 6
+const BlockDelay = 15
 
 const PropagationDelay = 3
 

@@ -214,7 +214,8 @@ type StorageMinerStruct struct {
 		StopPledgeSector   func(context.Context) error                                                               `perm:"write"`
 		SectorsListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
 		WorkerAddress      func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
-		WorkerStatsAll     func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
+		WorkerStatus       func(context.Context) (ffiwrapper.WorkerStats, error)                                     `perm:"read"`
+		WorkerStatusAll    func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
 		WorkerQueue        func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
 		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
 		WorkerPushing      func(ctx context.Context, taskKey string) error                                           `perm:"write"`
@@ -826,8 +827,11 @@ func (c *StorageMinerStruct) SectorsListAll(ctx context.Context) ([]api.SectorIn
 func (c *StorageMinerStruct) WorkerAddress(ctx context.Context, act address.Address, tsk types.TipSetKey) (address.Address, error) {
 	return c.Internal.WorkerAddress(ctx, act, tsk)
 }
-func (c *StorageMinerStruct) WorkerStatsAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error) {
-	return c.Internal.WorkerStatsAll(ctx)
+func (c *StorageMinerStruct) WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error) {
+	return c.Internal.WorkerStatus(ctx)
+}
+func (c *StorageMinerStruct) WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error) {
+	return c.Internal.WorkerStatusAll(ctx)
 }
 func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) {
 	return c.Internal.WorkerQueue(ctx, cfg)

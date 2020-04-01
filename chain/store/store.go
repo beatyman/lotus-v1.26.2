@@ -322,7 +322,14 @@ func (cs *ChainStore) takeHeaviestTipSet(ctx context.Context, ts *types.TipSet) 
 
 	span.AddAttributes(trace.BoolAttribute("newHead", true))
 
-	log.Infof("New heaviest tipset! %s (height=%d)", ts.Cids(), ts.Height())
+	heaviestMiners := []string{}
+	for _, blk := range ts.Blocks() {
+		heaviestMiners = append(heaviestMiners,
+			fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+		)
+	}
+
+	log.Infof("New heaviest tipset! %s (height=%d), %+v", ts.Cids(), ts.Height(), heaviestMiners)
 	cs.heaviest = ts
 
 	if err := cs.writeHead(ts); err != nil {
