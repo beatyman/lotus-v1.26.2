@@ -62,7 +62,7 @@ func PreSeal(maddr address.Address, pt abi.RegisteredProof, offset abi.SectorNum
 		Root: sbroot,
 	}
 
-	sb, err := ffiwrapper.New(sbfs, cfg)
+	sb, err := ffiwrapper.New(false, sbfs, cfg)
 	if err != nil {
 		return nil, nil, err
 	}

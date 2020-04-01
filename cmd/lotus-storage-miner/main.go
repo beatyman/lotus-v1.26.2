@@ -33,6 +33,7 @@ func main() {
 		workersCmd,
 
 		// implement by hlm
+		pledgeSectorCmd,
 		hlmStorageCmd,
 		hlmWorkerCmd,
 		hlmFaucetCmd,

@@ -217,11 +217,11 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("getting proof type: %w", err)
 		}
 		cfg := &ffiwrapper.Config{
-			RemoteMode:    true,
 			SealProofType: spt,
+			PoStProofType: spt,
 		}
 
-		sb, err := ffiwrapper.New(&basicfs.Provider{
+		sb, err := ffiwrapper.New(false, &basicfs.Provider{
 			Root: r,
 		}, cfg)
 		if err != nil {
@@ -230,8 +230,8 @@ var runCmd = &cli.Command{
 		if err := os.MkdirAll(sealedRepo, 0755); err != nil {
 			return errors.As(err, sealedRepo)
 		}
-		sealedSB, err := ffiwrapper.New(&basicfs.Provider{
-			Root: r,
+		sealedSB, err := ffiwrapper.New(false, &basicfs.Provider{
+			Root: sealedRepo,
 		}, cfg)
 		if err != nil {
 			return errors.As(err, sealedRepo)
@@ -247,11 +247,11 @@ var runCmd = &cli.Command{
 					act, workerAddr,
 					"http://"+storageAddr, ainfo.AuthHeader(),
 					r, sealedRepo,
-					cctx.Bool("no-addpiece"), cctx.Bool("no-precommit"), cctx.Bool("no-commit")); err == nil {
+				); err == nil {
 					break
 				} else {
-					log.Warn(err)
 					ReleaseNodeApi(false)
+					log.Warn(err)
 				}
 				time.Sleep(3 * 1e9) // wait 3 seconds to reconnect.
 			}

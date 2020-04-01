@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"mime"
 	"net/http"
 	"os"
@@ -35,7 +34,7 @@ func (w *worker) fetch(typ string, sectorID abi.SectorID) error {
 
 	outname := filepath.Join(w.repo, typ, w.sb.SectorName(sectorID))
 
-	url := w.minerEndpoint + "/remote/" + typ + "/" + fmt.Sprint(sectorID.Number)
+	url := w.minerEndpoint + "/remote/" + typ + "/" + w.sb.SectorName(sectorID)
 	log.Infof("Fetch %s %s", typ, url)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -109,30 +108,6 @@ func (w *worker) push(ctx context.Context, typ string, sectorID string) error {
 			return err
 		}
 	}
-
-	// url := w.minerEndpoint + "/remote/" + typ + "/" + fmt.Sprint(sectorID)
-	// log.Infof("Push URL: %s %s", typ, url)
-	// header := w.auth
-	// req, err := http.NewRequest("PUT", url, bar.NewProxyReader(r))
-	// if err != nil {
-	// 	return err
-	// }
-	// req.Header = header
-	//
-	// resp, err := http.DefaultClient.Do(req)
-	// if err != nil {
-	// 	return err
-	// }
-	// if resp.StatusCode != 200 {
-	// 	return xerrors.Errorf("non-200 response: %d", resp.StatusCode)
-	// }
-	//
-	// if err := resp.Body.Close(); err != nil {
-	// 	return err
-	// }
-
-	// TODO: keep files around for later stages of sealing
-	// return w.remove(typ, sectorID)
 	return nil
 }
 

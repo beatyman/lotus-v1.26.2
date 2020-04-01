@@ -144,7 +144,8 @@ type StorageMiner interface {
 
 	SectorsListAll(context.Context) ([]SectorInfo, error)
 	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)
-	WorkerStatsAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error)
+	WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error)
+	WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error)
 	WorkerQueue(context.Context, ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error)
 	WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error)
 	WorkerPushing(ctx context.Context, taskKey string) error

@@ -39,9 +39,6 @@ type StorageMinerAPI struct {
 	Full            api.FullNode
 	StorageMgr      *sectorstorage.Manager `optional:"true"`
 	*stores.Index
-
-	// implement by hlm
-	SectorBuilder *ffiwrapper.Sealer
 }
 
 func (sm *StorageMinerAPI) ServeRemote(w http.ResponseWriter, r *http.Request) {

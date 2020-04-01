@@ -73,8 +73,8 @@ var infoCmd = &cli.Command{
 				float64(10000*uint64(len(faults))/secCounts.Pset)/100.)
 		}
 
-		/*// TODO: indicate whether the post worker is in use
-		wstat, err := nodeApi.WorkerStats(ctx)
+		// TODO: indicate whether the post worker is in use
+		wstat, err := nodeApi.WorkerStatus(ctx)
 		if err != nil {
 			return err
 		}
@@ -85,9 +85,11 @@ var infoCmd = &cli.Command{
 
 		fmt.Printf("Queues:\n")
 		fmt.Printf("\tAddPiece: %d\n", wstat.AddPieceWait)
-		fmt.Printf("\tPreCommit: %d\n", wstat.PreCommitWait)
-		fmt.Printf("\tCommit: %d\n", wstat.CommitWait)
-		fmt.Printf("\tUnseal: %d\n", wstat.UnsealWait)*/
+		fmt.Printf("\tPreCommit1: %d\n", wstat.PreCommit1Wait)
+		fmt.Printf("\tPreCommit2: %d\n", wstat.PreCommit2Wait)
+		fmt.Printf("\tCommit1: %d\n", wstat.Commit1Wait)
+		fmt.Printf("\tCommit2: %d\n", wstat.Commit2Wait)
+		fmt.Printf("\tUnseal: %d\n", wstat.UnsealWait)
 
 		ps, err := api.StateMinerPostState(ctx, maddr, types.EmptyTSK)
 		if err != nil {
@@ -128,7 +130,7 @@ var infoCmd = &cli.Command{
 }
 
 func sectorsInfo(ctx context.Context, napi api.StorageMiner) (map[string]int, error) {
-	sectors, err := napi.SectorsList(ctx)
+	sectors, err := napi.SectorsListAll(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -136,12 +138,11 @@ func sectorsInfo(ctx context.Context, napi api.StorageMiner) (map[string]int, er
 	out := map[string]int{
 		"Total": len(sectors),
 	}
-	for _, s := range sectors {
-		st, err := napi.SectorsStatus(ctx, s)
-		if err != nil {
-			return nil, err
-		}
-
+	for _, st := range sectors {
+		// st, err := napi.SectorsStatus(ctx, s)
+		// if err != nil {
+		// 	return nil, err
+		// }
 		out[api.SectorStates[st.State]]++
 	}
 

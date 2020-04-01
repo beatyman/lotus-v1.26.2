@@ -27,7 +27,7 @@ func (sm *StorageMinerAPI) remoteGetSector(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	path := sm.SectorBuilder.SectorPath(vars["type"], id)
+	path := sm.StorageMgr.Prover.(*ffiwrapper.Sealer).SectorPath(vars["type"], id)
 	stat, err := os.Stat(string(path))
 	if err != nil {
 		log.Error(err)
@@ -98,42 +98,45 @@ func (sm *StorageMinerAPI) WorkerAddress(ctx context.Context, act address.Addres
 	return sm.Full.StateMinerWorker(ctx, act, tsk)
 }
 
-func (sm *StorageMinerAPI) WorkerStatsAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error) {
-	return sm.SectorBuilder.WorkerRemoteStats()
+func (sm *StorageMinerAPI) WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).WorkerStats(), nil
+}
+func (sm *StorageMinerAPI) WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).WorkerRemoteStats()
 }
 func (sm *StorageMinerAPI) WorkerQueue(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) {
-	return sm.SectorBuilder.AddWorker(ctx, cfg)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddWorker(ctx, cfg)
 }
 func (sm *StorageMinerAPI) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
-	return sm.SectorBuilder.TaskWorking(workerId)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorking(workerId)
 }
 func (sm *StorageMinerAPI) WorkerPushing(ctx context.Context, taskKey string) error {
-	return sm.SectorBuilder.TaskPushing(ctx, taskKey)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskPushing(ctx, taskKey)
 }
 
 func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
-	return sm.SectorBuilder.TaskDone(ctx, res)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskDone(ctx, res)
 }
 func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disable bool) error {
-	return sm.SectorBuilder.DisableWorker(ctx, wid, disable)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableWorker(ctx, wid, disable)
 }
 func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
-	return sm.SectorBuilder.AddStorage(ctx, sInfo)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddStorage(ctx, sInfo)
 }
 func (sm *StorageMinerAPI) DisableHLMStorage(ctx context.Context, id int64) error {
-	return sm.SectorBuilder.DisableStorage(ctx, id)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableStorage(ctx, id)
 }
 func (sm *StorageMinerAPI) MountHLMStorage(ctx context.Context, id int64) error {
-	return sm.SectorBuilder.MountStorage(ctx, id)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).MountStorage(ctx, id)
 }
 
 func (sm *StorageMinerAPI) UMountHLMStorage(ctx context.Context, id int64) error {
-	return sm.SectorBuilder.UMountStorage(ctx, id)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UMountStorage(ctx, id)
 }
 
 func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error {
-	return sm.SectorBuilder.RelinkStorage(ctx, id)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id)
 }
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
-	return sm.SectorBuilder.ScaleStorage(ctx, id, size, work)
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
 }

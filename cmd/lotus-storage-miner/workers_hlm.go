@@ -51,7 +51,7 @@ var infoHLMWorkerCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		infos, err := nodeApi.WorkerStatsAll(ctx)
+		infos, err := nodeApi.WorkerStatusAll(ctx)
 		if err != nil {
 			return errors.As(err)
 		}
