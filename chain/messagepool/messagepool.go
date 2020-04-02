@@ -34,6 +34,13 @@ var log = logging.Logger("messagepool")
 
 const futureDebug = false
 
+const ReplaceByFeeRatio = 1.25
+
+var (
+	rbfNum   = types.NewInt(uint64((ReplaceByFeeRatio - 1) * 256))
+	rbfDenom = types.NewInt(256)
+)
+
 var (
 	ErrMessageTooBig = errors.New("message too big")
 
@@ -78,6 +85,8 @@ type MessagePool struct {
 	changes *lps.PubSub
 
 	localMsgs datastore.Datastore
+
+	netName dtypes.NetworkName
 }
 
 type msgSet struct {
@@ -95,10 +104,20 @@ func (ms *msgSet) add(m *types.SignedMessage) error {
 	if len(ms.msgs) == 0 || m.Message.Nonce >= ms.nextNonce {
 		ms.nextNonce = m.Message.Nonce + 1
 	}
-	if _, has := ms.msgs[m.Message.Nonce]; has {
-		if m.Cid() != ms.msgs[m.Message.Nonce].Cid() {
-			log.Info("add with duplicate nonce")
-			return xerrors.Errorf("message to %s with nonce %d already in mpool", m.Message.To, m.Message.Nonce)
+	exms, has := ms.msgs[m.Message.Nonce]
+	if has {
+		if m.Cid() != exms.Cid() {
+			// check if RBF passes
+			minPrice := exms.Message.GasPrice
+			minPrice = types.BigAdd(minPrice, types.BigDiv(types.BigMul(minPrice, rbfNum), rbfDenom))
+			minPrice = types.BigAdd(minPrice, types.NewInt(1))
+			if types.BigCmp(m.Message.GasPrice, minPrice) > 0 {
+				log.Infow("add with RBF", "oldprice", exms.Message.GasPrice,
+					"newprice", m.Message.GasPrice, "addr", m.Message.From, "nonce", m.Message.Nonce)
+			} else {
+				log.Info("add with duplicate nonce")
+				return xerrors.Errorf("message to %s with nonce %d already in mpool", m.Message.To, m.Message.Nonce)
+			}
 		}
 	}
 	ms.msgs[m.Message.Nonce] = m
@@ -154,7 +173,7 @@ func (mpp *mpoolProvider) LoadTipSet(tsk types.TipSetKey) (*types.TipSet, error)
 	return mpp.sm.ChainStore().LoadTipSet(tsk)
 }
 
-func New(api Provider, ds dtypes.MetadataDS) (*MessagePool, error) {
+func New(api Provider, ds dtypes.MetadataDS, netName dtypes.NetworkName) (*MessagePool, error) {
 	cache, _ := lru.New2Q(build.BlsSignatureCacheSize)
 	mp := &MessagePool{
 		closer:        make(chan struct{}),
@@ -167,6 +186,7 @@ func New(api Provider, ds dtypes.MetadataDS) (*MessagePool, error) {
 		changes:       lps.New(50),
 		localMsgs:     namespace.Wrap(ds, datastore.NewKey(localMsgsDs)),
 		api:           api,
+		netName:       netName,
 	}
 
 	if err := mp.loadLocal(); err != nil {
@@ -239,7 +259,7 @@ func (mp *MessagePool) repubLocal() {
 					continue
 				}
 
-				err = mp.api.PubSubPublish(build.MessagesTopic, msgb)
+				err = mp.api.PubSubPublish(build.MessagesTopic(mp.netName), msgb)
 				if err != nil {
 					errout = multierr.Append(errout, xerrors.Errorf("could not publish: %w", err))
 					continue
@@ -284,7 +304,7 @@ func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
 	}
 	mp.lk.Unlock()
 
-	return m.Cid(), mp.api.PubSubPublish(build.MessagesTopic, msgb)
+	return m.Cid(), mp.api.PubSubPublish(build.MessagesTopic(mp.netName), msgb)
 }
 
 func (mp *MessagePool) Add(m *types.SignedMessage) error {
@@ -462,7 +482,7 @@ func (mp *MessagePool) PushWithNonce(addr address.Address, cb func(uint64) (*typ
 
 	nonce, err := mp.getNonceLocked(addr, mp.curTs)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get nonce locked failed: %w", err)
 	}
 
 	msg, err := cb(nonce)
@@ -476,13 +496,13 @@ func (mp *MessagePool) PushWithNonce(addr address.Address, cb func(uint64) (*typ
 	}
 
 	if err := mp.addLocked(msg); err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("add locked failed: %w", err)
 	}
 	if err := mp.addLocal(msg, msgb); err != nil {
 		log.Errorf("addLocal failed: %+v", err)
 	}
 
-	return msg, mp.api.PubSubPublish(build.MessagesTopic, msgb)
+	return msg, mp.api.PubSubPublish(build.MessagesTopic(mp.netName), msgb)
 }
 
 func (mp *MessagePool) Remove(from address.Address, nonce uint64) {

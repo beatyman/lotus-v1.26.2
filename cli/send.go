@@ -17,6 +17,16 @@ var sendCmd = &cli.Command{
 			Name:  "source",
 			Usage: "optionally specify the account to send funds from",
 		},
+		&cli.StringFlag{
+			Name:  "gas-price",
+			Usage: "specify gas price to use in AttoFIL",
+			Value: "0",
+		},
+		&cli.Int64Flag{
+			Name:  "nonce",
+			Usage: "specify the nonce to use",
+			Value: -1,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
@@ -58,17 +68,35 @@ var sendCmd = &cli.Command{
 			fromAddr = addr
 		}
 
+		gp, err := types.BigFromString(cctx.String("gas-price"))
+		if err != nil {
+			return err
+		}
+
 		msg := &types.Message{
 			From:     fromAddr,
 			To:       toAddr,
 			Value:    types.BigInt(val),
 			GasLimit: 10000,
-			GasPrice: types.NewInt(0),
+			GasPrice: gp,
 		}
 
-		_, err = api.MpoolPushMessage(ctx, msg)
-		if err != nil {
-			return err
+		if cctx.Int64("nonce") > 0 {
+			msg.Nonce = uint64(cctx.Int64("nonce"))
+			sm, err := api.WalletSignMessage(ctx, fromAddr, msg)
+			if err != nil {
+				return err
+			}
+
+			_, err = api.MpoolPush(ctx, sm)
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err = api.MpoolPushMessage(ctx, msg)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil

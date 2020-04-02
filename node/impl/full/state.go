@@ -16,6 +16,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-amt-ipld/v2"
+	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
@@ -45,6 +46,10 @@ type StateAPI struct {
 
 	StateManager *stmgr.StateManager
 	Chain        *store.ChainStore
+}
+
+func (a *StateAPI) StateNetworkName(ctx context.Context) (dtypes.NetworkName, error) {
+	return stmgr.GetNetworkName(ctx, a.StateManager, a.Chain.GetHeaviestTipSet().ParentState())
 }
 
 func (a *StateAPI) StateMinerSectors(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]*api.ChainSectorInfo, error) {
@@ -256,6 +261,11 @@ func (a *StateAPI) StateReadState(ctx context.Context, act *types.Actor, tsk typ
 		Balance: act.Balance,
 		State:   oif,
 	}, nil
+}
+
+// This is on StateAPI because miner.Miner requires this, and MinerAPI requires miner.Miner
+func (a *StateAPI) MinerGetBaseInfo(ctx context.Context, maddr address.Address, tsk types.TipSetKey) (*api.MiningBaseInfo, error) {
+	return stmgr.MinerGetBaseInfo(ctx, a.StateManager, tsk, maddr)
 }
 
 // This is on StateAPI because miner.Miner requires this, and MinerAPI requires miner.Miner
