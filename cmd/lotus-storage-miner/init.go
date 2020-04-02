@@ -14,6 +14,7 @@ import (
 
 	"github.com/filecoin-project/lotus/node/modules"
 
+	"github.com/docker/go-units"
 	"github.com/google/uuid"
 	"github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -77,10 +78,10 @@ var initCmd = &cli.Command{
 			Aliases: []string{"o"},
 			Usage:   "owner key to use",
 		},
-		&cli.Uint64Flag{
+		&cli.StringFlag{
 			Name:  "sector-size",
 			Usage: "specify sector size to use",
-			Value: uint64(build.SectorSizes[0]),
+			Value: fmt.Sprint(build.SectorSizes[0]),
 		},
 		&cli.StringSliceFlag{
 			Name:  "pre-sealed-sectors",
@@ -102,11 +103,25 @@ var initCmd = &cli.Command{
 			Name:  "no-local-storage",
 			Usage: "don't use storageminer repo for sector storage",
 		},
+		&cli.StringFlag{
+			Name:  "gas-price",
+			Usage: "set gas price for initialization messages in AttoFIL",
+			Value: "0",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Initializing lotus storage miner")
 
-		ssize := abi.SectorSize(cctx.Uint64("sector-size"))
+		sectorSizeInt, err := units.RAMInBytes(cctx.String("sector-size"))
+		if err != nil {
+			return err
+		}
+		ssize := abi.SectorSize(sectorSizeInt)
+
+		gasPrice, err := types.BigFromString(cctx.String("gas-price"))
+		if err != nil {
+			return xerrors.Errorf("failed to parse gas-price flag: %s", err)
+		}
 
 		symlink := cctx.Bool("symlink-imported-sectors")
 		if symlink {
@@ -229,7 +244,7 @@ var initCmd = &cli.Command{
 			}
 		}
 
-		if err := storageMinerInit(ctx, cctx, api, r, ssize); err != nil {
+		if err := storageMinerInit(ctx, cctx, api, r, ssize, gasPrice); err != nil {
 			log.Errorf("Failed to initialize lotus-storage-miner: %+v", err)
 			path, err := homedir.Expand(repoPath)
 			if err != nil {
@@ -369,7 +384,7 @@ func findMarketDealID(ctx context.Context, api lapi.FullNode, deal market.DealPr
 	return 0, xerrors.New("deal not found")
 }
 
-func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode, r repo.Repo, ssize abi.SectorSize) error {
+func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode, r repo.Repo, ssize abi.SectorSize, gasPrice types.BigInt) error {
 	lr, err := r.Lock(repo.StorageMiner)
 	if err != nil {
 		return err
@@ -435,7 +450,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 					return xerrors.Errorf("failed to start up genesis miner: %w", err)
 				}
 
-				cerr := configureStorageMiner(ctx, api, a, peerid)
+				cerr := configureStorageMiner(ctx, api, a, peerid, gasPrice)
 
 				if err := m.Unregister(ctx, a); err != nil {
 					log.Error("failed to shut down storage miner: ", err)
@@ -475,13 +490,13 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 			}
 		}
 
-		if err := configureStorageMiner(ctx, api, a, peerid); err != nil {
+		if err := configureStorageMiner(ctx, api, a, peerid, gasPrice); err != nil {
 			return xerrors.Errorf("failed to configure storage miner: %w", err)
 		}
 
 		addr = a
 	} else {
-		a, err := createStorageMiner(ctx, api, peerid, cctx)
+		a, err := createStorageMiner(ctx, api, peerid, gasPrice, cctx)
 		if err != nil {
 			return xerrors.Errorf("creating miner failed: %w", err)
 		}
@@ -523,7 +538,7 @@ func makeHostKey(lr repo.LockedRepo) (crypto.PrivKey, error) {
 	return pk, nil
 }
 
-func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.Address, peerid peer.ID) error {
+func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.Address, peerid peer.ID, gasPrice types.BigInt) error {
 	waddr, err := api.StateMinerWorker(ctx, addr, types.EmptyTSK)
 	if err != nil {
 		return xerrors.Errorf("getWorkerAddr returned bad address: %w", err)
@@ -540,7 +555,7 @@ func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.
 		Method:   builtin.MethodsMiner.ChangePeerID,
 		Params:   enc,
 		Value:    types.NewInt(0),
-		GasPrice: types.NewInt(0),
+		GasPrice: gasPrice,
 		GasLimit: 100000000,
 	}
 
@@ -562,7 +577,7 @@ func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.
 	return nil
 }
 
-func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, cctx *cli.Context) (address.Address, error) {
+func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, gasPrice types.BigInt, cctx *cli.Context) (address.Address, error) {
 	log.Info("Creating StorageMarket.CreateStorageMiner message")
 
 	var err error
@@ -613,7 +628,7 @@ func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, 
 		Params: params,
 
 		GasLimit: 10000000,
-		GasPrice: types.NewInt(0),
+		GasPrice: gasPrice,
 	}
 
 	signed, err := api.MpoolPushMessage(ctx, createStorageMinerMsg)

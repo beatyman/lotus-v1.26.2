@@ -4,6 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-filestore"
+	"github.com/libp2p/go-libp2p-core/peer"
+
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -13,13 +17,11 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/builtin/paych"
 	"github.com/filecoin-project/specs-actors/actors/builtin/reward"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
-	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-filestore"
-	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/vm"
+	"github.com/filecoin-project/lotus/node/modules/dtypes"
 )
 
 // FullNode API is a low-level interface to the Filecoin network full node
@@ -70,6 +72,7 @@ type FullNode interface {
 
 	// miner
 
+	MinerGetBaseInfo(context.Context, address.Address, types.TipSetKey) (*MiningBaseInfo, error)
 	MinerCreateBlock(context.Context, address.Address, types.TipSetKey, *types.Ticket, *types.EPostProof, []*types.SignedMessage, abi.ChainEpoch, uint64) (*types.BlockMsg, error)
 
 	// // UX ?
@@ -115,6 +118,7 @@ type FullNode interface {
 	StateReadState(ctx context.Context, act *types.Actor, tsk types.TipSetKey) (*ActorState, error)
 	StateListMessages(ctx context.Context, match *types.Message, tsk types.TipSetKey, toht abi.ChainEpoch) ([]cid.Cid, error)
 
+	StateNetworkName(context.Context) (dtypes.NetworkName, error)
 	StateMinerSectors(context.Context, address.Address, types.TipSetKey) ([]*ChainSectorInfo, error)
 	StateMinerProvingSet(context.Context, address.Address, types.TipSetKey) ([]*ChainSectorInfo, error)
 	StateMinerPower(context.Context, address.Address, types.TipSetKey) (*MinerPower, error)
@@ -178,9 +182,10 @@ type Import struct {
 type DealInfo struct {
 	ProposalCid cid.Cid
 	State       storagemarket.StorageDealStatus
+	Message     string // more information about deal state, particularly errors
 	Provider    address.Address
 
-	PieceRef []byte // cid bytes
+	PieceCID cid.Cid
 	Size     uint64
 
 	PricePerEpoch types.BigInt
@@ -371,4 +376,12 @@ type MpoolUpdate struct {
 type ComputeStateOutput struct {
 	Root  cid.Cid
 	Trace []*InvocResult
+}
+
+type MiningBaseInfo struct {
+	MinerPower   types.BigInt
+	NetworkPower types.BigInt
+	Sectors      []*ChainSectorInfo
+	Worker       address.Address
+	SectorSize   abi.SectorSize
 }
