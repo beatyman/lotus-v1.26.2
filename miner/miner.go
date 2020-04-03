@@ -329,18 +329,16 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		return nil, xerrors.Errorf("failed to get pending messages: %w", err)
 	}
 	log.Infof("all pending msgs len:%d", len(pending))
-	msgs, err := SelectMessages(context.TODO(), m.api.StateGetActor, base.ts, &MsgPool{FromApi: m.api, Msgs: pending})
+	pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.ts, &MsgPool{FromApi: m.api, Msgs: pending})
 	if err != nil {
 		return nil, xerrors.Errorf("message filtering failed: %w", err)
 	}
-	if len(msgs) > build.BlockMessageLimit {
-		// log.Error("SelectMessages returned too many messages: ", len(msgs))
-		msgs = msgs[:build.BlockMessageLimit]
+	if len(pending) > build.BlockMessageLimit {
+		pending = pending[:build.BlockMessageLimit]
 	}
 
 	log.Infof("Time delta between now and our mining base: %ds (nulls: %d)", uint64(time.Now().Unix())-base.ts.MinTimestamp(), base.nullRounds)
 
-	log.Info("gen.IsRoundWinner")
 	proofin, err := gen.IsRoundWinner(ctx, base.ts, int64(base.ts.Height()+base.nullRounds+1), addr, m.epp, m.api)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to check if we win next round: %w", err)
@@ -352,13 +350,11 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		return nil, nil
 	}
 
-	log.Info("gen.ComputeProof")
 	proof, err := gen.ComputeProof(ctx, m.epp, proofin)
 	if err != nil {
 		return nil, xerrors.Errorf("computing election proof: %w", err)
 	}
 
-	log.Info("m.createBlock")
 	ticket, err := m.computeTicket(ctx, addr, base)
 	if err != nil {
 		return nil, xerrors.Errorf("scratching ticket failed: %w", err)
