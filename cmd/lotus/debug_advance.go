@@ -36,7 +36,7 @@ func init() {
 				return err
 			}
 
-			msgs, err := miner.SelectMessages(ctx, api.StateGetActor, head, pending)
+			msgs, err := miner.SelectMessages(ctx, api.StateGetActor, head, &miner.MsgPool{FromApi: api, Msgs: pending})
 			if err != nil {
 				return err
 			}

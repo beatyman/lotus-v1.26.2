@@ -145,6 +145,10 @@ func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]ff
 }
 
 func (w *worker) cleanCache(ctx context.Context) error {
+	if filepath.Base(w.repo) == ".lotusstorage" {
+		return nil
+	}
+
 	api, err := GetNodeApi()
 	if err != nil {
 		return errors.As(err)
@@ -239,23 +243,26 @@ func (w *worker) pushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	if err := os.MkdirAll(filepath.Join(w.sealedRepo, "sealed"), 0755); err != nil {
 		return errors.As(err)
 	}
-	if err := os.MkdirAll(filepath.Join(w.sealedRepo, "cache"), 0755); err != nil {
-		return errors.As(err)
-	}
 	// "sealed" is created during previous step
 	if err := w.push(ctx, "sealed", ffiwrapper.SectorName(task.SectorID)); err != nil {
 		return errors.As(err)
 	}
-
+	if err := os.MkdirAll(filepath.Join(w.sealedRepo, "cache"), 0755); err != nil {
+		return errors.As(err)
+	}
 	if err := w.push(ctx, "cache", ffiwrapper.SectorName(task.SectorID)); err != nil {
 		return errors.As(err)
 	}
-
-	if err := w.cleanCache(ctx); err != nil {
+	// if err := os.MkdirAll(filepath.Join(w.sealedRepo, "unsealed"), 0755); err != nil {
+	// 	return errors.As(err)
+	// }
+	// if err := w.push(ctx, "unsealed", ffiwrapper.SectorName(task.SectorID)); err != nil {
+	// 	return errors.As(err)
+	// }
+	if err := database.Umount(w.sealedRepo); err != nil {
 		return errors.As(err)
 	}
 	return nil
-
 }
 
 func (w *worker) pushCommit(ctx context.Context, task ffiwrapper.WorkerTask) error {
@@ -287,6 +294,9 @@ repush:
 			log.Error(errors.As(err, task))
 			time.Sleep(60e9)
 			goto repush
+		}
+		if err := w.cleanCache(ctx); err != nil {
+			return errors.As(err)
 		}
 	}
 	return nil
@@ -335,12 +345,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	default:
 		return errRes(errors.New("unknown task type").As(task.Type, w.workerCfg), task)
 	}
-
-	// if err := w.fetchSector(task.SectorID, task.Type); err != nil {
-	// 	return errRes(xerrors.Errorf("fetching sector: %w", err))
-	// }
-	//
-	// log.Infof("Data fetched, starting computation")
 
 	res := ffiwrapper.SealRes{
 		Type:      task.Type,
@@ -412,7 +416,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
-
 		res.Commit1Out = out
 	case ffiwrapper.WorkerCommit2:
 		out, err := w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
