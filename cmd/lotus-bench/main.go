@@ -188,7 +188,7 @@ func main() {
 				Root: sbdir,
 			}
 
-			sb, err := ffiwrapper.New(sbfs, cfg)
+			sb, err := ffiwrapper.New(false, sbfs, cfg)
 			if err != nil {
 				return err
 			}
@@ -546,7 +546,7 @@ var proveCmd = &cli.Command{
 			PoStProofType: ppt,
 		}
 
-		sb, err := ffiwrapper.New(nil, cfg)
+		sb, err := ffiwrapper.New(false, nil, cfg)
 		if err != nil {
 			return err
 		}

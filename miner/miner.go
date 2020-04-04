@@ -181,6 +181,7 @@ eventLoop:
 			log.Errorf("failed to get best mining candidate: %s", err)
 			continue
 		}
+		now := time.Now()
 		if !base.ts.Equals(lastBase.ts) {
 			nextRound = nextRoundTime(base)
 			lastBase = *base
@@ -188,13 +189,17 @@ eventLoop:
 			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.ts.Cids(), lastBase.nullRounds)
 
 			// if the base was dead, make the nullRound++ step by round actually change.
-			now := time.Now()
 			if (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
 				time.Sleep(1e9)
 				continue
 			}
 			lastBase.nullRounds++
 			nextRound = nextRoundTime(&lastBase)
+		}
+		if nextRound.Unix()-now.Unix() < (build.BlockDelay - build.PropagationDelay - build.PropagationDelay/2) {
+			// no time to mining, just skip this round, and have to prepare to mine the next round.
+			time.Sleep(nextRound.Sub(now))
+			continue
 		}
 
 		blks := make([]*types.BlockMsg, 0)
@@ -469,29 +474,19 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 		}
 
 		if inclBalances[from].LessThan(msg.Message.RequiredFunds()) {
-			log.Warnf("message in mempool does not have enough funds: %s", msg.Cid())
+			log.Warnf("message in mempool does not have enough funds: %s", msg.Message.String())
 			mpool.Remove(ctx, msg)
 			continue
 		}
 
 		if msg.Message.Nonce > inclNonces[from] {
-			log.Warnf("message in mempool has too high of a nonce (%d > %d, from %s, inclcount %d) %s (%d pending for orig)", msg.Message.Nonce, inclNonces[from], from, inclCount[from], msg.Cid(), countFrom(mpool.Msgs, from))
-			// TODO: fix this errors
-			/*
-				2020-03-25T09:42:51.141Z	WARN	miner	miner/miner.go:490	message in mempool has too high of a nonce (63 > 4, from t1d2xrzcslx7xlbbylc5c3d5lvandqw4iwl6epxba, inclcount 0) bafy2bzaceds3cp3dplzxnmysu5jtauim57d3pjtio7bdwlrbwcdn4a2e36ldy (1 pending for orig)
-						2020-03-25T09:43:30.434Z	ERROR	miner	miner/miner.go:254	failed to submit newly mined block: sync to submitted block failed: collectChain failed: collectChain syncMessages: message processing failed: validating block bafy2bzacedbs6oh4ulqttibej6bwaf2zgbwcirgkqg5kkgxrcuydp35yplcpc, t019125: 1 error occurred:
-					* block had invalid messages: block had invalid secpk message at index 0: wrong nonce (exp: 4, got: 63)
-
-
-				github.com/filecoin-project/lotus/miner.(*Miner).mine
-					/root/go/src/github.com/filecoin-project/lotus/miner/miner.go:254
-			*/
+			log.Warnf("message in mempool has too high of a nonce (%d > %d, inclcount %d) %s (%d pending for orig)", msg.Message.Nonce, inclNonces[from], inclCount[from], msg.Message.String(), countFrom(mpool.Msgs, from))
 			mpool.Remove(ctx, msg)
 			continue
 		}
 
 		if msg.Message.Nonce < inclNonces[from] {
-			log.Warnf("message in mempool has already used nonce (%d < %d), from %s, to %s, %s (%d pending for)", msg.Message.Nonce, inclNonces[from], msg.Message.From, msg.Message.To, msg.Cid(), countFrom(mpool.Msgs, from))
+			log.Warnf("message in mempool has already used nonce (%d < %d), %s (%d pending for)", msg.Message.Nonce, inclNonces[from], msg.Message.String(), countFrom(mpool.Msgs, from))
 			mpool.Remove(ctx, msg)
 			continue
 		}

@@ -113,3 +113,10 @@ func (m *Message) VMMessage() *Message {
 func (m *Message) Equals(o *Message) bool {
 	return m.Cid() == o.Cid()
 }
+
+func (m *Message) String() string {
+	return fmt.Sprintf(
+		"{To:%s,From:%s,Nonce:%d,Value:%+v,GasPrice:%+v,GasLimit:%+v,Method:%d}",
+		m.To, m.From, m.Nonce, m.Value, m.GasPrice, m.GasLimit, m.Method,
+	)
+}
