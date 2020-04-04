@@ -423,7 +423,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 		res.Commit2Out = out
-	case ffiwrapper.WorkerFinalize:
+		// case ffiwrapper.WorkerFinalize:
 		if err := w.sb.FinalizeSector(ctx, task.SectorID); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
