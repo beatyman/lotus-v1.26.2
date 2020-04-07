@@ -26,16 +26,101 @@ type StateTree struct {
 	root  *hamt.Node
 	Store cbor.IpldStore
 
-	// Maps ID addresses to actors.
-	actorcache map[address.Address]*types.Actor
-	snapshots  []cid.Cid
+	snaps *stateSnaps
+}
+
+type stateSnaps struct {
+	layers []*stateSnapLayer
+}
+
+type stateSnapLayer struct {
+	actors       map[address.Address]streeOp
+	resolveCache map[address.Address]address.Address
+}
+
+func newStateSnapLayer() *stateSnapLayer {
+	return &stateSnapLayer{
+		actors:       make(map[address.Address]streeOp),
+		resolveCache: make(map[address.Address]address.Address),
+	}
+}
+
+type streeOp struct {
+	Act    types.Actor
+	Delete bool
+}
+
+func newStateSnaps() *stateSnaps {
+	ss := &stateSnaps{}
+	ss.addLayer()
+	return ss
+}
+
+func (ss *stateSnaps) addLayer() {
+	ss.layers = append(ss.layers, newStateSnapLayer())
+}
+
+func (ss *stateSnaps) dropLayer() {
+	ss.layers[len(ss.layers)-1] = nil // allow it to be GCed
+	ss.layers = ss.layers[:len(ss.layers)-1]
+}
+
+func (ss *stateSnaps) mergeLastLayer() {
+	last := ss.layers[len(ss.layers)-1]
+	nextLast := ss.layers[len(ss.layers)-2]
+
+	for k, v := range last.actors {
+		nextLast.actors[k] = v
+	}
+
+	for k, v := range last.resolveCache {
+		nextLast.resolveCache[k] = v
+	}
+
+	ss.dropLayer()
+}
+
+func (ss *stateSnaps) resolveAddress(addr address.Address) (address.Address, bool) {
+	for i := len(ss.layers) - 1; i >= 0; i-- {
+		resa, ok := ss.layers[i].resolveCache[addr]
+		if ok {
+			return resa, true
+		}
+	}
+	return address.Undef, false
+}
+
+func (ss *stateSnaps) cacheResolveAddress(addr, resa address.Address) {
+	ss.layers[len(ss.layers)-1].resolveCache[addr] = resa
+}
+
+func (ss *stateSnaps) getActor(addr address.Address) (*types.Actor, error) {
+	for i := len(ss.layers) - 1; i >= 0; i-- {
+		act, ok := ss.layers[i].actors[addr]
+		if ok {
+			if act.Delete {
+				return nil, types.ErrActorNotFound
+			}
+
+			return &act.Act, nil
+		}
+	}
+	return nil, nil
+}
+
+func (ss *stateSnaps) setActor(addr address.Address, act *types.Actor) {
+	ss.layers[len(ss.layers)-1].actors[addr] = streeOp{Act: *act}
+}
+
+func (ss *stateSnaps) deleteActor(addr address.Address) {
+	ss.layers[len(ss.layers)-1].actors[addr] = streeOp{Delete: true}
 }
 
 func NewStateTree(cst cbor.IpldStore) (*StateTree, error) {
 	return &StateTree{
-		root:       hamt.NewNode(cst, hamt.UseTreeBitWidth(5)),
-		Store:      cst,
-		actorcache: make(map[address.Address]*types.Actor),
+		root:  hamt.NewNode(cst, hamt.UseTreeBitWidth(5)),
+		Store: cst,
+		snaps: newStateSnaps(),
 	}, nil
 }
 
@@ -47,9 +132,9 @@ func LoadStateTree(cst cbor.IpldStore, c cid.Cid) (*StateTree, error) {
 	}
 
 	return &StateTree{
-		root:       nd,
-		Store:      cst,
-		actorcache: make(map[address.Address]*types.Actor),
+		root:  nd,
+		Store: cst,
+		snaps: newStateSnaps(),
 	}, nil
 }
 
@@ -60,22 +145,19 @@ func (st *StateTree) SetActor(addr address.Address, act *types.Actor) error {
 	}
 	addr = iaddr
 
-	cact, ok := st.actorcache[addr]
-	if ok {
-		if act == cact {
-			return nil
-		}
-	}
-
-	st.actorcache[addr] = act
-
-	return st.root.Set(context.TODO(), string(addr.Bytes()), act)
+	st.snaps.setActor(addr, act)
+	return nil
 }
 
 // `LookupID` gets the ID address of this actor's `addr` stored in the `InitActor`.
 func (st *StateTree) LookupID(addr address.Address) (address.Address, error) {
 	if addr.Protocol() == address.ID {
 		return addr, nil
+	}
+
+	resa, ok := st.snaps.resolveAddress(addr)
+	if ok {
+		return resa, nil
 	}
 
 	act, err := st.GetActor(builtin.InitActorAddr)
@@ -92,6 +174,9 @@ func (st *StateTree) LookupID(addr address.Address) (address.Address, error) {
 	if err != nil {
 		return address.Undef, xerrors.Errorf("resolve address %s: %w", addr, err)
 	}
+
+	st.snaps.cacheResolveAddress(addr, a)
+
 	return a, nil
 }
 
@@ -111,9 +196,13 @@ func (st *StateTree) GetActor(addr address.Address) (*types.Actor, error) {
 	}
 	addr = iaddr
 
-	cact, ok := st.actorcache[addr]
-	if ok {
-		return cact, nil
+	snapAct, err := st.snaps.getActor(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if snapAct != nil {
+		return snapAct, nil
 	}
 
 	var act types.Actor
@@ -125,7 +214,7 @@ func (st *StateTree) GetActor(addr address.Address) (*types.Actor, error) {
 		return nil, xerrors.Errorf("hamt find failed: %w", err)
 	}
 
-	st.actorcache[addr] = &act
+	st.snaps.setActor(addr, &act)
 
 	return &act, nil
 }
@@ -145,11 +234,12 @@ func (st *StateTree) DeleteActor(addr address.Address) error {
 
 	addr = iaddr
 
-	delete(st.actorcache, addr)
-
-	if err := st.root.Delete(context.TODO(), string(addr.Bytes())); err != nil {
-		return xerrors.Errorf("failed to delete actor: %w", err)
+	_, err = st.GetActor(addr)
+	if err != nil {
+		return err
 	}
+
+	st.snaps.deleteActor(addr)
 
 	return nil
 }
@@ -157,10 +247,19 @@ func (st *StateTree) DeleteActor(addr address.Address) error {
 func (st *StateTree) Flush(ctx context.Context) (cid.Cid, error) {
 	ctx, span := trace.StartSpan(ctx, "stateTree.Flush")
 	defer span.End()
+	if len(st.snaps.layers) != 1 {
+		return cid.Undef, xerrors.Errorf("tried to flush state tree with snapshots on the stack")
+	}
 
-	for addr, act := range st.actorcache {
-		if err := st.root.Set(ctx, string(addr.Bytes()), act); err != nil {
-			return cid.Undef, err
+	for addr, sto := range st.snaps.layers[0].actors {
+		if sto.Delete {
+			if err := st.root.Delete(ctx, string(addr.Bytes())); err != nil {
+				return cid.Undef, err
+			}
+		} else {
+			if err := st.root.Set(ctx, string(addr.Bytes()), &sto.Act); err != nil {
+				return cid.Undef, err
+			}
 		}
 	}
 
@@ -175,17 +274,13 @@ func (st *StateTree) Snapshot(ctx context.Context) error {
 	ctx, span := trace.StartSpan(ctx, "stateTree.SnapShot")
 	defer span.End()
 
-	ss, err := st.Flush(ctx)
-	if err != nil {
-		return err
-	}
+	st.snaps.addLayer()
 
-	st.snapshots = append(st.snapshots, ss)
 	return nil
 }
 
 func (st *StateTree) ClearSnapshot() {
-	st.snapshots = st.snapshots[:len(st.snapshots)-1]
+	st.snaps.mergeLastLayer()
 }
 
 func (st *StateTree) RegisterNewAddress(addr address.Address) (address.Address, error) {
@@ -226,14 +321,9 @@ func (a *AdtStore) Context() context.Context {
 var _ adt.Store = (*AdtStore)(nil)
 
 func (st *StateTree) Revert() error {
-	revTo := st.snapshots[len(st.snapshots)-1]
-	nd, err := hamt.LoadNode(context.Background(), st.Store, revTo, hamt.UseTreeBitWidth(5))
-	if err != nil {
-		return err
-	}
-	st.actorcache = make(map[address.Address]*types.Actor)
+	st.snaps.dropLayer()
+	st.snaps.addLayer()
 
-	st.root = nd
 	return nil
 }
 
