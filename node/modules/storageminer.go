@@ -35,6 +35,9 @@ import (
 	"github.com/filecoin-project/go-fil-markets/storedcounter"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/go-statestore"
+	sectorstorage "github.com/filecoin-project/sector-storage"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/sector-storage/stores"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 
@@ -49,9 +52,6 @@ import (
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
 	"github.com/filecoin-project/lotus/storage/sealing"
-	"github.com/filecoin-project/sector-storage"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/sector-storage/stores"
 )
 
 func minerAddrFromDS(ds dtypes.MetadataDS) (address.Address, error) {
@@ -123,7 +123,7 @@ func SectorIDCounter(ds dtypes.MetadataDS) sealing.SectorIDCounter {
 	return &sidsc{sc}
 }
 
-func StorageMiner(mctx helpers.MetricsCtx, lc fx.Lifecycle, api lapi.FullNode, h host.Host, ds dtypes.MetadataDS, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, tktFn sealing.TicketFn) (*storage.Miner, error) {
+func StorageMiner(mctx helpers.MetricsCtx, lc fx.Lifecycle, api lapi.FullNode, h host.Host, ds dtypes.MetadataDS, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, tktFn sealing.TicketFn) (*storage.Miner, error) {
 	maddr, err := minerAddrFromDS(ds)
 	if err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func StorageMiner(mctx helpers.MetricsCtx, lc fx.Lifecycle, api lapi.FullNode, h
 
 	fps := storage.NewFPoStScheduler(api, sealer, maddr, worker, ppt)
 
-	sm, err := storage.NewMiner(api, maddr, worker, h, ds, sealer, sc, tktFn)
+	sm, err := storage.NewMiner(api, maddr, worker, h, ds, sealer, sc, verif, tktFn)
 	if err != nil {
 		return nil, err
 	}
@@ -281,21 +281,18 @@ func SetupBlockProducer(lc fx.Lifecycle, ds dtypes.MetadataDS, api lapi.FullNode
 }
 
 func SealTicketGen(fapi lapi.FullNode) sealing.TicketFn {
-	return func(ctx context.Context) (*lapi.SealTicket, error) {
+	return func(ctx context.Context) (abi.SealRandomness, abi.ChainEpoch, error) {
 		ts, err := fapi.ChainHead(ctx)
 		if err != nil {
-			return nil, xerrors.Errorf("getting head ts for SealTicket failed: %w", err)
+			return nil, 0, xerrors.Errorf("getting head ts for SealTicket failed: %w", err)
 		}
 
 		r, err := fapi.ChainGetRandomness(ctx, ts.Key(), crypto.DomainSeparationTag_SealRandomness, ts.Height()-build.SealRandomnessLookback, nil)
 		if err != nil {
-			return nil, xerrors.Errorf("getting randomness for SealTicket failed: %w", err)
+			return nil, 0, xerrors.Errorf("getting randomness for SealTicket failed: %w", err)
 		}
 
-		return &lapi.SealTicket{
-			Epoch: ts.Height() - build.SealRandomnessLookback,
-			Value: abi.SealRandomness(r),
-		}, nil
+		return abi.SealRandomness(r), ts.Height() - build.SealRandomnessLookback, nil
 	}
 }
 

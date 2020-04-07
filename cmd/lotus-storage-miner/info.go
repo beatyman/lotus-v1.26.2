@@ -4,13 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"gopkg.in/urfave/cli.v2"
+
+	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/storage/sealing"
 )
 
 var infoCmd = &cli.Command{
@@ -129,13 +131,13 @@ var infoCmd = &cli.Command{
 	},
 }
 
-func sectorsInfo(ctx context.Context, napi api.StorageMiner) (map[string]int, error) {
+func sectorsInfo(ctx context.Context, napi api.StorageMiner) (map[sealing.SectorState]int, error) {
 	sectors, err := napi.SectorsListAll(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	out := map[string]int{
+	out := map[sealing.SectorState]int{
 		"Total": len(sectors),
 	}
 	for _, st := range sectors {
@@ -143,7 +145,7 @@ func sectorsInfo(ctx context.Context, napi api.StorageMiner) (map[string]int, er
 		// if err != nil {
 		// 	return nil, err
 		// }
-		out[api.SectorStates[st.State]]++
+		out[st.State]++
 	}
 
 	return out, nil

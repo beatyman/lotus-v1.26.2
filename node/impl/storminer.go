@@ -13,6 +13,9 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	storagemarket "github.com/filecoin-project/go-fil-markets/storagemarket"
+	sectorstorage "github.com/filecoin-project/sector-storage"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/sector-storage/stores"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
 	"github.com/filecoin-project/lotus/api"
@@ -21,10 +24,8 @@ import (
 	"github.com/filecoin-project/lotus/miner"
 	"github.com/filecoin-project/lotus/node/impl/common"
 	"github.com/filecoin-project/lotus/storage"
+	"github.com/filecoin-project/lotus/storage/sealing"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
-	"github.com/filecoin-project/sector-storage"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/sector-storage/stores"
 )
 
 type StorageMinerAPI struct {
@@ -102,9 +103,15 @@ func (sm *StorageMinerAPI) SectorsStatus(ctx context.Context, sid abi.SectorNumb
 		CommR:    info.CommR,
 		Proof:    info.Proof,
 		Deals:    deals,
-		Ticket:   info.Ticket,
-		Seed:     info.Seed,
-		Retries:  info.Nonce,
+		Ticket: api.SealTicket{
+			Value: info.TicketValue,
+			Epoch: info.TicketEpoch,
+		},
+		Seed: api.SealSeed{
+			Value: info.SeedValue,
+			Epoch: info.SeedEpoch,
+		},
+		Retries: info.Nonce,
 
 		LastErr: info.LastErr,
 		Log:     log,
@@ -120,7 +127,7 @@ func (sm *StorageMinerAPI) SectorsList(context.Context) ([]abi.SectorNumber, err
 
 	out := make([]abi.SectorNumber, len(sectors))
 	for i, sector := range sectors {
-		out[i] = sector.SectorID
+		out[i] = sector.SectorNumber
 	}
 	return out, nil
 }
@@ -149,7 +156,7 @@ func (sm *StorageMinerAPI) StorageStat(ctx context.Context, id stores.ID) (store
 	return sm.StorageMgr.FsStat(ctx, id)
 }
 
-func (sm *StorageMinerAPI) SectorsUpdate(ctx context.Context, id abi.SectorNumber, state api.SectorState) error {
+func (sm *StorageMinerAPI) SectorsUpdate(ctx context.Context, id abi.SectorNumber, state sealing.SectorState) error {
 	return sm.Miner.ForceSectorState(ctx, id, state)
 }
 

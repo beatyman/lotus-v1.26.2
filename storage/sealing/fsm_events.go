@@ -3,10 +3,9 @@ package sealing
 import (
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
-
-	"github.com/filecoin-project/lotus/api"
 )
 
 type mutator interface {
@@ -31,7 +30,7 @@ type SectorFatalError struct{ error }
 func (evt SectorFatalError) FormatError(xerrors.Printer) (next error) { return evt.error }
 
 func (evt SectorFatalError) applyGlobal(state *SectorInfo) bool {
-	log.Errorf("Fatal error on sector %d: %+v", state.SectorID, evt.error)
+	log.Errorf("Fatal error on sector %d: %+v", state.SectorNumber, evt.error)
 	// TODO: Do we want to mark the state as unrecoverable?
 	//  I feel like this should be a softer error, where the user would
 	//  be able to send a retry event of some kind
@@ -39,7 +38,7 @@ func (evt SectorFatalError) applyGlobal(state *SectorInfo) bool {
 }
 
 type SectorForceState struct {
-	State api.SectorState
+	State SectorState
 }
 
 func (evt SectorForceState) applyGlobal(state *SectorInfo) bool {
@@ -56,7 +55,7 @@ type SectorStart struct {
 }
 
 func (evt SectorStart) apply(state *SectorInfo) {
-	state.SectorID = evt.ID
+	state.SectorNumber = evt.ID
 	state.Pieces = evt.Pieces
 	state.SectorType = evt.SectorType
 }
@@ -71,29 +70,41 @@ type SectorPackingFailed struct{ error }
 
 func (evt SectorPackingFailed) apply(*SectorInfo) {}
 
-type SectorSealed struct {
-	Sealed   cid.Cid
-	Unsealed cid.Cid
-	Ticket   api.SealTicket
+type SectorPreCommit1 struct {
+	PreCommit1Out storage.PreCommit1Out
+	TicketValue   abi.SealRandomness
+	TicketEpoch   abi.ChainEpoch
 }
 
-func (evt SectorSealed) apply(state *SectorInfo) {
+func (evt SectorPreCommit1) apply(state *SectorInfo) {
+	state.PreCommit1Out = evt.PreCommit1Out
+	state.TicketEpoch = evt.TicketEpoch
+	state.TicketValue = evt.TicketValue
+}
+
+type SectorPreCommit2 struct {
+	Sealed   cid.Cid
+	Unsealed cid.Cid
+}
+
+func (evt SectorPreCommit2) apply(state *SectorInfo) {
 	commd := evt.Unsealed
 	state.CommD = &commd
 	commr := evt.Sealed
 	state.CommR = &commr
-	state.Ticket = evt.Ticket
 }
 
-type SectorSealFailed struct{ error }
+type SectorSealPreCommitFailed struct{ error }
 
-func (evt SectorSealFailed) FormatError(xerrors.Printer) (next error) { return evt.error }
-func (evt SectorSealFailed) apply(*SectorInfo)                        {}
+func (evt SectorSealPreCommitFailed) FormatError(xerrors.Printer) (next error) { return evt.error }
+func (evt SectorSealPreCommitFailed) apply(si *SectorInfo) {
+	si.InvalidProofs = 0 // reset counter
+}
 
-type SectorPreCommitFailed struct{ error }
+type SectorChainPreCommitFailed struct{ error }
 
-func (evt SectorPreCommitFailed) FormatError(xerrors.Printer) (next error) { return evt.error }
-func (evt SectorPreCommitFailed) apply(*SectorInfo)                        {}
+func (evt SectorChainPreCommitFailed) FormatError(xerrors.Printer) (next error) { return evt.error }
+func (evt SectorChainPreCommitFailed) apply(*SectorInfo)                        {}
 
 type SectorPreCommitted struct {
 	Message cid.Cid
@@ -104,11 +115,13 @@ func (evt SectorPreCommitted) apply(state *SectorInfo) {
 }
 
 type SectorSeedReady struct {
-	Seed api.SealSeed
+	SeedValue abi.InteractiveSealRandomness
+	SeedEpoch abi.ChainEpoch
 }
 
 func (evt SectorSeedReady) apply(state *SectorInfo) {
-	state.Seed = evt.Seed
+	state.SeedEpoch = evt.SeedEpoch
+	state.SeedValue = evt.SeedValue
 }
 
 type SectorComputeProofFailed struct{ error }
@@ -157,6 +170,16 @@ func (evt SectorRetryPreCommit) apply(state *SectorInfo) {}
 type SectorRetryWaitSeed struct{}
 
 func (evt SectorRetryWaitSeed) apply(state *SectorInfo) {}
+
+type SectorRetryComputeProof struct{}
+
+func (evt SectorRetryComputeProof) apply(state *SectorInfo) {}
+
+type SectorRetryInvalidProof struct{}
+
+func (evt SectorRetryInvalidProof) apply(state *SectorInfo) {
+	state.InvalidProofs++
+}
 
 // Faults
 
