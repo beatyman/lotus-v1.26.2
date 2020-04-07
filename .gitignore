@@ -1,8 +1,8 @@
 /lotus
 /lotus-storage-miner
 /lotus-seal-worker
-/lotus-worker
 /lotus-seed
+/lotus-shed
 /lotus-health
 /lotus-shed
 /pond
@@ -37,3 +37,7 @@ build/paramfetch.sh
 bin/ipget
 bin/tmp/*
 .idea
+/nohup.out
+/*.log
+.DS_Store
+*/.DS_Store
