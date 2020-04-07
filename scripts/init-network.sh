@@ -21,7 +21,7 @@ make fountain
 
 ./lotus-seed genesis new "${staging}/genesis.json"
 
-./lotus-seed --sectorbuilder-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
 
 ./lotus-seed genesis add-miner "${staging}/genesis.json" "${sdt0111}/pre-seal-t01000.json"
 
@@ -50,6 +50,24 @@ sleep 10
 
 mdt0111=/data/lotus/dev/.mdt0111 # $(mktemp -d)
 rm -rf $mdt0111 && mkdir -p $mdt0111
+
+# link the pre-seal data to repo
+mkdir -p ${mdt0111}/cache
+mkdir -p ${mdt0111}/sealed
+mkdir -p ${mdt0111}/unsealed
+for sector in `ls ${std0111}/cache`
+do
+    ln -s ${std0111}/cache/$sector ${mdt0111}/cache/$sector
+done
+for sector in `ls ${std0111}/sealed`
+do
+    ln -s ${std0111}/sealed/$sector ${mdt0111}/sealed/$sector
+done
+for sector in `ls ${std0111}/unsealed`
+do
+    ln -s ${std0111}/unsealed/$sector ${mdt0111}/unsealed/$sector
+done
+
 env LOTUS_PATH="${ldt0111}" LOTUS_STORAGE_PATH="${mdt0111}" ./lotus-storage-miner init --genesis-miner --actor=t01000 --pre-sealed-sectors="${sdt0111}" --pre-sealed-metadata="${sdt0111}/pre-seal-t01000.json" --nosync=true --sector-size="${SECTOR_SIZE}" || true
 env LOTUS_PATH="${ldt0111}" LOTUS_STORAGE_PATH="${mdt0111}" ./lotus-storage-miner run --nosync &
 
