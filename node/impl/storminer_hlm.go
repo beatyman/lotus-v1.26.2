@@ -87,7 +87,7 @@ func (sm *StorageMinerAPI) SectorsListAll(context.Context) ([]api.SectorInfo, er
 	for _, sector := range sectors {
 		out = append(out, api.SectorInfo{
 			State:    sector.State,
-			SectorID: sector.SectorID,
+			SectorID: sector.SectorNumber,
 			// TODO: more?
 		})
 	}

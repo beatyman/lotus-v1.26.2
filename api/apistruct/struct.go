@@ -9,6 +9,9 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
+	sectorstorage "github.com/filecoin-project/sector-storage"
+	"github.com/filecoin-project/sector-storage/sealtasks"
+	"github.com/filecoin-project/sector-storage/stores"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
@@ -22,10 +25,8 @@ import (
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
-	sectorstorage "github.com/filecoin-project/sector-storage"
-	"github.com/filecoin-project/sector-storage/sealtasks"
-	"github.com/filecoin-project/sector-storage/stores"
 
+	"github.com/filecoin-project/lotus/storage/sealing"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 )
@@ -115,35 +116,36 @@ type FullNodeStruct struct {
 		ClientRetrieve    func(ctx context.Context, order api.RetrievalOrder, ref api.FileRef) error                           `perm:"admin"`
 		ClientQueryAsk    func(ctx context.Context, p peer.ID, miner address.Address) (*storagemarket.SignedStorageAsk, error) `perm:"read"`
 
-		StateNetworkName        func(context.Context) (dtypes.NetworkName, error)                                                            `perm:"read"`
-		StateMinerSectors       func(context.Context, address.Address, types.TipSetKey) ([]*api.ChainSectorInfo, error)                      `perm:"read"`
-		StateMinerProvingSet    func(context.Context, address.Address, types.TipSetKey) ([]*api.ChainSectorInfo, error)                      `perm:"read"`
-		StateMinerPower         func(context.Context, address.Address, types.TipSetKey) (*api.MinerPower, error)                             `perm:"read"`
-		StateMinerWorker        func(context.Context, address.Address, types.TipSetKey) (address.Address, error)                             `perm:"read"`
-		StateMinerPeerID        func(ctx context.Context, m address.Address, tsk types.TipSetKey) (peer.ID, error)                           `perm:"read"`
-		StateMinerPostState     func(ctx context.Context, actor address.Address, tsk types.TipSetKey) (*miner.PoStState, error)              `perm:"read"`
-		StateMinerSectorSize    func(context.Context, address.Address, types.TipSetKey) (abi.SectorSize, error)                              `perm:"read"`
-		StateMinerFaults        func(context.Context, address.Address, types.TipSetKey) ([]abi.SectorNumber, error)                          `perm:"read"`
-		StateCall               func(context.Context, *types.Message, types.TipSetKey) (*api.InvocResult, error)                             `perm:"read"`
-		StateReplay             func(context.Context, types.TipSetKey, cid.Cid) (*api.InvocResult, error)                                    `perm:"read"`
-		StateGetActor           func(context.Context, address.Address, types.TipSetKey) (*types.Actor, error)                                `perm:"read"`
-		StateReadState          func(context.Context, *types.Actor, types.TipSetKey) (*api.ActorState, error)                                `perm:"read"`
-		StatePledgeCollateral   func(context.Context, types.TipSetKey) (types.BigInt, error)                                                 `perm:"read"`
-		StateWaitMsg            func(context.Context, cid.Cid) (*api.MsgLookup, error)                                                       `perm:"read"`
-		StateSearchMsg          func(context.Context, cid.Cid) (*api.MsgLookup, error)                                                       `perm:"read"`
-		StateListMiners         func(context.Context, types.TipSetKey) ([]address.Address, error)                                            `perm:"read"`
-		StateListActors         func(context.Context, types.TipSetKey) ([]address.Address, error)                                            `perm:"read"`
-		StateMarketBalance      func(context.Context, address.Address, types.TipSetKey) (api.MarketBalance, error)                           `perm:"read"`
-		StateMarketParticipants func(context.Context, types.TipSetKey) (map[string]api.MarketBalance, error)                                 `perm:"read"`
-		StateMarketDeals        func(context.Context, types.TipSetKey) (map[string]api.MarketDeal, error)                                    `perm:"read"`
-		StateMarketStorageDeal  func(context.Context, abi.DealID, types.TipSetKey) (*api.MarketDeal, error)                                  `perm:"read"`
-		StateLookupID           func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (address.Address, error)                `perm:"read"`
-		StateChangedActors      func(context.Context, cid.Cid, cid.Cid) (map[string]types.Actor, error)                                      `perm:"read"`
-		StateGetReceipt         func(context.Context, cid.Cid, types.TipSetKey) (*types.MessageReceipt, error)                               `perm:"read"`
-		StateMinerSectorCount   func(context.Context, address.Address, types.TipSetKey) (api.MinerSectors, error)                            `perm:"read"`
-		StateListMessages       func(ctx context.Context, match *types.Message, tsk types.TipSetKey, toht abi.ChainEpoch) ([]cid.Cid, error) `perm:"read"`
-		StateListRewards        func(context.Context, address.Address, types.TipSetKey) ([]reward.Reward, error)                             `perm:"read"`
-		StateCompute            func(context.Context, abi.ChainEpoch, []*types.Message, types.TipSetKey) (*api.ComputeStateOutput, error)    `perm:"read"`
+		StateNetworkName         func(context.Context) (dtypes.NetworkName, error)                                                                   `perm:"read"`
+		StateMinerSectors        func(context.Context, address.Address, types.TipSetKey) ([]*api.ChainSectorInfo, error)                             `perm:"read"`
+		StateMinerProvingSet     func(context.Context, address.Address, types.TipSetKey) ([]*api.ChainSectorInfo, error)                             `perm:"read"`
+		StateMinerPower          func(context.Context, address.Address, types.TipSetKey) (*api.MinerPower, error)                                    `perm:"read"`
+		StateMinerWorker         func(context.Context, address.Address, types.TipSetKey) (address.Address, error)                                    `perm:"read"`
+		StateMinerPeerID         func(ctx context.Context, m address.Address, tsk types.TipSetKey) (peer.ID, error)                                  `perm:"read"`
+		StateMinerPostState      func(ctx context.Context, actor address.Address, tsk types.TipSetKey) (*miner.PoStState, error)                     `perm:"read"`
+		StateMinerSectorSize     func(context.Context, address.Address, types.TipSetKey) (abi.SectorSize, error)                                     `perm:"read"`
+		StateMinerFaults         func(context.Context, address.Address, types.TipSetKey) ([]abi.SectorNumber, error)                                 `perm:"read"`
+		StateSectorPreCommitInfo func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) `perm:"read"`
+		StateCall                func(context.Context, *types.Message, types.TipSetKey) (*api.InvocResult, error)                                    `perm:"read"`
+		StateReplay              func(context.Context, types.TipSetKey, cid.Cid) (*api.InvocResult, error)                                           `perm:"read"`
+		StateGetActor            func(context.Context, address.Address, types.TipSetKey) (*types.Actor, error)                                       `perm:"read"`
+		StateReadState           func(context.Context, *types.Actor, types.TipSetKey) (*api.ActorState, error)                                       `perm:"read"`
+		StatePledgeCollateral    func(context.Context, types.TipSetKey) (types.BigInt, error)                                                        `perm:"read"`
+		StateWaitMsg             func(context.Context, cid.Cid) (*api.MsgLookup, error)                                                              `perm:"read"`
+		StateSearchMsg           func(context.Context, cid.Cid) (*api.MsgLookup, error)                                                              `perm:"read"`
+		StateListMiners          func(context.Context, types.TipSetKey) ([]address.Address, error)                                                   `perm:"read"`
+		StateListActors          func(context.Context, types.TipSetKey) ([]address.Address, error)                                                   `perm:"read"`
+		StateMarketBalance       func(context.Context, address.Address, types.TipSetKey) (api.MarketBalance, error)                                  `perm:"read"`
+		StateMarketParticipants  func(context.Context, types.TipSetKey) (map[string]api.MarketBalance, error)                                        `perm:"read"`
+		StateMarketDeals         func(context.Context, types.TipSetKey) (map[string]api.MarketDeal, error)                                           `perm:"read"`
+		StateMarketStorageDeal   func(context.Context, abi.DealID, types.TipSetKey) (*api.MarketDeal, error)                                         `perm:"read"`
+		StateLookupID            func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (address.Address, error)                       `perm:"read"`
+		StateChangedActors       func(context.Context, cid.Cid, cid.Cid) (map[string]types.Actor, error)                                             `perm:"read"`
+		StateGetReceipt          func(context.Context, cid.Cid, types.TipSetKey) (*types.MessageReceipt, error)                                      `perm:"read"`
+		StateMinerSectorCount    func(context.Context, address.Address, types.TipSetKey) (api.MinerSectors, error)                                   `perm:"read"`
+		StateListMessages        func(ctx context.Context, match *types.Message, tsk types.TipSetKey, toht abi.ChainEpoch) ([]cid.Cid, error)        `perm:"read"`
+		StateListRewards         func(context.Context, address.Address, types.TipSetKey) ([]reward.Reward, error)                                    `perm:"read"`
+		StateCompute             func(context.Context, abi.ChainEpoch, []*types.Message, types.TipSetKey) (*api.ComputeStateOutput, error)           `perm:"read"`
 
 		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
@@ -183,10 +185,10 @@ type StorageMinerStruct struct {
 
 		PledgeSector func(context.Context) error `perm:"write"`
 
-		SectorsStatus func(context.Context, abi.SectorNumber) (api.SectorInfo, error) `perm:"read"`
-		SectorsList   func(context.Context) ([]abi.SectorNumber, error)               `perm:"read"`
-		SectorsRefs   func(context.Context) (map[string][]api.SealedRef, error)       `perm:"read"`
-		SectorsUpdate func(context.Context, abi.SectorNumber, api.SectorState) error  `perm:"write"`
+		SectorsStatus func(context.Context, abi.SectorNumber) (api.SectorInfo, error)    `perm:"read"`
+		SectorsList   func(context.Context) ([]abi.SectorNumber, error)                  `perm:"read"`
+		SectorsRefs   func(context.Context) (map[string][]api.SealedRef, error)          `perm:"read"`
+		SectorsUpdate func(context.Context, abi.SectorNumber, sealing.SectorState) error `perm:"write"`
 
 		WorkerConnect func(context.Context, string) error                                 `perm:"admin"` // TODO: worker perm
 		WorkerStats   func(context.Context) (map[uint64]sectorstorage.WorkerStats, error) `perm:"admin"`
@@ -541,6 +543,10 @@ func (c *FullNodeStruct) StateMinerFaults(ctx context.Context, actor address.Add
 	return c.Internal.StateMinerFaults(ctx, actor, tsk)
 }
 
+func (c *FullNodeStruct) StateSectorPreCommitInfo(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) {
+	return c.Internal.StateSectorPreCommitInfo(ctx, maddr, n, tsk)
+}
+
 func (c *FullNodeStruct) StateCall(ctx context.Context, msg *types.Message, tsk types.TipSetKey) (*api.InvocResult, error) {
 	return c.Internal.StateCall(ctx, msg, tsk)
 }
@@ -699,7 +705,7 @@ func (c *StorageMinerStruct) SectorsRefs(ctx context.Context) (map[string][]api.
 	return c.Internal.SectorsRefs(ctx)
 }
 
-func (c *StorageMinerStruct) SectorsUpdate(ctx context.Context, id abi.SectorNumber, state api.SectorState) error {
+func (c *StorageMinerStruct) SectorsUpdate(ctx context.Context, id abi.SectorNumber, state sealing.SectorState) error {
 	return c.Internal.SectorsUpdate(ctx, id, state)
 }
 
