@@ -38,13 +38,18 @@ func acceptJobs(ctx context.Context,
 	sb, sealedSB *ffiwrapper.Sealer,
 	act, workerAddr address.Address,
 	endpoint string, auth http.Header,
-	repo, sealedRepo string) error {
+	repo, sealedRepo string,
+	noAddPiece, noSeal, noVerify bool,
+) error {
 	workerId := GetWorkerID(repo)
 	netIp := os.Getenv("NETIP")
 
 	workerCfg := ffiwrapper.WorkerCfg{
-		ID: workerId,
-		IP: netIp,
+		ID:         workerId,
+		IP:         netIp,
+		NoAddPiece: noAddPiece,
+		NoSeal:     noSeal,
+		NoVerify:   noVerify,
 	}
 
 	w := &worker{
