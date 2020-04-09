@@ -14,10 +14,14 @@ func init() {
 	power.ConsensusMinerMinPower = big.NewInt(2048)
 }
 
-var SectorSizes = []abi.SectorSize{2048}
+var SectorSizes = []abi.SectorSize{
+	2048,
+	512 << 20,
+	32 << 30,
+}
 
 // Seconds
-const BlockDelay = 15
+const BlockDelay = 10
 
 const PropagationDelay = 3
 
