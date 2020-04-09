@@ -153,6 +153,7 @@ github.com/fatih/color v1.8.0/go.mod h1:3l45GVGkyrnYNl9HoIjnp2NnNWvh6hLAqD8yTfGj
 github.com/fd/go-nat v1.0.0/go.mod h1:BTBu/CKvMmOMUPkKVef1pngt2WFH/lg7E6yQnulfp6E=
 github.com/filecoin-project/chain-validation v0.0.3 h1:luT/8kJ0WdMIqQ9Bm31W4JkuYCW0wUb26AvnD4WK59M=
 github.com/filecoin-project/chain-validation v0.0.3/go.mod h1:NCEGFjcWRjb8akWFSOXvU6n2efkWIqAeOKU6o5WBGQw=
+github.com/filecoin-project/chain-validation v0.0.5 h1:gZ2lQ9s2nzj88YGKFxcV6BZw7HHplDOKePWXb3SKF94=
 github.com/filecoin-project/chain-validation v0.0.6-0.20200331143132-15970e639ac2 h1:kRaCruOKzFy5mE5lwPecKD5aztzmazMQDot38NgT6E0=
 github.com/filecoin-project/chain-validation v0.0.6-0.20200331143132-15970e639ac2/go.mod h1:mXiAviXMZ2WVGmWNtjGr0JPMpNCNsPU774DawKZCzzM=
 github.com/filecoin-project/go-address v0.0.0-20191219011437-af739c490b4f/go.mod h1:rCbpXPva2NKF9/J4X6sr7hbKBgQCxyFtRj7KOZqoIms=

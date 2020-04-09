@@ -9,7 +9,7 @@ SECTOR_SIZE=2048
 sdt0111=/data/lotus/dev/.sdt0111 # $(mktemp -d)
 
 staging=/data/lotus/dev/.staging # $(mktemp -d)
-rm -rf $std0111 && mkdir -p $sdt0111
+rm -rf $sdt0111 && mkdir -p $sdt0111
 rm -rf $staging && mkdir -p $staging
 
 # clean bootstrappers
@@ -55,17 +55,17 @@ rm -rf $mdt0111 && mkdir -p $mdt0111
 mkdir -p ${mdt0111}/cache
 mkdir -p ${mdt0111}/sealed
 mkdir -p ${mdt0111}/unsealed
-for sector in `ls ${std0111}/cache`
+for sector in `ls ${sdt0111}/cache`
 do
-    ln -s ${std0111}/cache/$sector ${mdt0111}/cache/$sector
+    ln -s ${sdt0111}/cache/$sector ${mdt0111}/cache/$sector
 done
-for sector in `ls ${std0111}/sealed`
+for sector in `ls ${sdt0111}/sealed`
 do
-    ln -s ${std0111}/sealed/$sector ${mdt0111}/sealed/$sector
+    ln -s ${sdt0111}/sealed/$sector ${mdt0111}/sealed/$sector
 done
-for sector in `ls ${std0111}/unsealed`
+for sector in `ls ${sdt0111}/unsealed`
 do
-    ln -s ${std0111}/unsealed/$sector ${mdt0111}/unsealed/$sector
+    ln -s ${sdt0111}/unsealed/$sector ${mdt0111}/unsealed/$sector
 done
 
 env LOTUS_PATH="${ldt0111}" LOTUS_STORAGE_PATH="${mdt0111}" ./lotus-storage-miner init --genesis-miner --actor=t01000 --pre-sealed-sectors="${sdt0111}" --pre-sealed-metadata="${sdt0111}/pre-seal-t01000.json" --nosync=true --sector-size="${SECTOR_SIZE}" || true

@@ -196,7 +196,8 @@ eventLoop:
 			lastBase.nullRounds++
 			nextRound = nextRoundTime(&lastBase)
 		}
-		if nextRound.Unix()-now.Unix() < (build.BlockDelay - build.PropagationDelay - build.PropagationDelay/2) {
+		subNextRoundTime := nextRound.Unix() - now.Unix()
+		if subNextRoundTime > 0 && subNextRoundTime < (build.BlockDelay-build.PropagationDelay-build.PropagationDelay/2) {
 			// no time to mining, just skip this round, and have to prepare to mine the next round.
 			time.Sleep(nextRound.Sub(now))
 			continue
