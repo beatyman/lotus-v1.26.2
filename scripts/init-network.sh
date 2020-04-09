@@ -12,9 +12,6 @@ staging=/data/lotus/dev/.staging # $(mktemp -d)
 rm -rf $sdt0111 && mkdir -p $sdt0111
 rm -rf $staging && mkdir -p $staging
 
-# clean bootstrappers
-cp -f scripts/bootstrappers.pi build/bootstrap/
-
 make debug
 make lotus-shed
 make fountain
@@ -40,8 +37,10 @@ kill "$lpid"
 wait
 
 cp "${staging}/devnet.car" build/genesis/devnet.car
+cp "${staging}/devnet.car" script/devnet.car
 
 make debug
+git checkout build
 
 ./lotus --repo="${ldt0111}" daemon --api "3000$i" --bootstrap=false &
 sleep 10
