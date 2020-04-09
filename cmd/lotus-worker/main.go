@@ -141,10 +141,10 @@ func main() {
 				Name: "no-addpiece",
 			},
 			&cli.BoolFlag{
-				Name: "no-precommit",
+				Name: "no-seal",
 			},
 			&cli.BoolFlag{
-				Name: "no-commit",
+				Name: "no-verify",
 			},
 		},
 
@@ -247,6 +247,7 @@ var runCmd = &cli.Command{
 					act, workerAddr,
 					"http://"+storageAddr, ainfo.AuthHeader(),
 					r, sealedRepo,
+					cctx.Bool("no-addpiece"), cctx.Bool("no-seal"), cctx.Bool("no-verify"),
 				); err == nil {
 					break
 				} else {
