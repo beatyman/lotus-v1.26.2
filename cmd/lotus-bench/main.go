@@ -109,7 +109,7 @@ var sealBenchCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "benchmark-existing-sectorbuilder",
-			Usage: "pass a directory to run election-post timings on an existing sectorbuilder",
+			Usage: "pass a directory to run post timings on an existing sectorbuilder",
 		},
 		&cli.BoolFlag{
 			Name:  "json-out",
@@ -174,14 +174,13 @@ var sealBenchCmd = &cli.Command{
 		}
 		sectorSize := abi.SectorSize(sectorSizeInt)
 
-		ppt, spt, err := ffiwrapper.ProofTypeFromSectorSize(sectorSize)
+		spt, err := ffiwrapper.SealProofTypeFromSectorSize(sectorSize)
 		if err != nil {
 			return err
 		}
 
 		cfg := &ffiwrapper.Config{
 			SealProofType: spt,
-			PoStProofType: ppt,
 		}
 
 		if robench == "" {
@@ -394,47 +393,43 @@ var sealBenchCmd = &cli.Command{
 		}
 
 		if !c.Bool("skip-commit2") {
-			log.Info("generating election post candidates")
-			fcandidates, err := sb.GenerateEPostCandidates(context.TODO(), mid, sealedSectors, challenge[:], []abi.SectorNumber{})
+			log.Info("generating winning post candidates")
+			fcandidates, err := sb.GenerateWinningPoStSectorChallenge(context.TODO(), spt, mid, challenge[:], uint64(len(sealedSectors)))
 			if err != nil {
 				return err
 			}
 
-			var candidates []abi.PoStCandidate
-			for _, c := range fcandidates {
-				c.Candidate.RegisteredProof = ppt
-				candidates = append(candidates, c.Candidate)
+			candidates := make([]abi.SectorInfo, len(fcandidates))
+			for i, fcandidate := range fcandidates {
+				candidates[i] = sealedSectors[i]
+				_ = fcandidate // todo: I have no idea what is under fcandidate, but it's a large number
 			}
 
 			gencandidates := time.Now()
 
-			log.Info("computing election post snark (cold)")
-			proof1, err := sb.ComputeElectionPoSt(context.TODO(), mid, sealedSectors, challenge[:], candidates[:1])
+			log.Info("computing winning post snark (cold)")
+			proof1, err := sb.GenerateWinningPoSt(context.TODO(), mid, candidates, challenge[:])
 			if err != nil {
 				return err
 			}
 
 			epost1 := time.Now()
 
-			log.Info("computing election post snark (hot)")
-			proof2, err := sb.ComputeElectionPoSt(context.TODO(), mid, sealedSectors, challenge[:], candidates[:1])
+			log.Info("computing winning post snark (hot)")
+			proof2, err := sb.GenerateWinningPoSt(context.TODO(), mid, candidates, challenge[:])
 			if err != nil {
 				return err
 			}
 
 			epost2 := time.Now()
 
-			ccount := ffiwrapper.ElectionPostChallengeCount(uint64(len(sealedSectors)), 0)
-
-			pvi1 := abi.PoStVerifyInfo{
-				Randomness:      abi.PoStRandomness(challenge[:]),
-				Candidates:      candidates[:1],
-				Proofs:          proof1,
-				EligibleSectors: sealedSectors,
-				Prover:          mid,
-				ChallengeCount:  ccount,
+			pvi1 := abi.WinningPoStVerifyInfo{
+				Randomness:        abi.PoStRandomness(challenge[:]),
+				Proofs:            proof1,
+				ChallengedSectors: candidates,
+				Prover:            mid,
 			}
-			ok, err := ffiwrapper.ProofVerifier.VerifyElectionPost(context.TODO(), pvi1)
+			ok, err := ffiwrapper.ProofVerifier.VerifyWinningPoSt(context.TODO(), pvi1)
 			if err != nil {
 				return err
 			}
@@ -444,16 +439,14 @@ var sealBenchCmd = &cli.Command{
 
 			verifypost1 := time.Now()
 
-			pvi2 := abi.PoStVerifyInfo{
-				Randomness:      abi.PoStRandomness(challenge[:]),
-				Candidates:      candidates[:1],
-				Proofs:          proof2,
-				EligibleSectors: sealedSectors,
-				Prover:          mid,
-				ChallengeCount:  ccount,
+			pvi2 := abi.WinningPoStVerifyInfo{
+				Randomness:        abi.PoStRandomness(challenge[:]),
+				Proofs:            proof2,
+				ChallengedSectors: candidates,
+				Prover:            mid,
 			}
 
-			ok, err = ffiwrapper.ProofVerifier.VerifyElectionPost(context.TODO(), pvi2)
+			ok, err = ffiwrapper.ProofVerifier.VerifyWinningPoSt(context.TODO(), pvi2)
 			if err != nil {
 				return err
 			}
@@ -477,7 +470,7 @@ var sealBenchCmd = &cli.Command{
 
 			fmt.Println(string(data))
 		} else {
-			fmt.Printf("----\nresults (v24) (%d)\n", sectorSize)
+			fmt.Printf("----\nresults (v25) (%d)\n", sectorSize)
 			if robench == "" {
 				fmt.Printf("seal: addPiece: %s (%s)\n", bo.SealingResults[0].AddPiece, bps(bo.SectorSize, bo.SealingResults[0].AddPiece)) // TODO: average across multiple sealings
 				fmt.Printf("seal: preCommit phase 1: %s (%s)\n", bo.SealingResults[0].PreCommit1, bps(bo.SectorSize, bo.SealingResults[0].PreCommit1))
@@ -542,14 +535,13 @@ var proveCmd = &cli.Command{
 			return err
 		}
 
-		ppt, spt, err := ffiwrapper.ProofTypeFromSectorSize(abi.SectorSize(c2in.SectorSize))
+		spt, err := ffiwrapper.SealProofTypeFromSectorSize(abi.SectorSize(c2in.SectorSize))
 		if err != nil {
 			return err
 		}
 
 		cfg := &ffiwrapper.Config{
 			SealProofType: spt,
-			PoStProofType: ppt,
 		}
 
 		sb, err := ffiwrapper.New(false, nil, cfg)

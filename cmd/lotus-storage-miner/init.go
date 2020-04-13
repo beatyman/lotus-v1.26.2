@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/docker/go-units"
 	"github.com/google/uuid"
@@ -37,6 +38,7 @@ import (
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
+	"github.com/filecoin-project/lotus/chain/beacon"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/genesis"
@@ -47,6 +49,7 @@ import (
 	"github.com/filecoin-project/lotus/storage"
 	"github.com/filecoin-project/lotus/storage/sealing"
 
+	sealing "github.com/filecoin-project/storage-fsm"
 	"github.com/gwaylib/errors"
 )
 
@@ -300,9 +303,17 @@ func migratePreSealMeta(ctx context.Context, api lapi.FullNode, metadata string,
 			SectorNumber: sector.SectorID,
 			Pieces: []ffiwrapper.Piece{
 				{
-					DealID: &dealID,
-					Size:   abi.PaddedPieceSize(meta.SectorSize).Unpadded(),
-					CommP:  sector.CommD,
+					Piece: abi.PieceInfo{
+						Size:     abi.PaddedPieceSize(meta.SectorSize),
+						PieceCID: commD,
+					},
+					DealInfo: &sealing.DealInfo{
+						DealID: dealID,
+						DealSchedule: sealing.DealSchedule{
+							StartEpoch: sector.Deal.StartEpoch,
+							EndEpoch:   sector.Deal.EndEpoch,
+						},
+					},
 				},
 			},
 			CommD:            &commD,
@@ -421,7 +432,12 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 				return err
 			}
 
-			ppt, spt, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
+			spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
+			if err != nil {
+				return err
+			}
+
+			winPt, err := spt.RegisteredWinningPoStProof()
 			if err != nil {
 				return err
 			}
@@ -443,9 +459,11 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 			if err != nil {
 				return err
 			}
-			epp := storage.NewElectionPoStProver(smgr, dtypes.MinerID(mid))
+			epp := storage.NewWinningPoStProver(smgr, dtypes.MinerID(mid), winPt)
 
-			m := miner.NewMiner(api, epp)
+			beacon := beacon.NewMockBeacon(build.BlockDelay * time.Second)
+
+			m := miner.NewMiner(api, epp, beacon)
 			{
 				if err := m.Register(a); err != nil {
 					return xerrors.Errorf("failed to start up genesis miner: %w", err)
