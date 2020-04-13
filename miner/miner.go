@@ -14,6 +14,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/beacon"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/types"
 
@@ -26,15 +27,16 @@ var log = logging.Logger("miner")
 
 type waitFunc func(ctx context.Context, baseTime uint64) error
 
-func NewMiner(api api.FullNode, epp gen.ElectionPoStProver) *Miner {
+func NewMiner(api api.FullNode, epp gen.WinningPoStProver, beacon beacon.RandomBeacon) *Miner {
 	arc, err := lru.NewARC(10000)
 	if err != nil {
 		panic(err)
 	}
 
 	return &Miner{
-		api: api,
-		epp: epp,
+		api:    api,
+		epp:    epp,
+		beacon: beacon,
 		waitFunc: func(ctx context.Context, baseTime uint64) error {
 			// Wait around for half the block time in case other parents come in
 			deadline := baseTime + build.PropagationDelay
@@ -49,7 +51,8 @@ func NewMiner(api api.FullNode, epp gen.ElectionPoStProver) *Miner {
 type Miner struct {
 	api api.FullNode
 
-	epp gen.ElectionPoStProver
+	epp    gen.WinningPoStProver
+	beacon beacon.RandomBeacon
 
 	lk        sync.Mutex
 	addresses []address.Address
@@ -244,7 +247,7 @@ eventLoop:
 				blkKey := fmt.Sprintf("%s-%d", b.Header.Miner, b.Header.Height)
 				if _, ok := m.minedBlockHeights.Get(blkKey); ok {
 					log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
-					// continue
+					continue
 				}
 
 				m.minedBlockHeights.Add(blkKey, true)
@@ -319,6 +322,19 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.ts.Cids()))
 	start := time.Now()
 
+	mbi, err := m.api.MinerGetBaseInfo(ctx, addr, base.ts.Key())
+	if err != nil {
+		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
+	}
+
+	beaconPrev := mbi.PrevBeaconEntry
+
+	round := base.ts.Height() + base.nullRounds + 1
+	bvals, err := beacon.BeaconEntriesForBlock(ctx, m.beacon, round, beaconPrev)
+	if err != nil {
+		return nil, xerrors.Errorf("get beacon entries failed: %w", err)
+	}
+
 	hasPower, err := m.hasPower(ctx, addr, base.ts)
 	if err != nil {
 		return nil, xerrors.Errorf("checking if miner is slashed: %w", err)
@@ -328,6 +344,7 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		base.nullRounds++
 		return nil, nil
 	}
+
 	log.Info("get pending message")
 	// make auto clean for pending messages every round.
 	pending, err := m.api.MpoolPending(context.TODO(), base.ts.Key())
@@ -345,28 +362,29 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 
 	log.Infof("Time delta between now and our mining base: %ds (nulls: %d)", uint64(time.Now().Unix())-base.ts.MinTimestamp(), base.nullRounds)
 
-	proofin, err := gen.IsRoundWinner(ctx, base.ts, int64(base.ts.Height()+base.nullRounds+1), addr, m.epp, m.api)
+	rbase := beaconPrev
+	if len(bvals) > 0 {
+		rbase = bvals[len(bvals)-1]
+	}
+
+	ticket, err := m.computeTicket(ctx, addr, &rbase, base)
+	if err != nil {
+		return nil, xerrors.Errorf("scratching ticket failed: %w", err)
+	}
+
+	winner, err := gen.IsRoundWinner(ctx, base.ts, round, addr, rbase, mbi, m.api)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to check if we win next round: %w", err)
 	}
 
-	if proofin == nil {
+	if winner == nil {
 		log.Info("Not Win")
 		base.nullRounds++
 		return nil, nil
 	}
 
-	proof, err := gen.ComputeProof(ctx, m.epp, proofin)
-	if err != nil {
-		return nil, xerrors.Errorf("computing election proof: %w", err)
-	}
-
-	ticket, err := m.computeTicket(ctx, addr, base)
-	if err != nil {
-		return nil, xerrors.Errorf("scratching ticket failed: %w", err)
-	}
-
-	b, err := m.createBlock(base, addr, ticket, proof, pending)
+	// TODO: winning post proof
+	b, err := m.createBlock(base, addr, ticket, winner, bvals, pending)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create block: %w", err)
 	}
@@ -386,7 +404,7 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 	return b, nil
 }
 
-func (m *Miner) computeTicket(ctx context.Context, addr address.Address, base *MiningBase) (*types.Ticket, error) {
+func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *types.BeaconEntry, base *MiningBase) (*types.Ticket, error) {
 	w, err := m.api.StateMinerWorker(ctx, addr, types.EmptyTSK)
 	if err != nil {
 		return nil, err
@@ -396,8 +414,8 @@ func (m *Miner) computeTicket(ctx context.Context, addr address.Address, base *M
 	if err := addr.MarshalCBOR(buf); err != nil {
 		return nil, xerrors.Errorf("failed to marshal address to cbor: %w", err)
 	}
-
-	input, err := m.api.ChainGetRandomness(ctx, base.ts.Key(), crypto.DomainSeparationTag_TicketProduction, (base.ts.Height()+base.nullRounds+1)-1, buf.Bytes())
+	input, err := m.api.ChainGetRandomness(ctx, base.ts.Key(), crypto.DomainSeparationTag_TicketProduction,
+		base.ts.Height()+base.nullRounds+1-build.TicketRandomnessLookback, buf.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -412,14 +430,34 @@ func (m *Miner) computeTicket(ctx context.Context, addr address.Address, base *M
 	}, nil
 }
 
-func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket, proof *types.EPostProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
+func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket,
+	eproof *types.ElectionProof, bvals []types.BeaconEntry, pending []*types.SignedMessage) (*types.BlockMsg, error) {
+	msgs, err := SelectMessages(context.TODO(), m.api.StateGetActor, base.ts, pending)
+	if err != nil {
+		return nil, xerrors.Errorf("message filtering failed: %w", err)
+	}
+
+	if len(msgs) > build.BlockMessageLimit {
+		log.Error("SelectMessages returned too many messages: ", len(msgs))
+		msgs = msgs[:build.BlockMessageLimit]
+	}
+
 	uts := base.ts.MinTimestamp() + uint64(build.BlockDelay*(base.nullRounds+1))
 
 	nheight := base.ts.Height() + base.nullRounds + 1
 
 	// why even return this? that api call could just submit it for us
 	log.Infof("MinerCreateBlock validated pending msgs len:%d", len(msgs))
-	return m.api.MinerCreateBlock(context.TODO(), addr, base.ts.Key(), ticket, proof, msgs, nheight, uint64(uts))
+	return m.api.MinerCreateBlock(context.TODO(), &api.BlockTemplate{
+		Miner:        addr,
+		Parents:      base.ts.Key(),
+		Ticket:       ticket,
+		Eproof:       eproof,
+		BeaconValues: bvals,
+		Messages:     msgs,
+		Epoch:        nheight,
+		Timestamp:    uts,
+	})
 }
 
 type ActorLookup func(context.Context, address.Address, types.TipSetKey) (*types.Actor, error)

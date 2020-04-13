@@ -21,7 +21,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/storage/sealing"
+	sealing "github.com/filecoin-project/storage-fsm"
 )
 
 var _ sealing.SealingAPI = new(SealingAPIAdapter)
@@ -41,6 +41,15 @@ func (s SealingAPIAdapter) StateMinerSectorSize(ctx context.Context, maddr addre
 	}
 
 	return s.delegate.StateMinerSectorSize(ctx, maddr, tsk)
+}
+
+func (s SealingAPIAdapter) StateMinerWorkerAddress(ctx context.Context, maddr address.Address, tok sealing.TipSetToken) (address.Address, error) {
+	tsk, err := types.TipSetKeyFromBytes(tok)
+	if err != nil {
+		return address.Undef, xerrors.Errorf("failed to unmarshal TipSetToken to TipSetKey: %w", err)
+	}
+
+	return s.delegate.StateMinerWorker(ctx, maddr, tsk)
 }
 
 func (s SealingAPIAdapter) StateWaitMsg(ctx context.Context, mcid cid.Cid) (sealing.MsgLookup, error) {

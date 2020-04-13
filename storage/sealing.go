@@ -7,7 +7,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
-	"github.com/filecoin-project/lotus/storage/sealing"
+	sealing "github.com/filecoin-project/storage-fsm"
 )
 
 // TODO: refactor this to be direct somehow
@@ -20,8 +20,8 @@ func (m *Miner) AllocatePiece(size abi.UnpaddedPieceSize) (sectorID abi.SectorNu
 	return m.sealing.AllocatePiece(size)
 }
 
-func (m *Miner) SealPiece(ctx context.Context, size abi.UnpaddedPieceSize, r io.Reader, sectorID abi.SectorNumber, dealID abi.DealID) error {
-	return m.sealing.SealPiece(ctx, size, r, sectorID, dealID)
+func (m *Miner) SealPiece(ctx context.Context, size abi.UnpaddedPieceSize, r io.Reader, sectorID abi.SectorNumber, d sealing.DealInfo) error {
+	return m.sealing.SealPiece(ctx, size, r, sectorID, d)
 }
 
 func (m *Miner) ListSectors() ([]sealing.SectorInfo, error) {
