@@ -6,22 +6,24 @@ import (
 	"fmt"
 	"math/rand"
 
-	cborutil "github.com/filecoin-project/go-cbor-util"
-	"github.com/filecoin-project/specs-actors/actors/builtin/power"
+	"github.com/ipfs/go-cid"
 	cbor "github.com/ipfs/go-ipld-cbor"
+	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
+	cborutil "github.com/filecoin-project/go-cbor-util"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/market"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
+	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
-	"github.com/ipfs/go-cid"
-	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/store"
+	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/lotus/genesis"
 )
@@ -157,6 +159,7 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 			{
 				params := &market.VerifyDealsOnSectorProveCommitParams{
 					DealIDs:      []abi.DealID{dealIDs[pi]},
+					SectorSize:   m.SectorSize,
 					SectorExpiry: preseal.Deal.EndEpoch,
 				}
 
@@ -179,13 +182,19 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 						DealWeight: dealWeight,
 					}
 
-					spower := power.ConsensusPowerForWeight(weight)
-					pledge = power.PledgeForWeight(weight, st.TotalNetworkPower)
-					err := st.AddToClaim(&state.AdtStore{cst}, maddr, spower, pledge)
+					// TODO: This is almost definitely not correct
+					circSupply := types.BigMul(types.NewInt(build.TotalFilecoin-build.MiningRewardTotal), types.NewInt(build.FilecoinPrecision))
+					totalPledge := types.NewInt(3)
+					perEpochReward := types.NewInt(9)
+
+					qapower := power.QAPowerForWeight(weight)
+					pledge = power.InitialPledgeForWeight(qapower, st.TotalQualityAdjPower, circSupply, totalPledge, perEpochReward)
+
+					err := st.AddToClaim(&state.AdtStore{cst}, maddr, types.NewInt(uint64(weight.SectorSize)), qapower, pledge)
 					if err != nil {
 						return xerrors.Errorf("add to claim: %w", err)
 					}
-					fmt.Println("Added weight to claim: ", st.TotalNetworkPower)
+					fmt.Println("Added weight to claim: ", st.TotalRawBytePower, st.TotalQualityAdjPower)
 					return nil
 				})
 				if err != nil {
@@ -253,7 +262,7 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 
 	// TODO: to avoid division by zero, we set the initial power actor power to 1, this adjusts that back down so the accounting is accurate.
 	err = vm.MutateState(ctx, builtin.StoragePowerActorAddr, func(cst cbor.IpldStore, st *power.State) error {
-		st.TotalNetworkPower = big.Sub(st.TotalNetworkPower, big.NewInt(1))
+		st.TotalQualityAdjPower = big.Sub(st.TotalQualityAdjPower, big.NewInt(1))
 		return nil
 	})
 
@@ -264,8 +273,8 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 // TODO: copied from actors test harness, deduplicate or remove from here
 type fakeRand struct{}
 
-func (fr *fakeRand) GetRandomness(ctx context.Context, personalization crypto.DomainSeparationTag, randEpoch int64, entropy []byte) ([]byte, error) {
+func (fr *fakeRand) GetRandomness(ctx context.Context, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) ([]byte, error) {
 	out := make([]byte, 32)
-	rand.New(rand.NewSource(randEpoch)).Read(out)
+	_, _ = rand.New(rand.NewSource(int64(randEpoch))).Read(out)
 	return out, nil
 }
