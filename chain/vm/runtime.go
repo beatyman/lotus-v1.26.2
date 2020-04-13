@@ -48,8 +48,12 @@ type Runtime struct {
 	origin      address.Address
 	originNonce uint64
 
-	internalExecutions []*ExecutionResult
+	internalExecutions []*types.ExecutionResult
 	numActorsCreated   uint64
+}
+
+func (rt *Runtime) TotalFilCircSupply() abi.TokenAmount {
+	panic("implement me")
 }
 
 func (rt *Runtime) ResolveAddress(addr address.Address) (ret address.Address, ok bool) {
@@ -151,7 +155,7 @@ func (rs *Runtime) GetActorCodeCID(addr address.Address) (ret cid.Cid, ok bool) 
 }
 
 func (rt *Runtime) GetRandomness(personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) abi.Randomness {
-	res, err := rt.vm.rand.GetRandomness(rt.ctx, personalization, int64(randEpoch), entropy)
+	res, err := rt.vm.rand.GetRandomness(rt.ctx, personalization, randEpoch, entropy)
 	if err != nil {
 		panic(aerrors.Fatalf("could not get randomness: %s", err))
 	}
@@ -199,7 +203,7 @@ func (rt *Runtime) CreateActor(codeId cid.Cid, address address.Address) {
 	}
 }
 
-func (rt *Runtime) DeleteActor() {
+func (rt *Runtime) DeleteActor(addr address.Address) {
 	rt.ChargeGas(rt.Pricelist().OnDeleteActor())
 	act, err := rt.state.GetActor(rt.Message().Receiver())
 	if err != nil {
@@ -337,7 +341,7 @@ func (rt *Runtime) internalSend(from, to address.Address, method abi.MethodNum, 
 		GasUsed:  0,
 	}
 
-	er := ExecutionResult{
+	er := types.ExecutionResult{
 		Msg:    msg,
 		MsgRct: &mr,
 	}

@@ -2,6 +2,7 @@ package stmgr
 
 import (
 	"context"
+
 	amt "github.com/filecoin-project/go-amt-ipld/v2"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
@@ -90,10 +91,10 @@ func getPowerRaw(ctx context.Context, sm *StateManager, st cid.Cid, maddr addres
 			return big.Zero(), big.Zero(), err
 		}
 
-		mpow = claim.Power
+		mpow = claim.QualityAdjPower // TODO: is quality adjusted power what we want here?
 	}
 
-	return mpow, ps.TotalNetworkPower, nil
+	return mpow, ps.TotalQualityAdjPower, nil
 }
 
 func GetMinerPeerID(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) (peer.ID, error) {
@@ -184,24 +185,6 @@ func GetMinerSectorSet(ctx context.Context, sm *StateManager, ts *types.TipSet, 
 	}
 
 	return LoadSectorsFromSet(ctx, sm.ChainStore().Blockstore(), mas.Sectors)
-}
-
-func GetSectorsForElectionPost(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) ([]abi.SectorInfo, error) {
-	sectors, err := GetMinerProvingSet(ctx, sm, ts, maddr)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to get sector set for miner: %w", err)
-	}
-
-	var uselessOtherArray []abi.SectorInfo
-	for _, s := range sectors {
-		uselessOtherArray = append(uselessOtherArray, abi.SectorInfo{
-			RegisteredProof: s.Info.Info.RegisteredProof,
-			SectorNumber:    s.ID,
-			SealedCID:       s.Info.Info.SealedCID,
-		})
-	}
-
-	return uselessOtherArray, nil
 }
 
 func GetMinerSectorSize(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) (abi.SectorSize, error) {
@@ -418,11 +401,17 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, tsk types.TipSetKey
 		return nil, xerrors.Errorf("failed to get miner sector size: %w", err)
 	}
 
+	prev, err := sm.ChainStore().GetLatestBeaconEntry(ts)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to get latest beacon entry: %w", err)
+	}
+
 	return &api.MiningBaseInfo{
-		MinerPower:   mpow,
-		NetworkPower: tpow,
-		Sectors:      provset,
-		Worker:       worker,
-		SectorSize:   ssize,
+		MinerPower:      mpow,
+		NetworkPower:    tpow,
+		Sectors:         provset,
+		Worker:          worker,
+		SectorSize:      ssize,
+		PrevBeaconEntry: *prev,
 	}, nil
 }
