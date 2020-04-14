@@ -1,0 +1,5 @@
+package config
+
+var (
+	Butler = Ini.Get("butler.cfg")
+)
