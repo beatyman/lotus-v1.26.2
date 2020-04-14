@@ -8,7 +8,6 @@ import (
 	"io"
 
 	"github.com/filecoin-project/lotus/api"
-	//kafka "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
@@ -16,21 +15,29 @@ var topic_report = "browser"
 
 type blockInfos struct {
 	Type         string
-	BlockId      string
+	BlockId      interface{}
 	BlockHeight  string
 	BlockSize    string
-	BlockHash    string
+	BlockHash    interface{}
 	BlockTime    string
-	MinerCode    string
-	Reward       string
-	Ticketing    string
-	TreeRoot     string
-	Autograph    string
-	Parents      string
-	ParentWeight string
-	MessageNum   string
-	MinerAddress string
-	Ticket       string
+	MinerCode    interface{}
+	Reward       interface{}
+	Ticketing    interface{}
+	TreeRoot     interface{}
+	Autograph    interface{}
+	Parents      interface{}
+	ParentWeight interface{}
+	//MessageNum   string
+	//MinerAddress string
+	Ticket string
+}
+
+func SerialJson(obj interface{}) string {
+	out, err := json.Marshal(obj)
+	if err != nil {
+		panic(err)
+	}
+	return string(out)
 }
 
 func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
@@ -47,35 +54,28 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		blk := blks[i]
 		blockInfos := blockInfos{}
 		blockInfos.Type = "block"
-		cidJson, _ := json.Marshal(cid)
-		blockInfos.BlockId = string(cidJson)
+		blockInfos.BlockId = cid
 		blockInfos.BlockHeight = fmt.Sprintf("%d", height)
 		blockInfos.BlockSize = "0"
-		blockInfos.BlockHash = string(cidJson)
-		miner, _ := json.Marshal(blk.Miner)
-		blockInfos.MinerCode = string(miner)
+		blockInfos.BlockHash = cid
+		blockInfos.MinerCode = blk.Miner
 		blockInfos.BlockTime = fmt.Sprintf("%d", blk.Timestamp)
 		blockInfos.Reward = "0"
-		ticker, _ := json.Marshal(blk.Ticket)
-		blockInfos.Ticketing = string(ticker)
-		parentStateRoot, _ := json.Marshal(blk.ParentStateRoot)
-		blockInfos.TreeRoot = string(parentStateRoot)
-		blockSig, _ := json.Marshal(blk.BlockSig)
-		blockInfos.Autograph = string(blockSig)
-		parents, _ := json.Marshal(blk.Parents)
-		blockInfos.Parents = string(parents)
-		parentWeight, _ := json.Marshal(blk.ParentWeight)
-		blockInfos.ParentWeight = string(parentWeight)
-		blockInfos.MessageNum = "0"
-		blockInfos.MinerAddress = "xxxxx"
+		blockInfos.Ticketing = blk.Ticket
+		blockInfos.TreeRoot = blk.ParentStateRoot
+		blockInfos.Autograph = blk.BlockSig
+		blockInfos.Parents = blk.Parents
+		blockInfos.ParentWeight = blk.ParentWeight
+		//blockInfos.MessageNum = "0"
+		//blockInfos.MinerAddress = "xxxxx"
 		if i == 0 {
 			blockInfos.Ticket = "1"
 		} else {
 			blockInfos.Ticket = "0"
 		}
-		bi, _ := json.Marshal(blockInfos)
-		KafkaProducer(string(bi), topic_report)
-		log.Info("block消息结构==: ", string(bi))
+		bk := SerialJson(blockInfos)
+		KafkaProducer(bk, topic_report)
+		log.Info("block消息结构==: ", string(bk))
 
 	}
 
