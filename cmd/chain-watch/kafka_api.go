@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	kafkaCertDir = "/root/hlm-miner" + "/api/config/kafka-cert"
+	kafkaCertDir = "/root/hlm-miner" + "/etc/kafka-cert"
 )
 
 //生产消息模式

@@ -8,7 +8,7 @@ import (
 	"io"
 
 	"github.com/filecoin-project/lotus/api"
-	kafka "github.com/filecoin-project/lotus/api"
+	//kafka "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
@@ -68,8 +68,13 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		blockInfos.ParentWeight = string(parentWeight)
 		blockInfos.MessageNum = "0"
 		blockInfos.MinerAddress = "xxxxx"
+		if i == 0 {
+			blockInfos.Ticket = "1"
+		} else {
+			blockInfos.Ticket = "0"
+		}
 		bi, _ := json.Marshal(blockInfos)
-		kafka.KafkaProducer(string(bi), topic_report)
+		KafkaProducer(string(bi), topic_report)
 		log.Info("block消息结构==: ", string(bi))
 
 	}
