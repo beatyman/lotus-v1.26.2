@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
@@ -61,7 +60,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 			}
 			msg := &Message{
 				Message:   v.Message.Message,
-				Type:      strconv.FormatUint(uint64(v.Message.Message.Method), 10),
+				Type:      "message",
 				OriParams: map[string]string{},
 			}
 
@@ -118,8 +117,12 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 			mdata, err := json.Marshal(msg)
 			if err != nil {
 				log.Warn(errors.As(err))
+				continue
 			}
-			_ = mdata
+			if err := KafkaProducer(string(mdata), topic_report); err != nil {
+				log.Warn(errors.As(err))
+				continue
+			}
 			log.Infof("mpool cid:%s,msg:%s", cid, string(mdata))
 		}
 
