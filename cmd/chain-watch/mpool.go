@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -11,8 +12,15 @@ import (
 
 	aapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
+	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 )
+
+type Message struct {
+	types.Message
+	OriParams interface{}
+}
 
 func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 	sub, err := api.MpoolSub(ctx)
@@ -41,36 +49,52 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 			}
 		}
 
-		msgs := map[cid.Cid]*types.Message{}
+		msgs := map[cid.Cid]*Message{}
 		for _, v := range updates {
 			if v.Type != aapi.MpoolAdd {
 				continue
 			}
+			msg := &Message{Message: v.Message.Message}
 
-			cid := v.Message.Message.Cid()
-			msgs[cid] = &v.Message.Message
-			mdata, err := json.Marshal(v.Message)
-			if err != nil {
-				log.Warn(errors.As(err))
-			}
-			_ = mdata
-			log.Infof("mpool cid:%s,msg:%s", cid, string(mdata))
-
-			msg := v.Message.Message
 			switch msg.To {
 			// TODO: decode more actors
 			default:
 				switch msg.Method {
 				case builtin.MethodsMiner.SubmitWindowedPoSt:
-					// TODO: unmarshal
-					log.Warnf("Found SumitWindowedPosSt:%s", string(mdata))
+					var params abi.OnChainPoStVerifyInfo
+					if err := params.UnmarshalCBOR(bytes.NewReader(msg.Params)); err != nil {
+						log.Error(err)
+						break
+					}
+					msg.OriParams = params
 
-					// if _, err := adt.AsMap(sm.cs.Store(ctx), ps.Claims).Get(adt.AddrKey(maddr), &claim); err != nil {
-					// 	log.Warn(err)
-					// 	continue
-					// }
+				case builtin.MethodsMiner.PreCommitSector:
+					var params miner.SectorPreCommitInfo
+					if err := params.UnmarshalCBOR(bytes.NewReader(msg.Params)); err != nil {
+						log.Error(err)
+						break
+					}
+					msg.OriParams = params
+				case builtin.MethodsMiner.ProveCommitSector:
+					var params miner.ProveCommitSectorParams
+					if err := params.UnmarshalCBOR(bytes.NewReader(msg.Params)); err != nil {
+						log.Error(err)
+						break
+					}
+					msg.OriParams = params
 				}
 			}
+
+			cid := v.Message.Message.Cid()
+			msgs[cid] = msg
+
+			// TODO: send to kafka
+			mdata, err := json.Marshal(msg)
+			if err != nil {
+				log.Warn(errors.As(err))
+			}
+			_ = mdata
+			log.Infof("mpool cid:%s,msg:%s", cid, string(mdata))
 		}
 
 		log.Infof("Processing %d mpool updates", len(msgs))
