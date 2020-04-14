@@ -52,7 +52,8 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 			if err != nil {
 				log.Warn(errors.As(err))
 			}
-			log.Infof("mpool cid:%s,msg:%s", cid, string(mdata))
+			_ = mdata
+			//log.Infof("mpool cid:%s,msg:%s", cid, string(mdata))
 		}
 
 		log.Infof("Processing %d mpool updates", len(msgs))
