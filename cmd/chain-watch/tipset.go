@@ -17,7 +17,7 @@ type blockInfos struct {
 	Type         string
 	BlockId      interface{}
 	BlockHeight  string
-	BlockSize    string
+	BlockSize    interface{}
 	BlockHash    interface{}
 	BlockTime    string
 	MinerCode    interface{}
@@ -27,9 +27,10 @@ type blockInfos struct {
 	Autograph    interface{}
 	Parents      interface{}
 	ParentWeight interface{}
-	//MessageNum   string
+	MessageNum   interface{}
 	//MinerAddress string
-	Ticket string
+	Ticket    string
+	PledgeNum string
 }
 
 func SerialJson(obj interface{}) string {
@@ -46,17 +47,24 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		panic(err)
 	}
 
+	log.Info("st:==", SerialJson(st))
+
+	pledgeNum, _ := api.StatePledgeCollateral(ctx, ts.Key())
+	log.Info("TipSet:==", SerialJson(ts))
+
 	cids := ts.Cids()
 	blks := ts.Blocks()
 	height := ts.Height
 	for i := 0; i < len(blks); i++ {
 		cid := cids[i]
 		blk := blks[i]
+		blockMessages, _ := api.ChainGetBlockMessages(ctx, cid)
 		blockInfos := blockInfos{}
 		blockInfos.Type = "block"
 		blockInfos.BlockId = cid
 		blockInfos.BlockHeight = fmt.Sprintf("%d", height)
-		blockInfos.BlockSize = "0"
+		readObj, _ := api.ChainReadObj(ctx, cid)
+		blockInfos.BlockSize = len(readObj)
 		blockInfos.BlockHash = cid
 		blockInfos.MinerCode = blk.Miner
 		blockInfos.BlockTime = fmt.Sprintf("%d", blk.Timestamp)
@@ -66,13 +74,14 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		blockInfos.Autograph = blk.BlockSig
 		blockInfos.Parents = blk.Parents
 		blockInfos.ParentWeight = blk.ParentWeight
-		//blockInfos.MessageNum = "0"
+		blockInfos.MessageNum = len(blockMessages.BlsMessages) + len(blockMessages.SecpkMessages)
 		//blockInfos.MinerAddress = "xxxxx"
 		if i == 0 {
 			blockInfos.Ticket = "1"
 		} else {
 			blockInfos.Ticket = "0"
 		}
+		blockInfos.PledgeNum = fmt.Sprintf("%d", pledgeNum)
 		bk := SerialJson(blockInfos)
 		KafkaProducer(bk, topic_report)
 		log.Info("block消息结构==: ", string(bk))
