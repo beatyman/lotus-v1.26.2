@@ -27,6 +27,7 @@ func subBlocks(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 		if err != nil {
 			log.Warn(errors.As(err))
 		}
-		log.Infof("Get subBlocks:%s", string(bhData))
+		_ = bhData
+		// log.Infof("Get subBlocks:%s", string(bhData))
 	}
 }
