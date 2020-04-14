@@ -16,15 +16,6 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-const (
-	kafkaUser   = "hlmkafka"
-	kafkaPasswd = "HLMkafka2019"
-)
-
-var (
-	kafkaCertDir = "/root/hlm-miner" + "/api/config/kafka-cert"
-)
-
 //生产消息模式
 func KafkaProducer(producerData string, topic string) error {
 	config := sarama.NewConfig()
