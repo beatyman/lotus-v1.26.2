@@ -14,6 +14,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	if err != nil {
 		panic(err)
 	}
-	log.Infof("Getting synced block list:%s", string(tsData))
+	_ = tsData
+	// log.Infof("Getting synced block list:%s", string(tsData))
 	// TODO: send tipset to kafka
 }

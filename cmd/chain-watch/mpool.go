@@ -63,7 +63,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 				switch msg.Method {
 				case builtin.MethodsMiner.SubmitWindowedPoSt:
 					// TODO: unmarshal
-					log.Infof("Found SumitWindowedPosSt:%s", string(mdata))
+					log.Warnf("Found SumitWindowedPosSt:%s", string(mdata))
 
 					// if _, err := adt.AsMap(sm.cs.Store(ctx), ps.Claims).Get(adt.AddrKey(maddr), &claim); err != nil {
 					// 	log.Warn(err)
