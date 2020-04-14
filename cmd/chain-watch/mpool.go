@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 type Message struct {
 	KafkaCommon
 	types.Message
+	Cid       string
 	OriParams interface{}
 }
 
@@ -58,6 +60,8 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 			if v.Type != aapi.MpoolAdd {
 				continue
 			}
+
+			cid := v.Message.Message.Cid()
 			msg := &Message{
 				KafkaCommon: KafkaCommon{
 					KafkaId:        GenKID(),
@@ -66,12 +70,28 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 				},
 
 				Message:   v.Message.Message,
-				OriParams: map[string]string{},
+				Cid:       cid.String(),
+				OriParams: map[string]interface{}{},
 			}
+			msgs[cid] = msg
 
 			to := fmt.Sprintf("%s", msg.To)
 			switch {
-			// builtint.MethosPower
+			case msg.Method == 0:
+				// 余额流转
+				// 获取矿工节点信息
+				toBalance, err := api.WalletBalance(ctx, msg.To)
+				if err != nil {
+					log.Error(err)
+				}
+				fromBalance, err := api.WalletBalance(ctx, msg.From)
+				if err != nil {
+					log.Error(err)
+				}
+				msg.OriParams = map[string]string{
+					"ToBalance":   toBalance.String(),
+					"FromBalance": fromBalance.String(),
+				}
 			case strings.HasPrefix(to, "t04"):
 				switch msg.Method {
 				case builtin.MethodsPower.CreateMiner:
@@ -86,9 +106,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 				// TODO: decode more actors
 			case strings.HasPrefix(to, "t01"):
 				switch msg.Method {
-				// 钱包转账
-				case builtin.MethodSend:
-					// 没有参数可以解析
+				// 没有参数可以解析
 				case builtin.MethodsMiner.SubmitWindowedPoSt:
 					var params abi.OnChainPoStVerifyInfo
 					if err := params.UnmarshalCBOR(bytes.NewReader(msg.Params)); err != nil {
@@ -118,17 +136,47 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 						log.Error(err)
 						// Not sure why this would fail, but its probably worth continuing
 					}
+
+					// 获取矿工节点信息
+					peerID, err := api.StateMinerPeerID(ctx, msg.To, types.EmptyTSK)
+					if err != nil {
+						log.Error(err)
+						continue
+					}
+					// 获取矿工钱包信息
+					worker, err := api.StateMinerWorker(ctx, msg.To, types.EmptyTSK)
+					if err != nil {
+						log.Error(err)
+						continue
+					}
+
+					// 获取矿工的扇区大小
+					sectorSize, err := api.StateMinerSectorSize(ctx, msg.To, types.EmptyTSK)
+					if err != nil {
+						log.Error(err)
+						continue
+					}
+
+					// 获取失败的扇区数
+					sectorFaults, err := api.StateMinerFaults(ctx, msg.To, types.EmptyTSK)
+					if err != nil {
+						log.Error(err)
+						continue
+					}
 					msg.OriParams = map[string]interface{}{
-						"TotalPower":   fmt.Sprint(pow.TotalPower),
-						"MinerPower":   fmt.Sprint(pow.MinerPower),
+						"TotalPower": fmt.Sprint(pow.TotalPower),
+						"MinerPower": fmt.Sprint(pow.MinerPower),
+
+						"PeerID": peerID.String(),
+						"Worker": fmt.Sprint(worker),
+
+						"SectorSize":   sectorSize.String(),
+						"FaultNumber":  strconv.Itoa(len(sectorFaults)),
 						"SectorNumber": params.SectorNumber,
 						"Proof":        params.Proof,
 					}
 				}
 			}
-
-			cid := v.Message.Message.Cid()
-			msgs[cid] = msg
 
 			mdata, err := json.Marshal(msg)
 			if err != nil {
