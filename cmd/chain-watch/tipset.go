@@ -10,11 +10,10 @@ import (
 )
 
 func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
-	log.Infof("Getting synced block list%+v", *ts)
 	tsData, err := json.Marshal(ts)
 	if err != nil {
 		panic(err)
 	}
-	log.Infof("DEBUG:%s", string(tsData))
+	log.Infof("Getting synced block list:%s", string(tsData))
 	// TODO: send tipset to kafka
 }

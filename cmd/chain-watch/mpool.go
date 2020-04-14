@@ -11,6 +11,7 @@ import (
 
 	aapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/specs-actors/actors/builtin"
 )
 
 func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
@@ -53,7 +54,23 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 				log.Warn(errors.As(err))
 			}
 			_ = mdata
-			//log.Infof("mpool cid:%s,msg:%s", cid, string(mdata))
+			log.Infof("mpool cid:%s,msg:%s", cid, string(mdata))
+
+			msg := v.Message.Message
+			switch msg.To {
+			// TODO: decode more actors
+			default:
+				switch msg.Method {
+				case builtin.MethodsMiner.SubmitWindowedPoSt:
+					// TODO: unmarshal
+					log.Infof("Found SumitWindowedPosSt:%s", string(mdata))
+
+					// if _, err := adt.AsMap(sm.cs.Store(ctx), ps.Claims).Get(adt.AddrKey(maddr), &claim); err != nil {
+					// 	log.Warn(err)
+					// 	continue
+					// }
+				}
+			}
 		}
 
 		log.Infof("Processing %d mpool updates", len(msgs))
