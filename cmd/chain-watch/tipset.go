@@ -9,13 +9,13 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/gwaylib/errors"
+	_ "github.com/gwaylib/errors"
 )
 
 var topic_report = "browser"
 
 type blockInfos struct {
-	Type         string
+	KafkaCommon
 	BlockId      string
 	BlockHeight  string
 	BlockSize    string
@@ -47,21 +47,24 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	for i := 0; i < len(blks); i++ {
 		cid := cids[i]
 		blk := blks[i]
-		blockInfos := blockInfos{}
-		blockInfos.Type = "block"
+		blockInfos := blockInfos{
+			KafkaCommon: KafkaCommon{
+				KafkaId:        GenKID(),
+				KafkaTimestamp: GenKTimestamp(),
+				Type:           "block",
+			},
+		}
 		cidJson, _ := json.Marshal(cid)
 		blockInfos.BlockId = string(cidJson)
 		blockInfos.BlockHeight = fmt.Sprintf("%d", height)
 		blockInfos.BlockSize = "0"
 		blockInfos.BlockHash = string(cidJson)
-		miner, _ := json.Marshal(blk.Miner)
-		blockInfos.MinerCode = string(miner)
+		blockInfos.MinerCode = fmt.Sprint(blk.Miner)
 		blockInfos.BlockTime = fmt.Sprintf("%d", blk.Timestamp)
 		blockInfos.Reward = "0"
 		ticker, _ := json.Marshal(blk.Ticket)
 		blockInfos.Ticketing = string(ticker)
-		parentStateRoot, _ := json.Marshal(blk.ParentStateRoot)
-		blockInfos.TreeRoot = string(parentStateRoot)
+		blockInfos.TreeRoot = fmt.Sprint(blk.ParentStateRoot)
 		blockSig, _ := json.Marshal(blk.BlockSig)
 		blockInfos.Autograph = string(blockSig)
 		parents, _ := json.Marshal(blk.Parents)
@@ -70,16 +73,15 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		blockInfos.ParentWeight = string(parentWeight)
 		blockInfos.MessageNum = "0"
 		blockInfos.MinerAddress = "xxxxx"
-		bi, err := json.Marshal(blockInfos)
-		if err != nil {
-			log.Warn(errors.As(err))
-			continue
-		}
-		if err := KafkaProducer(string(bi), topic_report); err != nil {
-			log.Warn(errors.As(err))
-			continue
-		}
-		log.Info("block消息结构==: ", string(bi))
-
+		// bi, err := json.Marshal(blockInfos)
+		// if err != nil {
+		// 	log.Warn(errors.As(err))
+		// 	continue
+		// }
+		// if err := KafkaProducer(string(bi), topic_report); err != nil {
+		// 	log.Warn(errors.As(err))
+		// 	continue
+		// }
+		// log.Infof("block消息结构==: %s", string(bi))
 	}
 }

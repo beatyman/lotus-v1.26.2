@@ -21,8 +21,8 @@ import (
 )
 
 type Message struct {
+	KafkaCommon
 	types.Message
-	Type      string
 	OriParams interface{}
 }
 
@@ -59,8 +59,13 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 				continue
 			}
 			msg := &Message{
+				KafkaCommon: KafkaCommon{
+					KafkaId:        GenKID(),
+					KafkaTimestamp: GenKTimestamp(),
+					Type:           "message",
+				},
+
 				Message:   v.Message.Message,
-				Type:      "message",
 				OriParams: map[string]string{},
 			}
 
@@ -106,19 +111,31 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 						log.Error(err)
 						break
 					}
-					msg.OriParams = params
+
+					// 获取矿工存力数据
+					pow, err := api.StateMinerPower(ctx, msg.To, types.EmptyTSK)
+					if err != nil {
+						log.Error(err)
+						// Not sure why this would fail, but its probably worth continuing
+					}
+					msg.OriParams = map[string]interface{}{
+						"TotalPower":   fmt.Sprint(pow.TotalPower),
+						"MinerPower":   fmt.Sprint(pow.MinerPower),
+						"SectorNumber": params.SectorNumber,
+						"Proof":        params.Proof,
+					}
 				}
 			}
 
 			cid := v.Message.Message.Cid()
 			msgs[cid] = msg
 
-			// TODO: send to kafka
 			mdata, err := json.Marshal(msg)
 			if err != nil {
 				log.Warn(errors.As(err))
 				continue
 			}
+			// send to kafka
 			if err := KafkaProducer(string(mdata), topic_report); err != nil {
 				log.Warn(errors.As(err))
 				continue
@@ -127,15 +144,5 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 		}
 
 		log.Infof("Processing %d mpool updates", len(msgs))
-
-		// send to kafka
-		// err := st.storeMessages(msgs)
-		// if err != nil {
-		// 	log.Error(err)
-		// }
-		//
-		// if err := st.storeMpoolInclusions(updates); err != nil {
-		// 	log.Error(err)
-		// }
 	}
 }
