@@ -11,7 +11,9 @@ import (
 
 	"github.com/Shopify/sarama"
 	cluster "github.com/bsm/sarama-cluster" //support automatic consumer-group rebalancing and offset tracking
+	//log "github.com/gwaylib/log"
 	//"github.com/sdbaiguanghe/glog"
+	//cfg "github.com/filecoin-project/lotus/api/config"
 )
 
 const (
@@ -20,7 +22,8 @@ const (
 )
 
 var (
-	kafkaCertDir = "/root/hlm-miner" + "/api/config/kafka-cert"
+	kafkaCertDir = "/root/hlm-miner/etc/kafka-cert"
+	address      = []string{"kf1.grandhelmsman.com:9093", "kf2.grandhelmsman.com:9093", "kf3.grandhelmsman.com:9093"}
 )
 
 //生产消息模式
@@ -50,8 +53,10 @@ func KafkaProducer(producerData string, topic string) {
 	}
 
 	config.Net.TLS.Enable = true
-	address := _kafka_address
+	//cfgs := cfg.GetConf()
+	//address := cfgs.ApiReport
 	p, err := sarama.NewSyncProducer(address, config)
+	//p, err := sarama.NewSyncProducer([]string{"kf1.grandhelmsman.com:9093", "kf2.grandhelmsman.com:9093", "kf3.grandhelmsman.com:9093"}, config)
 	if err != nil {
 		log.Warnf("sarama.NewSyncProducer err, message=%s \n", err)
 		return
@@ -94,9 +99,11 @@ func KafkaConsumer(groupID string, topics []string) []byte {
 	}
 
 	config.Net.TLS.Enable = true
-	address := _kafka_address
+	//cfgs := cfg.GetConf()
+	//address := cfgs.ApiReport
 	// init consumer
 	consumer, err := cluster.NewConsumer(address, groupID, topics, config)
+	//consumer, err := cluster.NewConsumer([]string{"kf1.grandhelmsman.com:9093", "kf2.grandhelmsman.com:9093", "kf3.grandhelmsman.com:9093"}, groupID, topics, config)
 	if err != nil {
 		panic(err)
 	}
@@ -108,13 +115,15 @@ func KafkaConsumer(groupID string, topics []string) []byte {
 	// consume errors
 	go func() {
 		for err := range consumer.Errors() {
-			log.Warnf("Error: %s\n", err.Error())
+			//log.Printf("Error: %s\n", err.Error())
+			log.Warn("Error: %s\n", err.Error())
 		}
 	}()
 	// consume notifications
 	go func() {
 		for ntf := range consumer.Notifications() {
-			log.Warnf("Rebalanced: %+v\n", ntf)
+			//log.Printf("Rebalanced: %+v\n", ntf)
+			log.Info("Rebalanced: %+v\n", ntf)
 		}
 	}()
 	// consume messages, watch signals
