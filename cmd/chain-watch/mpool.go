@@ -19,13 +19,21 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
+	"github.com/filecoin-project/specs-actors/actors/runtime/exitcode"
 )
 
+type MessageReceipt struct {
+	Height   abi.ChainEpoch
+	ExitCode exitcode.ExitCode
+	Return   []byte
+	GasUsed  int64
+}
 type Message struct {
 	KafkaCommon
 	types.Message
 	Cid       string
 	OriParams interface{}
+	Receipt   MessageReceipt
 }
 
 func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
@@ -62,6 +70,13 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 			}
 
 			cid := v.Message.Message.Cid()
+			// 获取收据
+			receipt, err := api.StateWaitMsg(ctx, cid)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+
 			msg := &Message{
 				KafkaCommon: KafkaCommon{
 					KafkaId:        GenKID(),
@@ -72,6 +87,12 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 				Message:   v.Message.Message,
 				Cid:       cid.String(),
 				OriParams: map[string]interface{}{},
+				Receipt: MessageReceipt{
+					Height:   receipt.TipSet.Height(),
+					ExitCode: receipt.Receipt.ExitCode,
+					Return:   receipt.Receipt.Return,
+					GasUsed:  receipt.Receipt.GasUsed,
+				},
 			}
 			msgs[cid] = msg
 
