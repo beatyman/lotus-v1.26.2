@@ -11,37 +11,30 @@ import (
 
 	"github.com/Shopify/sarama"
 	cluster "github.com/bsm/sarama-cluster" //support automatic consumer-group rebalancing and offset tracking
+
 	//"github.com/sdbaiguanghe/glog"
-)
-
-const (
-	kafkaUser   = "hlmkafka"
-	kafkaPasswd = "HLMkafka2019"
-)
-
-var (
-	kafkaCertDir = "/root/hlm-miner" + "/etc/kafka-cert"
+	"github.com/gwaylib/errors"
 )
 
 //生产消息模式
-func KafkaProducer(producerData string, topic string) {
+func KafkaProducer(producerData string, topic string) error {
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
 	config.Producer.Timeout = 5 * time.Second
 	config.Net.SASL.Enable = true
 	config.Net.SASL.Handshake = true
-	config.Net.SASL.User = kafkaUser
-	config.Net.SASL.Password = kafkaPasswd
+	config.Net.SASL.User = _kafkaUser
+	config.Net.SASL.Password = _kafkaPasswd
 	//证书位置
-	kafkaCert := kafkaCertDir
+	kafkaCert := _kafkaCertFile
 	certBytes, err := ioutil.ReadFile(kafkaCert)
 	if err != nil {
-		log.Warnf(err.Error())
+		return errors.As(err, kafkaCert)
 	}
 	clientCertPool := x509.NewCertPool()
 	ok := clientCertPool.AppendCertsFromPEM(certBytes)
 	if !ok {
-		panic("kafka producer failed to parse root certificate")
+		return errors.New("kafka producer failed to parse root certificate")
 	}
 	config.Net.TLS.Config = &tls.Config{
 		//Certificates:       []tls.Certificate{},
@@ -50,11 +43,10 @@ func KafkaProducer(producerData string, topic string) {
 	}
 
 	config.Net.TLS.Enable = true
-	address := _kafka_address
+	address := _kafkaAddress
 	p, err := sarama.NewSyncProducer(address, config)
 	if err != nil {
-		log.Warnf("sarama.NewSyncProducer err, message=%s \n", err)
-		return
+		return errors.As(err)
 	}
 	defer p.Close()
 	msg := &sarama.ProducerMessage{
@@ -63,11 +55,11 @@ func KafkaProducer(producerData string, topic string) {
 	}
 	part, offset, err := p.SendMessage(msg)
 	if err != nil {
-		log.Warn("send message(%s) err=%v \n", producerData, err)
-	} else {
-		log.Infof("发送成功，partition=%d, offset=%d \n", part, offset)
+		return errors.As(err)
 	}
 
+	log.Debug("sent kafka success, partition=%d, offset=%d \n", part, offset)
+	return nil
 }
 
 func KafkaConsumer(groupID string, topics []string) []byte {
@@ -75,11 +67,11 @@ func KafkaConsumer(groupID string, topics []string) []byte {
 	config.Consumer.Return.Errors = true
 	config.Group.Return.Notifications = true
 	config.Net.SASL.Enable = true
-	config.Net.SASL.User = kafkaUser
-	config.Net.SASL.Password = kafkaPasswd
+	config.Net.SASL.User = _kafkaUser
+	config.Net.SASL.Password = _kafkaPasswd
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 	//证书位置
-	kafkaCert := kafkaCertDir
+	kafkaCert := _kafkaCertFile
 	certBytes, err := ioutil.ReadFile(kafkaCert)
 	clientCertPool := x509.NewCertPool()
 	ok := clientCertPool.AppendCertsFromPEM(certBytes)
@@ -94,7 +86,7 @@ func KafkaConsumer(groupID string, topics []string) []byte {
 	}
 
 	config.Net.TLS.Enable = true
-	address := _kafka_address
+	address := _kafkaAddress
 	// init consumer
 	consumer, err := cluster.NewConsumer(address, groupID, topics, config)
 	if err != nil {

@@ -3,6 +3,7 @@ package main
 import (
 	_ "net/http/pprof"
 	"os"
+	"strings"
 
 	logging "github.com/ipfs/go-log/v2"
 	"gopkg.in/urfave/cli.v2"
@@ -51,6 +52,26 @@ var runCmd = &cli.Command{
 			Name:  "max-batch",
 			Value: 1000,
 		},
+		&cli.StringFlag{
+			Name:  "kafka-cert",
+			Value: "",
+			Usage: "File path for kafka cert",
+		},
+		&cli.StringFlag{
+			Name:  "kafka-addr",
+			Value: "",
+			Usage: "kafka server address, seperate by space, using like: --kafka-addr=\"addr1 addr2 add3\"",
+		},
+		&cli.StringFlag{
+			Name:  "kafka-user",
+			Value: "",
+			Usage: "username for kafka server",
+		},
+		&cli.StringFlag{
+			Name:  "kafka-pwd",
+			Value: "",
+			Usage: "password for kafka server",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := lcli.GetFullNodeAPI(cctx)
@@ -66,6 +87,11 @@ var runCmd = &cli.Command{
 		}
 
 		log.Infof("Remote version: %s", v.Version)
+
+		_kafkaCertFile = cctx.String("kafka-cert")
+		_kafkaUser = cctx.String("kafka-user")
+		_kafkaPasswd = cctx.String("kafka-pwd")
+		_kafkaAddress = strings.Split(cctx.String("kafka-addr"), " ")
 
 		maxBatch := cctx.Int("max-batch")
 
