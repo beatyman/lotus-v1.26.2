@@ -13,9 +13,9 @@ import (
 
 var topic_report = "browser"
 
-type blockInfos struct {
-	Type         string
-	BlockId      interface{}
+type blockInfo struct {
+	//Type         string
+	//BlockId      interface{}
 	BlockHeight  string
 	BlockSize    interface{}
 	BlockHash    interface{}
@@ -29,8 +29,14 @@ type blockInfos struct {
 	ParentWeight interface{}
 	MessageNum   interface{}
 	//MinerAddress string
-	Ticket    string
-	PledgeNum string
+	Ticket string
+	//PledgeNum string
+}
+
+type blocks struct {
+	Type       string
+	BlockInfos []blockInfo
+	PledgeNum  string
 }
 
 func SerialJson(obj interface{}) string {
@@ -42,52 +48,58 @@ func SerialJson(obj interface{}) string {
 }
 
 func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
-	tsData, err := json.Marshal(ts)
+	/*tsData, err := json.Marshal(ts)
 	if err != nil {
 		panic(err)
-	}
-
-	log.Info("st:==", SerialJson(st))
-
+	}*/
 	pledgeNum, _ := api.StatePledgeCollateral(ctx, ts.Key())
-	log.Info("TipSet:==", SerialJson(ts))
 
 	cids := ts.Cids()
 	blks := ts.Blocks()
+
+	blockInfos := []blockInfo{}
 	height := ts.Height
 	for i := 0; i < len(blks); i++ {
 		cid := cids[i]
 		blk := blks[i]
 		blockMessages, _ := api.ChainGetBlockMessages(ctx, cid)
-		blockInfos := blockInfos{}
-		blockInfos.Type = "block"
-		blockInfos.BlockId = cid
-		blockInfos.BlockHeight = fmt.Sprintf("%d", height)
+		blockInfo := blockInfo{}
+		//blockInfo.Type = "block"
+		//blockInfo.BlockId = cid
+		blockInfo.BlockHeight = fmt.Sprintf("%d", height)
 		readObj, _ := api.ChainReadObj(ctx, cid)
-		blockInfos.BlockSize = len(readObj)
-		blockInfos.BlockHash = cid
-		blockInfos.MinerCode = blk.Miner
-		blockInfos.BlockTime = fmt.Sprintf("%d", blk.Timestamp)
-		blockInfos.Reward = "0"
-		blockInfos.Ticketing = blk.Ticket
-		blockInfos.TreeRoot = blk.ParentStateRoot
-		blockInfos.Autograph = blk.BlockSig
-		blockInfos.Parents = blk.Parents
-		blockInfos.ParentWeight = blk.ParentWeight
-		blockInfos.MessageNum = len(blockMessages.BlsMessages) + len(blockMessages.SecpkMessages)
+		blockInfo.BlockSize = len(readObj)
+		blockInfo.BlockHash = cid
+		blockInfo.MinerCode = blk.Miner
+		blockInfo.BlockTime = fmt.Sprintf("%d", blk.Timestamp)
+		blockInfo.Reward = "0"
+		blockInfo.Ticketing = blk.Ticket
+		blockInfo.TreeRoot = blk.ParentStateRoot
+		blockInfo.Autograph = blk.BlockSig
+		blockInfo.Parents = blk.Parents
+		blockInfo.ParentWeight = blk.ParentWeight
+		blockInfo.MessageNum = len(blockMessages.BlsMessages) + len(blockMessages.SecpkMessages)
 		//blockInfos.MinerAddress = "xxxxx"
 		if i == 0 {
-			blockInfos.Ticket = "1"
+			blockInfo.Ticket = "1"
 		} else {
-			blockInfos.Ticket = "0"
+			blockInfo.Ticket = "0"
 		}
-		blockInfos.PledgeNum = fmt.Sprintf("%d", pledgeNum)
-		bk := SerialJson(blockInfos)
-		KafkaProducer(bk, topic_report)
+		//blockInfo.PledgeNum = fmt.Sprintf("%d", pledgeNum)
+		bk := SerialJson(blockInfo)
+		//KafkaProducer(bk, topic_report)
 		log.Info("block消息结构==: ", string(bk))
-
+		blockInfos = append(blockInfos, blockInfo)
 	}
 
-	log.Infof("Getting synced block list:%s", string(tsData))
+	blocks := blocks{}
+	blocks.Type = "block"
+	blocks.BlockInfos = blockInfos
+	blocks.PledgeNum = fmt.Sprintf("%d", pledgeNum)
+	bjson := SerialJson(blocks)
+	KafkaProducer(bjson, topic_report)
+	log.Info("blocks消息结构##: ", string(bjson))
+
+	//log.Infof("Getting synced block list:%s", string(tsData))
 	// TODO: send tipset to kafka
 }
