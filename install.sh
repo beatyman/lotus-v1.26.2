@@ -16,4 +16,5 @@ esac
 cp -rf lotus $HOME/hlm-miner/apps/lotus/
 cp -rf lotus-storage-miner $HOME/hlm-miner/apps/lotus/
 cp -rf lotus-seal-worker $HOME/hlm-miner/apps/lotus/
+cp -rf lotus-chain-watch $HOME/hlm-miner/apps/lotus/
 
