@@ -14,74 +14,136 @@ import (
 
 var topic_report = "browser"
 
-type blockInfos struct {
-	KafkaCommon
-	BlockId      string
-	BlockHeight  string
-	BlockSize    string
-	BlockHash    string
-	BlockTime    string
-	MinerCode    string
-	Reward       string
-	Ticketing    string
-	TreeRoot     string
-	Autograph    string
-	Parents      string
-	ParentWeight string
-	MessageNum   string
-	MinerAddress string
-	Ticket       string
+type blockInfo struct {
+	BlockHeight           string
+	BlockSize             interface{}
+	BlockHash             interface{}
+	BlockTime             string
+	MinerCode             interface{}
+	Reward                interface{}
+	Ticketing             interface{}
+	TreeRoot              interface{}
+	Autograph             interface{}
+	Parents               interface{}
+	ParentWeight          interface{}
+	MessageNum            interface{}
+	Ticket                string
+	TransactionSpend      string
+	BlsMessages           interface{}
+	SecpkMessages         interface{}
+	EPostProof            interface{}
+	ParentMessageReceipts interface{}
+	Messages              interface{}
+	BLSAggregate          interface{}
+	ForkSignaling         interface{}
 }
 
-func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
-	tsData, err := json.Marshal(ts)
+type blocks struct {
+	//Type       string
+	KafkaCommon
+	BlockInfos []blockInfo
+	PledgeNum  string
+	MinTicket  interface{}
+}
+
+func SerialJson(obj interface{}) string {
+	out, err := json.Marshal(obj)
 	if err != nil {
 		panic(err)
 	}
+
+	return string(out)
+}
+
+func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
+
+	pledgeNum, _ := api.StatePledgeCollateral(ctx, ts.Key())
+	tsData := SerialJson(ts)
 	_ = tsData
 	log.Infof("Getting synced block list:%s", string(tsData))
 
+	minTicketBlock := ts.MinTicketBlock()
+	log.Infof("minTicketBlock:%s", minTicketBlock.Cid())
+
 	cids := ts.Cids()
 	blks := ts.Blocks()
-	height := ts.Height
+
+	blockInfos := []blockInfo{}
+	height := ts.Height()
 	for i := 0; i < len(blks); i++ {
 		cid := cids[i]
 		blk := blks[i]
-		blockInfos := blockInfos{
-			KafkaCommon: KafkaCommon{
-				KafkaId:        GenKID(),
-				KafkaTimestamp: GenKTimestamp(),
-				Type:           "block",
-			},
+		blockMessages, err := api.ChainGetBlockMessages(ctx, cid)
+		log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
+		if err != nil {
+			log.Error(err)
+			continue
 		}
-		cidJson, _ := json.Marshal(cid)
-		blockInfos.BlockId = string(cidJson)
-		blockInfos.BlockHeight = fmt.Sprintf("%d", height)
-		blockInfos.BlockSize = "0"
-		blockInfos.BlockHash = string(cidJson)
-		blockInfos.MinerCode = fmt.Sprint(blk.Miner)
-		blockInfos.BlockTime = fmt.Sprintf("%d", blk.Timestamp)
-		blockInfos.Reward = "0"
-		ticker, _ := json.Marshal(blk.Ticket)
-		blockInfos.Ticketing = string(ticker)
-		blockInfos.TreeRoot = fmt.Sprint(blk.ParentStateRoot)
-		blockSig, _ := json.Marshal(blk.BlockSig)
-		blockInfos.Autograph = string(blockSig)
-		parents, _ := json.Marshal(blk.Parents)
-		blockInfos.Parents = string(parents)
-		parentWeight, _ := json.Marshal(blk.ParentWeight)
-		blockInfos.ParentWeight = string(parentWeight)
-		blockInfos.MessageNum = "0"
-		blockInfos.MinerAddress = "xxxxx"
-		// bi, err := json.Marshal(blockInfos)
-		// if err != nil {
-		// 	log.Warn(errors.As(err))
-		// 	continue
-		// }
-		// if err := KafkaProducer(string(bi), topic_report); err != nil {
-		// 	log.Warn(errors.As(err))
-		// 	continue
-		// }
-		// log.Infof("block消息结构==: %s", string(bi))
+		blockInfo := blockInfo{}
+		blockInfo.BlockHeight = fmt.Sprintf("%d", height)
+		readObj, err := api.ChainReadObj(ctx, cid)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		blockInfo.BlockSize = len(readObj)
+
+		/*log.Infof("readObj :%s", readObj)
+		block, err := blk.ToStorageBlock()
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		rawData := block.RawData()
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		log.Infof("block len:%d, block:%s", len(rawData), rawData)
+		*/
+
+		blockInfo.BlockHash = cid
+		blockInfo.MinerCode = blk.Miner
+		blockInfo.BlockTime = fmt.Sprintf("%d", blk.Timestamp)
+		blockInfo.Reward = "0"
+		blockInfo.Ticketing = blk.Ticket
+		blockInfo.TreeRoot = blk.ParentStateRoot
+		blockInfo.Autograph = blk.BlockSig
+		blockInfo.Parents = blk.Parents
+		blockInfo.ParentWeight = blk.ParentWeight
+		blockInfo.MessageNum = len(blockMessages.BlsMessages) + len(blockMessages.SecpkMessages)
+		blockInfo.BlsMessages = blockMessages.BlsMessages
+		blockInfo.SecpkMessages = blockMessages.SecpkMessages
+		blockInfo.EPostProof = blk.EPostProof
+		blockInfo.ParentMessageReceipts = blk.ParentMessageReceipts
+		blockInfo.Messages = blk.Messages
+		blockInfo.BLSAggregate = blk.BLSAggregate
+		blockInfo.ForkSignaling = blk.ForkSignaling
+		if i == 0 {
+			blockInfo.Ticket = "1"
+		} else {
+			blockInfo.Ticket = "0"
+		}
+		blockInfo.TransactionSpend = "0"
+		//bk := SerialJson(blockInfo)
+		//KafkaProducer(bk, topic_report)
+		//log.Info("block消息结构==: ", string(bk))
+		blockInfos = append(blockInfos, blockInfo)
 	}
+
+	blocks := blocks{
+		KafkaCommon: KafkaCommon{
+			KafkaId:        GenKID(),
+			KafkaTimestamp: GenKTimestamp(),
+			Type:           "block",
+		},
+	}
+	//blocks.Type = "block"
+	blocks.BlockInfos = blockInfos
+	blocks.PledgeNum = fmt.Sprintf("%d", pledgeNum)
+	blocks.MinTicket = minTicketBlock.Cid()
+	bjson := SerialJson(blocks)
+	KafkaProducer(bjson, topic_report)
+	log.Info("blocks消息结构##: ", string(bjson))
+
 }
