@@ -143,7 +143,9 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	blocks.PledgeNum = fmt.Sprintf("%d", pledgeNum)
 	blocks.MinTicket = minTicketBlock.Cid()
 	bjson := SerialJson(blocks)
-	KafkaProducer(bjson, topic_report)
+	if err := KafkaProducer(bjson, topic_report); err != nil {
+		log.Error(err)
+		return
+	}
 	log.Info("blocks消息结构##: ", string(bjson))
-
 }
