@@ -23,10 +23,10 @@ func KafkaProducer(producerData string, topic string) error {
 	config.Producer.Timeout = 5 * time.Second
 	config.Net.SASL.Enable = true
 	config.Net.SASL.Handshake = true
-	config.Net.SASL.User = kafkaUser
-	config.Net.SASL.Password = kafkaPasswd
+	config.Net.SASL.User = _kafkaUser
+	config.Net.SASL.Password = _kafkaPasswd
 	//证书位置
-	kafkaCert := kafkaCertDir
+	kafkaCert := _kafkaCertFile
 	certBytes, err := ioutil.ReadFile(kafkaCert)
 	if err != nil {
 		return errors.As(err, kafkaCert)
@@ -43,7 +43,7 @@ func KafkaProducer(producerData string, topic string) error {
 	}
 
 	config.Net.TLS.Enable = true
-	address := _kafka_address
+	address := _kafkaAddress
 	p, err := sarama.NewSyncProducer(address, config)
 	if err != nil {
 		return errors.As(err)
@@ -58,7 +58,7 @@ func KafkaProducer(producerData string, topic string) error {
 		return errors.As(err)
 	}
 
-	log.Infof("发送成功，partition=%d, offset=%d \n", part, offset)
+	log.Debug("sent kafka success, partition=%d, offset=%d \n", part, offset)
 	return nil
 }
 
@@ -67,11 +67,11 @@ func KafkaConsumer(groupID string, topics []string) []byte {
 	config.Consumer.Return.Errors = true
 	config.Group.Return.Notifications = true
 	config.Net.SASL.Enable = true
-	config.Net.SASL.User = kafkaUser
-	config.Net.SASL.Password = kafkaPasswd
+	config.Net.SASL.User = _kafkaUser
+	config.Net.SASL.Password = _kafkaPasswd
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 	//证书位置
-	kafkaCert := kafkaCertDir
+	kafkaCert := _kafkaCertFile
 	certBytes, err := ioutil.ReadFile(kafkaCert)
 	clientCertPool := x509.NewCertPool()
 	ok := clientCertPool.AppendCertsFromPEM(certBytes)
@@ -86,7 +86,7 @@ func KafkaConsumer(groupID string, topics []string) []byte {
 	}
 
 	config.Net.TLS.Enable = true
-	address := _kafka_address
+	address := _kafkaAddress
 	// init consumer
 	consumer, err := cluster.NewConsumer(address, groupID, topics, config)
 	if err != nil {

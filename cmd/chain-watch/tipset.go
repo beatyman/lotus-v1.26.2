@@ -39,7 +39,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		panic(err)
 	}
 	_ = tsData
-	// log.Infof("Getting synced block list:%s", string(tsData))
+	log.Infof("Getting synced block list:%s", string(tsData))
 
 	cids := ts.Cids()
 	blks := ts.Blocks()
