@@ -11,8 +11,8 @@ import (
 
 	"github.com/Shopify/sarama"
 	cluster "github.com/bsm/sarama-cluster" //support automatic consumer-group rebalancing and offset tracking
-	//"github.com/sdbaiguanghe/glog"
 
+	//"github.com/sdbaiguanghe/glog"
 	"github.com/gwaylib/errors"
 )
 
