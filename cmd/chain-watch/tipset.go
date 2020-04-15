@@ -31,6 +31,7 @@ type blockInfo struct {
 	//MinerAddress string
 	Ticket string
 	//PledgeNum string
+	TransactionSpend string
 }
 
 type blocks struct {
@@ -58,7 +59,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	blks := ts.Blocks()
 
 	blockInfos := []blockInfo{}
-	height := ts.Height
+	height := ts.Height()
 	for i := 0; i < len(blks); i++ {
 		cid := cids[i]
 		blk := blks[i]
@@ -86,9 +87,10 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 			blockInfo.Ticket = "0"
 		}
 		//blockInfo.PledgeNum = fmt.Sprintf("%d", pledgeNum)
-		bk := SerialJson(blockInfo)
+		blockInfo.TransactionSpend = "0"
+		//bk := SerialJson(blockInfo)
 		//KafkaProducer(bk, topic_report)
-		log.Info("block消息结构==: ", string(bk))
+		//log.Info("block消息结构==: ", string(bk))
 		blockInfos = append(blockInfos, blockInfo)
 	}
 
