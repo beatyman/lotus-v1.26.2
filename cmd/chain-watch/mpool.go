@@ -106,7 +106,6 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 				// TODO: decode more actors
 			case strings.HasPrefix(to, "t01"):
 				switch msg.Method {
-				// 没有参数可以解析
 				case builtin.MethodsMiner.SubmitWindowedPoSt:
 					var params abi.OnChainPoStVerifyInfo
 					if err := params.UnmarshalCBOR(bytes.NewReader(msg.Params)); err != nil {
@@ -114,7 +113,6 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 						break
 					}
 					msg.OriParams = params
-
 				case builtin.MethodsMiner.PreCommitSector:
 					var params miner.SectorPreCommitInfo
 					if err := params.UnmarshalCBOR(bytes.NewReader(msg.Params)); err != nil {
