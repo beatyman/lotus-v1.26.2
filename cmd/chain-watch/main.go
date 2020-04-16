@@ -98,7 +98,7 @@ var runCmd = &cli.Command{
 		_kafkaUser = cctx.String("kafka-user")
 		_kafkaPasswd = cctx.String("kafka-pwd")
 		_kafkaAddress = strings.Split(cctx.String("kafka-addr"), " ")
-		_kafkaTopic = cctx.String("kafka-addr")
+		_kafkaTopic = cctx.String("kafka-topic")
 
 		maxBatch := cctx.Int("max-batch")
 
