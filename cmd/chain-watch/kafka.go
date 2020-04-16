@@ -7,6 +7,7 @@ import (
 
 var (
 	_kafkaAddress = []string{}
+	_kafkaTopic   = ""
 
 	_kafkaUser     = ""
 	_kafkaPasswd   = ""

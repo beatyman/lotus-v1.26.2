@@ -34,7 +34,7 @@ func KafkaProducer(producerData string, topic string) error {
 	clientCertPool := x509.NewCertPool()
 	ok := clientCertPool.AppendCertsFromPEM(certBytes)
 	if !ok {
-		return errors.New("kafka producer failed to parse root certificate")
+		return errors.New("kafka producer failed to parse root certificate").As(kafkaCert)
 	}
 	config.Net.TLS.Config = &tls.Config{
 		//Certificates:       []tls.Certificate{},
@@ -46,7 +46,7 @@ func KafkaProducer(producerData string, topic string) error {
 	address := _kafkaAddress
 	p, err := sarama.NewSyncProducer(address, config)
 	if err != nil {
-		return errors.As(err)
+		return errors.As(err, address)
 	}
 	defer p.Close()
 	msg := &sarama.ProducerMessage{
@@ -55,7 +55,7 @@ func KafkaProducer(producerData string, topic string) error {
 	}
 	part, offset, err := p.SendMessage(msg)
 	if err != nil {
-		return errors.As(err)
+		return errors.As(err, address, topic)
 	}
 
 	log.Debug("sent kafka success, partition=%d, offset=%d \n", part, offset)
