@@ -49,7 +49,7 @@ deps: $(BUILD_DEPS)
 .PHONY: deps
 
 debug: GOFLAGS+=-tags=debug
-debug: lotus lotus-storage-miner lotus-seal-worker lotus-seed
+debug: lotus lotus-storage-miner lotus-seal-worker chain-watch lotus-seed
 
 lotus: $(BUILD_DEPS)
 	rm -f lotus
@@ -73,6 +73,14 @@ lotus-seal-worker: $(BUILD_DEPS)
 .PHONY: lotus-seal-worker
 BINS+=lotus-seal-worker
 
+chain-watch: $(BUILD_DEPS)
+	rm -f chain-watch
+	go build $(GOFLAGS) -o lotus-chain-watch ./cmd/chain-watch
+	go run github.com/GeertJohan/go.rice/rice append --exec lotus-chain-watch -i ./build
+.PHONY: lotus-chain-watch
+BINS+=lotus-chain-watch
+
+
 lotus-shed: $(BUILD_DEPS)
 	rm -f lotus-shed
 	go build $(GOFLAGS) -o lotus-shed ./cmd/lotus-shed
@@ -80,7 +88,7 @@ lotus-shed: $(BUILD_DEPS)
 .PHONY: lotus-shed
 BINS+=lotus-shed
 
-build: lotus lotus-storage-miner lotus-seal-worker
+build: lotus lotus-storage-miner lotus-seal-worker chain-watch
 	@[[ $$(type -P "lotus") ]] && echo "Caution: you have \
 an existing lotus binary in your PATH. This may cause problems if you don't run 'sudo make install'" || true
 
