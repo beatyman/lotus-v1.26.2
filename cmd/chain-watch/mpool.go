@@ -203,7 +203,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 				continue
 			}
 			// send to kafka
-			if err := KafkaProducer(string(mdata), topic_report); err != nil {
+			if err := KafkaProducer(string(mdata), _kafkaTopic); err != nil {
 				log.Warn(errors.As(err))
 				continue
 			}
