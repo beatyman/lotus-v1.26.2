@@ -72,6 +72,11 @@ var runCmd = &cli.Command{
 			Value: "",
 			Usage: "password for kafka server",
 		},
+		&cli.StringFlag{
+			Name:  "kafka-topic",
+			Value: "browser_test",
+			Usage: "topic for kafka server",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := lcli.GetFullNodeAPI(cctx)
@@ -92,6 +97,7 @@ var runCmd = &cli.Command{
 		_kafkaUser = cctx.String("kafka-user")
 		_kafkaPasswd = cctx.String("kafka-pwd")
 		_kafkaAddress = strings.Split(cctx.String("kafka-addr"), " ")
+		_kafkaTopic = cctx.String("kafka-topic")
 
 		maxBatch := cctx.Int("max-batch")
 
