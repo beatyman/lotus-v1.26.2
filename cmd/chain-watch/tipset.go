@@ -12,8 +12,6 @@ import (
 	_ "github.com/gwaylib/errors"
 )
 
-//var topic_report = "browser"
-
 type blockInfo struct {
 	BlockHeight           string
 	BlockSize             interface{}
@@ -143,10 +141,9 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	blocks.PledgeNum = fmt.Sprintf("%d", pledgeNum)
 	blocks.MinTicket = minTicketBlock.Cid()
 	bjson := SerialJson(blocks)
-	err := KafkaProducer(bjson, _kafkaTopic)
-	if err != nil {
-		log.Info("err:===", err)
+	if err := KafkaProducer(bjson, _kafkaTopic); err != nil {
+		log.Error(err)
+		return
 	}
-	log.Info("blocks消息结构##: ", string(bjson))
-
+	log.Info("blocks message send##: ", string(bjson))
 }

@@ -7,27 +7,12 @@ import (
 )
 
 var (
-	/*_kafkaAddress = []string{
-		"kf1.grandhelmsman.com:9093",
-		"kf2.grandhelmsman.com:9093",
-		"kf3.grandhelmsman.com:9093",
-	}
+	_kafkaAddress = []string{}
+	_kafkaTopic   = ""
 
-	_kafkaUser     = "hlmkafka"
-	_kafkaPasswd   = "HLMkafka2019"
-	_kafkaCertFile = "/root/hlm-miner/etc/kafka-cert"
-	_kafkaTopic    = "browser"
-	*/
-	_kafkaAddress = []string{
-		"kf1.grandhelmsman.com:9093",
-		"kf2.grandhelmsman.com:9093",
-		"kf3.grandhelmsman.com:9093",
-	}
-
-	_kafkaUser     = "hlmkafka"
-	_kafkaPasswd   = "HLMkafka2019"
-	_kafkaCertFile = "/root/hlm-miner/etc/kafka-cert"
-	_kafkaTopic    = "browser"
+	_kafkaUser     = ""
+	_kafkaPasswd   = ""
+	_kafkaCertFile = ""
 )
 
 // 协议共公部分
