@@ -26,9 +26,9 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 
-	"github.com/filecoin-project/lotus/storage/sealing"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	sealing "github.com/filecoin-project/storage-fsm"
 )
 
 // All permissions are listed in permissioned.go
@@ -91,8 +91,8 @@ type FullNodeStruct struct {
 		MpoolGetNonce    func(context.Context, address.Address) (uint64, error)                 `perm:"read"`
 		MpoolSub         func(context.Context) (<-chan api.MpoolUpdate, error)                  `perm:"read"`
 
-		MinerGetBaseInfo func(context.Context, address.Address, types.TipSetKey) (*api.MiningBaseInfo, error)                                                                               `perm:"read"`
-		MinerCreateBlock func(context.Context, address.Address, types.TipSetKey, *types.Ticket, *types.EPostProof, []*types.SignedMessage, abi.ChainEpoch, uint64) (*types.BlockMsg, error) `perm:"write"`
+		MinerGetBaseInfo func(context.Context, address.Address, types.TipSetKey) (*api.MiningBaseInfo, error) `perm:"read"`
+		MinerCreateBlock func(context.Context, *api.BlockTemplate) (*types.BlockMsg, error)                   `perm:"write"`
 
 		WalletNew            func(context.Context, crypto.SigType) (address.Address, error)                       `perm:"write"`
 		WalletHas            func(context.Context, address.Address) (bool, error)                                 `perm:"write"`
@@ -115,6 +115,8 @@ type FullNodeStruct struct {
 		ClientListDeals   func(ctx context.Context) ([]api.DealInfo, error)                                                    `perm:"write"`
 		ClientRetrieve    func(ctx context.Context, order api.RetrievalOrder, ref api.FileRef) error                           `perm:"admin"`
 		ClientQueryAsk    func(ctx context.Context, p peer.ID, miner address.Address) (*storagemarket.SignedStorageAsk, error) `perm:"read"`
+		ClientCalcCommP   func(ctx context.Context, inpath string, miner address.Address) (*api.CommPRet, error)               `perm:"read"`
+		ClientGenCar      func(ctx context.Context, ref api.FileRef, outpath string) error                                     `perm:"write"`
 
 		StateNetworkName         func(context.Context) (dtypes.NetworkName, error)                                                                   `perm:"read"`
 		StateMinerSectors        func(context.Context, address.Address, types.TipSetKey) ([]*api.ChainSectorInfo, error)                             `perm:"read"`
@@ -338,6 +340,13 @@ func (c *FullNodeStruct) ClientRetrieve(ctx context.Context, order api.Retrieval
 func (c *FullNodeStruct) ClientQueryAsk(ctx context.Context, p peer.ID, miner address.Address) (*storagemarket.SignedStorageAsk, error) {
 	return c.Internal.ClientQueryAsk(ctx, p, miner)
 }
+func (c *FullNodeStruct) ClientCalcCommP(ctx context.Context, inpath string, miner address.Address) (*api.CommPRet, error) {
+	return c.Internal.ClientCalcCommP(ctx, inpath, miner)
+}
+
+func (c *FullNodeStruct) ClientGenCar(ctx context.Context, ref api.FileRef, outpath string) error {
+	return c.Internal.ClientGenCar(ctx, ref, outpath)
+}
 
 func (c *FullNodeStruct) MpoolPending(ctx context.Context, tsk types.TipSetKey) ([]*types.SignedMessage, error) {
 	return c.Internal.MpoolPending(ctx, tsk)
@@ -359,8 +368,8 @@ func (c *FullNodeStruct) MinerGetBaseInfo(ctx context.Context, maddr address.Add
 	return c.Internal.MinerGetBaseInfo(ctx, maddr, tsk)
 }
 
-func (c *FullNodeStruct) MinerCreateBlock(ctx context.Context, addr address.Address, base types.TipSetKey, ticket *types.Ticket, eproof *types.EPostProof, msgs []*types.SignedMessage, height abi.ChainEpoch, ts uint64) (*types.BlockMsg, error) {
-	return c.Internal.MinerCreateBlock(ctx, addr, base, ticket, eproof, msgs, height, ts)
+func (c *FullNodeStruct) MinerCreateBlock(ctx context.Context, bt *api.BlockTemplate) (*types.BlockMsg, error) {
+	return c.Internal.MinerCreateBlock(ctx, bt)
 }
 
 func (c *FullNodeStruct) ChainHead(ctx context.Context) (*types.TipSet, error) {

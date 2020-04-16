@@ -26,7 +26,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
-	"github.com/filecoin-project/lotus/storage/sealing"
+	sealing "github.com/filecoin-project/storage-fsm"
 )
 
 var log = logging.Logger("storageminer")
@@ -99,7 +99,9 @@ func (m *Miner) Run(ctx context.Context) error {
 	}
 
 	evts := events.NewEvents(ctx, m.api)
-	m.sealing = sealing.New(NewSealingAPIAdapter(m.api), NewEventsAdapter(evts), m.maddr, m.worker, m.ds, m.sealer, m.sc, m.verif, m.tktFn)
+	adaptedAPI := NewSealingAPIAdapter(m.api)
+	pcp := sealing.NewBasicPreCommitPolicy(adaptedAPI, 10000000)
+	m.sealing = sealing.New(adaptedAPI, NewEventsAdapter(evts), m.maddr, m.worker, m.ds, m.sealer, m.sc, m.verif, m.tktFn, &pcp)
 
 	go m.sealing.Run(ctx)
 

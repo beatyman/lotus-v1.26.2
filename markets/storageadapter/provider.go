@@ -28,8 +28,8 @@ import (
 	"github.com/filecoin-project/lotus/lib/sigs"
 	"github.com/filecoin-project/lotus/markets/utils"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
-	"github.com/filecoin-project/lotus/storage/sealing"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
+	sealing "github.com/filecoin-project/storage-fsm"
 )
 
 var log = logging.Logger("provideradapter")
@@ -102,7 +102,13 @@ func (n *ProviderNodeAdapter) PublishDeals(ctx context.Context, deal storagemark
 }
 
 func (n *ProviderNodeAdapter) OnDealComplete(ctx context.Context, deal storagemarket.MinerDeal, pieceSize abi.UnpaddedPieceSize, pieceData io.Reader) error {
-	_, err := n.secb.AddPiece(ctx, abi.UnpaddedPieceSize(pieceSize), pieceData, deal.DealID)
+	_, err := n.secb.AddPiece(ctx, pieceSize, pieceData, sealing.DealInfo{
+		DealID: deal.DealID,
+		DealSchedule: sealing.DealSchedule{
+			StartEpoch: deal.ClientDealProposal.Proposal.StartEpoch,
+			EndEpoch:   deal.ClientDealProposal.Proposal.EndEpoch,
+		},
+	})
 	if err != nil {
 		return xerrors.Errorf("AddPiece failed: %s", err)
 	}
@@ -111,13 +117,17 @@ func (n *ProviderNodeAdapter) OnDealComplete(ctx context.Context, deal storagema
 	return nil
 }
 
-func (n *ProviderNodeAdapter) VerifySignature(sig crypto.Signature, addr address.Address, input []byte) bool {
+func (n *ProviderNodeAdapter) VerifySignature(ctx context.Context, sig crypto.Signature, addr address.Address, input []byte, encodedTs shared.TipSetToken) (bool, error) {
 	err := sigs.Verify(&sig, addr, input)
-	return err == nil
+	return err == nil, err
 }
 
-func (n *ProviderNodeAdapter) ListProviderDeals(ctx context.Context, addr address.Address) ([]storagemarket.StorageDeal, error) {
-	allDeals, err := n.StateMarketDeals(ctx, types.EmptyTSK)
+func (n *ProviderNodeAdapter) ListProviderDeals(ctx context.Context, addr address.Address, encodedTs shared.TipSetToken) ([]storagemarket.StorageDeal, error) {
+	tsk, err := types.TipSetKeyFromBytes(encodedTs)
+	if err != nil {
+		return nil, err
+	}
+	allDeals, err := n.StateMarketDeals(ctx, tsk)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +161,7 @@ func (n *ProviderNodeAdapter) SignBytes(ctx context.Context, signer address.Addr
 	return localSignature, nil
 }
 
-func (n *ProviderNodeAdapter) EnsureFunds(ctx context.Context, addr, wallet address.Address, amt abi.TokenAmount) error {
+func (n *ProviderNodeAdapter) EnsureFunds(ctx context.Context, addr, wallet address.Address, amt abi.TokenAmount, encodedTs shared.TipSetToken) error {
 	return n.MarketEnsureAvailable(ctx, addr, wallet, amt)
 }
 
@@ -182,8 +192,13 @@ func (n *ProviderNodeAdapter) AddFunds(ctx context.Context, addr address.Address
 	return nil
 }
 
-func (n *ProviderNodeAdapter) GetBalance(ctx context.Context, addr address.Address) (storagemarket.Balance, error) {
-	bal, err := n.StateMarketBalance(ctx, addr, types.EmptyTSK)
+func (n *ProviderNodeAdapter) GetBalance(ctx context.Context, addr address.Address, encodedTs shared.TipSetToken) (storagemarket.Balance, error) {
+	tsk, err := types.TipSetKeyFromBytes(encodedTs)
+	if err != nil {
+		return storagemarket.Balance{}, err
+	}
+
+	bal, err := n.StateMarketBalance(ctx, addr, tsk)
 	if err != nil {
 		return storagemarket.Balance{}, err
 	}
@@ -191,7 +206,7 @@ func (n *ProviderNodeAdapter) GetBalance(ctx context.Context, addr address.Addre
 	return utils.ToSharedBalance(bal), nil
 }
 
-func (n *ProviderNodeAdapter) LocatePieceForDealWithinSector(ctx context.Context, dealID abi.DealID) (sectorID uint64, offset uint64, length uint64, err error) {
+func (n *ProviderNodeAdapter) LocatePieceForDealWithinSector(ctx context.Context, dealID abi.DealID, encodedTs shared.TipSetToken) (sectorID uint64, offset uint64, length uint64, err error) {
 	refs, err := n.secb.GetRefs(dealID)
 	if err != nil {
 		return 0, 0, 0, err

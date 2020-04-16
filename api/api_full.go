@@ -20,7 +20,6 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 )
 
@@ -73,7 +72,7 @@ type FullNode interface {
 	// miner
 
 	MinerGetBaseInfo(context.Context, address.Address, types.TipSetKey) (*MiningBaseInfo, error)
-	MinerCreateBlock(context.Context, address.Address, types.TipSetKey, *types.Ticket, *types.EPostProof, []*types.SignedMessage, abi.ChainEpoch, uint64) (*types.BlockMsg, error)
+	MinerCreateBlock(context.Context, *BlockTemplate) (*types.BlockMsg, error)
 
 	// // UX ?
 
@@ -102,6 +101,8 @@ type FullNode interface {
 	ClientFindData(ctx context.Context, root cid.Cid) ([]QueryOffer, error)
 	ClientRetrieve(ctx context.Context, order RetrievalOrder, ref FileRef) error
 	ClientQueryAsk(ctx context.Context, p peer.ID, miner address.Address) (*storagemarket.SignedStorageAsk, error)
+	ClientCalcCommP(ctx context.Context, inpath string, miner address.Address) (*CommPRet, error)
+	ClientGenCar(ctx context.Context, ref FileRef, outpath string) error
 
 	// ClientUnimport removes references to the specified file from filestore
 	//ClientUnimport(path string)
@@ -313,7 +314,7 @@ type RetrievalOrder struct {
 type InvocResult struct {
 	Msg                *types.Message
 	MsgRct             *types.MessageReceipt
-	InternalExecutions []*vm.ExecutionResult
+	InternalExecutions []*types.ExecutionResult
 	Error              string
 	Duration           time.Duration
 }
@@ -381,9 +382,26 @@ type ComputeStateOutput struct {
 }
 
 type MiningBaseInfo struct {
-	MinerPower   types.BigInt
-	NetworkPower types.BigInt
-	Sectors      []*ChainSectorInfo
-	Worker       address.Address
-	SectorSize   abi.SectorSize
+	MinerPower      types.BigInt
+	NetworkPower    types.BigInt
+	Sectors         []*ChainSectorInfo
+	Worker          address.Address
+	SectorSize      abi.SectorSize
+	PrevBeaconEntry types.BeaconEntry
+}
+
+type BlockTemplate struct {
+	Miner        address.Address
+	Parents      types.TipSetKey
+	Ticket       *types.Ticket
+	Eproof       *types.ElectionProof
+	BeaconValues []types.BeaconEntry
+	Messages     []*types.SignedMessage
+	Epoch        abi.ChainEpoch
+	Timestamp    uint64
+}
+
+type CommPRet struct {
+	Root cid.Cid
+	Size abi.UnpaddedPieceSize
 }

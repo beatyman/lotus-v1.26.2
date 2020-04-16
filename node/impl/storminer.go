@@ -24,8 +24,8 @@ import (
 	"github.com/filecoin-project/lotus/miner"
 	"github.com/filecoin-project/lotus/node/impl/common"
 	"github.com/filecoin-project/lotus/storage"
-	"github.com/filecoin-project/lotus/storage/sealing"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
+	sealing "github.com/filecoin-project/storage-fsm"
 )
 
 type StorageMinerAPI struct {
@@ -80,10 +80,10 @@ func (sm *StorageMinerAPI) SectorsStatus(ctx context.Context, sid abi.SectorNumb
 
 	deals := make([]abi.DealID, len(info.Pieces))
 	for i, piece := range info.Pieces {
-		if piece.DealID == nil {
+		if piece.DealInfo == nil {
 			continue
 		}
-		deals[i] = *piece.DealID
+		deals[i] = piece.DealInfo.DealID
 	}
 
 	log := make([]api.SectorLog, len(info.Log))
@@ -186,7 +186,7 @@ func (sm *StorageMinerAPI) MarketListDeals(ctx context.Context) ([]storagemarket
 }
 
 func (sm *StorageMinerAPI) MarketListIncompleteDeals(ctx context.Context) ([]storagemarket.MinerDeal, error) {
-	return sm.StorageProvider.ListIncompleteDeals()
+	return sm.StorageProvider.ListLocalDeals()
 }
 
 func (sm *StorageMinerAPI) MarketSetPrice(ctx context.Context, p types.BigInt) error {
