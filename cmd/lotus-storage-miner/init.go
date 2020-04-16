@@ -46,7 +46,6 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
-	"github.com/filecoin-project/lotus/storage/sealing"
 
 	sealing "github.com/filecoin-project/storage-fsm"
 	"github.com/gwaylib/errors"
@@ -300,7 +299,7 @@ func migratePreSealMeta(ctx context.Context, api lapi.FullNode, metadata string,
 		info := &sealing.SectorInfo{
 			State:        sealing.Proving,
 			SectorNumber: sector.SectorID,
-			Pieces: []ffiwrapper.Piece{
+			Pieces: []sealing.Piece{
 				{
 					Piece: abi.PieceInfo{
 						Size:     abi.PaddedPieceSize(meta.SectorSize),
