@@ -82,16 +82,16 @@ func (ss *syscallShim) VerifySeal(info abi.SealVerifyInfo) error {
 	//_, span := trace.StartSpan(ctx, "ValidatePoRep")
 	//defer span.End()
 
-	// miner, err := address.NewIDAddress(uint64(info.Miner))
-	// if err != nil {
-	// 	return xerrors.Errorf("weirdly failed to construct address: %w", err)
-	// }
-	//
-	// ticket := []byte(info.Randomness)
-	// proof := []byte(info.OnChain.Proof)
-	// seed := []byte(info.InteractiveRandomness)
-	//
-	// log.Infof("Verif r:%x; d:%x; m:%s; t:%x; s:%x; N:%d; p:%x", info.OnChain.SealedCID, info.UnsealedCID, miner, ticket, seed, info.SectorID.Number, proof)
+	miner, err := address.NewIDAddress(uint64(info.Miner))
+	if err != nil {
+		return xerrors.Errorf("weirdly failed to construct address: %w", err)
+	}
+
+	ticket := []byte(info.Randomness)
+	proof := []byte(info.OnChain.Proof)
+	seed := []byte(info.InteractiveRandomness)
+
+	log.Infof("Verif r:%x; d:%x; m:%s; t:%x; s:%x; N:%d; p:%x", info.OnChain.SealedCID, info.UnsealedCID, miner, ticket, seed, info.SectorID.Number, proof)
 
 	//func(ctx context.Context, maddr address.Address, ssize abi.SectorSize, commD, commR, ticket, proof, seed []byte, sectorID abi.SectorNumber)
 	ok, err := ss.verifier.VerifySeal(info)
