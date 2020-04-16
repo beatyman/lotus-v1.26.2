@@ -63,6 +63,12 @@ var runCmd = &cli.Command{
 			Usage: "kafka server address, seperate by space, using like: --kafka-addr=\"addr1 addr2 add3\"",
 		},
 		&cli.StringFlag{
+			Name:  "kafka-topic",
+			Value: "",
+			Usage: "kafka server topic",
+		},
+
+		&cli.StringFlag{
 			Name:  "kafka-user",
 			Value: "",
 			Usage: "username for kafka server",
@@ -92,6 +98,7 @@ var runCmd = &cli.Command{
 		_kafkaUser = cctx.String("kafka-user")
 		_kafkaPasswd = cctx.String("kafka-pwd")
 		_kafkaAddress = strings.Split(cctx.String("kafka-addr"), " ")
+		_kafkaTopic = cctx.String("kafka-addr")
 
 		maxBatch := cctx.Int("max-batch")
 
