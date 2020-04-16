@@ -12,7 +12,7 @@ import (
 	_ "github.com/gwaylib/errors"
 )
 
-var topic_report = "browser"
+//var topic_report = "browser"
 
 type blockInfo struct {
 	BlockHeight           string
@@ -58,12 +58,12 @@ func SerialJson(obj interface{}) string {
 func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
 
 	pledgeNum, _ := api.StatePledgeCollateral(ctx, ts.Key())
-	tsData := SerialJson(ts)
+	/*tsData := SerialJson(ts)
 	_ = tsData
 	log.Infof("Getting synced block list:%s", string(tsData))
-
+	*/
 	minTicketBlock := ts.MinTicketBlock()
-	log.Infof("minTicketBlock:%s", minTicketBlock.Cid())
+	//log.Infof("minTicketBlock:%s", minTicketBlock.Cid())
 
 	cids := ts.Cids()
 	blks := ts.Blocks()
@@ -74,7 +74,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		cid := cids[i]
 		blk := blks[i]
 		blockMessages, err := api.ChainGetBlockMessages(ctx, cid)
-		log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
+		//log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
 		if err != nil {
 			log.Error(err)
 			continue
@@ -126,7 +126,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		}
 		blockInfo.TransactionSpend = "0"
 		//bk := SerialJson(blockInfo)
-		//KafkaProducer(bk, topic_report)
+		//KafkaProducer(bk, _kafkaTopic)
 		//log.Info("block消息结构==: ", string(bk))
 		blockInfos = append(blockInfos, blockInfo)
 	}
@@ -143,7 +143,10 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	blocks.PledgeNum = fmt.Sprintf("%d", pledgeNum)
 	blocks.MinTicket = minTicketBlock.Cid()
 	bjson := SerialJson(blocks)
-	KafkaProducer(bjson, topic_report)
+	err := KafkaProducer(bjson, _kafkaTopic)
+	if err != nil {
+		log.Info("err:===", err)
+	}
 	log.Info("blocks消息结构##: ", string(bjson))
 
 }
