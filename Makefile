@@ -74,7 +74,7 @@ lotus-seal-worker: $(BUILD_DEPS)
 BINS+=lotus-seal-worker
 
 chain-watch: $(BUILD_DEPS)
-	rm -f chain-watch
+	rm -f lotus-chain-watch
 	go build $(GOFLAGS) -o lotus-chain-watch ./cmd/chain-watch
 	go run github.com/GeertJohan/go.rice/rice append --exec lotus-chain-watch -i ./build
 .PHONY: lotus-chain-watch
