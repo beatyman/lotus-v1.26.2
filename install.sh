@@ -5,11 +5,11 @@ case $1 in
     "debug")
         cp -f scripts/bootstrappers.pi build/bootstrap/
         cp -f scripts/devnet.car build/genesis/
-        make debug
+        FFI_BUILD_FROM_SOURCE=1 make debug
         git checkout build
     ;;
     *)
-        make $1
+        FFI_BUILD_FROM_SOURCE=1 make $1
     ;;
 esac
 
