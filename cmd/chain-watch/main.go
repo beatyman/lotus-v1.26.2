@@ -78,11 +78,6 @@ var runCmd = &cli.Command{
 			Value: "",
 			Usage: "password for kafka server",
 		},
-		&cli.StringFlag{
-			Name:  "kafka-topic",
-			Value: "browser_test",
-			Usage: "topic for kafka server",
-		},
 	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := lcli.GetFullNodeAPI(cctx)
