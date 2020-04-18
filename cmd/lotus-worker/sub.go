@@ -24,8 +24,7 @@ type worker struct {
 	sealedRepo    string
 	auth          http.Header
 
-	actAddr    address.Address
-	workerAddr address.Address
+	actAddr address.Address
 
 	sb        *ffiwrapper.Sealer
 	sealedSB  *ffiwrapper.Sealer
@@ -61,11 +60,10 @@ func acceptJobs(ctx context.Context,
 
 		sb: sb,
 
-		actAddr:    act,
-		workerAddr: workerAddr,
-		sealedSB:   sealedSB,
-		workerCfg:  workerCfg,
-		workOn:     map[string]ffiwrapper.WorkerTask{},
+		actAddr:   act,
+		sealedSB:  sealedSB,
+		workerCfg: workerCfg,
+		workOn:    map[string]ffiwrapper.WorkerTask{},
 	}
 
 	api, err := GetNodeApi()
@@ -138,13 +136,12 @@ loop:
 func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]abi.PieceInfo, error) {
 	sizes := task.PieceSizes
 
-	s := sealing.NewSealPiece(w.actAddr, w.workerAddr, w.sb)
+	s := sealing.NewSealPiece(w.actAddr, w.sb)
 	g := &sealing.Pledge{
 		SectorID:      task.SectorID,
 		Sealing:       s,
 		SectorBuilder: w.sb,
 		ActAddr:       w.actAddr,
-		WorkerAddr:    w.workerAddr,
 		Sizes:         sizes,
 	}
 	return g.PledgeSector(ctx)

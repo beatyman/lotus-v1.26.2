@@ -31,6 +31,7 @@ func main() {
 		storageCmd,
 		setPriceCmd,
 		workersCmd,
+		provingCmd,
 
 		// implement by hlm
 		pledgeSectorCmd,

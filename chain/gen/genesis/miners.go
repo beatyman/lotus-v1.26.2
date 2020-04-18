@@ -11,7 +11,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
-	cborutil "github.com/filecoin-project/go-cbor-util"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
@@ -20,7 +19,6 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -127,27 +125,12 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 
 		// setup windowed post
 		{
+			// TODO: Can drop, now done in constructor
 			err = vm.MutateState(ctx, maddr, func(cst cbor.IpldStore, st *miner.State) error {
-				// TODO: Randomize so all genesis miners don't fall on the same epoch
-				st.PoStState.ProvingPeriodStart = miner.ProvingPeriod
+				// fmt.Println("PROVINg BOUNDARY:                       #### ", st.Info.ProvingPeriodBoundary)
 				return nil
 			})
 
-			payload, err := cborutil.Dump(&miner.CronEventPayload{
-				EventType: miner.CronEventWindowedPoStExpiration,
-			})
-			if err != nil {
-				return cid.Undef, err
-			}
-			params := &power.EnrollCronEventParams{
-				EventEpoch: miner.ProvingPeriod + power.WindowedPostChallengeDuration,
-				Payload:    payload,
-			}
-
-			_, err = doExecValue(ctx, vm, builtin.StoragePowerActorAddr, maddr, big.Zero(), builtin.MethodsPower.EnrollCronEvent, mustEnc(params))
-			if err != nil {
-				return cid.Undef, xerrors.Errorf("failed to verify preseal deals miner: %w", err)
-			}
 		}
 
 		// Commit sectors
@@ -173,7 +156,6 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 			}
 
 			// update power claims
-			pledge := big.Zero()
 			{
 				err = vm.MutateState(ctx, builtin.StoragePowerActorAddr, func(cst cbor.IpldStore, st *power.State) error {
 					weight := &power.SectorStorageWeightDesc{
@@ -182,15 +164,9 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 						DealWeight: dealWeight,
 					}
 
-					// TODO: This is almost definitely not correct
-					circSupply := types.BigMul(types.NewInt(build.TotalFilecoin-build.MiningRewardTotal), types.NewInt(build.FilecoinPrecision))
-					totalPledge := types.NewInt(3)
-					perEpochReward := types.NewInt(9)
-
 					qapower := power.QAPowerForWeight(weight)
-					pledge = power.InitialPledgeForWeight(qapower, st.TotalQualityAdjPower, circSupply, totalPledge, perEpochReward)
 
-					err := st.AddToClaim(&state.AdtStore{cst}, maddr, types.NewInt(uint64(weight.SectorSize)), qapower, pledge)
+					err := st.AddToClaim(&state.AdtStore{cst}, maddr, types.NewInt(uint64(weight.SectorSize)), qapower)
 					if err != nil {
 						return xerrors.Errorf("add to claim: %w", err)
 					}
@@ -209,15 +185,12 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 						RegisteredProof: preseal.ProofType,
 						SectorNumber:    preseal.SectorID,
 						SealedCID:       preseal.CommR,
-						SealRandEpoch:   0,
+						SealRandEpoch:   0, // TODO: REVIEW: Correct?
 						DealIDs:         []abi.DealID{dealIDs[pi]},
 						Expiration:      preseal.Deal.EndEpoch,
 					},
-					ActivationEpoch:       0,
-					DealWeight:            dealWeight,
-					PledgeRequirement:     pledge,
-					DeclaredFaultEpoch:    -1,
-					DeclaredFaultDuration: -1,
+					ActivationEpoch: 0, // TODO: REVIEW: Correct?
+					DealWeight:      dealWeight,
 				}
 
 				err = vm.MutateState(ctx, maddr, func(cst cbor.IpldStore, st *miner.State) error {
@@ -227,33 +200,10 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 						return xerrors.Errorf("failed to prove commit: %v", err)
 					}
 
-					st.ProvingSet = st.Sectors
 					return nil
 				})
 				if err != nil {
 					return cid.Cid{}, xerrors.Errorf("put to sset: %w", err)
-				}
-			}
-
-			{
-				sectorBf := abi.NewBitField()
-				sectorBf.Set(uint64(preseal.SectorID))
-
-				payload, err := cborutil.Dump(&miner.CronEventPayload{
-					EventType: miner.CronEventSectorExpiry,
-					Sectors:   &sectorBf,
-				})
-				if err != nil {
-					return cid.Undef, err
-				}
-				params := &power.EnrollCronEventParams{
-					EventEpoch: preseal.Deal.EndEpoch,
-					Payload:    payload,
-				}
-
-				_, err = doExecValue(ctx, vm, builtin.StoragePowerActorAddr, maddr, big.Zero(), builtin.MethodsPower.EnrollCronEvent, mustEnc(params))
-				if err != nil {
-					return cid.Undef, xerrors.Errorf("failed to verify preseal deals miner: %w", err)
 				}
 			}
 		}

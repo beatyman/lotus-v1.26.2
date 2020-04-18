@@ -314,21 +314,22 @@ func (m *Miner) hasPower(ctx context.Context, addr address.Address, ts *types.Ti
 		return false, err
 	}
 
-	return !power.MinerPower.Equals(types.NewInt(0)), nil
+	return !power.MinerPower.QualityAdjPower.Equals(types.NewInt(0)), nil
 }
 
 func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningBase) (*types.BlockMsg, error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.ts.Cids()))
 	start := time.Now()
 
-	mbi, err := m.api.MinerGetBaseInfo(ctx, addr, base.ts.Key())
+	round := base.ts.Height() + base.nullRounds + 1
+
+	mbi, err := m.api.MinerGetBaseInfo(ctx, addr, round, base.ts.Key())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 
 	beaconPrev := mbi.PrevBeaconEntry
 
-	round := base.ts.Height() + base.nullRounds + 1
 	bvals, err := beacon.BeaconEntriesForBlock(ctx, m.beacon, round, beaconPrev)
 	if err != nil {
 		return nil, xerrors.Errorf("get beacon entries failed: %w", err)
@@ -383,8 +384,21 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		return nil, nil
 	}
 
+	// TODO: use the right dst, also NB: not using any 'entropy' in this call because nicola really didnt want it
+	rand, err := m.api.ChainGetRandomness(ctx, base.ts.Key(), crypto.DomainSeparationTag_ElectionPoStChallengeSeed, base.ts.Height()+base.nullRounds, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to get randomness for winning post: %w", err)
+	}
+
+	prand := abi.PoStRandomness(rand)
+
+	postProof, err := m.epp.ComputeProof(ctx, mbi.Sectors, prand)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to compute winning post proof: %w", err)
+	}
+
 	// TODO: winning post proof
-	b, err := m.createBlock(base, addr, ticket, winner, bvals, pending)
+	b, err := m.createBlock(base, addr, ticket, winner, bvals, postProof, pending)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create block: %w", err)
 	}
@@ -405,7 +419,11 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 }
 
 func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *types.BeaconEntry, base *MiningBase) (*types.Ticket, error) {
-	w, err := m.api.StateMinerWorker(ctx, addr, types.EmptyTSK)
+	mi, err := m.api.StateMinerInfo(ctx, addr, types.EmptyTSK)
+	if err != nil {
+		return nil, err
+	}
+	worker, err := m.api.StateAccountKey(ctx, mi.Worker, types.EmptyTSK)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +438,7 @@ func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *
 		return nil, err
 	}
 
-	vrfOut, err := gen.ComputeVRF(ctx, m.api.WalletSign, w, input)
+	vrfOut, err := gen.ComputeVRF(ctx, m.api.WalletSign, worker, input)
 	if err != nil {
 		return nil, err
 	}
@@ -431,9 +449,8 @@ func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *
 }
 
 func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket,
-	eproof *types.ElectionProof, bvals []types.BeaconEntry, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
+	eproof *types.ElectionProof, bvals []types.BeaconEntry, wpostProof []abi.PoStProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
 	log.Infof("MinerCreateBlock validated pending msgs len:%d", len(msgs))
-
 	uts := base.ts.MinTimestamp() + uint64(build.BlockDelay*(base.nullRounds+1))
 
 	nheight := base.ts.Height() + base.nullRounds + 1
@@ -441,14 +458,15 @@ func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *type
 	// why even return this? that api call could just submit it for us
 	log.Infof("MinerCreateBlock validated pending msgs len:%d", len(msgs))
 	return m.api.MinerCreateBlock(context.TODO(), &api.BlockTemplate{
-		Miner:        addr,
-		Parents:      base.ts.Key(),
-		Ticket:       ticket,
-		Eproof:       eproof,
-		BeaconValues: bvals,
-		Messages:     msgs,
-		Epoch:        nheight,
-		Timestamp:    uts,
+		Miner:            addr,
+		Parents:          base.ts.Key(),
+		Ticket:           ticket,
+		Eproof:           eproof,
+		BeaconValues:     bvals,
+		Messages:         msgs,
+		Epoch:            nheight,
+		Timestamp:        uts,
+		WinningPoStProof: wpostProof,
 	})
 }
 

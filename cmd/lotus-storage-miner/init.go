@@ -435,11 +435,6 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 				return err
 			}
 
-			winPt, err := spt.RegisteredWinningPoStProof()
-			if err != nil {
-				return err
-			}
-
 			mid, err := address.IDFromAddress(a)
 			if err != nil {
 				return xerrors.Errorf("getting id address: %w", err)
@@ -452,12 +447,14 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 
 			smgr, err := sectorstorage.New(ctx, lr, stores.NewIndex(), &ffiwrapper.Config{
 				SealProofType: spt,
-				PoStProofType: ppt,
 			}, sectorstorage.SealerConfig{true, true, true, false}, nil, sa)
 			if err != nil {
 				return err
 			}
-			epp := storage.NewWinningPoStProver(smgr, dtypes.MinerID(mid), winPt)
+			epp, err := storage.NewWinningPoStProver(api, smgr, ffiwrapper.ProofVerifier, dtypes.MinerID(mid))
+			if err != nil {
+				return err
+			}
 
 			gen, err := api.ChainGetGenesis(ctx)
 			if err != nil {
@@ -564,7 +561,7 @@ func makeHostKey(lr repo.LockedRepo) (crypto.PrivKey, error) {
 }
 
 func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.Address, peerid peer.ID, gasPrice types.BigInt) error {
-	waddr, err := api.StateMinerWorker(ctx, addr, types.EmptyTSK)
+	mi, err := api.StateMinerInfo(ctx, addr, types.EmptyTSK)
 	if err != nil {
 		return xerrors.Errorf("getWorkerAddr returned bad address: %w", err)
 	}
@@ -576,7 +573,7 @@ func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.
 
 	msg := &types.Message{
 		To:       addr,
-		From:     waddr,
+		From:     mi.Worker,
 		Method:   builtin.MethodsMiner.ChangePeerID,
 		Params:   enc,
 		Value:    types.NewInt(0),
