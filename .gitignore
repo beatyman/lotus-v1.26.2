@@ -27,6 +27,7 @@ build/paramfetch.sh
 /blocks.svg
 /chainwatch
 /chainwatch.db
+/lotus-chain-watch*
 /bundle
 /darwin
 /linux

@@ -208,9 +208,8 @@ eventLoop:
 
 		blks := make([]*types.BlockMsg, 0)
 
-		// just premine the next round
-		for i, addr := range addrs {
-			log.Infof("mineOne addrs:%d,%s", i, addr)
+		for _, addr := range addrs {
+			log.Infof("mineOne addrs:%s", addr)
 			b, err := m.mineOne(ctx, addr, base)
 			if err != nil {
 				log.Errorf("mining block failed: %+v", err)
@@ -357,6 +356,7 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		return nil, xerrors.Errorf("message filtering failed: %w", err)
 	}
 	if len(pending) > build.BlockMessageLimit {
+		log.Error("SelectMessages returned too many messages: ", len(pending))
 		pending = pending[:build.BlockMessageLimit]
 	}
 
@@ -431,16 +431,8 @@ func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *
 }
 
 func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket,
-	eproof *types.ElectionProof, bvals []types.BeaconEntry, pending []*types.SignedMessage) (*types.BlockMsg, error) {
-	msgs, err := SelectMessages(context.TODO(), m.api.StateGetActor, base.ts, pending)
-	if err != nil {
-		return nil, xerrors.Errorf("message filtering failed: %w", err)
-	}
-
-	if len(msgs) > build.BlockMessageLimit {
-		log.Error("SelectMessages returned too many messages: ", len(msgs))
-		msgs = msgs[:build.BlockMessageLimit]
-	}
+	eproof *types.ElectionProof, bvals []types.BeaconEntry, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
+	log.Infof("MinerCreateBlock validated pending msgs len:%d", len(msgs))
 
 	uts := base.ts.MinTimestamp() + uint64(build.BlockDelay*(base.nullRounds+1))
 
@@ -489,7 +481,6 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 	inclBalances := make(map[address.Address]types.BigInt)
 	inclCount := make(map[address.Address]int)
 
-	// TODO: too more log from here, and waiting upgrade from offical.
 	for _, msg := range mpool.Msgs {
 
 		if msg.Message.To == address.Undef {

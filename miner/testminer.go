@@ -5,7 +5,6 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/chain/beacon"
 	"github.com/filecoin-project/lotus/chain/gen"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -17,9 +16,8 @@ func NewTestMiner(nextCh <-chan struct{}, addr address.Address) func(api.FullNod
 			panic(err)
 		}
 
-		beacon := beacon.NewMockBeacon(0)
 		m := &Miner{
-			beacon:            beacon,
+			beacon:            b,
 			api:               api,
 			waitFunc:          chanWaiter(nextCh),
 			epp:               epp,

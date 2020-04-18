@@ -12,8 +12,9 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/specs-actors/actors/abi"
+	sealing "github.com/filecoin-project/storage-fsm"
 
-	"github.com/filecoin-project/lotus/storage/sealing"
 	"github.com/gwaylib/errors"
 )
 
@@ -134,7 +135,7 @@ loop:
 	return nil
 }
 
-func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]ffiwrapper.Piece, error) {
+func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]abi.PieceInfo, error) {
 	sizes := task.PieceSizes
 
 	s := sealing.NewSealPiece(w.actAddr, w.workerAddr, w.sb)

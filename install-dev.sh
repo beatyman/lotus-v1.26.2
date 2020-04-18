@@ -1,6 +1,6 @@
 #!/bin/sh
 
-make debug
+FFI_BUILD_FROM_SOURCE=1 make debug
 
 cp -rf lotus $HOME/hlm-miner/apps/lotus/lotus-dev
 cp -rf lotus-storage-miner $HOME/hlm-miner/apps/lotus/lotus-storage-miner-dev
