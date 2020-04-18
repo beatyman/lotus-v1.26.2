@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/docker/go-units"
 	"github.com/google/uuid"
@@ -38,7 +37,7 @@ import (
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
-	"github.com/filecoin-project/lotus/chain/beacon"
+	"github.com/filecoin-project/lotus/chain/beacon/drand"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/genesis"
@@ -47,7 +46,6 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
-	"github.com/filecoin-project/lotus/storage/sealing"
 
 	sealing "github.com/filecoin-project/storage-fsm"
 	"github.com/gwaylib/errors"
@@ -301,7 +299,7 @@ func migratePreSealMeta(ctx context.Context, api lapi.FullNode, metadata string,
 		info := &sealing.SectorInfo{
 			State:        sealing.Proving,
 			SectorNumber: sector.SectorID,
-			Pieces: []ffiwrapper.Piece{
+			Pieces: []sealing.Piece{
 				{
 					Piece: abi.PieceInfo{
 						Size:     abi.PaddedPieceSize(meta.SectorSize),
@@ -461,7 +459,15 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 			}
 			epp := storage.NewWinningPoStProver(smgr, dtypes.MinerID(mid), winPt)
 
-			beacon := beacon.NewMockBeacon(build.BlockDelay * time.Second)
+			gen, err := api.ChainGetGenesis(ctx)
+			if err != nil {
+				return err
+			}
+
+			beacon, err := drand.NewDrandBeacon(gen.Blocks()[0].Timestamp, build.BlockDelay)
+			if err != nil {
+				return err
+			}
 
 			m := miner.NewMiner(api, epp, beacon)
 			{
