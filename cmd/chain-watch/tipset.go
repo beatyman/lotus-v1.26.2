@@ -117,7 +117,8 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		blockInfo.Autograph = blk.BlockSig
 		blockInfo.Parents = blk.Parents
 		blockInfo.ParentWeight = blk.ParentWeight
-		blockInfo.MessageNum = len(blockMessages.BlsMessages) + len(blockMessages.SecpkMessages) + len(apiMsgCids(pmsgs))
+		//blockInfo.MessageNum = len(blockMessages.BlsMessages) + len(blockMessages.SecpkMessages) + len(apiMsgCids(pmsgs))
+		blockInfo.MessageNum = len(blockMessages.BlsMessages) + len(blockMessages.SecpkMessages)
 		blockInfo.BlsMessages = blockMessages.BlsMessages
 		blockInfo.SecpkMessages = blockMessages.SecpkMessages
 		blockInfo.EPostProof = blk.EPostProof
