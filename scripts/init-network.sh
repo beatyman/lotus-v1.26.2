@@ -2,7 +2,7 @@
 
 set -xeo
 
-NUM_SECTORS=2
+NUM_SECTORS=10
 SECTOR_SIZE=2048
 
 
