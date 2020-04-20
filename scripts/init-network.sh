@@ -2,7 +2,7 @@
 
 set -xeo
 
-NUM_SECTORS=10
+NUM_SECTORS=2
 SECTOR_SIZE=2048
 
 
@@ -37,7 +37,7 @@ kill "$lpid"
 wait
 
 cp "${staging}/devnet.car" build/genesis/devnet.car
-cp "${staging}/devnet.car" script/devnet.car
+cp "${staging}/devnet.car" scripts/devnet.car
 
 make debug
 git checkout build
