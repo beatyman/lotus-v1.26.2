@@ -1,7 +1,9 @@
 package validation
 
+/*
 import (
 	"context"
+
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -101,15 +103,15 @@ type randWrapper struct {
 	rnd vstate.RandomnessSource
 }
 
-func (w *randWrapper) GetRandomness(ctx context.Context, pers crypto.DomainSeparationTag, round int64, entropy []byte) ([]byte, error) {
-	return w.rnd.Randomness(ctx, pers, abi.ChainEpoch(round), entropy)
+func (w *randWrapper) GetRandomness(ctx context.Context, pers crypto.DomainSeparationTag, round abi.ChainEpoch, entropy []byte) ([]byte, error) {
+	return w.rnd.Randomness(ctx, pers, round, entropy)
 }
 
 type vmRand struct {
 	eCtx *vtypes.ExecutionContext
 }
 
-func (*vmRand) GetRandomness(ctx context.Context, dst crypto.DomainSeparationTag, h int64, input []byte) ([]byte, error) {
+func (*vmRand) GetRandomness(ctx context.Context, dst crypto.DomainSeparationTag, h abi.ChainEpoch, input []byte) ([]byte, error) {
 	panic("implement me")
 }
 
@@ -119,7 +121,7 @@ func (a *Applier) applyMessage(eCtx *vtypes.ExecutionContext, state vstate.VMWra
 
 	base := st.Root()
 	randSrc := &vmRand{eCtx}
-	lotusVM, err := vm.NewVM(base, eCtx.Epoch, randSrc, eCtx.Miner, st.bs, vdrivers.NewChainValidationSyscalls())
+	lotusVM, err := vm.NewVM(base, eCtx.Epoch, randSrc, st.bs, vdrivers.NewChainValidationSyscalls())
 	if err != nil {
 		return vtypes.MessageReceipt{}, big.Zero(), big.Zero(), err
 	}
@@ -170,3 +172,4 @@ func toLotusSignedMsg(msg *vtypes.SignedMessage) *types.SignedMessage {
 		Signature: msg.Signature,
 	}
 }
+*/

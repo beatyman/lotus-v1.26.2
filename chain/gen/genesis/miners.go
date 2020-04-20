@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"math/rand"
 
-	cborutil "github.com/filecoin-project/go-cbor-util"
-	"github.com/filecoin-project/specs-actors/actors/builtin/power"
+	"github.com/ipfs/go-cid"
 	cbor "github.com/ipfs/go-ipld-cbor"
+	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -16,12 +16,12 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/market"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
+	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
-	"github.com/ipfs/go-cid"
-	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/store"
+	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/lotus/genesis"
 )
@@ -41,7 +41,7 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 		networkPower = big.Add(networkPower, big.NewInt(int64(m.SectorSize)*int64(len(m.Sectors))))
 	}
 
-	vm, err := vm.NewVM(sroot, 0, &fakeRand{}, builtin.SystemActorAddr, cs.Blockstore(), cs.VMSys())
+	vm, err := vm.NewVM(sroot, 0, &fakeRand{}, cs.Blockstore(), cs.VMSys())
 	if err != nil {
 		return cid.Undef, xerrors.Errorf("failed to create NewVM: %w", err)
 	}
@@ -125,27 +125,12 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 
 		// setup windowed post
 		{
+			// TODO: Can drop, now done in constructor
 			err = vm.MutateState(ctx, maddr, func(cst cbor.IpldStore, st *miner.State) error {
-				// TODO: Randomize so all genesis miners don't fall on the same epoch
-				st.PoStState.ProvingPeriodStart = miner.ProvingPeriod
+				// fmt.Println("PROVINg BOUNDARY:                       #### ", st.Info.ProvingPeriodBoundary)
 				return nil
 			})
 
-			payload, err := cborutil.Dump(&miner.CronEventPayload{
-				EventType: miner.CronEventWindowedPoStExpiration,
-			})
-			if err != nil {
-				return cid.Undef, err
-			}
-			params := &power.EnrollCronEventParams{
-				EventEpoch: miner.ProvingPeriod + power.WindowedPostChallengeDuration,
-				Payload:    payload,
-			}
-
-			_, err = doExecValue(ctx, vm, builtin.StoragePowerActorAddr, maddr, big.Zero(), builtin.MethodsPower.EnrollCronEvent, mustEnc(params))
-			if err != nil {
-				return cid.Undef, xerrors.Errorf("failed to verify preseal deals miner: %w", err)
-			}
 		}
 
 		// Commit sectors
@@ -157,6 +142,7 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 			{
 				params := &market.VerifyDealsOnSectorProveCommitParams{
 					DealIDs:      []abi.DealID{dealIDs[pi]},
+					SectorSize:   m.SectorSize,
 					SectorExpiry: preseal.Deal.EndEpoch,
 				}
 
@@ -170,7 +156,6 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 			}
 
 			// update power claims
-			pledge := big.Zero()
 			{
 				err = vm.MutateState(ctx, builtin.StoragePowerActorAddr, func(cst cbor.IpldStore, st *power.State) error {
 					weight := &power.SectorStorageWeightDesc{
@@ -179,13 +164,13 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 						DealWeight: dealWeight,
 					}
 
-					spower := power.ConsensusPowerForWeight(weight)
-					pledge = power.PledgeForWeight(weight, st.TotalNetworkPower)
-					err := st.AddToClaim(&state.AdtStore{cst}, maddr, spower, pledge)
+					qapower := power.QAPowerForWeight(weight)
+
+					err := st.AddToClaim(&state.AdtStore{cst}, maddr, types.NewInt(uint64(weight.SectorSize)), qapower)
 					if err != nil {
 						return xerrors.Errorf("add to claim: %w", err)
 					}
-					fmt.Println("Added weight to claim: ", st.TotalNetworkPower)
+					fmt.Println("Added weight to claim: ", st.TotalRawBytePower, st.TotalQualityAdjPower)
 					return nil
 				})
 				if err != nil {
@@ -200,15 +185,12 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 						RegisteredProof: preseal.ProofType,
 						SectorNumber:    preseal.SectorID,
 						SealedCID:       preseal.CommR,
-						SealRandEpoch:   0,
+						SealRandEpoch:   0, // TODO: REVIEW: Correct?
 						DealIDs:         []abi.DealID{dealIDs[pi]},
 						Expiration:      preseal.Deal.EndEpoch,
 					},
-					ActivationEpoch:       0,
-					DealWeight:            dealWeight,
-					PledgeRequirement:     pledge,
-					DeclaredFaultEpoch:    -1,
-					DeclaredFaultDuration: -1,
+					ActivationEpoch: 0, // TODO: REVIEW: Correct?
+					DealWeight:      dealWeight,
 				}
 
 				err = vm.MutateState(ctx, maddr, func(cst cbor.IpldStore, st *miner.State) error {
@@ -218,33 +200,10 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 						return xerrors.Errorf("failed to prove commit: %v", err)
 					}
 
-					st.ProvingSet = st.Sectors
 					return nil
 				})
 				if err != nil {
 					return cid.Cid{}, xerrors.Errorf("put to sset: %w", err)
-				}
-			}
-
-			{
-				sectorBf := abi.NewBitField()
-				sectorBf.Set(uint64(preseal.SectorID))
-
-				payload, err := cborutil.Dump(&miner.CronEventPayload{
-					EventType: miner.CronEventSectorExpiry,
-					Sectors:   &sectorBf,
-				})
-				if err != nil {
-					return cid.Undef, err
-				}
-				params := &power.EnrollCronEventParams{
-					EventEpoch: preseal.Deal.EndEpoch,
-					Payload:    payload,
-				}
-
-				_, err = doExecValue(ctx, vm, builtin.StoragePowerActorAddr, maddr, big.Zero(), builtin.MethodsPower.EnrollCronEvent, mustEnc(params))
-				if err != nil {
-					return cid.Undef, xerrors.Errorf("failed to verify preseal deals miner: %w", err)
 				}
 			}
 		}
@@ -253,7 +212,7 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 
 	// TODO: to avoid division by zero, we set the initial power actor power to 1, this adjusts that back down so the accounting is accurate.
 	err = vm.MutateState(ctx, builtin.StoragePowerActorAddr, func(cst cbor.IpldStore, st *power.State) error {
-		st.TotalNetworkPower = big.Sub(st.TotalNetworkPower, big.NewInt(1))
+		st.TotalQualityAdjPower = big.Sub(st.TotalQualityAdjPower, big.NewInt(1))
 		return nil
 	})
 
@@ -264,8 +223,8 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sroot cid.Cid
 // TODO: copied from actors test harness, deduplicate or remove from here
 type fakeRand struct{}
 
-func (fr *fakeRand) GetRandomness(ctx context.Context, personalization crypto.DomainSeparationTag, randEpoch int64, entropy []byte) ([]byte, error) {
+func (fr *fakeRand) GetRandomness(ctx context.Context, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) ([]byte, error) {
 	out := make([]byte, 32)
-	rand.New(rand.NewSource(randEpoch)).Read(out)
+	_, _ = rand.New(rand.NewSource(int64(randEpoch))).Read(out)
 	return out, nil
 }

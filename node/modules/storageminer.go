@@ -11,7 +11,6 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
 	graphsync "github.com/ipfs/go-graphsync/impl"
-	"github.com/ipfs/go-graphsync/ipldbridge"
 	gsnet "github.com/ipfs/go-graphsync/network"
 	"github.com/ipfs/go-graphsync/storeutil"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
@@ -43,6 +42,8 @@ import (
 
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/beacon"
+	"github.com/filecoin-project/lotus/chain/beacon/drand"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/markets/retrievaladapter"
@@ -51,7 +52,7 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/helpers"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
-	"github.com/filecoin-project/lotus/storage/sealing"
+	sealing "github.com/filecoin-project/storage-fsm"
 )
 
 func minerAddrFromDS(ds dtypes.MetadataDS) (address.Address, error) {
@@ -91,19 +92,18 @@ func StorageNetworkName(ctx helpers.MetricsCtx, a lapi.FullNode) (dtypes.Network
 }
 
 func ProofsConfig(maddr dtypes.MinerAddress, fnapi lapi.FullNode) (*ffiwrapper.Config, error) {
-	ssize, err := fnapi.StateMinerSectorSize(context.TODO(), address.Address(maddr), types.EmptyTSK)
+	mi, err := fnapi.StateMinerInfo(context.TODO(), address.Address(maddr), types.EmptyTSK)
 	if err != nil {
 		return nil, err
 	}
 
-	ppt, spt, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
+	spt, err := ffiwrapper.SealProofTypeFromSectorSize(mi.SectorSize)
 	if err != nil {
 		return nil, xerrors.Errorf("bad sector size: %w", err)
 	}
 
 	sb := &ffiwrapper.Config{
 		SealProofType: spt,
-		PoStProofType: ppt,
 	}
 
 	return sb, nil
@@ -131,17 +131,20 @@ func StorageMiner(mctx helpers.MetricsCtx, lc fx.Lifecycle, api lapi.FullNode, h
 
 	ctx := helpers.LifecycleCtx(mctx, lc)
 
-	worker, err := api.StateMinerWorker(ctx, maddr, types.EmptyTSK)
+	mi, err := api.StateMinerInfo(ctx, maddr, types.EmptyTSK)
 	if err != nil {
 		return nil, err
 	}
 
-	ppt, _, err := ffiwrapper.ProofTypeFromSectorSize(sealer.SectorSize())
+	worker, err := api.StateAccountKey(ctx, mi.Worker, types.EmptyTSK)
 	if err != nil {
-		return nil, xerrors.Errorf("bad sector size: %w", err)
+		return nil, err
 	}
 
-	fps := storage.NewFPoStScheduler(api, sealer, maddr, worker, ppt)
+	fps, err := storage.NewWindowedPoStScheduler(api, sealer, maddr, worker)
+	if err != nil {
+		return nil, err
+	}
 
 	sm, err := storage.NewMiner(api, maddr, worker, h, ds, sealer, sc, verif, tktFn)
 	if err != nil {
@@ -249,21 +252,20 @@ func StagingDAG(mctx helpers.MetricsCtx, lc fx.Lifecycle, ibs dtypes.StagingBloc
 // to the StagingBlockstore
 func StagingGraphsync(mctx helpers.MetricsCtx, lc fx.Lifecycle, ibs dtypes.StagingBlockstore, h host.Host) dtypes.StagingGraphsync {
 	graphsyncNetwork := gsnet.NewFromLibp2pHost(h)
-	ipldBridge := ipldbridge.NewIPLDBridge()
 	loader := storeutil.LoaderForBlockstore(ibs)
 	storer := storeutil.StorerForBlockstore(ibs)
-	gs := graphsync.New(helpers.LifecycleCtx(mctx, lc), graphsyncNetwork, ipldBridge, loader, storer)
+	gs := graphsync.New(helpers.LifecycleCtx(mctx, lc), graphsyncNetwork, loader, storer, graphsync.RejectAllRequestsByDefault())
 
 	return gs
 }
 
-func SetupBlockProducer(lc fx.Lifecycle, ds dtypes.MetadataDS, api lapi.FullNode, epp gen.ElectionPoStProver) (*miner.Miner, error) {
+func SetupBlockProducer(lc fx.Lifecycle, ds dtypes.MetadataDS, api lapi.FullNode, epp gen.WinningPoStProver, beacon beacon.RandomBeacon) (*miner.Miner, error) {
 	minerAddr, err := minerAddrFromDS(ds)
 	if err != nil {
 		return nil, err
 	}
 
-	m := miner.NewMiner(api, epp)
+	m := miner.NewMiner(api, epp, beacon)
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -281,10 +283,15 @@ func SetupBlockProducer(lc fx.Lifecycle, ds dtypes.MetadataDS, api lapi.FullNode
 }
 
 func SealTicketGen(fapi lapi.FullNode) sealing.TicketFn {
-	return func(ctx context.Context) (abi.SealRandomness, abi.ChainEpoch, error) {
-		ts, err := fapi.ChainHead(ctx)
+	return func(ctx context.Context, tok sealing.TipSetToken) (abi.SealRandomness, abi.ChainEpoch, error) {
+		tsk, err := types.TipSetKeyFromBytes(tok)
 		if err != nil {
-			return nil, 0, xerrors.Errorf("getting head ts for SealTicket failed: %w", err)
+			return nil, 0, xerrors.Errorf("could not unmarshal TipSetToken to TipSetKey: %w", err)
+		}
+
+		ts, err := fapi.ChainGetTipSet(ctx, tsk)
+		if err != nil {
+			return nil, 0, xerrors.Errorf("getting TipSet for key failed: %w", err)
 		}
 
 		r, err := fapi.ChainGetRandomness(ctx, ts.Key(), crypto.DomainSeparationTag_SealRandomness, ts.Height()-build.SealRandomnessLookback, nil)
@@ -316,12 +323,12 @@ func StorageProvider(ctx helpers.MetricsCtx, fapi lapi.FullNode, h host.Host, ds
 		return nil, err
 	}
 
-	ssize, err := fapi.StateMinerSectorSize(ctx, minerAddress, types.EmptyTSK)
+	mi, err := fapi.StateMinerInfo(ctx, minerAddress, types.EmptyTSK)
 	if err != nil {
 		return nil, err
 	}
 
-	rt, _, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
+	rt, err := ffiwrapper.SealProofTypeFromSectorSize(mi.SectorSize)
 	if err != nil {
 		return nil, err
 	}
@@ -370,4 +377,13 @@ func StorageAuth(ctx helpers.MetricsCtx, ca lapi.Common) (sectorstorage.StorageA
 	headers := http.Header{}
 	headers.Add("Authorization", "Bearer "+string(token))
 	return sectorstorage.StorageAuth(headers), nil
+}
+
+func MinerRandomBeacon(api lapi.FullNode) (beacon.RandomBeacon, error) {
+	gents, err := api.ChainGetGenesis(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+
+	return drand.NewDrandBeacon(gents.Blocks()[0].Timestamp, build.BlockDelay)
 }

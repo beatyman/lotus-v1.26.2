@@ -36,36 +36,6 @@ import (
 
 var log = logging.Logger("vm")
 
-const (
-	gasFundTransfer = 10
-	gasInvoke       = 5
-
-	gasGetObj         = 10
-	gasGetPerByte     = 1
-	gasPutObj         = 20
-	gasPutPerByte     = 2
-	gasCommit         = 50
-	gasPerMessageByte = 2
-)
-
-const (
-	outOfGasErrCode = 200
-)
-
-type ExecutionResult struct {
-	Msg    *types.Message
-	MsgRct *types.MessageReceipt
-	Error  string
-
-	Subcalls []*ExecutionResult
-}
-
-// Storage interface
-
-// End of storage interface
-
-// Send allows the current execution context to invoke methods on other actors in the system
-
 // ResolveToKeyAddr returns the public key type of address (`BLS`/`SECP256K1`) of an account actor identified by `addr`.
 func ResolveToKeyAddr(state types.StateTree, cst cbor.IpldStore, addr address.Address) (address.Address, aerrors.ActorError) {
 	if addr.Protocol() == address.BLS || addr.Protocol() == address.SECP256K1 {
@@ -159,14 +129,13 @@ type VM struct {
 	cst         *cbor.BasicIpldStore
 	buf         *bufbstore.BufferedBS
 	blockHeight abi.ChainEpoch
-	blockMiner  address.Address
 	inv         *invoker
 	rand        Rand
 
 	Syscalls runtime.Syscalls
 }
 
-func NewVM(base cid.Cid, height abi.ChainEpoch, r Rand, maddr address.Address, cbs blockstore.Blockstore, syscalls runtime.Syscalls) (*VM, error) {
+func NewVM(base cid.Cid, height abi.ChainEpoch, r Rand, cbs blockstore.Blockstore, syscalls runtime.Syscalls) (*VM, error) {
 	buf := bufbstore.NewBufferedBstore(cbs)
 	cst := cbor.NewCborStore(buf)
 	state, err := state.LoadStateTree(cst, base)
@@ -180,7 +149,6 @@ func NewVM(base cid.Cid, height abi.ChainEpoch, r Rand, maddr address.Address, c
 		cst:         cst,
 		buf:         buf,
 		blockHeight: height,
-		blockMiner:  maddr,
 		inv:         NewInvoker(),
 		rand:        r, // TODO: Probably should be a syscall
 		Syscalls:    syscalls,
@@ -188,14 +156,14 @@ func NewVM(base cid.Cid, height abi.ChainEpoch, r Rand, maddr address.Address, c
 }
 
 type Rand interface {
-	GetRandomness(ctx context.Context, pers crypto.DomainSeparationTag, round int64, entropy []byte) ([]byte, error)
+	GetRandomness(ctx context.Context, pers crypto.DomainSeparationTag, round abi.ChainEpoch, entropy []byte) ([]byte, error)
 }
 
 type ApplyRet struct {
 	types.MessageReceipt
 	ActorErr           aerrors.ActorError
 	Penalty            types.BigInt
-	InternalExecutions []*ExecutionResult
+	InternalExecutions []*types.ExecutionResult
 	Duration           time.Duration
 }
 
@@ -444,10 +412,6 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 		Penalty:            types.NewInt(0),
 		Duration:           time.Since(start),
 	}, nil
-}
-
-func (vm *VM) SetBlockMiner(m address.Address) {
-	vm.blockMiner = m
 }
 
 func (vm *VM) ActorBalance(addr address.Address) (types.BigInt, aerrors.ActorError) {

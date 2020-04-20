@@ -51,6 +51,9 @@ deps: $(BUILD_DEPS)
 debug: GOFLAGS+=-tags=debug
 debug: lotus lotus-storage-miner lotus-seal-worker chain-watch lotus-seed
 
+2k: GOFLAGS+=-tags=2k
+2k: lotus lotus-storage-miner lotus-seal-worker lotus-seed
+
 lotus: $(BUILD_DEPS)
 	rm -f lotus
 	go build $(GOFLAGS) -o lotus ./cmd/lotus
@@ -74,7 +77,7 @@ lotus-seal-worker: $(BUILD_DEPS)
 BINS+=lotus-seal-worker
 
 chain-watch: $(BUILD_DEPS)
-	rm -f chain-watch
+	rm -f lotus-chain-watch
 	go build $(GOFLAGS) -o lotus-chain-watch ./cmd/chain-watch
 	go run github.com/GeertJohan/go.rice/rice append --exec lotus-chain-watch -i ./build
 .PHONY: lotus-chain-watch
@@ -168,6 +171,18 @@ BINS+=health
 # MISC
 
 buildall: $(BINS)
+
+completions:
+	./scripts/make-completions.sh lotus
+	./scripts/make-completions.sh lotus-storage-miner
+.PHONY: completions
+
+install-completions:
+	mkdir -p /usr/share/bash-completion/completions /usr/local/share/zsh/site-functions/
+	install -C ./scripts/bash-completion/lotus /usr/share/bash-completion/completions/lotus
+	install -C ./scripts/bash-completion/lotus-storage-miner /usr/share/bash-completion/completions/lotus-storage-miner
+	install -C ./scripts/zsh-completion/lotus /usr/local/share/zsh/site-functions/_lotus
+	install -C ./scripts/zsh-completion/lotus-storage-miner /usr/local/share/zsh/site-functions/_lotus-storage-miner
 
 clean:
 	rm -rf $(CLEAN) $(BINS)

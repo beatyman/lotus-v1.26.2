@@ -121,7 +121,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		blockInfo.MessageNum = len(blockMessages.BlsMessages) + len(blockMessages.SecpkMessages)
 		blockInfo.BlsMessages = blockMessages.BlsMessages
 		blockInfo.SecpkMessages = blockMessages.SecpkMessages
-		blockInfo.EPostProof = blk.EPostProof
+		blockInfo.EPostProof = blk.ElectionProof
 		blockInfo.ParentMessageReceipts = blk.ParentMessageReceipts
 		blockInfo.Messages = blk.Messages
 		blockInfo.BLSAggregate = blk.BLSAggregate

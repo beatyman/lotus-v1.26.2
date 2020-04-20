@@ -44,7 +44,7 @@ func (cs *ChainStore) Weight(ctx context.Context, ts *types.TipSet) (types.BigIn
 		if err := cst.Get(ctx, act.Head, &st); err != nil {
 			return types.NewInt(0), xerrors.Errorf("get power actor head: %w", err)
 		}
-		tpow = st.TotalNetworkPower
+		tpow = st.TotalQualityAdjPower // TODO: REVIEW: Is this correct?
 	}
 
 	log2P := int64(0)
@@ -72,7 +72,7 @@ func (cs *ChainStore) call(ctx context.Context, msg *types.Message, ts *types.Ti
 
 	r := NewChainRand(cs, ts.Cids(), ts.Height())
 
-	vmi, err := vm.NewVM(bstate, ts.Height(), r, builtin.SystemActorAddr, cs.bs, cs.vmcalls)
+	vmi, err := vm.NewVM(bstate, ts.Height(), r, cs.bs, cs.vmcalls)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to set up vm: %w", err)
 	}

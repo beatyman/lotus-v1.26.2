@@ -95,7 +95,11 @@ func (sm *StorageMinerAPI) SectorsListAll(context.Context) ([]api.SectorInfo, er
 }
 
 func (sm *StorageMinerAPI) WorkerAddress(ctx context.Context, act address.Address, tsk types.TipSetKey) (address.Address, error) {
-	return sm.Full.StateMinerWorker(ctx, act, tsk)
+	mInfo, err := sm.Full.StateMinerInfo(ctx, act, tsk)
+	if err != nil {
+		return address.Address{}, err
+	}
+	return mInfo.Worker, nil
 }
 
 func (sm *StorageMinerAPI) WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error) {

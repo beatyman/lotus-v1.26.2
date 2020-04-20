@@ -37,6 +37,7 @@ import (
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
+	"github.com/filecoin-project/lotus/chain/beacon/drand"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/genesis"
@@ -45,8 +46,8 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
-	"github.com/filecoin-project/lotus/storage/sealing"
 
+	sealing "github.com/filecoin-project/storage-fsm"
 	"github.com/gwaylib/errors"
 )
 
@@ -298,11 +299,19 @@ func migratePreSealMeta(ctx context.Context, api lapi.FullNode, metadata string,
 		info := &sealing.SectorInfo{
 			State:        sealing.Proving,
 			SectorNumber: sector.SectorID,
-			Pieces: []ffiwrapper.Piece{
+			Pieces: []sealing.Piece{
 				{
-					DealID: &dealID,
-					Size:   abi.PaddedPieceSize(meta.SectorSize).Unpadded(),
-					CommP:  sector.CommD,
+					Piece: abi.PieceInfo{
+						Size:     abi.PaddedPieceSize(meta.SectorSize),
+						PieceCID: commD,
+					},
+					DealInfo: &sealing.DealInfo{
+						DealID: dealID,
+						DealSchedule: sealing.DealSchedule{
+							StartEpoch: sector.Deal.StartEpoch,
+							EndEpoch:   sector.Deal.EndEpoch,
+						},
+					},
 				},
 			},
 			CommD:            &commD,
@@ -421,7 +430,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 				return err
 			}
 
-			ppt, spt, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
+			spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
 			if err != nil {
 				return err
 			}
@@ -438,14 +447,26 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 
 			smgr, err := sectorstorage.New(ctx, lr, stores.NewIndex(), &ffiwrapper.Config{
 				SealProofType: spt,
-				PoStProofType: ppt,
 			}, sectorstorage.SealerConfig{true, true, true, false}, nil, sa)
 			if err != nil {
 				return err
 			}
-			epp := storage.NewElectionPoStProver(smgr, dtypes.MinerID(mid))
+			epp, err := storage.NewWinningPoStProver(api, smgr, ffiwrapper.ProofVerifier, dtypes.MinerID(mid))
+			if err != nil {
+				return err
+			}
 
-			m := miner.NewMiner(api, epp)
+			gen, err := api.ChainGetGenesis(ctx)
+			if err != nil {
+				return err
+			}
+
+			beacon, err := drand.NewDrandBeacon(gen.Blocks()[0].Timestamp, build.BlockDelay)
+			if err != nil {
+				return err
+			}
+
+			m := miner.NewMiner(api, epp, beacon)
 			{
 				if err := m.Register(a); err != nil {
 					return xerrors.Errorf("failed to start up genesis miner: %w", err)
@@ -540,7 +561,7 @@ func makeHostKey(lr repo.LockedRepo) (crypto.PrivKey, error) {
 }
 
 func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.Address, peerid peer.ID, gasPrice types.BigInt) error {
-	waddr, err := api.StateMinerWorker(ctx, addr, types.EmptyTSK)
+	mi, err := api.StateMinerInfo(ctx, addr, types.EmptyTSK)
 	if err != nil {
 		return xerrors.Errorf("getWorkerAddr returned bad address: %w", err)
 	}
@@ -552,7 +573,7 @@ func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.
 
 	msg := &types.Message{
 		To:       addr,
-		From:     waddr,
+		From:     mi.Worker,
 		Method:   builtin.MethodsMiner.ChangePeerID,
 		Params:   enc,
 		Value:    types.NewInt(0),
