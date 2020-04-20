@@ -10,6 +10,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
 	_ "github.com/gwaylib/errors"
+	"github.com/ipfs/go-cid"
 )
 
 type blockInfo struct {
@@ -34,6 +35,7 @@ type blockInfo struct {
 	Messages              interface{}
 	BLSAggregate          interface{}
 	ForkSignaling         interface{}
+	ParentMessages        interface{}
 }
 
 type blocks struct {
@@ -56,12 +58,12 @@ func SerialJson(obj interface{}) string {
 func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
 
 	pledgeNum, _ := api.StatePledgeCollateral(ctx, ts.Key())
-	tsData := SerialJson(ts)
+	/*tsData := SerialJson(ts)
 	_ = tsData
 	log.Infof("Getting synced block list:%s", string(tsData))
-
+	*/
 	minTicketBlock := ts.MinTicketBlock()
-	log.Infof("minTicketBlock:%s", minTicketBlock.Cid())
+	//log.Infof("minTicketBlock:%s", minTicketBlock.Cid())
 
 	cids := ts.Cids()
 	blks := ts.Blocks()
@@ -71,13 +73,19 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	for i := 0; i < len(blks); i++ {
 		cid := cids[i]
 		blk := blks[i]
+
+		//log.Info("#############", SerialJson(blk))
 		blockMessages, err := api.ChainGetBlockMessages(ctx, cid)
-		log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
+		//log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
+		pmsgs, err := api.ChainGetParentMessages(ctx, cid)
+
+		log.Info("ParentMessages:", SerialJson(apiMsgCids(pmsgs)))
 		if err != nil {
 			log.Error(err)
 			continue
 		}
 		blockInfo := blockInfo{}
+		blockInfo.ParentMessages = apiMsgCids(pmsgs)
 		blockInfo.BlockHeight = fmt.Sprintf("%d", height)
 		readObj, err := api.ChainReadObj(ctx, cid)
 		if err != nil {
@@ -109,6 +117,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		blockInfo.Autograph = blk.BlockSig
 		blockInfo.Parents = blk.Parents
 		blockInfo.ParentWeight = blk.ParentWeight
+		//blockInfo.MessageNum = len(blockMessages.BlsMessages) + len(blockMessages.SecpkMessages) + len(apiMsgCids(pmsgs))
 		blockInfo.MessageNum = len(blockMessages.BlsMessages) + len(blockMessages.SecpkMessages)
 		blockInfo.BlsMessages = blockMessages.BlsMessages
 		blockInfo.SecpkMessages = blockMessages.SecpkMessages
@@ -124,7 +133,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		}
 		blockInfo.TransactionSpend = "0"
 		//bk := SerialJson(blockInfo)
-		//KafkaProducer(bk, topic_report)
+		//KafkaProducer(bk, _kafkaTopic)
 		//log.Info("block消息结构==: ", string(bk))
 		blockInfos = append(blockInfos, blockInfo)
 	}
@@ -146,4 +155,12 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		return
 	}
 	log.Info("blocks message send##: ", string(bjson))
+}
+
+func apiMsgCids(in []api.Message) []cid.Cid {
+	out := make([]cid.Cid, len(in))
+	for k, v := range in {
+		out[k] = v.Cid
+	}
+	return out
 }

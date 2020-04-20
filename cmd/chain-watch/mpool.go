@@ -32,6 +32,7 @@ type Message struct {
 	KafkaCommon
 	types.Message
 	Cid       string
+	Size      int
 	OriParams interface{}
 	Receipt   MessageReceipt
 }
@@ -68,8 +69,13 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 			if v.Type != aapi.MpoolAdd {
 				continue
 			}
-
 			cid := v.Message.Message.Cid()
+			// 获取消息长度
+			readObj, err := api.ChainReadObj(ctx, cid)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
 			// 获取收据
 			receipt, err := api.StateWaitMsg(ctx, cid)
 			if err != nil {
@@ -86,6 +92,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 
 				Message:   v.Message.Message,
 				Cid:       cid.String(),
+				Size:      len(readObj),
 				OriParams: map[string]interface{}{},
 				Receipt: MessageReceipt{
 					Height:   receipt.TipSet.Height(),
