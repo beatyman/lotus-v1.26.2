@@ -15,7 +15,7 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/lotus/storage/sealing"
+	sealing "github.com/filecoin-project/storage-fsm"
 )
 
 var sectorsCmd = &cli.Command{
@@ -142,7 +142,7 @@ var sectorsListCmd = &cli.Command{
 			provingIDs[info.ID] = struct{}{}
 		}
 
-		sset, err := fullApi.StateMinerSectors(ctx, maddr, types.EmptyTSK)
+		sset, err := fullApi.StateMinerSectors(ctx, maddr, nil, types.EmptyTSK)
 		if err != nil {
 			return err
 		}

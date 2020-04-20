@@ -135,7 +135,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 			case strings.HasPrefix(to, "t01"):
 				switch msg.Method {
 				case builtin.MethodsMiner.SubmitWindowedPoSt:
-					var params abi.OnChainPoStVerifyInfo
+					var params miner.SubmitWindowedPoStParams
 					if err := params.UnmarshalCBOR(bytes.NewReader(msg.Params)); err != nil {
 						log.Error(err)
 						break
@@ -164,20 +164,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 					}
 
 					// 获取矿工节点信息
-					peerID, err := api.StateMinerPeerID(ctx, msg.To, types.EmptyTSK)
-					if err != nil {
-						log.Error(err)
-						continue
-					}
-					// 获取矿工钱包信息
-					worker, err := api.StateMinerWorker(ctx, msg.To, types.EmptyTSK)
-					if err != nil {
-						log.Error(err)
-						continue
-					}
-
-					// 获取矿工的扇区大小
-					sectorSize, err := api.StateMinerSectorSize(ctx, msg.To, types.EmptyTSK)
+					mInfo, err := api.StateMinerInfo(ctx, msg.To, types.EmptyTSK)
 					if err != nil {
 						log.Error(err)
 						continue
@@ -193,10 +180,11 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 						"TotalPower": fmt.Sprint(pow.TotalPower),
 						"MinerPower": fmt.Sprint(pow.MinerPower),
 
-						"PeerID": peerID.String(),
-						"Worker": fmt.Sprint(worker),
+						"PeerID": mInfo.PeerId.String(),
+						"Owner":  fmt.Sprint(mInfo.Owner),
+						"Worker": fmt.Sprint(mInfo.Worker),
 
-						"SectorSize":   sectorSize.String(),
+						"SectorSize":   mInfo.SectorSize.String(),
 						"FaultNumber":  strconv.Itoa(len(sectorFaults)),
 						"SectorNumber": params.SectorNumber,
 						"Proof":        params.Proof,

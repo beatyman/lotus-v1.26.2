@@ -212,13 +212,12 @@ var runCmd = &cli.Command{
 		if err := os.MkdirAll(r, 0755); err != nil {
 			return errors.As(err, r)
 		}
-		_, spt, err := ffiwrapper.ProofTypeFromSectorSize(ssize)
+		spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
 		if err != nil {
 			return xerrors.Errorf("getting proof type: %w", err)
 		}
 		cfg := &ffiwrapper.Config{
 			SealProofType: spt,
-			PoStProofType: spt,
 		}
 
 		sb, err := ffiwrapper.New(false, &basicfs.Provider{

@@ -31,6 +31,7 @@ func main() {
 		storageCmd,
 		setPriceCmd,
 		workersCmd,
+		provingCmd,
 
 		// implement by hlm
 		pledgeSectorCmd,
@@ -60,9 +61,10 @@ func main() {
 	}
 
 	app := &cli.App{
-		Name:    "lotus-storage-miner",
-		Usage:   "Filecoin decentralized storage network storage miner",
-		Version: build.UserVersion,
+		Name:                  "lotus-storage-miner",
+		Usage:                 "Filecoin decentralized storage network storage miner",
+		Version:               build.UserVersion,
+		EnableShellCompletion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "repo",

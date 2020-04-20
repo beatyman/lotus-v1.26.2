@@ -29,6 +29,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain"
+	"github.com/filecoin-project/lotus/chain/beacon"
 	"github.com/filecoin-project/lotus/chain/blocksync"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/market"
@@ -56,11 +57,11 @@ import (
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/paychmgr"
 	"github.com/filecoin-project/lotus/storage"
-	"github.com/filecoin-project/lotus/storage/sealing"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
 	sectorstorage "github.com/filecoin-project/sector-storage"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/sector-storage/stores"
+	sealing "github.com/filecoin-project/storage-fsm"
 )
 
 var log = logging.Logger("builder")
@@ -234,8 +235,6 @@ func Online() Option {
 			Override(new(*blocksync.BlockSyncService), blocksync.NewBlockSyncService),
 			Override(new(*peermgr.PeerMgr), peermgr.NewPeerMgr),
 
-			Override(new(dtypes.GraphsyncLoader), modules.GraphsyncLoader),
-			Override(new(dtypes.GraphsyncStorer), modules.GraphsyncStorer),
 			Override(new(dtypes.Graphsync), modules.Graphsync),
 
 			Override(RunHelloKey, modules.RunHello),
@@ -255,6 +254,7 @@ func Online() Option {
 			Override(new(storagemarket.StorageClientNode), storageadapter.NewClientNodeAdapter),
 			Override(RegisterClientValidatorKey, modules.RegisterClientValidator),
 			Override(RunDealClientKey, modules.RunDealClient),
+			Override(new(beacon.RandomBeacon), modules.RandomBeacon),
 
 			Override(new(*paychmgr.Store), paychmgr.NewStore),
 			Override(new(*paychmgr.Manager), paychmgr.NewManager),
@@ -283,6 +283,7 @@ func Online() Option {
 			Override(new(sealing.TicketFn), modules.SealTicketGen),
 			Override(new(*storage.Miner), modules.StorageMiner),
 			Override(new(dtypes.NetworkName), modules.StorageNetworkName),
+			Override(new(beacon.RandomBeacon), modules.MinerRandomBeacon),
 
 			Override(new(dtypes.StagingBlockstore), modules.StagingBlockstore),
 			Override(new(dtypes.StagingDAG), modules.StagingDAG),
@@ -298,7 +299,7 @@ func Online() Option {
 			Override(HandleRetrievalKey, modules.HandleRetrieval),
 			Override(GetParamsKey, modules.GetParams),
 			Override(HandleDealsKey, modules.HandleDeals),
-			Override(new(gen.ElectionPoStProver), storage.NewElectionPoStProver),
+			Override(new(gen.WinningPoStProver), storage.NewWinningPoStProver),
 			Override(new(*miner.Miner), modules.SetupBlockProducer),
 		),
 	)
@@ -485,5 +486,6 @@ func Test() Option {
 	return Options(
 		Unset(RunPeerMgrKey),
 		Unset(new(*peermgr.PeerMgr)),
+		Override(new(beacon.RandomBeacon), testing.RandomBeacon),
 	)
 }

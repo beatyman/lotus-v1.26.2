@@ -40,7 +40,7 @@ type StateManager struct {
 	stCache  map[string][]cid.Cid
 	compWait map[string]chan struct{}
 	stlk     sync.Mutex
-	newVM    func(cid.Cid, abi.ChainEpoch, vm.Rand, address.Address, blockstore.Blockstore, runtime.Syscalls) (*vm.VM, error)
+	newVM    func(cid.Cid, abi.ChainEpoch, vm.Rand, blockstore.Blockstore, runtime.Syscalls) (*vm.VM, error)
 }
 
 func NewStateManager(cs *store.ChainStore) *StateManager {
@@ -149,7 +149,7 @@ type BlockMessages struct {
 type ExecCallback func(cid.Cid, *types.Message, *vm.ApplyRet) error
 
 func (sm *StateManager) ApplyBlocks(ctx context.Context, pstate cid.Cid, bms []BlockMessages, epoch abi.ChainEpoch, r vm.Rand, cb ExecCallback) (cid.Cid, cid.Cid, error) {
-	vmi, err := sm.newVM(pstate, epoch, r, address.Undef, sm.cs.Blockstore(), sm.cs.VMSys())
+	vmi, err := sm.newVM(pstate, epoch, r, sm.cs.Blockstore(), sm.cs.VMSys())
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("instantiating VM failed: %w", err)
 	}
@@ -157,7 +157,6 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, pstate cid.Cid, bms []B
 	var receipts []cbg.CBORMarshaler
 	processedMsgs := map[cid.Cid]bool{}
 	for _, b := range bms {
-		vmi.SetBlockMiner(b.Miner)
 
 		penalty := types.NewInt(0)
 		gasReward := big.Zero()
@@ -189,7 +188,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, pstate cid.Cid, bms []B
 			Miner:       b.Miner,
 			Penalty:     penalty,
 			GasReward:   gasReward,
-			TicketCount: b.TicketCount,
+			TicketCount: 1, // TODO: no longer need ticket count here.
 		})
 		if err != nil {
 			return cid.Undef, cid.Undef, xerrors.Errorf("failed to serialize award params: %w", err)
@@ -314,7 +313,7 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, blks []*types.Bl
 			Miner:         b.Miner,
 			BlsMessages:   make([]types.ChainMsg, 0, len(bms)),
 			SecpkMessages: make([]types.ChainMsg, 0, len(sms)),
-			TicketCount:   int64(len(b.EPostProof.Proofs)),
+			TicketCount:   1, //int64(len(b.EPostProof.Proofs)), // TODO fix this
 		}
 
 		for _, m := range bms {
@@ -721,7 +720,10 @@ func (sm *StateManager) MarketBalance(ctx context.Context, addr address.Address,
 
 	var out api.MarketBalance
 
-	et := adt.AsBalanceTable(sm.cs.Store(ctx), state.EscrowTable)
+	et, err := adt.AsBalanceTable(sm.cs.Store(ctx), state.EscrowTable)
+	if err != nil {
+		return api.MarketBalance{}, err
+	}
 	ehas, err := et.Has(addr)
 	if err != nil {
 		return api.MarketBalance{}, err
@@ -735,7 +737,10 @@ func (sm *StateManager) MarketBalance(ctx context.Context, addr address.Address,
 		out.Escrow = big.Zero()
 	}
 
-	lt := adt.AsBalanceTable(sm.cs.Store(ctx), state.LockedTable)
+	lt, err := adt.AsBalanceTable(sm.cs.Store(ctx), state.LockedTable)
+	if err != nil {
+		return api.MarketBalance{}, err
+	}
 	lhas, err := lt.Has(addr)
 	if err != nil {
 		return api.MarketBalance{}, err
@@ -781,6 +786,6 @@ func (sm *StateManager) ValidateChain(ctx context.Context, ts *types.TipSet) err
 	return nil
 }
 
-func (sm *StateManager) SetVMConstructor(nvm func(cid.Cid, abi.ChainEpoch, vm.Rand, address.Address, blockstore.Blockstore, runtime.Syscalls) (*vm.VM, error)) {
+func (sm *StateManager) SetVMConstructor(nvm func(cid.Cid, abi.ChainEpoch, vm.Rand, blockstore.Blockstore, runtime.Syscalls) (*vm.VM, error)) {
 	sm.newVM = nvm
 }
