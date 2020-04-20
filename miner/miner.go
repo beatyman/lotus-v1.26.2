@@ -450,13 +450,11 @@ func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *
 
 func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket,
 	eproof *types.ElectionProof, bvals []types.BeaconEntry, wpostProof []abi.PoStProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
-	log.Infof("MinerCreateBlock validated pending msgs len:%d", len(msgs))
 	uts := base.ts.MinTimestamp() + uint64(build.BlockDelay*(base.nullRounds+1))
 
 	nheight := base.ts.Height() + base.nullRounds + 1
 
 	// why even return this? that api call could just submit it for us
-	log.Infof("MinerCreateBlock validated pending msgs len:%d", len(msgs))
 	return m.api.MinerCreateBlock(context.TODO(), &api.BlockTemplate{
 		Miner:            addr,
 		Parents:          base.ts.Key(),
