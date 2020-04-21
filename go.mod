@@ -125,4 +125,4 @@ replace github.com/coreos/go-systemd => github.com/coreos/go-systemd/v22 v22.0.0
 
 replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200420103936-ad266a9f2ad2
 
-replace github.com/filecoin-project/storage-fsm => git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200420104215-24bf63ab08de
+replace github.com/filecoin-project/storage-fsm => git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200421091247-d47319f16b59
