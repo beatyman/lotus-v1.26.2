@@ -2,7 +2,15 @@ package stmgr
 
 import (
 	"context"
+	"os"
 
+	cid "github.com/ipfs/go-cid"
+	blockstore "github.com/ipfs/go-ipfs-blockstore"
+	cbor "github.com/ipfs/go-ipld-cbor"
+	cbg "github.com/whyrusleeping/cbor-gen"
+	"golang.org/x/xerrors"
+
+	"github.com/filecoin-project/go-address"
 	amt "github.com/filecoin-project/go-amt-ipld/v2"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -14,8 +22,6 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"github.com/filecoin-project/specs-actors/actors/util/adt"
 
-	"github.com/filecoin-project/go-address"
-
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/state"
@@ -23,12 +29,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
-
-	cid "github.com/ipfs/go-cid"
-	blockstore "github.com/ipfs/go-ipfs-blockstore"
-	cbor "github.com/ipfs/go-ipld-cbor"
-	cbg "github.com/whyrusleeping/cbor-gen"
-	"golang.org/x/xerrors"
 )
 
 func GetNetworkName(ctx context.Context, sm *StateManager, st cid.Cid) (dtypes.NetworkName, error) {
@@ -125,14 +125,14 @@ func PreCommitInfo(ctx context.Context, sm *StateManager, maddr address.Address,
 	return *i, nil
 }
 
-func GetMinerSectorSet(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address, filter *abi.BitField) ([]*api.ChainSectorInfo, error) {
+func GetMinerSectorSet(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address, filter *abi.BitField, filterOut bool) ([]*api.ChainSectorInfo, error) {
 	var mas miner.State
 	_, err := sm.LoadActorState(ctx, maddr, &mas, ts)
 	if err != nil {
 		return nil, xerrors.Errorf("(get sset) failed to load miner actor state: %w", err)
 	}
 
-	return LoadSectorsFromSet(ctx, sm.ChainStore().Blockstore(), mas.Sectors, filter)
+	return LoadSectorsFromSet(ctx, sm.ChainStore().Blockstore(), mas.Sectors, filter, filterOut)
 }
 
 func GetSectorsForWinningPoSt(ctx context.Context, pv ffiwrapper.Verifier, sm *StateManager, st cid.Cid, maddr address.Address, rand abi.PoStRandomness) ([]abi.SectorInfo, error) {
@@ -205,34 +205,17 @@ func GetMinerSlashed(ctx context.Context, sm *StateManager, ts *types.TipSet, ma
 
 	store := sm.cs.Store(ctx)
 
-	{
-		claims, err := adt.AsMap(store, spas.Claims)
-		if err != nil {
-			return false, err
-		}
-
-		ok, err := claims.Get(power.AddrKey(maddr), nil)
-		if err != nil {
-			return false, err
-		}
-		if !ok {
-			return true, nil
-		}
+	claims, err := adt.AsMap(store, spas.Claims)
+	if err != nil {
+		return false, err
 	}
 
-	{
-		detectedFaulty, err := adt.AsMap(store, spas.PoStDetectedFaultMiners)
-		if err != nil {
-			return false, err
-		}
-
-		ok, err := detectedFaulty.Get(power.AddrKey(maddr), nil)
-		if err != nil {
-			return false, err
-		}
-		if ok {
-			return true, nil
-		}
+	ok, err := claims.Get(power.AddrKey(maddr), nil)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return true, nil
 	}
 
 	return false, nil
@@ -245,7 +228,7 @@ func GetMinerDeadlines(ctx context.Context, sm *StateManager, ts *types.TipSet, 
 		return nil, xerrors.Errorf("(get ssize) failed to load miner actor state: %w", err)
 	}
 
-	return miner.LoadDeadlines(sm.cs.Store(ctx), &mas)
+	return mas.LoadDeadlines(sm.cs.Store(ctx))
 }
 
 func GetMinerFaults(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) ([]abi.SectorNumber, error) {
@@ -255,8 +238,7 @@ func GetMinerFaults(ctx context.Context, sm *StateManager, ts *types.TipSet, mad
 		return nil, xerrors.Errorf("(get ssize) failed to load miner actor state: %w", err)
 	}
 
-	// faults, err := mas.Faults.All(miner.SectorsMax)
-	faults, err := mas.Faults.All(100000)
+	faults, err := mas.Faults.All(miner.SectorsMax)
 	if err != nil {
 		return nil, xerrors.Errorf("reading fault bit set: %w", err)
 	}
@@ -328,7 +310,7 @@ func ListMinerActors(ctx context.Context, sm *StateManager, ts *types.TipSet) ([
 	return miners, nil
 }
 
-func LoadSectorsFromSet(ctx context.Context, bs blockstore.Blockstore, ssc cid.Cid, filter *abi.BitField) ([]*api.ChainSectorInfo, error) {
+func LoadSectorsFromSet(ctx context.Context, bs blockstore.Blockstore, ssc cid.Cid, filter *abi.BitField, filterOut bool) ([]*api.ChainSectorInfo, error) {
 	a, err := amt.LoadAMT(ctx, cbor.NewCborStore(bs), ssc)
 	if err != nil {
 		return nil, err
@@ -341,7 +323,7 @@ func LoadSectorsFromSet(ctx context.Context, bs blockstore.Blockstore, ssc cid.C
 			if err != nil {
 				return xerrors.Errorf("filter check error: %w", err)
 			}
-			if set {
+			if set == filterOut {
 				return nil
 			}
 		}
@@ -408,7 +390,7 @@ func GetProvingSetRaw(ctx context.Context, sm *StateManager, mas miner.State) ([
 		return nil, err
 	}
 
-	provset, err := LoadSectorsFromSet(ctx, sm.cs.Blockstore(), mas.Sectors, notProving)
+	provset, err := LoadSectorsFromSet(ctx, sm.cs.Blockstore(), mas.Sectors, notProving, true)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get proving set: %w", err)
 	}
@@ -474,7 +456,11 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, tsk types.TipSetKey
 
 	prev, err := sm.ChainStore().GetLatestBeaconEntry(ts)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to get latest beacon entry: %w", err)
+		if os.Getenv("LOTUS_IGNORE_DRAND") != "_yes_" {
+			return nil, xerrors.Errorf("failed to get latest beacon entry: %w", err)
+		}
+
+		prev = &types.BeaconEntry{}
 	}
 
 	worker, err := sm.ResolveToKeyAddress(ctx, mas.GetWorker(), ts)
