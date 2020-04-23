@@ -12,7 +12,6 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
 
-	"github.com/filecoin-project/lotus/build"
 	genesis2 "github.com/filecoin-project/lotus/chain/gen/genesis"
 	"github.com/filecoin-project/lotus/genesis"
 
