@@ -140,7 +140,7 @@ func (m *Miner) Unregister(ctx context.Context, addr address.Address) error {
 }
 
 func nextRoundTime(base *MiningBase) time.Time {
-	return time.Unix(int64(base.ts.MinTimestamp())+int64(build.BlockDelay*(base.nullRounds+1)), 0)
+	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelay*(base.NullRounds+1)), 0)
 }
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
@@ -187,18 +187,18 @@ eventLoop:
 			continue
 		}
 		now := time.Now()
-		if !base.ts.Equals(lastBase.ts) {
+		if !base.TipSet.Equals(lastBase.TipSet) {
 			nextRound = nextRoundTime(base)
 			lastBase = *base
 		} else {
-			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.ts.Cids(), lastBase.nullRounds)
+			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
 
 			// if the base was dead, make the nullRound++ step by round actually change.
 			if (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
 				time.Sleep(1e9)
 				continue
 			}
-			lastBase.nullRounds++
+			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
 		}
 		subNextRoundTime := nextRound.Unix() - now.Unix()
@@ -355,12 +355,12 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 
 	log.Info("get pending message")
 	// make auto clean for pending messages every round.
-	pending, err := m.api.MpoolPending(context.TODO(), base.ts.Key())
+	pending, err := m.api.MpoolPending(context.TODO(), base.TipSet.Key())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get pending messages: %w", err)
 	}
 	log.Infof("all pending msgs len:%d", len(pending))
-	pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.ts, &MsgPool{FromApi: m.api, Msgs: pending})
+	pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
 	if err != nil {
 		return nil, xerrors.Errorf("message filtering failed: %w", err)
 	}
@@ -388,12 +388,12 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 
 	if winner == nil {
 		log.Info("Not Win")
-		base.nullRounds++
+		base.NullRounds++
 		return nil, nil
 	}
 
 	// TODO: use the right dst, also NB: not using any 'entropy' in this call because nicola really didnt want it
-	rand, err := m.api.ChainGetRandomness(ctx, base.TipSet.Key(), crypto.DomainSeparationTag_ElectionProofProduction, base.TipSet.Height()+base.nullRounds, nil)
+	rand, err := m.api.ChainGetRandomness(ctx, base.TipSet.Key(), crypto.DomainSeparationTag_ElectionProofProduction, base.TipSet.Height()+base.NullRounds, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get randomness for winning post: %w", err)
 	}
@@ -416,9 +416,9 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		"cid", b.Cid(),
 		"height", b.Header.Height,
 		"weight", b.Header.ParentWeight,
-		"rounds", base.nullRounds,
+		"rounds", base.NullRounds,
 		"took", dur,
-		"submit", time.Unix(int64(base.ts.MinTimestamp()+(uint64(base.nullRounds)+1)*build.BlockDelay), 0).Format(time.RFC3339))
+		"submit", time.Unix(int64(base.TipSet.MinTimestamp()+(uint64(base.NullRounds)+1)*build.BlockDelay), 0).Format(time.RFC3339))
 	if dur > time.Second*build.BlockDelay {
 		log.Warn("CAUTION: block production took longer than the block delay. Your computer may not be fast enough to keep up")
 	}
