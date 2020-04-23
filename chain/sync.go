@@ -612,7 +612,7 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) err
 		}
 
 		//TODO: DST from spec actors when it is there
-		vrfBase, err := store.DrawRandomness(rBeacon.Data, 17, h.Height, buf.Bytes())
+		vrfBase, err := store.DrawRandomness(rBeacon.Data, crypto.DomainSeparationTag_ElectionProofProduction, h.Height, buf.Bytes())
 		if err != nil {
 			return xerrors.Errorf("could not draw randomness: %w", err)
 		}
