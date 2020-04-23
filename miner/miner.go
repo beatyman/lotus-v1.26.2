@@ -385,7 +385,7 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 	}
 
 	// TODO: use the right dst, also NB: not using any 'entropy' in this call because nicola really didnt want it
-	rand, err := m.api.ChainGetRandomness(ctx, base.ts.Key(), crypto.DomainSeparationTag_ElectionPoStChallengeSeed, base.ts.Height()+base.nullRounds, nil)
+	rand, err := m.api.ChainGetRandomness(ctx, base.ts.Key(), crypto.DomainSeparationTag_ElectionProofProduction, base.ts.Height()+base.nullRounds, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get randomness for winning post: %w", err)
 	}
