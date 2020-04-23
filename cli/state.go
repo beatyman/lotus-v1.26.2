@@ -115,12 +115,7 @@ var stateMinerInfo = &cli.Command{
 	},
 }
 
-func parseTipSetString(cctx *cli.Context) ([]cid.Cid, error) {
-	ts := cctx.String("tipset")
-	if ts == "" {
-		return nil, nil
-	}
-
+func parseTipSetString(ts string) ([]cid.Cid, error) {
 	strs := strings.Split(ts, ",")
 
 	var cids []cid.Cid
@@ -136,7 +131,21 @@ func parseTipSetString(cctx *cli.Context) ([]cid.Cid, error) {
 }
 
 func LoadTipSet(ctx context.Context, cctx *cli.Context, api api.FullNode) (*types.TipSet, error) {
-	cids, err := parseTipSetString(cctx)
+	tss := cctx.String("tipset")
+	if tss == "" {
+		return nil, nil
+	}
+
+	if tss[0] == '@' {
+		var h uint64
+		if _, err := fmt.Sscanf(tss, "@%d", &h); err != nil {
+			return nil, xerrors.Errorf("parsing height tipset ref: %w", err)
+		}
+
+		return api.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(h), types.EmptyTSK)
+	}
+
+	cids, err := parseTipSetString(tss)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +234,7 @@ var stateSectorsCmd = &cli.Command{
 			return err
 		}
 
-		sectors, err := api.StateMinerSectors(ctx, maddr, nil, ts.Key())
+		sectors, err := api.StateMinerSectors(ctx, maddr, nil, true, ts.Key())
 		if err != nil {
 			return err
 		}
@@ -533,6 +542,13 @@ var stateLookupIDCmd = &cli.Command{
 	Name:      "lookup",
 	Usage:     "Find corresponding ID address",
 	ArgsUsage: "[address]",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:    "reverse",
+			Aliases: []string{"r"},
+			Usage:   "Perform reverse lookup",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
@@ -556,7 +572,13 @@ var stateLookupIDCmd = &cli.Command{
 			return err
 		}
 
-		a, err := api.StateLookupID(ctx, addr, ts.Key())
+		var a address.Address
+		if !cctx.Bool("reverse") {
+			a, err = api.StateLookupID(ctx, addr, ts.Key())
+		} else {
+			a, err = api.StateAccountKey(ctx, addr, ts.Key())
+		}
+
 		if err != nil {
 			return err
 		}
