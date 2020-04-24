@@ -25,7 +25,8 @@ import (
 
 var log = logging.Logger("miner")
 
-type waitFunc func(ctx context.Context, baseTime uint64) error
+// returns a callback reporting whether we mined a blocks in this round
+type waitFunc func(ctx context.Context, baseTime uint64) (func(bool), error)
 
 func NewMiner(api api.FullNode, epp gen.WinningPoStProver, beacon beacon.RandomBeacon) *Miner {
 	arc, err := lru.NewARC(10000)
@@ -37,12 +38,12 @@ func NewMiner(api api.FullNode, epp gen.WinningPoStProver, beacon beacon.RandomB
 		api:    api,
 		epp:    epp,
 		beacon: beacon,
-		waitFunc: func(ctx context.Context, baseTime uint64) error {
+		waitFunc: func(ctx context.Context, baseTime uint64) (func(bool), error) {
 			// Wait around for half the block time in case other parents come in
 			deadline := baseTime + build.PropagationDelay
 			time.Sleep(time.Until(time.Unix(int64(deadline), 0)))
 
-			return nil
+			return func(bool) {}, nil
 		},
 		minedBlockHeights: arc,
 	}
@@ -139,7 +140,7 @@ func (m *Miner) Unregister(ctx context.Context, addr address.Address) error {
 }
 
 func nextRoundTime(base *MiningBase) time.Time {
-	return time.Unix(int64(base.ts.MinTimestamp())+int64(build.BlockDelay*(base.nullRounds+1)), 0)
+	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelay*(base.NullRounds+1)), 0)
 }
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
@@ -174,7 +175,8 @@ eventLoop:
 		}
 
 		// Wait until propagation delay period after block we plan to mine on
-		if err := m.waitFunc(ctx, prebase.ts.MinTimestamp()); err != nil {
+		onDone, err := m.waitFunc(ctx, prebase.TipSet.MinTimestamp())
+		if err != nil {
 			log.Error(err)
 			return
 		}
@@ -185,18 +187,18 @@ eventLoop:
 			continue
 		}
 		now := time.Now()
-		if !base.ts.Equals(lastBase.ts) {
+		if !base.TipSet.Equals(lastBase.TipSet) {
 			nextRound = nextRoundTime(base)
 			lastBase = *base
 		} else {
-			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.ts.Cids(), lastBase.nullRounds)
+			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
 
 			// if the base was dead, make the nullRound++ step by round actually change.
 			if (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
 				time.Sleep(1e9)
 				continue
 			}
-			lastBase.nullRounds++
+			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
 		}
 		subNextRoundTime := nextRound.Unix() - now.Unix()
@@ -219,6 +221,8 @@ eventLoop:
 				blks = append(blks, b)
 			}
 		}
+
+		onDone(len(blks) != 0)
 
 		if len(blks) != 0 {
 			btime := time.Unix(int64(blks[0].Header.Timestamp), 0)
@@ -275,8 +279,8 @@ eventLoop:
 }
 
 type MiningBase struct {
-	ts         *types.TipSet
-	nullRounds abi.ChainEpoch
+	TipSet     *types.TipSet
+	NullRounds abi.ChainEpoch
 }
 
 func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error) {
@@ -286,7 +290,7 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 	}
 
 	if m.lastWork != nil {
-		if m.lastWork.ts.Equals(bts) {
+		if m.lastWork.TipSet.Equals(bts) {
 			return m.lastWork, nil
 		}
 
@@ -294,7 +298,7 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 		if err != nil {
 			return nil, err
 		}
-		ltsw, err := m.api.ChainTipSetWeight(ctx, m.lastWork.ts.Key())
+		ltsw, err := m.api.ChainTipSetWeight(ctx, m.lastWork.TipSet.Key())
 		if err != nil {
 			return nil, err
 		}
@@ -304,7 +308,7 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 		}
 	}
 
-	m.lastWork = &MiningBase{ts: bts}
+	m.lastWork = &MiningBase{TipSet: bts}
 	return m.lastWork, nil
 }
 
@@ -318,14 +322,18 @@ func (m *Miner) hasPower(ctx context.Context, addr address.Address, ts *types.Ti
 }
 
 func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningBase) (*types.BlockMsg, error) {
-	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.ts.Cids()))
+	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := time.Now()
 
-	round := base.ts.Height() + base.nullRounds + 1
+	round := base.TipSet.Height() + base.NullRounds + 1
 
-	mbi, err := m.api.MinerGetBaseInfo(ctx, addr, round, base.ts.Key())
+	mbi, err := m.api.MinerGetBaseInfo(ctx, addr, round, base.TipSet.Key())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
+	}
+	if mbi == nil {
+		base.NullRounds++
+		return nil, nil
 	}
 
 	beaconPrev := mbi.PrevBeaconEntry
@@ -335,24 +343,24 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		return nil, xerrors.Errorf("get beacon entries failed: %w", err)
 	}
 
-	hasPower, err := m.hasPower(ctx, addr, base.ts)
+	hasPower, err := m.hasPower(ctx, addr, base.TipSet)
 	if err != nil {
 		return nil, xerrors.Errorf("checking if miner is slashed: %w", err)
 	}
 	if !hasPower {
 		// slashed or just have no power yet
-		base.nullRounds++
+		base.NullRounds++
 		return nil, nil
 	}
 
 	log.Info("get pending message")
 	// make auto clean for pending messages every round.
-	pending, err := m.api.MpoolPending(context.TODO(), base.ts.Key())
+	pending, err := m.api.MpoolPending(context.TODO(), base.TipSet.Key())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get pending messages: %w", err)
 	}
 	log.Infof("all pending msgs len:%d", len(pending))
-	pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.ts, &MsgPool{FromApi: m.api, Msgs: pending})
+	pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
 	if err != nil {
 		return nil, xerrors.Errorf("message filtering failed: %w", err)
 	}
@@ -361,7 +369,7 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		pending = pending[:build.BlockMessageLimit]
 	}
 
-	log.Infof("Time delta between now and our mining base: %ds (nulls: %d)", uint64(time.Now().Unix())-base.ts.MinTimestamp(), base.nullRounds)
+	log.Infof("Time delta between now and our mining base: %ds (nulls: %d)", uint64(time.Now().Unix())-base.TipSet.MinTimestamp(), base.NullRounds)
 
 	rbase := beaconPrev
 	if len(bvals) > 0 {
@@ -373,19 +381,19 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		return nil, xerrors.Errorf("scratching ticket failed: %w", err)
 	}
 
-	winner, err := gen.IsRoundWinner(ctx, base.ts, round, addr, rbase, mbi, m.api)
+	winner, err := gen.IsRoundWinner(ctx, base.TipSet, round, addr, rbase, mbi, m.api)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to check if we win next round: %w", err)
 	}
 
 	if winner == nil {
 		log.Info("Not Win")
-		base.nullRounds++
+		base.NullRounds++
 		return nil, nil
 	}
 
 	// TODO: use the right dst, also NB: not using any 'entropy' in this call because nicola really didnt want it
-	rand, err := m.api.ChainGetRandomness(ctx, base.ts.Key(), crypto.DomainSeparationTag_ElectionPoStChallengeSeed, base.ts.Height()+base.nullRounds, nil)
+	rand, err := m.api.ChainGetRandomness(ctx, base.TipSet.Key(), crypto.DomainSeparationTag_ElectionProofProduction, base.TipSet.Height()+base.NullRounds, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get randomness for winning post: %w", err)
 	}
@@ -408,9 +416,9 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		"cid", b.Cid(),
 		"height", b.Header.Height,
 		"weight", b.Header.ParentWeight,
-		"rounds", base.nullRounds,
+		"rounds", base.NullRounds,
 		"took", dur,
-		"submit", time.Unix(int64(base.ts.MinTimestamp()+(uint64(base.nullRounds)+1)*build.BlockDelay), 0).Format(time.RFC3339))
+		"submit", time.Unix(int64(base.TipSet.MinTimestamp()+(uint64(base.NullRounds)+1)*build.BlockDelay), 0).Format(time.RFC3339))
 	if dur > time.Second*build.BlockDelay {
 		log.Warn("CAUTION: block production took longer than the block delay. Your computer may not be fast enough to keep up")
 	}
@@ -432,8 +440,8 @@ func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *
 	if err := addr.MarshalCBOR(buf); err != nil {
 		return nil, xerrors.Errorf("failed to marshal address to cbor: %w", err)
 	}
-	input, err := m.api.ChainGetRandomness(ctx, base.ts.Key(), crypto.DomainSeparationTag_TicketProduction,
-		base.ts.Height()+base.nullRounds+1-build.TicketRandomnessLookback, buf.Bytes())
+	input, err := m.api.ChainGetRandomness(ctx, base.TipSet.Key(), crypto.DomainSeparationTag_TicketProduction,
+		base.TipSet.Height()+base.NullRounds+1-build.TicketRandomnessLookback, buf.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -450,14 +458,13 @@ func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *
 
 func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket,
 	eproof *types.ElectionProof, bvals []types.BeaconEntry, wpostProof []abi.PoStProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
-	uts := base.ts.MinTimestamp() + uint64(build.BlockDelay*(base.nullRounds+1))
-
-	nheight := base.ts.Height() + base.nullRounds + 1
+	uts := base.TipSet.MinTimestamp() + uint64(build.BlockDelay*(base.NullRounds+1))
+	nheight := base.TipSet.Height() + base.NullRounds + 1
 
 	// why even return this? that api call could just submit it for us
 	return m.api.MinerCreateBlock(context.TODO(), &api.BlockTemplate{
 		Miner:            addr,
-		Parents:          base.ts.Key(),
+		Parents:          base.TipSet.Key(),
 		Ticket:           ticket,
 		Eproof:           eproof,
 		BeaconValues:     bvals,
