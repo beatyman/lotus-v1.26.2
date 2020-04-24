@@ -16,6 +16,7 @@ import (
 	sectorstorage "github.com/filecoin-project/sector-storage"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/sector-storage/stores"
+	"github.com/filecoin-project/sector-storage/storiface"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
 	"github.com/filecoin-project/lotus/api"
@@ -56,12 +57,20 @@ func (sm *StorageMinerAPI) ServeRemote(w http.ResponseWriter, r *http.Request) {
 	sm.StorageMgr.ServeHTTP(w, r)
 }
 
-func (sm *StorageMinerAPI) WorkerStats(context.Context) (map[uint64]sectorstorage.WorkerStats, error) {
+func (sm *StorageMinerAPI) WorkerStats(context.Context) (map[uint64]storiface.WorkerStats, error) {
 	return sm.StorageMgr.WorkerStats(), nil
 }
 
 func (sm *StorageMinerAPI) ActorAddress(context.Context) (address.Address, error) {
 	return sm.Miner.Address(), nil
+}
+
+func (sm *StorageMinerAPI) MiningBase(ctx context.Context) (*types.TipSet, error) {
+	mb, err := sm.BlockMiner.GetBestMiningCandidate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return mb.TipSet, nil
 }
 
 func (sm *StorageMinerAPI) ActorSectorSize(ctx context.Context, addr address.Address) (abi.SectorSize, error) {
