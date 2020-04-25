@@ -197,5 +197,10 @@ dist-clean:
 type-gen:
 	go run ./gen/main.go
 
+method-gen:
+	(cd ./lotuspond/front/src/chain && go run ./methodgen.go)
+
+gen: type-gen method-gen
+
 print-%:
 	@echo $*=$($*)
