@@ -1,5 +1,6 @@
 package validation
 
+/*
 import (
 	"context"
 
@@ -15,12 +16,12 @@ type Factories struct {
 var _ vstate.Factories = &Factories{}
 
 func NewFactories() *Factories {
-	return &Factories{}
+	applier := NewApplier()
+	return &Factories{applier}
 }
 
-func (f *Factories) NewStateAndApplier() (vstate.VMWrapper, vstate.Applier) {
-	st := NewState()
-	return st, NewApplier(st)
+func (f *Factories) NewState() vstate.VMWrapper {
+	return NewState()
 }
 
 func (f *Factories) NewKeyManager() vstate.KeyManager {
@@ -45,3 +46,4 @@ func (f *Factories) NewValidationConfig() vstate.ValidationConfig {
 	checkState := true
 	return NewConfig(trackGas, checkExit, checkRet, checkState)
 }
+*/

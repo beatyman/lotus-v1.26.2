@@ -1,5 +1,6 @@
 package validation
 
+/*
 import (
 	"context"
 
@@ -23,49 +24,22 @@ import (
 
 // Applier applies messages to state trees and storage.
 type Applier struct {
-	stateWrapper *StateWrapper
 }
 
 var _ vstate.Applier = &Applier{}
 
-func NewApplier(sw *StateWrapper) *Applier {
-	return &Applier{sw}
+func NewApplier() *Applier {
+	return &Applier{}
 }
 
-func (a *Applier) ApplyMessage(epoch abi.ChainEpoch, message *vtypes.Message) (vtypes.ApplyMessageResult, error) {
+func (a *Applier) ApplyMessage(eCtx *vtypes.ExecutionContext, state vstate.VMWrapper, message *vtypes.Message) (vtypes.MessageReceipt, abi.TokenAmount, abi.TokenAmount, error) {
 	lm := toLotusMsg(message)
-	receipt, penalty, reward, err := a.applyMessage(epoch, lm)
-	return vtypes.ApplyMessageResult{
-		Receipt: receipt,
-		Penalty: penalty,
-		Reward:  reward,
-		Root:    a.stateWrapper.Root().String(),
-	}, err
+	return a.applyMessage(eCtx, state, lm)
 }
 
-func (a *Applier) ApplySignedMessage(epoch abi.ChainEpoch, msg *vtypes.SignedMessage) (vtypes.ApplyMessageResult, error) {
-	var lm types.ChainMsg
-	switch msg.Signature.Type {
-	case crypto.SigTypeSecp256k1:
-		lm = toLotusSignedMsg(msg)
-	case crypto.SigTypeBLS:
-		lm = toLotusMsg(&msg.Message)
-	default:
-		return vtypes.ApplyMessageResult{}, xerrors.New("Unknown signature type")
-	}
-	// TODO: Validate the sig first
-	receipt, penalty, reward, err := a.applyMessage(epoch, lm)
-	return vtypes.ApplyMessageResult{
-		Receipt: receipt,
-		Penalty: penalty,
-		Reward:  reward,
-		Root:    a.stateWrapper.Root().String(),
-	}, err
-
-}
-
-func (a *Applier) ApplyTipSetMessages(epoch abi.ChainEpoch, blocks []vtypes.BlockMessagesInfo, rnd vstate.RandomnessSource) (vtypes.ApplyTipSetResult, error) {
-	cs := store.NewChainStore(a.stateWrapper.bs, a.stateWrapper.ds, vdrivers.NewChainValidationSyscalls())
+func (a *Applier) ApplyTipSetMessages(state vstate.VMWrapper, blocks []vtypes.BlockMessagesInfo, epoch abi.ChainEpoch, rnd vstate.RandomnessSource) ([]vtypes.MessageReceipt, error) {
+	sw := state.(*StateWrapper)
+	cs := store.NewChainStore(sw.bs, sw.ds, vdrivers.NewChainValidationSyscalls())
 	sm := stmgr.NewStateManager(cs)
 
 	var bms []stmgr.BlockMessages
@@ -87,7 +61,7 @@ func (a *Applier) ApplyTipSetMessages(epoch abi.ChainEpoch, blocks []vtypes.Bloc
 	}
 
 	var receipts []vtypes.MessageReceipt
-	sroot, _, err := sm.ApplyBlocks(context.TODO(), a.stateWrapper.Root(), bms, epoch, &randWrapper{rnd}, func(c cid.Cid, msg *types.Message, ret *vm.ApplyRet) error {
+	sroot, _, err := sm.ApplyBlocks(context.TODO(), state.Root(), bms, epoch, &randWrapper{rnd}, func(c cid.Cid, msg *types.Message, ret *vm.ApplyRet) error {
 		if msg.From == builtin.SystemActorAddr {
 			return nil // ignore reward and cron calls
 		}
@@ -104,15 +78,25 @@ func (a *Applier) ApplyTipSetMessages(epoch abi.ChainEpoch, blocks []vtypes.Bloc
 		return nil
 	})
 	if err != nil {
-		return vtypes.ApplyTipSetResult{}, err
+		return nil, err
 	}
 
-	a.stateWrapper.stateRoot = sroot
+	state.(*StateWrapper).stateRoot = sroot
 
-	return vtypes.ApplyTipSetResult{
-		Receipts: receipts,
-		Root:     a.stateWrapper.Root().String(),
-	}, nil
+	return receipts, nil
+}
+func (a *Applier) ApplySignedMessage(eCtx *vtypes.ExecutionContext, state vstate.VMWrapper, msg *vtypes.SignedMessage) (vtypes.MessageReceipt, abi.TokenAmount, abi.TokenAmount, error) {
+	var lm types.ChainMsg
+	switch msg.Signature.Type {
+	case crypto.SigTypeSecp256k1:
+		lm = toLotusSignedMsg(msg)
+	case crypto.SigTypeBLS:
+		lm = toLotusMsg(&msg.Message)
+	default:
+		return vtypes.MessageReceipt{}, big.Zero(), big.Zero(), xerrors.New("Unknown signature type")
+	}
+	// TODO: Validate the sig first
+	return a.applyMessage(eCtx, state, lm)
 }
 
 type randWrapper struct {
@@ -124,17 +108,20 @@ func (w *randWrapper) GetRandomness(ctx context.Context, pers crypto.DomainSepar
 }
 
 type vmRand struct {
+	eCtx *vtypes.ExecutionContext
 }
 
 func (*vmRand) GetRandomness(ctx context.Context, dst crypto.DomainSeparationTag, h abi.ChainEpoch, input []byte) ([]byte, error) {
 	panic("implement me")
 }
 
-func (a *Applier) applyMessage(epoch abi.ChainEpoch, lm types.ChainMsg) (vtypes.MessageReceipt, abi.TokenAmount, abi.TokenAmount, error) {
+func (a *Applier) applyMessage(eCtx *vtypes.ExecutionContext, state vstate.VMWrapper, lm types.ChainMsg) (vtypes.MessageReceipt, abi.TokenAmount, abi.TokenAmount, error) {
 	ctx := context.TODO()
-	base := a.stateWrapper.Root()
+	st := state.(*StateWrapper)
 
-	lotusVM, err := vm.NewVM(base, epoch, &vmRand{}, a.stateWrapper.bs, vdrivers.NewChainValidationSyscalls())
+	base := st.Root()
+	randSrc := &vmRand{eCtx}
+	lotusVM, err := vm.NewVM(base, eCtx.Epoch, randSrc, st.bs, vdrivers.NewChainValidationSyscalls())
 	if err != nil {
 		return vtypes.MessageReceipt{}, big.Zero(), big.Zero(), err
 	}
@@ -149,7 +136,7 @@ func (a *Applier) applyMessage(epoch abi.ChainEpoch, lm types.ChainMsg) (vtypes.
 		rval = []byte{}
 	}
 
-	a.stateWrapper.stateRoot, err = lotusVM.Flush(ctx)
+	st.stateRoot, err = lotusVM.Flush(ctx)
 	if err != nil {
 		return vtypes.MessageReceipt{}, big.Zero(), big.Zero(), err
 	}
@@ -185,3 +172,4 @@ func toLotusSignedMsg(msg *vtypes.SignedMessage) *types.SignedMessage {
 		Signature: msg.Signature,
 	}
 }
+*/
