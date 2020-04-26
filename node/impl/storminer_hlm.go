@@ -114,8 +114,8 @@ func (sm *StorageMinerAPI) WorkerQueue(ctx context.Context, cfg ffiwrapper.Worke
 func (sm *StorageMinerAPI) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorking(workerId)
 }
-func (sm *StorageMinerAPI) WorkerPushing(ctx context.Context, taskKey string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskPushing(ctx, taskKey)
+func (sm *StorageMinerAPI) WorkerFree(ctx context.Context, workerId, taskKey string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).FreeWorker(ctx, workerId, taskKey)
 }
 
 func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {

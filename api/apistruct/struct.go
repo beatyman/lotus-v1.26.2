@@ -226,7 +226,7 @@ type StorageMinerStruct struct {
 		WorkerStatusAll    func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
 		WorkerQueue        func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
 		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
-		WorkerPushing      func(ctx context.Context, taskKey string) error                                           `perm:"write"`
+		WorkerFree         func(ctx context.Context, taskId, taskKey string) error                                   `perm:"write"`
 		WorkerDone         func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
 		WorkerDisable      func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
 
@@ -878,8 +878,8 @@ func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.Wor
 func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return c.Internal.WorkerWorking(ctx, workerId)
 }
-func (c *StorageMinerStruct) WorkerPushing(ctx context.Context, taskKey string) error {
-	return c.Internal.WorkerPushing(ctx, taskKey)
+func (c *StorageMinerStruct) WorkerFree(ctx context.Context, workerId, taskKey string) error {
+	return c.Internal.WorkerFree(ctx, workerId, taskKey)
 }
 func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return c.Internal.WorkerDone(ctx, res)

@@ -246,7 +246,7 @@ var runCmd = &cli.Command{
 					act, workerAddr,
 					"http://"+storageAddr, ainfo.AuthHeader(),
 					r, sealedRepo,
-					cctx.Bool("no-addpiece"), cctx.Bool("no-seal"), cctx.Bool("no-verify"),
+					cctx.Bool("no-addpiece"), cctx.Bool("no-precommit1"), cctx.Bool("no-precommit2"), cctx.Bool("no-commit1"), cctx.Bool("no-commit2"), cctx.Bool("no-verify"),
 				); err == nil {
 					break
 				} else {
