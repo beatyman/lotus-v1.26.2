@@ -77,7 +77,7 @@ type StorageMiner interface {
 	WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error)
 	WorkerQueue(context.Context, ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error)
 	WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error)
-	WorkerPushing(ctx context.Context, taskKey string) error
+	WorkerFree(ctx context.Context, workerId, taskKey string) error
 	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 
