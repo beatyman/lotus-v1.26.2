@@ -9,7 +9,8 @@ case $1 in
         git checkout build
     ;;
     *)
-        env RUSTFLAGS="-C target-cpu=native -g" FFI_BUILD_FROM_SOURCE=1 make $1
+        #env RUSTFLAGS="-C target-cpu=native -g" FFI_BUILD_FROM_SOURCE=1 make $1
+        make $1
     ;;
 esac
 
