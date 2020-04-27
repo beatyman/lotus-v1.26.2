@@ -6,6 +6,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	mux "github.com/gorilla/mux"
@@ -154,6 +155,11 @@ var runCmd = &cli.Command{
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
+
+		// TODO: make auth for public
+		mux.PathPrefix("/storage/cache/").Handler(http.StripPrefix("/storage/cache/", http.FileServer(http.Dir(filepath.Join(storageRepoPath, "cache")))))
+		mux.PathPrefix("/storage/unsealed/").Handler(http.StripPrefix("/storage/unsealed/", http.FileServer(http.Dir(filepath.Join(storageRepoPath, "unsealed")))))
+		mux.PathPrefix("/storage/sealed/").Handler(http.StripPrefix("/storage/sealed/", http.FileServer(http.Dir(filepath.Join(storageRepoPath, "seaeld")))))
 
 		ah := &auth.Handler{
 			Verify: minerapi.AuthVerify,

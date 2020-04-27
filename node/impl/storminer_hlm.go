@@ -2,59 +2,15 @@ package impl
 
 import (
 	"context"
-	"io"
-	"net/http"
-	"os"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/sector-storage/tarutil"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
-	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 )
-
-func (sm *StorageMinerAPI) remoteGetSector(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-
-	id := vars["id"]
-	if len(id) == 0 {
-		log.Error("sector id not found")
-		w.WriteHeader(500)
-		return
-	}
-
-	path := sm.StorageMgr.Prover.(*ffiwrapper.Sealer).SectorPath(vars["type"], id)
-	stat, err := os.Stat(string(path))
-	if err != nil {
-		log.Error(err)
-		w.WriteHeader(500)
-		return
-	}
-
-	var rd io.Reader
-	if stat.IsDir() {
-		rd, err = tarutil.TarDirectory(string(path))
-		w.Header().Set("Content-Type", "application/x-tar")
-	} else {
-		rd, err = os.OpenFile(string(path), os.O_RDONLY, 0644)
-		w.Header().Set("Content-Type", "application/octet-stream")
-	}
-	if err != nil {
-		log.Error(err)
-		w.WriteHeader(500)
-		return
-	}
-
-	w.WriteHeader(200)
-	if _, err := io.Copy(w, rd); err != nil {
-		log.Error(err)
-		return
-	}
-}
 
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
 	return sm.Miner.RunPledgeSector()
