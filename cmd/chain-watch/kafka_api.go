@@ -91,7 +91,7 @@ func KafkaProducer(producerData string, topic string) error {
 			CloseKafkaProducer()
 			return
 		}
-		log.Info("send kafka msg done:%+v, partition:%d,offset:%d", msg, part, offset)
+		log.Info("send kafka msg done:%s, partition:%d,offset:%d", m, part, offset)
 	}(producerData)
 
 	return nil
