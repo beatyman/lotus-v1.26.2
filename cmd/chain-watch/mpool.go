@@ -140,7 +140,6 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				if err != nil {
 					toStr = ""
 					log.Error(err)
-					break
 				}
 				log.Info("#######", SerialJson(toAct))
 				fromAct, err := api.StateLookupID(ctx, msg.From, ts.Key())
@@ -148,7 +147,6 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				if err != nil {
 					fromStr = ""
 					log.Error(err)
-					break
 				}
 				log.Info("#######", SerialJson(fromAct))
 
