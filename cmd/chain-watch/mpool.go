@@ -150,39 +150,6 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				}
 				log.Info("#######", SerialJson(fromAct))
 
-				/*a, err := address.NewFromString("t01000")
-				minerInfo, _ := api.StateAccountKey(ctx, a, ts.Key())
-				log.Info("#######", a.String(), ":::", SerialJson(minerInfo))*/
-				/*addr, err := address.NewFromString("t01000")
-				//addr, err := address.NewFromString("t3sztdmdukjhnof23piavjqju6fi7uarodhuhnqbysnp5532nwcqf6vqwxjew52xdvzzl6raqofhr5wuobd3aq")
-				if err != nil {
-					log.Error(err)
-				}
-				//act, err := api.StateGetActor(ctx, addr, ts.Key())
-				act, err := api.StateGetActor(ctx, addr, ts.Key())
-				aso, err := api.ChainReadObj(ctx, act.Head)
-				log.Info("###miner0####", SerialJson(act.Head))
-				log.Info("###miner1####", SerialJson(aso))
-				var mst miner2.State
-				if err := mst.UnmarshalCBOR(bytes.NewReader(aso)); err != nil {
-					log.Error(err)
-				}
-				log.Info("###miner2####", SerialJson(mst))
-				mi := mst.Info
-				log.Info("###miner3####", SerialJson(mi))
-				*/
-
-				/*ts, err := api.Internal.Chain.GetTipSetFromKey(ts.Key())
-				if err != nil {
-					log.Error(err)
-				}
-				state, err := api.Internal.stateForTs(ctx, ts)
-				if err != nil {
-					log.Error(err)
-				}
-				log.Info("###miner5####", SerialJson(state))
-				*/
-
 				secCounts, err := api.StateMinerSectorCount(ctx, msg.To, ts.Key())
 				if err != nil {
 					log.Error(err)
