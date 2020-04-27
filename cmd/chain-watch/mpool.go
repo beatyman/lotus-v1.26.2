@@ -153,7 +153,6 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				secCounts, err := api.StateMinerSectorCount(ctx, msg.To, ts.Key())
 				if err != nil {
 					log.Error(err)
-					break
 				}
 				log.Info("=========111===========", SerialJson(secCounts))
 				minerTo, err := minerInfo(ctx, api, msg.To, ts)
@@ -166,7 +165,6 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				minerFrom, err := minerInfo(ctx, api, msg.From, ts)
 				if err != nil {
 					log.Error(err)
-					break
 				} else {
 					log.Info("====================", SerialJson(minerFrom))
 				}
