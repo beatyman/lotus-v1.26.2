@@ -76,14 +76,19 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 
 		//log.Info("#############", SerialJson(blk))
 		blockMessages, err := api.ChainGetBlockMessages(ctx, cid)
-		//log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
-		pmsgs, err := api.ChainGetParentMessages(ctx, cid)
-
-		log.Info("ParentMessages:", SerialJson(apiMsgCids(pmsgs)))
 		if err != nil {
 			log.Error(err)
 			continue
 		}
+		//log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
+		pmsgs, err := api.ChainGetParentMessages(ctx, cid)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+
+		log.Info("ParentMessages:", SerialJson(apiMsgCids(pmsgs)))
+
 		blockInfo := blockInfo{}
 		blockInfo.ParentMessages = apiMsgCids(pmsgs)
 		blockInfo.BlockHeight = fmt.Sprintf("%d", height)
@@ -93,20 +98,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 			continue
 		}
 		blockInfo.BlockSize = len(readObj)
-
-		/*log.Infof("readObj :%s", readObj)
-		block, err := blk.ToStorageBlock()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		rawData := block.RawData()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		log.Infof("block len:%d, block:%s", len(rawData), rawData)
-		*/
+		log.Info("DEBUG: ChainReadObj done")
 
 		blockInfo.BlockHash = cid
 		blockInfo.MinerCode = blk.Miner
