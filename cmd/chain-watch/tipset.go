@@ -86,8 +86,10 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 			log.Error(err)
 			continue
 		}
-
-		log.Info("ParentMessages:", SerialJson(apiMsgCids(pmsgs)))
+		if len(pmsgs) == 0 {
+			log.Info("No ParentMessages:")
+			continue
+		}
 
 		blockInfo := blockInfo{}
 		blockInfo.ParentMessages = apiMsgCids(pmsgs)
