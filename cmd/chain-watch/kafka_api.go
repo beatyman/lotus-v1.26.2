@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	_kp     sarama.AsyncProducer
+	_kp     sarama.SyncProducer
 	_kpLock = sync.Mutex{}
 )
 
@@ -30,7 +30,7 @@ func CloseKafkaProducer() {
 	}
 }
 
-func GetKafkaProducer() (sarama.AsyncProducer, error) {
+func GetKafkaProducer() (sarama.SyncProducer, error) {
 	_kpLock.Lock()
 	defer _kpLock.Unlock()
 	if _kp != nil {
@@ -62,7 +62,7 @@ func GetKafkaProducer() (sarama.AsyncProducer, error) {
 
 	config.Net.TLS.Enable = true
 	address := _kafkaAddress
-	p, err := sarama.NewAsyncProducer(address, config)
+	p, err := sarama.NewSyncProducer(address, config)
 	if err != nil {
 		return nil, errors.As(err, address)
 	}
@@ -72,25 +72,27 @@ func GetKafkaProducer() (sarama.AsyncProducer, error) {
 
 //生产消息模式
 func KafkaProducer(producerData string, topic string) error {
-	p, err := GetKafkaProducer()
-	if err != nil {
-		CloseKafkaProducer()
-		return err
-	}
-	msg := &sarama.ProducerMessage{
-		Topic: topic,
-		Value: sarama.ByteEncoder(producerData),
-	}
-	p.Input() <- msg
-	go func() {
-		select {
-		case suc := <-p.Successes():
-			log.Debugf("send kafka success %+v", suc)
-		case err := <-p.Errors():
+	// TODO: fix this to pool
+	go func(m string) {
+		p, err := GetKafkaProducer()
+		if err != nil {
 			log.Error(err)
 			CloseKafkaProducer()
+			return
 		}
-	}()
+		msg := &sarama.ProducerMessage{
+			Topic: topic,
+			Value: sarama.ByteEncoder(producerData),
+		}
+		log.Infof("send kafka msg:%s", m)
+		part, offset, err := p.SendMessage(msg)
+		if err != nil {
+			log.Error(err)
+			CloseKafkaProducer()
+			return
+		}
+		log.Info("send kafka msg done:%+v, partition:%d,offset:%d", msg, part, offset)
+	}(producerData)
 
 	return nil
 }
