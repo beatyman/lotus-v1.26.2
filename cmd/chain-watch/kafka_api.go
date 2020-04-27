@@ -85,7 +85,7 @@ func KafkaProducer(producerData string, topic string) error {
 	go func() {
 		select {
 		case suc := <-p.Successes():
-			log.Debugf("sent kafka success %+v", suc)
+			log.Debugf("send kafka success %+v", suc)
 		case err := <-p.Errors():
 			log.Error(err)
 			CloseKafkaProducer()

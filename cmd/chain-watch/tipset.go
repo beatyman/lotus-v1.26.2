@@ -88,7 +88,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		}
 		if len(pmsgs) == 0 {
 			log.Info("No ParentMessages:")
-			continue
+			// continue
 		}
 
 		blockInfo := blockInfo{}
