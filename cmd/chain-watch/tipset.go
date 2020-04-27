@@ -145,11 +145,12 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	blocks.PledgeNum = fmt.Sprintf("%d", pledgeNum)
 	blocks.MinTicket = minTicketBlock.Cid()
 	bjson := SerialJson(blocks)
+	log.Info("blocks message send start##: ", string(bjson))
 	if err := KafkaProducer(bjson, _kafkaTopic); err != nil {
 		log.Error(err)
 		return
 	}
-	log.Info("blocks message send##: ", string(bjson))
+	log.Info("blocks message send end##")
 }
 
 func apiMsgCids(in []api.Message) []cid.Cid {
