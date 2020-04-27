@@ -1,7 +1,10 @@
 package main
 
 import (
+	"io/ioutil"
+	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -235,6 +238,24 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err, sealedRepo)
 		}
+		// make download server
+		fileServer := cctx.String("file-server")
+		if len(fileServer) == 0 {
+			fileServer = ":1280"
+		}
+
+		fileServerToken, err := ioutil.ReadFile(filepath.Join(r, "token"))
+		if err != nil {
+			return errors.As(err)
+		}
+		fileHandle := NewStorageFileServer(sealedRepo, string(fileServerToken))
+		go func() {
+			log.Info("File server listen at: " + fileServer)
+			if err := http.ListenAndServe(fileServer, fileHandle); err != nil {
+				panic(err)
+			}
+		}()
+
 		for {
 
 			select {
