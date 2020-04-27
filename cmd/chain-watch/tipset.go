@@ -44,6 +44,7 @@ type blocks struct {
 	BlockInfos []blockInfo
 	PledgeNum  string
 	MinTicket  interface{}
+	TipSet     interface{}
 }
 
 func SerialJson(obj interface{}) string {
@@ -56,12 +57,11 @@ func SerialJson(obj interface{}) string {
 }
 
 func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
-
-	pledgeNum, _ := api.StatePledgeCollateral(ctx, ts.Key())
-	/*tsData := SerialJson(ts)
+	tsData := SerialJson(ts)
 	_ = tsData
 	log.Infof("Getting synced block list:%s", string(tsData))
-	*/
+
+	pledgeNum, _ := api.StatePledgeCollateral(ctx, ts.Key())
 	minTicketBlock := ts.MinTicketBlock()
 	//log.Infof("minTicketBlock:%s", minTicketBlock.Cid())
 
@@ -138,6 +138,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 			KafkaTimestamp: GenKTimestamp(),
 			Type:           "block",
 		},
+		TipSet: ts,
 	}
 	//blocks.Type = "block"
 	blocks.BlockInfos = blockInfos
