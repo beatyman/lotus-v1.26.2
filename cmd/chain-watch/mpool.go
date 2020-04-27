@@ -13,11 +13,13 @@ import (
 	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
 
+	"github.com/filecoin-project/go-address"
 	aapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
+	miner2 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/runtime/exitcode"
 )
@@ -37,7 +39,23 @@ type Message struct {
 	Receipt   MessageReceipt
 }
 
-func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
+func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address, ts *types.TipSet) (miner2.State, error) {
+	act, err := api.StateGetActor(ctx, addr, ts.Key())
+	if err != nil {
+		return miner2.State{}, err
+	}
+	aso, err := api.ChainReadObj(ctx, act.Head)
+	if err != nil {
+		return miner2.State{}, err
+	}
+	var mst miner2.State
+	if err1 := mst.UnmarshalCBOR(bytes.NewReader(aso)); err1 != nil {
+		return miner2.State{}, err
+	}
+	return mst, nil
+}
+
+func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *types.TipSet) {
 	sub, err := api.MpoolSub(ctx)
 	if err != nil {
 		return
@@ -116,9 +134,79 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 				if err != nil {
 					log.Error(err)
 				}
+				//log.Info("############", msg.To.String(), "::", msg.From)
+				toAct, err := api.StateLookupID(ctx, msg.To, ts.Key())
+				toStr := toAct.String()
+				if err != nil {
+					toStr = ""
+					log.Error(err)
+				}
+				log.Info("#######", SerialJson(toAct))
+				fromAct, err := api.StateLookupID(ctx, msg.From, ts.Key())
+				fromStr := fromAct.String()
+				if err != nil {
+					fromStr = ""
+					log.Error(err)
+				}
+				log.Info("#######", SerialJson(fromAct))
+
+				/*a, err := address.NewFromString("t01000")
+				minerInfo, _ := api.StateAccountKey(ctx, a, ts.Key())
+				log.Info("#######", a.String(), ":::", SerialJson(minerInfo))*/
+				/*addr, err := address.NewFromString("t01000")
+				//addr, err := address.NewFromString("t3sztdmdukjhnof23piavjqju6fi7uarodhuhnqbysnp5532nwcqf6vqwxjew52xdvzzl6raqofhr5wuobd3aq")
+				if err != nil {
+					log.Error(err)
+				}
+				//act, err := api.StateGetActor(ctx, addr, ts.Key())
+				act, err := api.StateGetActor(ctx, addr, ts.Key())
+				aso, err := api.ChainReadObj(ctx, act.Head)
+				log.Info("###miner0####", SerialJson(act.Head))
+				log.Info("###miner1####", SerialJson(aso))
+				var mst miner2.State
+				if err := mst.UnmarshalCBOR(bytes.NewReader(aso)); err != nil {
+					log.Error(err)
+				}
+				log.Info("###miner2####", SerialJson(mst))
+				mi := mst.Info
+				log.Info("###miner3####", SerialJson(mi))
+				*/
+
+				/*ts, err := api.Internal.Chain.GetTipSetFromKey(ts.Key())
+				if err != nil {
+					log.Error(err)
+				}
+				state, err := api.Internal.stateForTs(ctx, ts)
+				if err != nil {
+					log.Error(err)
+				}
+				log.Info("###miner5####", SerialJson(state))
+				*/
+
+				secCounts, err := api.StateMinerSectorCount(ctx, msg.To, ts.Key())
+				if err != nil {
+					log.Error(err)
+				}
+				log.Info("=========111===========", SerialJson(secCounts))
+				minerTo, err := minerInfo(ctx, api, msg.To, ts)
+				if err != nil {
+					log.Error(err)
+				} else {
+					log.Info("====================", SerialJson(minerTo))
+				}
+				minerFrom, err := minerInfo(ctx, api, msg.From, ts)
+				if err != nil {
+					log.Error(err)
+				} else {
+					log.Info("====================", SerialJson(minerFrom))
+				}
 				msg.OriParams = map[string]string{
-					"ToBalance":   toBalance.String(),
-					"FromBalance": fromBalance.String(),
+					"ToBalance":      toBalance.String(),
+					"FromBalance":    fromBalance.String(),
+					"toAct":          toStr,
+					"fromAct":        fromStr,
+					"toMinerOwner":   minerTo.Info.Owner.String(),
+					"fromMinerOwner": minerFrom.Info.Owner.String(),
 				}
 			case strings.HasPrefix(to, "t04"):
 				switch msg.Method {
@@ -128,6 +216,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 						log.Error(err)
 						break
 					}
+					log.Info("============OriParams==================", SerialJson(params))
 					msg.OriParams = params
 				}
 
@@ -198,6 +287,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer) {
 				continue
 			}
 			// send to kafka
+			log.Info("message info:", string(mdata))
 			if err := KafkaProducer(string(mdata), _kafkaTopic); err != nil {
 				log.Warn(errors.As(err))
 				continue
