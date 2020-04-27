@@ -82,18 +82,16 @@ func KafkaProducer(producerData string, topic string) error {
 		Value: sarama.ByteEncoder(producerData),
 	}
 	p.Input() <- msg
-	part := int32(0)
-	offset := int64(0)
-	select {
-	case suc := <-p.Successes():
-		offset = suc.Offset
-		part = suc.Partition
-	case err := <-p.Errors():
-		CloseKafkaProducer()
-		return errors.As(err, topic)
-	}
+	go func() {
+		select {
+		case suc := <-p.Successes():
+			log.Debug("sent kafka success, partition=%d, offset=%d \n", suc.Partition, suc.Partition)
+		case err := <-p.Errors():
+			log.Warn(err)
+			CloseKafkaProducer()
+		}
+	}()
 
-	log.Debug("sent kafka success, partition=%d, offset=%d \n", part, offset)
 	return nil
 }
 
