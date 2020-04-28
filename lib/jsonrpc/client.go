@@ -183,9 +183,13 @@ func (c *client) makeOutChan(ctx context.Context, ftyp reflect.Type, valOut int)
 			buf.PushBack(val)
 
 			if buf.Len() > 1 {
-				log.Warnw("rpc output message buffer", "n", buf.Len())
-				// bufLk.Unlock()
-				// return
+				if buf.Len() > 10 {
+					log.Warnw("rpc output message buffer", "n", buf.Len())
+				} else {
+					log.Infow("rpc output message buffer", "n", buf.Len())
+				}
+				bufLk.Unlock()
+				return
 			}
 
 			go func() {
