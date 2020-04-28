@@ -19,7 +19,6 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
-	miner2 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/runtime/exitcode"
 )
@@ -37,22 +36,40 @@ type Message struct {
 	Size      int
 	OriParams interface{}
 	Receipt   MessageReceipt
+	ToActor   map[string]interface{}
+	FromActor map[string]interface{}
 }
 
-func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address, ts *types.TipSet) (miner2.State, error) {
-	act, err := api.StateGetActor(ctx, addr, ts.Key())
+func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address) (map[string]interface{}, error) {
+	// 获取矿工存力数据
+	pow, err := api.StateMinerPower(ctx, addr, types.EmptyTSK)
 	if err != nil {
-		return miner2.State{}, err
+		log.Error(err)
+		// Not sure why this would fail, but its probably worth continuing
 	}
-	aso, err := api.ChainReadObj(ctx, act.Head)
+
+	// 获取矿工节点信息
+	mInfo, err := api.StateMinerInfo(ctx, addr, types.EmptyTSK)
 	if err != nil {
-		return miner2.State{}, err
+		return nil, errors.As(err)
 	}
-	var mst miner2.State
-	if err1 := mst.UnmarshalCBOR(bytes.NewReader(aso)); err1 != nil {
-		return miner2.State{}, err
+
+	// 获取失败的扇区数
+	sectorFaults, err := api.StateMinerFaults(ctx, addr, types.EmptyTSK)
+	if err != nil {
+		return nil, errors.As(err)
 	}
-	return mst, nil
+	return map[string]interface{}{
+		"TotalPower": fmt.Sprint(pow.TotalPower.RawBytePower),
+		"MinerPower": fmt.Sprint(pow.MinerPower.RawBytePower),
+
+		"PeerID": mInfo.PeerId.String(),
+		"Owner":  fmt.Sprint(mInfo.Owner),
+		"Worker": fmt.Sprint(mInfo.Worker),
+
+		"SectorSize":  mInfo.SectorSize.String(),
+		"FaultNumber": strconv.Itoa(len(sectorFaults)),
+	}, nil
 }
 
 func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *types.TipSet) {
@@ -100,6 +117,39 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				log.Error(err)
 				continue
 			}
+			// 获取帐户信息
+			toStateActor, err := api.StateGetActor(ctx, v.Message.Message.To, ts.Key())
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			toActorType := "Account"
+			toActorMiner := map[string]interface{}{}
+			if strings.HasPrefix(fmt.Sprint(v.Message.Message.To), "t0") && len(fmt.Sprint(v.Message.Message.To)) > 2 {
+				toActorType = "StorageMiner"
+				mInfo, err := minerInfo(ctx, api, v.Message.Message.To)
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+				toActorMiner = mInfo
+			}
+			fromStateActor, err := api.StateGetActor(ctx, v.Message.Message.From, ts.Key())
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			fromActorType := "Account"
+			fromActorMiner := map[string]interface{}{}
+			if strings.HasPrefix(fmt.Sprint(v.Message.Message.From), "t0") && len(fmt.Sprint(v.Message.Message.From)) > 2 {
+				toActorType = "StorageMiner"
+				mInfo, err := minerInfo(ctx, api, v.Message.Message.From)
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+				fromActorMiner = mInfo
+			}
 
 			msg := &Message{
 				KafkaCommon: KafkaCommon{
@@ -118,63 +168,31 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 					Return:   receipt.Receipt.Return,
 					GasUsed:  receipt.Receipt.GasUsed,
 				},
+				ToActor: map[string]interface{}{
+					"Type": toActorType,
+
+					// for actor struct
+					"Actor": toStateActor,
+
+					// for storage miner
+					"Miner": toActorMiner,
+				},
+				FromActor: map[string]interface{}{
+					"Type": fromActorType,
+
+					// for actor struct
+					"Actor": fromStateActor,
+
+					// for storage miner
+					"Miner": fromActorMiner,
+				},
 			}
 			msgs[cid] = msg
 
 			to := fmt.Sprintf("%s", msg.To)
 			switch {
 			case msg.Method == 0:
-				// 余额流转
-				// 获取矿工节点信息
-				toBalance, err := api.WalletBalance(ctx, msg.To)
-				if err != nil {
-					log.Error(err)
-				}
-				fromBalance, err := api.WalletBalance(ctx, msg.From)
-				if err != nil {
-					log.Error(err)
-				}
-				//log.Info("############", msg.To.String(), "::", msg.From)
-				toAct, err := api.StateLookupID(ctx, msg.To, ts.Key())
-				toStr := toAct.String()
-				if err != nil {
-					toStr = ""
-					log.Error(err)
-				}
-				log.Info("#######", SerialJson(toAct))
-				fromAct, err := api.StateLookupID(ctx, msg.From, ts.Key())
-				fromStr := fromAct.String()
-				if err != nil {
-					fromStr = ""
-					log.Error(err)
-				}
-				log.Info("#######", SerialJson(fromAct))
-
-				secCounts, err := api.StateMinerSectorCount(ctx, msg.To, ts.Key())
-				if err != nil {
-					log.Error(err)
-				}
-				log.Info("=========111===========", SerialJson(secCounts))
-				minerTo, err := minerInfo(ctx, api, msg.To, ts)
-				if err != nil {
-					log.Error(err)
-				} else {
-					log.Info("====================", SerialJson(minerTo))
-				}
-				minerFrom, err := minerInfo(ctx, api, msg.From, ts)
-				if err != nil {
-					log.Error(err)
-				} else {
-					log.Info("====================", SerialJson(minerFrom))
-				}
-				msg.OriParams = map[string]string{
-					"ToBalance":      toBalance.String(),
-					"FromBalance":    fromBalance.String(),
-					"toAct":          toStr,
-					"fromAct":        fromStr,
-					"toMinerOwner":   minerTo.Info.Owner.String(),
-					"fromMinerOwner": minerFrom.Info.Owner.String(),
-				}
+				msg.OriParams = map[string]string{}
 			case strings.HasPrefix(to, "t04"):
 				switch msg.Method {
 				case builtin.MethodsPower.CreateMiner:
@@ -212,36 +230,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 						break
 					}
 
-					// 获取矿工存力数据
-					pow, err := api.StateMinerPower(ctx, msg.To, types.EmptyTSK)
-					if err != nil {
-						log.Error(err)
-						// Not sure why this would fail, but its probably worth continuing
-					}
-
-					// 获取矿工节点信息
-					mInfo, err := api.StateMinerInfo(ctx, msg.To, types.EmptyTSK)
-					if err != nil {
-						log.Error(err)
-						continue
-					}
-
-					// 获取失败的扇区数
-					sectorFaults, err := api.StateMinerFaults(ctx, msg.To, types.EmptyTSK)
-					if err != nil {
-						log.Error(err)
-						continue
-					}
 					msg.OriParams = map[string]interface{}{
-						"TotalPower": fmt.Sprint(pow.TotalPower.RawBytePower),
-						"MinerPower": fmt.Sprint(pow.MinerPower.RawBytePower),
-
-						"PeerID": mInfo.PeerId.String(),
-						"Owner":  fmt.Sprint(mInfo.Owner),
-						"Worker": fmt.Sprint(mInfo.Worker),
-
-						"SectorSize":   mInfo.SectorSize.String(),
-						"FaultNumber":  strconv.Itoa(len(sectorFaults)),
 						"SectorNumber": params.SectorNumber,
 						"Proof":        params.Proof,
 					}
