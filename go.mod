@@ -8,8 +8,6 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/Gurpartap/async v0.0.0-20180927173644-4f7f499dd9ee
-	github.com/Shopify/sarama v1.19.0
-	github.com/bsm/sarama-cluster v2.1.15+incompatible
 	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/docker/go-units v0.4.0
@@ -25,8 +23,8 @@ require (
 	github.com/filecoin-project/go-padreader v0.0.0-20200210211231-548257017ca6
 	github.com/filecoin-project/go-paramfetch v0.0.2-0.20200218225740-47c639bab663
 	github.com/filecoin-project/go-statestore v0.1.0
-	github.com/filecoin-project/sector-storage v0.0.0-20200417225459-e75536581a08
-	github.com/filecoin-project/specs-actors v1.0.0
+	github.com/filecoin-project/sector-storage v0.0.0-20200423222053-9eb049a833b9
+	github.com/filecoin-project/specs-actors v1.0.1-0.20200424174946-11410d0bbcaf
 	github.com/filecoin-project/specs-storage v0.0.0-20200417134612-61b2d91a6102
 	github.com/filecoin-project/storage-fsm v0.0.0-20200423114251-f3bea4aa8bd7
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
@@ -43,7 +41,7 @@ require (
 	github.com/ipfs/go-car v0.0.3-0.20200304012825-b6769248bfef
 	github.com/ipfs/go-cid v0.0.5
 	github.com/ipfs/go-datastore v0.4.4
-	github.com/ipfs/go-ds-badger2 v0.0.0-20200211201106-609c9d2a39c7
+	github.com/ipfs/go-ds-badger2 v0.1.0
 	github.com/ipfs/go-filestore v0.0.2
 	github.com/ipfs/go-fs-lock v0.0.1
 	github.com/ipfs/go-graphsync v0.0.6-0.20200408061628-e1a98fc64c42
@@ -108,7 +106,6 @@ require (
 	golang.org/x/sys v0.0.0-20200409092240-59c9f1ba88fa
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
-	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/urfave/cli.v2 v2.0.0-20180128182452-d3ae77c26ac8
 	gotest.tools v2.2.0+incompatible
 )
