@@ -8,13 +8,10 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/Gurpartap/async v0.0.0-20180927173644-4f7f499dd9ee
-	github.com/Shopify/sarama v1.19.0
-	github.com/bsm/sarama-cluster v2.1.15+incompatible
 	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/docker/go-units v0.4.0
 	github.com/drand/drand v0.7.2
-	github.com/filecoin-project/chain-validation v0.0.6-0.20200424212533-860752305527
 	github.com/filecoin-project/filecoin-ffi v0.0.0-20200326153646-e899cc1dd072
 	github.com/filecoin-project/go-address v0.0.2-0.20200218010043-eb9bb40ed5be
 	github.com/filecoin-project/go-amt-ipld/v2 v2.0.1-0.20200131012142-05d80eeccc5e
@@ -109,7 +106,6 @@ require (
 	golang.org/x/sys v0.0.0-20200409092240-59c9f1ba88fa
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
-	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/urfave/cli.v2 v2.0.0-20180128182452-d3ae77c26ac8
 	gotest.tools v2.2.0+incompatible
 )
