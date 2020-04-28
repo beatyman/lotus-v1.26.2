@@ -9,6 +9,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/gwaylib/errors"
 	_ "github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
 )
@@ -61,7 +62,10 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	// _ = tsData
 	// log.Infof("Getting synced block list:%s", string(tsData))
 
-	pledgeNum, _ := api.StatePledgeCollateral(ctx, ts.Key())
+	pledgeNum, err := api.StatePledgeCollateral(ctx, ts.Key())
+	if err != nil {
+		log.Warn(errors.As(err))
+	}
 	minTicketBlock := ts.MinTicketBlock()
 	//log.Infof("minTicketBlock:%s", minTicketBlock.Cid())
 
