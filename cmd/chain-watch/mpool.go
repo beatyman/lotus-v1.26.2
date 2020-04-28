@@ -155,7 +155,16 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				}
 				fromActorMiner = mInfo
 			}
-
+			toAct, err := api.StateLookupID(ctx, v.Message.Message.To, ts.Key())
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			fromAct, err := api.StateLookupID(ctx, v.Message.Message.From, ts.Key())
+			if err != nil {
+				log.Error(err)
+				continue
+			}
 			msg := &Message{
 				KafkaCommon: KafkaCommon{
 					KafkaId:        GenKID(),
@@ -182,6 +191,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 						"Head":    toStateActor.Head.String(),
 						"Nonce":   toStateActor.Nonce,
 						"Balance": toStateActor.Balance.String(),
+						"Act":     toAct.String(),
 					},
 
 					// for storage miner
@@ -196,6 +206,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 						"Head":    fromStateActor.Head.String(),
 						"Nonce":   fromStateActor.Nonce,
 						"Balance": fromStateActor.Balance.String(),
+						"Act":     fromAct.String(),
 					},
 
 					// for storage miner
