@@ -83,7 +83,7 @@ func getReceipt(ctx context.Context, api aapi.FullNode, cid cid.Cid) (*aapi.MsgL
 	return api.StateWaitMsg(ctx, cid)
 }
 
-func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *types.TipSet) {
+func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, curTs *types.TipSet) {
 	sub, err := api.MpoolSub(ctx)
 	if err != nil {
 		return
@@ -138,6 +138,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				receipt.GasUsed = rece.Receipt.GasUsed
 			}
 			log.Info("receipt done")
+			ts := rece.TipSet
 			// 获取帐户信息
 			toStateActor, err := api.StateGetActor(ctx, v.Message.Message.To, ts.Key())
 			if err != nil {
