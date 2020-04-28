@@ -35,6 +35,8 @@ import (
 var log = logging.Logger("statemgr")
 
 type StateManager struct {
+	callLock sync.Mutex
+
 	cs *store.ChainStore
 
 	stCache  map[string][]cid.Cid
@@ -482,6 +484,9 @@ func (sm *StateManager) GetReceipt(ctx context.Context, msg cid.Cid, ts *types.T
 }
 
 func (sm *StateManager) WaitForMessage(ctx context.Context, mcid cid.Cid) (*types.TipSet, *types.MessageReceipt, error) {
+	sm.callLock.Lock()
+	defer sm.callLock.Unlock()
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
