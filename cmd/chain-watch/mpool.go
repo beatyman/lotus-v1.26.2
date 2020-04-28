@@ -158,7 +158,6 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				minerTo, err := minerInfo(ctx, api, msg.To, ts)
 				if err != nil {
 					log.Error(err)
-					break
 				} else {
 					log.Info("====================", SerialJson(minerTo))
 				}
@@ -234,8 +233,8 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 						continue
 					}
 					msg.OriParams = map[string]interface{}{
-						"TotalPower": fmt.Sprint(pow.TotalPower),
-						"MinerPower": fmt.Sprint(pow.MinerPower),
+						"TotalPower": fmt.Sprint(pow.TotalPower.RawBytePower),
+						"MinerPower": fmt.Sprint(pow.MinerPower.RawBytePower),
 
 						"PeerID": mInfo.PeerId.String(),
 						"Owner":  fmt.Sprint(mInfo.Owner),
