@@ -8,6 +8,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gwaylib/errors"
@@ -72,6 +73,16 @@ func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address) (ma
 	}, nil
 }
 
+var (
+	waitMsgLock = sync.Mutex{}
+)
+
+func getReceipt(ctx context.Context, api aapi.FullNode, cid cid.Cid) (*aapi.MsgLookup, error) {
+	waitMsgLock.Lock()
+	defer waitMsgLock.Unlock()
+	return api.StateWaitMsg(ctx, cid)
+}
+
 func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *types.TipSet) {
 	sub, err := api.MpoolSub(ctx)
 	if err != nil {
@@ -114,10 +125,17 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 			}
 			log.Info("readObj done")
 			// 获取收据
-			receipt, err := api.StateWaitMsg(ctx, cid)
+			rece, err := getReceipt(ctx, api, cid)
 			if err != nil {
 				log.Error(err)
 				continue
+			}
+			receipt := MessageReceipt{}
+			if rece != nil {
+				receipt.Height = rece.TipSet.Height()
+				receipt.ExitCode = rece.Receipt.ExitCode
+				receipt.Return = rece.Receipt.Return
+				receipt.GasUsed = rece.Receipt.GasUsed
 			}
 			log.Info("receipt done")
 			// 获取帐户信息
@@ -176,12 +194,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				Cid:       cid.String(),
 				Size:      len(readObj),
 				OriParams: map[string]interface{}{},
-				Receipt: MessageReceipt{
-					Height:   receipt.TipSet.Height(),
-					ExitCode: receipt.Receipt.ExitCode,
-					Return:   receipt.Receipt.Return,
-					GasUsed:  receipt.Receipt.GasUsed,
-				},
+				Receipt:   receipt,
 				ToActor: map[string]interface{}{
 					"Type": toActorType,
 

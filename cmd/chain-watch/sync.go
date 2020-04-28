@@ -28,6 +28,7 @@ func runSyncer(ctx context.Context, api api.FullNode, st io.Writer, maxBatch int
 				log.Info("=====message======", change.Type, ":", store.HCCurrent)
 				if change.Type == store.HCCurrent {
 					go subMpool(ctx, api, st, change.Val)
+					// go subMpool(ctx, api, st, change.Val)
 					// go subBlocks(ctx, api, st)
 					// go subInfo(ctx, api, st, change.Val)
 				}
