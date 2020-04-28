@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -16,8 +17,25 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-//生产消息模式
-func KafkaProducer(producerData string, topic string) error {
+var (
+	_kp     sarama.SyncProducer
+	_kpLock = sync.Mutex{}
+)
+
+func CloseKafkaProducer() {
+	_kpLock.Lock()
+	defer _kpLock.Unlock()
+	if _kp != nil {
+		_kp.Close()
+	}
+}
+
+func GetKafkaProducer() (sarama.SyncProducer, error) {
+	_kpLock.Lock()
+	defer _kpLock.Unlock()
+	if _kp != nil {
+		return _kp, nil
+	}
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
 	config.Producer.Timeout = 5 * time.Second
@@ -29,12 +47,12 @@ func KafkaProducer(producerData string, topic string) error {
 	kafkaCert := _kafkaCertFile
 	certBytes, err := ioutil.ReadFile(kafkaCert)
 	if err != nil {
-		return errors.As(err, kafkaCert)
+		return nil, errors.As(err, kafkaCert)
 	}
 	clientCertPool := x509.NewCertPool()
 	ok := clientCertPool.AppendCertsFromPEM(certBytes)
 	if !ok {
-		return errors.New("kafka producer failed to parse root certificate").As(kafkaCert)
+		return nil, errors.New("kafka producer failed to parse root certificate").As(kafkaCert)
 	}
 	config.Net.TLS.Config = &tls.Config{
 		//Certificates:       []tls.Certificate{},
@@ -46,19 +64,36 @@ func KafkaProducer(producerData string, topic string) error {
 	address := _kafkaAddress
 	p, err := sarama.NewSyncProducer(address, config)
 	if err != nil {
-		return errors.As(err, address)
+		return nil, errors.As(err, address)
 	}
-	defer p.Close()
-	msg := &sarama.ProducerMessage{
-		Topic: topic,
-		Value: sarama.ByteEncoder(producerData),
-	}
-	part, offset, err := p.SendMessage(msg)
-	if err != nil {
-		return errors.As(err, address, topic)
-	}
+	_kp = p
+	return _kp, nil
+}
 
-	log.Debug("sent kafka success, partition=%d, offset=%d \n", part, offset)
+//生产消息模式
+func KafkaProducer(producerData string, topic string) error {
+	// TODO: fix this to pool
+	go func(m string) {
+		p, err := GetKafkaProducer()
+		if err != nil {
+			log.Error(err)
+			CloseKafkaProducer()
+			return
+		}
+		msg := &sarama.ProducerMessage{
+			Topic: topic,
+			Value: sarama.ByteEncoder(producerData),
+		}
+		log.Infof("send kafka msg:%s", m)
+		part, offset, err := p.SendMessage(msg)
+		if err != nil {
+			log.Error(err)
+			CloseKafkaProducer()
+			return
+		}
+		log.Infof("send kafka msg done:%s, partition:%d,offset:%d", m, part, offset)
+	}(producerData)
+
 	return nil
 }
 

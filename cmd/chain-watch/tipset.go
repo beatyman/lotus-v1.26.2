@@ -44,6 +44,7 @@ type blocks struct {
 	BlockInfos []blockInfo
 	PledgeNum  string
 	MinTicket  interface{}
+	TipSet     interface{}
 }
 
 func SerialJson(obj interface{}) string {
@@ -56,12 +57,11 @@ func SerialJson(obj interface{}) string {
 }
 
 func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
+	// tsData := SerialJson(ts)
+	// _ = tsData
+	// log.Infof("Getting synced block list:%s", string(tsData))
 
 	pledgeNum, _ := api.StatePledgeCollateral(ctx, ts.Key())
-	/*tsData := SerialJson(ts)
-	_ = tsData
-	log.Infof("Getting synced block list:%s", string(tsData))
-	*/
 	minTicketBlock := ts.MinTicketBlock()
 	//log.Infof("minTicketBlock:%s", minTicketBlock.Cid())
 
@@ -76,14 +76,21 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 
 		//log.Info("#############", SerialJson(blk))
 		blockMessages, err := api.ChainGetBlockMessages(ctx, cid)
-		//log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
-		pmsgs, err := api.ChainGetParentMessages(ctx, cid)
-
-		log.Info("ParentMessages:", SerialJson(apiMsgCids(pmsgs)))
 		if err != nil {
 			log.Error(err)
 			continue
 		}
+		//log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
+		pmsgs, err := api.ChainGetParentMessages(ctx, cid)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+		if len(pmsgs) == 0 {
+			log.Info("No ParentMessages:")
+			// continue
+		}
+
 		blockInfo := blockInfo{}
 		blockInfo.ParentMessages = apiMsgCids(pmsgs)
 		blockInfo.BlockHeight = fmt.Sprintf("%d", height)
@@ -93,20 +100,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 			continue
 		}
 		blockInfo.BlockSize = len(readObj)
-
-		/*log.Infof("readObj :%s", readObj)
-		block, err := blk.ToStorageBlock()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		rawData := block.RawData()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		log.Infof("block len:%d, block:%s", len(rawData), rawData)
-		*/
+		log.Info("DEBUG: ChainReadObj done")
 
 		blockInfo.BlockHash = cid
 		blockInfo.MinerCode = blk.Miner
@@ -144,17 +138,14 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 			KafkaTimestamp: GenKTimestamp(),
 			Type:           "block",
 		},
+		TipSet: ts,
 	}
 	//blocks.Type = "block"
 	blocks.BlockInfos = blockInfos
 	blocks.PledgeNum = fmt.Sprintf("%d", pledgeNum)
 	blocks.MinTicket = minTicketBlock.Cid()
 	bjson := SerialJson(blocks)
-	if err := KafkaProducer(bjson, _kafkaTopic); err != nil {
-		log.Error(err)
-		return
-	}
-	log.Info("blocks message send##: ", string(bjson))
+	KafkaProducer(bjson, _kafkaTopic)
 }
 
 func apiMsgCids(in []api.Message) []cid.Cid {
