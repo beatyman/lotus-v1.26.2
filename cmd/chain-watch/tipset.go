@@ -57,9 +57,10 @@ func SerialJson(obj interface{}) string {
 }
 
 func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
-	// tsData := SerialJson(ts)
-	// _ = tsData
-	// log.Infof("Getting synced block list:%s", string(tsData))
+	tsData := SerialJson(ts)
+	_ = tsData
+	log.Infof("Getting synced block list:%s", string(tsData))
+	//return
 
 	pledgeNum, _ := api.StatePledgeCollateral(ctx, ts.Key())
 	minTicketBlock := ts.MinTicketBlock()

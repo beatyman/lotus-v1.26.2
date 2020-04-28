@@ -184,6 +184,7 @@ func (c *client) makeOutChan(ctx context.Context, ftyp reflect.Type, valOut int)
 
 			if buf.Len() > 1 {
 				if buf.Len() > 10 {
+					panic("buf full")
 					log.Warnw("rpc output message buffer", "n", buf.Len())
 				} else {
 					log.Infow("rpc output message buffer", "n", buf.Len())
