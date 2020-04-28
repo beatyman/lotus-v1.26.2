@@ -104,6 +104,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 			if v.Type != aapi.MpoolAdd {
 				continue
 			}
+			log.Info("message in", v.Message.Message)
 			cid := v.Message.Message.Cid()
 			// 获取消息长度
 			readObj, err := api.ChainReadObj(ctx, cid)
@@ -111,18 +112,21 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				log.Error(err)
 				continue
 			}
+			log.Info("readObj done")
 			// 获取收据
 			receipt, err := api.StateWaitMsg(ctx, cid)
 			if err != nil {
 				log.Error(err)
 				continue
 			}
+			log.Info("receipt done")
 			// 获取帐户信息
 			toStateActor, err := api.StateGetActor(ctx, v.Message.Message.To, ts.Key())
 			if err != nil {
 				log.Error(err)
 				continue
 			}
+			log.Info("toStateActor done")
 			toActorType := "Account"
 			toActorMiner := map[string]interface{}{}
 			if strings.HasPrefix(fmt.Sprint(v.Message.Message.To), "t0") && len(fmt.Sprint(v.Message.Message.To)) > 2 {
@@ -133,6 +137,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 					continue
 				}
 				toActorMiner = mInfo
+				log.Info("toStateMiner done")
 			}
 			fromStateActor, err := api.StateGetActor(ctx, v.Message.Message.From, ts.Key())
 			if err != nil {
@@ -172,7 +177,12 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 					"Type": toActorType,
 
 					// for actor struct
-					"Actor": toStateActor,
+					"Actor": map[string]interface{}{
+						"Code":    toStateActor.Code.String(),
+						"Head":    toStateActor.Head.String(),
+						"Nonce":   toStateActor.Nonce,
+						"Balance": toStateActor.Balance.String(),
+					},
 
 					// for storage miner
 					"Miner": toActorMiner,
@@ -181,12 +191,18 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 					"Type": fromActorType,
 
 					// for actor struct
-					"Actor": fromStateActor,
+					"Actor": map[string]interface{}{
+						"Code":    fromStateActor.Code.String(),
+						"Head":    fromStateActor.Head.String(),
+						"Nonce":   fromStateActor.Nonce,
+						"Balance": fromStateActor.Balance.String(),
+					},
 
 					// for storage miner
 					"Miner": fromActorMiner,
 				},
 			}
+			log.Info("getting message")
 			msgs[cid] = msg
 
 			to := fmt.Sprintf("%s", msg.To)
@@ -201,12 +217,11 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 						log.Error(err)
 						break
 					}
-					log.Info("============OriParams==================", SerialJson(params))
 					msg.OriParams = params
 				}
 
 				// TODO: decode more actors
-			case strings.HasPrefix(to, "t01"):
+			default:
 				switch msg.Method {
 				case builtin.MethodsMiner.SubmitWindowedPoSt:
 					var params miner.SubmitWindowedPoStParams
@@ -242,6 +257,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				log.Warn(errors.As(err))
 				continue
 			}
+			log.Info(string(mdata))
 			// send to kafka
 			KafkaProducer(string(mdata), _kafkaTopic)
 		}
