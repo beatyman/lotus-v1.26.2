@@ -40,5 +40,5 @@ ssh "$host" 'lotus net connect $(lotus --repo=/data/lotus/dev/.ldt0111 net liste
 
 log 'Get fil from t0111'
 ssh "$host" 'lotus wallet new bls'
-ssh "$host" 'lotus --repo=/data/lotus/dev/.ldt0111 send $(lotus wallet default) 100'
+ssh "$host" 'lotus --repo=/data/lotus/dev/.ldt0111 send $(lotus wallet default) 9000'
 git checkout build
