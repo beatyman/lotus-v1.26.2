@@ -158,6 +158,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				minerTo, err := minerInfo(ctx, api, msg.To, ts)
 				if err != nil {
 					log.Error(err)
+					break
 				} else {
 					log.Info("====================", SerialJson(minerTo))
 				}
@@ -254,12 +255,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, ts *typ
 				continue
 			}
 			// send to kafka
-			log.Info("message info:", string(mdata))
-			if err := KafkaProducer(string(mdata), _kafkaTopic); err != nil {
-				log.Warn(errors.As(err))
-				continue
-			}
-			log.Infof("mpool cid:%s,msg:%s", cid, string(mdata))
+			KafkaProducer(string(mdata), _kafkaTopic)
 		}
 
 		log.Infof("Processing %d mpool updates", len(msgs))

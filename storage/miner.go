@@ -23,7 +23,6 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/events"
 	"github.com/filecoin-project/lotus/chain/gen"
-	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	sealing "github.com/filecoin-project/storage-fsm"
@@ -52,6 +51,7 @@ type storageMinerApi interface {
 	StateMinerSectors(context.Context, address.Address, *abi.BitField, bool, types.TipSetKey) ([]*api.ChainSectorInfo, error)
 	StateSectorPreCommitInfo(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error)
 	StateMinerInfo(context.Context, address.Address, types.TipSetKey) (miner.MinerInfo, error)
+	StateMinerProvingDeadline(context.Context, address.Address, types.TipSetKey) (*miner.DeadlineInfo, error)
 	StateMinerInitialPledgeCollateral(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (types.BigInt, error)
 	StateWaitMsg(context.Context, cid.Cid) (*api.MsgLookup, error) // TODO: removeme eventually
 	StateGetActor(ctx context.Context, actor address.Address, ts types.TipSetKey) (*types.Actor, error)
@@ -62,7 +62,7 @@ type storageMinerApi interface {
 	MpoolPushMessage(context.Context, *types.Message) (*types.SignedMessage, error)
 
 	ChainHead(context.Context) (*types.TipSet, error)
-	ChainNotify(context.Context) (<-chan []*store.HeadChange, error)
+	ChainNotify(context.Context) (<-chan []*api.HeadChange, error)
 	ChainGetRandomness(ctx context.Context, tsk types.TipSetKey, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error)
 	ChainGetTipSetByHeight(context.Context, abi.ChainEpoch, types.TipSetKey) (*types.TipSet, error)
 	ChainGetBlockMessages(context.Context, cid.Cid) (*api.BlockMessages, error)
@@ -95,14 +95,14 @@ func (m *Miner) Run(ctx context.Context) error {
 		return xerrors.Errorf("miner preflight checks failed: %w", err)
 	}
 
-	mi, err := m.api.StateMinerInfo(ctx, m.maddr, types.EmptyTSK)
+	md, err := m.api.StateMinerProvingDeadline(ctx, m.maddr, types.EmptyTSK)
 	if err != nil {
 		return xerrors.Errorf("getting miner info: %w", err)
 	}
 
 	evts := events.NewEvents(ctx, m.api)
 	adaptedAPI := NewSealingAPIAdapter(m.api)
-	pcp := sealing.NewBasicPreCommitPolicy(adaptedAPI, 10000000, mi.ProvingPeriodBoundary)
+	pcp := sealing.NewBasicPreCommitPolicy(adaptedAPI, 10000000, md.PeriodStart % miner.WPoStProvingPeriod)
 	m.sealing = sealing.New(adaptedAPI, NewEventsAdapter(evts), m.maddr, m.ds, m.sealer, m.sc, m.verif, &pcp)
 
 	go m.sealing.Run(ctx)
