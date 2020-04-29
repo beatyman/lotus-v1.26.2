@@ -20,8 +20,8 @@ import (
 	storageimpl "github.com/filecoin-project/go-fil-markets/storagemarket/impl"
 	"github.com/filecoin-project/go-fil-markets/storagemarket/impl/requestvalidation"
 	smnet "github.com/filecoin-project/go-fil-markets/storagemarket/network"
-	"github.com/filecoin-project/go-fil-markets/storedcounter"
 	"github.com/filecoin-project/go-statestore"
+	"github.com/filecoin-project/go-storedcounter"
 	"github.com/ipfs/go-bitswap"
 	"github.com/ipfs/go-bitswap/network"
 	"github.com/ipfs/go-blockservice"
@@ -85,7 +85,8 @@ func NewClientDatastore(ds dtypes.MetadataDS) dtypes.ClientDatastore {
 // ClientDAG is a DAGService for the ClientBlockstore
 func ClientDAG(mctx helpers.MetricsCtx, lc fx.Lifecycle, ibs dtypes.ClientBlockstore, rt routing.Routing, h host.Host) dtypes.ClientDAG {
 	bitswapNetwork := network.NewFromIpfsHost(h, rt)
-	exch := bitswap.New(helpers.LifecycleCtx(mctx, lc), bitswapNetwork, ibs)
+	bitswapOptions := []bitswap.Option{bitswap.ProvideEnabled(false)}
+	exch := bitswap.New(helpers.LifecycleCtx(mctx, lc), bitswapNetwork, ibs, bitswapOptions...)
 
 	bsvc := blockservice.New(ibs, exch)
 	dag := merkledag.NewDAGService(bsvc)
