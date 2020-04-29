@@ -91,7 +91,7 @@ func (a *StateAPI) StateMinerDeadlines(ctx context.Context, m address.Address, t
 	return stmgr.GetMinerDeadlines(ctx, a.StateManager, ts, m)
 }
 
-func (a *StateAPI)  StateMinerProvingDeadline(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*miner.DeadlineInfo, error) {
+func (a *StateAPI) StateMinerProvingDeadline(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*miner.DeadlineInfo, error) {
 	ts, err := a.Chain.GetTipSetFromKey(tsk)
 	if err != nil {
 		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
@@ -654,7 +654,6 @@ func (a *StateAPI) StateMinerInitialPledgeCollateral(ctx context.Context, maddr 
 		var err error
 		params, err := actors.SerializeParams(&market.VerifyDealsOnSectorProveCommitParams{
 			DealIDs:      precommit.Info.DealIDs,
-			SectorSize:   st.GetSectorSize(),
 			SectorExpiry: precommit.Info.Expiration,
 		})
 		if err != nil {
