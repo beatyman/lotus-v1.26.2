@@ -100,9 +100,8 @@ var runCmd = &cli.Command{
 		_kafkaAddress = strings.Split(cctx.String("kafka-addr"), " ")
 		_kafkaTopic = cctx.String("kafka-topic")
 
-		maxBatch := cctx.Int("max-batch")
-
-		runSyncer(ctx, api, &storage{}, maxBatch)
+		InitDB(cctx.String("repo"))
+		runSyncer(ctx, api)
 
 		<-ctx.Done()
 		os.Exit(0)

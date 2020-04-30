@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 
 	"fmt"
-	"io"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -58,10 +57,37 @@ func SerialJson(obj interface{}) string {
 	return string(out)
 }
 
-func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
+var syncedTs *types.TipSet
+
+func syncHead(ctx context.Context, api api.FullNode, ts *types.TipSet) {
 	// tsData := SerialJson(ts)
 	// _ = tsData
 	// log.Infof("Getting synced block list:%s", string(tsData))
+
+	// continue from the db height
+	if syncedTs == nil {
+		syncedTs = ts
+	}
+	maxHeight, err := GetCurHeight()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	if (int64(ts.Height()) - 1) > maxHeight {
+		oldTs, err := api.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(maxHeight+1), types.EmptyTSK)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		log.Infof("sync history:%d, oldTs:%s", maxHeight+1, oldTs.Height())
+		syncHead(ctx, api, oldTs)
+		if int64(syncedTs.Height()) > maxHeight {
+			syncHead(ctx, api, syncedTs)
+		}
+		return
+	}
+
+	// sync the new one
 
 	pledgeNum, err := api.StatePledgeCollateral(ctx, ts.Key())
 	if err != nil {
@@ -85,6 +111,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 			log.Error(err)
 			continue
 		}
+		log.Info("blockMessages:%+v", blockMessages)
 		//log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
 		pmsgs, err := api.ChainGetParentMessages(ctx, cid)
 		if err != nil {
@@ -94,6 +121,8 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		if len(pmsgs) == 0 {
 			log.Info("No ParentMessages:")
 			// continue
+		} else {
+			go subMpool(ctx, api, ts, cid, blk, pmsgs)
 		}
 
 		blockInfo := blockInfo{}
@@ -151,6 +180,11 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	blocks.MinTicket = minTicketBlock.Cid()
 	bjson := SerialJson(blocks)
 	KafkaProducer(bjson, _kafkaTopic)
+
+	// make sync process
+	if err := AddCurHeight(int64(ts.Height())); err != nil {
+		log.Error(err)
+	}
 }
 
 func apiMsgCids(in []api.Message) []cid.Cid {
