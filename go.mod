@@ -36,6 +36,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
+	github.com/gwaylib/database v0.0.0-20191004162319-8535ba649f9c
 	github.com/gwaylib/errors v0.0.0-20190905023356-162e59439c92
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/hashicorp/golang-lru v0.5.4
@@ -88,6 +89,7 @@ require (
 	github.com/libp2p/go-libp2p-tls v0.1.3
 	github.com/libp2p/go-libp2p-yamux v0.2.7
 	github.com/libp2p/go-maddr-filter v0.0.5
+	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/minio/sha256-simd v0.1.1
 	github.com/mitchellh/go-homedir v1.1.0
