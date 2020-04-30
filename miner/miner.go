@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/beacon"
 	"github.com/filecoin-project/lotus/chain/gen"
+	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -139,9 +140,15 @@ func (m *Miner) Unregister(ctx context.Context, addr address.Address) error {
 	return nil
 }
 
-func nextRoundTime(base *MiningBase) time.Time {
-	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelay*(base.NullRounds+1)), 0)
+func (m *Miner) niceSleep(d time.Duration) bool {
+	select {
+	case <-time.After(d):
+		return true
+	case <-m.stop:
+		return false
+	}
 }
+
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
 	defer span.End()
@@ -170,7 +177,7 @@ eventLoop:
 		prebase, err := m.GetBestMiningCandidate(ctx)
 		if err != nil {
 			log.Errorf("failed to get best mining candidate: %s", err)
-			time.Sleep(time.Second * 5)
+			m.niceSleep(time.Second * 5)
 			continue
 		}
 
@@ -186,25 +193,9 @@ eventLoop:
 			log.Errorf("failed to get best mining candidate: %s", err)
 			continue
 		}
-		now := time.Now()
-		if !base.TipSet.Equals(lastBase.TipSet) {
-			nextRound = nextRoundTime(base)
-			lastBase = *base
-		} else {
-			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
-
-			// if the base was dead, make the nullRound++ step by round actually change.
-			if (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
-				time.Sleep(1e9)
-				continue
-			}
-			lastBase.NullRounds++
-			nextRound = nextRoundTime(&lastBase)
-		}
-		subNextRoundTime := nextRound.Unix() - now.Unix()
-		if subNextRoundTime > 0 && subNextRoundTime < (build.BlockDelay-build.PropagationDelay-build.PropagationDelay/2) {
-			// no time to mining, just skip this round, and have to prepare to mine the next round.
-			time.Sleep(nextRound.Sub(now))
+		if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
+			log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
+			m.niceSleep(build.BlockDelay * time.Second)
 			continue
 		}
 
@@ -227,7 +218,10 @@ eventLoop:
 		if len(blks) != 0 {
 			btime := time.Unix(int64(blks[0].Header.Timestamp), 0)
 			if time.Now().Before(btime) {
-				time.Sleep(time.Until(btime))
+				if !m.niceSleep(time.Until(btime)) {
+					log.Warnf("received interrupt while waiting to broadcast block, will shutdown after block is sent out")
+					time.Sleep(time.Until(btime))
+				}
 			} else {
 				log.Warnw("mined block in the past", "block-time", btime,
 					"time", time.Now(), "duration", time.Since(btime))
@@ -237,7 +231,7 @@ eventLoop:
 			for _, b := range blks {
 				_, notOk := mWon[b.Header.Miner]
 				if notOk {
-					log.Errorw("2 blocks for the same miner. Throwing hands in the air. Report this. It is important.", "bloks", blks)
+					log.Errorw("2 blocks for the same miner. Throwing hands in the air. Report this. It is important.", "blocks", blks)
 					continue eventLoop
 				}
 				mWon[b.Header.Miner] = struct{}{}
@@ -376,7 +370,7 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 		rbase = bvals[len(bvals)-1]
 	}
 
-	ticket, err := m.computeTicket(ctx, addr, &rbase, base)
+	ticket, err := m.computeTicket(ctx, addr, &rbase, base, len(bvals) > 0)
 	if err != nil {
 		return nil, xerrors.Errorf("scratching ticket failed: %w", err)
 	}
@@ -425,7 +419,7 @@ func (m *Miner) mineOne(ctx context.Context, addr address.Address, base *MiningB
 	return b, nil
 }
 
-func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *types.BeaconEntry, base *MiningBase) (*types.Ticket, error) {
+func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *types.BeaconEntry, base *MiningBase, haveNewEntries bool) (*types.Ticket, error) {
 	mi, err := m.api.StateMinerInfo(ctx, addr, types.EmptyTSK)
 	if err != nil {
 		return nil, err
@@ -439,8 +433,12 @@ func (m *Miner) computeTicket(ctx context.Context, addr address.Address, brand *
 	if err := addr.MarshalCBOR(buf); err != nil {
 		return nil, xerrors.Errorf("failed to marshal address to cbor: %w", err)
 	}
-	input, err := m.api.ChainGetRandomness(ctx, base.TipSet.Key(), crypto.DomainSeparationTag_TicketProduction,
-		base.TipSet.Height()+base.NullRounds+1-build.TicketRandomnessLookback, buf.Bytes())
+
+	if !haveNewEntries {
+		buf.Write(base.TipSet.MinTicket().VRFProof)
+	}
+
+	input, err := store.DrawRandomness(brand.Data, crypto.DomainSeparationTag_TicketProduction, base.TipSet.Height()+base.NullRounds+1-build.TicketRandomnessLookback, buf.Bytes())
 	if err != nil {
 		return nil, err
 	}

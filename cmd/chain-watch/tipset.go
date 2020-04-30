@@ -9,6 +9,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gwaylib/errors"
 	_ "github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
@@ -45,7 +46,7 @@ type blocks struct {
 	BlockInfos []blockInfo
 	PledgeNum  string
 	MinTicket  interface{}
-	TipSet     interface{}
+	Height     abi.ChainEpoch
 }
 
 func SerialJson(obj interface{}) string {
@@ -142,7 +143,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 			KafkaTimestamp: GenKTimestamp(),
 			Type:           "block",
 		},
-		TipSet: ts,
+		Height: ts.Height(),
 	}
 	//blocks.Type = "block"
 	blocks.BlockInfos = blockInfos
