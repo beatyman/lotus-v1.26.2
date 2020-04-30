@@ -26,6 +26,7 @@ import (
 
 type MessageReceipt struct {
 	Height   abi.ChainEpoch
+	BlockCid string
 	ExitCode exitcode.ExitCode
 	Return   []byte
 	GasUsed  int64
@@ -136,6 +137,23 @@ func subMpool(ctx context.Context, api aapi.FullNode, storage io.Writer, curTs *
 				receipt.ExitCode = rece.Receipt.ExitCode
 				receipt.Return = rece.Receipt.Return
 				receipt.GasUsed = rece.Receipt.GasUsed
+
+				// checkout message from block
+				cids := rece.TipSet.Cids()
+			blkLoop:
+				for _, cid := range cids {
+					msgs, err := api.ChainGetBlockMessages(ctx, cid)
+					if err != nil {
+						log.Warn(errors.As(err))
+						continue
+					}
+					for _, mCid := range msgs.Cids {
+						if mCid.Equals(cid) {
+							receipt.BlockCid = cid.String()
+							break blkLoop
+						}
+					}
+				}
 			}
 			log.Info("receipt done")
 			ts := rece.TipSet

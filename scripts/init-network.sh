@@ -30,7 +30,7 @@ lotus_path=$ldt0111
 ./lotus --repo="${lotus_path}" daemon --lotus-make-genesis="${staging}/devnet.car" --import-key="${sdt0111}/pre-seal-t01000.key" --genesis-template="${staging}/genesis.json" --bootstrap=false &
 lpid=$!
 
-sleep 3
+sleep 10
 
 kill "$lpid"
 
@@ -45,6 +45,7 @@ git checkout build
 ./lotus --repo="${ldt0111}" daemon --api "3000$i" --bootstrap=false &
 sleep 10
 # make the wallet address to default, so it can send by ${ldlist[0]}
+#./lotus --repo="${ldt0111}" wallet import ${sdt0111}/pre-seal-t01000.key
 ./lotus --repo="${ldt0111}" wallet set-default $(./lotus --repo="${ldt0111}" wallet list)
 
 mdt0111=/data/lotus/dev/.mdt0111 # $(mktemp -d)

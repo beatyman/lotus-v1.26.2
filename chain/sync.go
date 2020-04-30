@@ -651,6 +651,9 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) err
 	})
 
 	beaconValuesCheck := async.Err(func() error {
+		// IGNORE DRAND, wait for offical fix
+		return nil
+
 		if os.Getenv("LOTUS_IGNORE_DRAND") == "_yes_" {
 			return nil
 		}
@@ -667,8 +670,14 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) err
 			return xerrors.Errorf("failed to marshal miner address to cbor: %w", err)
 		}
 
-		vrfBase, err := syncer.sm.ChainStore().GetRandomness(ctx, baseTs.Cids(),
-			crypto.DomainSeparationTag_TicketProduction, h.Height-build.TicketRandomnessLookback, buf.Bytes())
+		beaconBase := *prevBeacon
+		if len(h.BeaconEntries) == 0 {
+			buf.Write(baseTs.MinTicket().VRFProof)
+		} else {
+			beaconBase = h.BeaconEntries[len(h.BeaconEntries)-1]
+		}
+
+		vrfBase, err := store.DrawRandomness(beaconBase.Data, crypto.DomainSeparationTag_TicketProduction, h.Height-build.TicketRandomnessLookback, buf.Bytes())
 		if err != nil {
 			return xerrors.Errorf("failed to compute vrf base for ticket: %w", err)
 		}
