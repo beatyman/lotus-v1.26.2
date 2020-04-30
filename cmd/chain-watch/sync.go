@@ -8,6 +8,19 @@ import (
 )
 
 func runSyncer(ctx context.Context, api api.FullNode) {
+	// checking process
+	log.Info("Get sync state")
+	base, err := api.SyncState(ctx)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	if len(base.ActiveSyncs) > 0 {
+		log.Infof("Base sync state:%+v", base.ActiveSyncs[0].Base.Height())
+		syncHead(ctx, api, base.ActiveSyncs[0].Base)
+	}
+
+	// listen change
 	notifs, err := api.ChainNotify(ctx)
 	if err != nil {
 		panic(err)
