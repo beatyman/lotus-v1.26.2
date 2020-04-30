@@ -651,6 +651,9 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) err
 	})
 
 	beaconValuesCheck := async.Err(func() error {
+		// IGNORE DRAND, wait for offical fix
+		return nil
+
 		if os.Getenv("LOTUS_IGNORE_DRAND") == "_yes_" {
 			return nil
 		}
