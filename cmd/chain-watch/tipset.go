@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 
 	"fmt"
-	"io"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -58,10 +57,28 @@ func SerialJson(obj interface{}) string {
 	return string(out)
 }
 
-func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.TipSet, maxBatch int) {
+func syncHead(ctx context.Context, api api.FullNode, ts *types.TipSet) {
 	// tsData := SerialJson(ts)
 	// _ = tsData
 	// log.Infof("Getting synced block list:%s", string(tsData))
+
+	// continue from the db height
+	maxHeight, err := GetCurHeight()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	if (int64(ts.Height()) - 1) != maxHeight {
+		oldTs, err := api.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(maxHeight+1), types.EmptyTSK)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		syncHead(ctx, api, oldTs)
+		return
+	}
+
+	// sync the new one
 
 	pledgeNum, err := api.StatePledgeCollateral(ctx, ts.Key())
 	if err != nil {
@@ -154,6 +171,11 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 	blocks.MinTicket = minTicketBlock.Cid()
 	bjson := SerialJson(blocks)
 	KafkaProducer(bjson, _kafkaTopic)
+
+	// make sync process
+	if err := AddCurHeight(int64(ts.Height())); err != nil {
+		log.Error(err)
+	}
 }
 
 func apiMsgCids(in []api.Message) []cid.Cid {
