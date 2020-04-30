@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"io"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/store"
 )
 
-func runSyncer(ctx context.Context, api api.FullNode, st io.Writer, maxBatch int) {
+func runSyncer(ctx context.Context, api api.FullNode) {
 	notifs, err := api.ChainNotify(ctx)
 	if err != nil {
 		panic(err)
@@ -20,7 +19,7 @@ func runSyncer(ctx context.Context, api api.FullNode, st io.Writer, maxBatch int
 				case store.HCCurrent:
 					fallthrough
 				case store.HCApply:
-					syncHead(ctx, api, st, change.Val, maxBatch)
+					syncHead(ctx, api, change.Val)
 				case store.HCRevert:
 					log.Warnf("revert todo")
 				}
