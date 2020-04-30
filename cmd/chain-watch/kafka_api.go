@@ -22,17 +22,13 @@ var (
 	_kpLock = sync.Mutex{}
 )
 
-func CloseKafkaProducer() {
-	_kpLock.Lock()
-	defer _kpLock.Unlock()
+func closeKafkaProducer() {
 	if _kp != nil {
 		_kp.Close()
 	}
 }
 
-func GetKafkaProducer() (sarama.SyncProducer, error) {
-	_kpLock.Lock()
-	defer _kpLock.Unlock()
+func getKafkaProducer() (sarama.SyncProducer, error) {
 	if _kp != nil {
 		return _kp, nil
 	}
@@ -74,10 +70,12 @@ func GetKafkaProducer() (sarama.SyncProducer, error) {
 func KafkaProducer(producerData string, topic string) error {
 	// TODO: fix this to pool
 	go func(m string) {
-		p, err := GetKafkaProducer()
+		_kpLock.Lock()
+		defer _kpLock.Unlock()
+		p, err := getKafkaProducer()
 		if err != nil {
 			log.Error(err)
-			CloseKafkaProducer()
+			closeKafkaProducer()
 			return
 		}
 		msg := &sarama.ProducerMessage{
@@ -88,7 +86,7 @@ func KafkaProducer(producerData string, topic string) error {
 		part, offset, err := p.SendMessage(msg)
 		if err != nil {
 			log.Error(err)
-			CloseKafkaProducer()
+			closeKafkaProducer()
 			return
 		}
 		log.Infof("send kafka msg done:%s, partition:%d,offset:%d", m, part, offset)
