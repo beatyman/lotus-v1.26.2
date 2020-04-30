@@ -85,6 +85,7 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 			log.Error(err)
 			continue
 		}
+		log.Info("blockMessages:%+v", blockMessages)
 		//log.Info("ChainGetBlockMessages:", SerialJson(blockMessages))
 		pmsgs, err := api.ChainGetParentMessages(ctx, cid)
 		if err != nil {
@@ -94,6 +95,8 @@ func syncHead(ctx context.Context, api api.FullNode, st io.Writer, ts *types.Tip
 		if len(pmsgs) == 0 {
 			log.Info("No ParentMessages:")
 			// continue
+		} else {
+			go subMpool(ctx, api, ts, cid, blk, pmsgs)
 		}
 
 		blockInfo := blockInfo{}
