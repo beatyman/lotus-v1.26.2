@@ -87,7 +87,7 @@ func (m mybs) Get(c cid.Cid) (block.Block, error) {
 	return b, nil
 }
 
-func NewGenerator() (*ChainGen, error) {
+func NewGeneratorWithSectors(numSectors int) (*ChainGen, error) {
 	mr := repo.NewMemory(nil)
 	lr, err := mr.Lock(repo.StorageMiner)
 	if err != nil {
@@ -136,7 +136,7 @@ func NewGenerator() (*ChainGen, error) {
 		return nil, err
 	}
 
-	genm1, k1, err := seed.PreSeal(maddr1, abi.RegisteredProof_StackedDRG2KiBPoSt, 0, 1, m1temp, []byte("some randomness"), nil)
+	genm1, k1, err := seed.PreSeal(maddr1, abi.RegisteredProof_StackedDRG2KiBPoSt, 0, numSectors, m1temp, []byte("some randomness"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func NewGenerator() (*ChainGen, error) {
 		return nil, err
 	}
 
-	genm2, k2, err := seed.PreSeal(maddr2, abi.RegisteredProof_StackedDRG2KiBPoSt, 0, 1, m2temp, []byte("some randomness"), nil)
+	genm2, k2, err := seed.PreSeal(maddr2, abi.RegisteredProof_StackedDRG2KiBPoSt, 0, numSectors, m2temp, []byte("some randomness"), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +239,10 @@ func NewGenerator() (*ChainGen, error) {
 	return gen, nil
 }
 
+func NewGenerator() (*ChainGen, error) {
+	return NewGeneratorWithSectors(1)
+}
+
 func (cg *ChainGen) SetStateManager(sm *stmgr.StateManager) {
 	cg.sm = sm
 }
@@ -277,7 +281,7 @@ func CarWalkFunc(nd format.Node) (out []*format.Link, err error) {
 }
 
 func (cg *ChainGen) nextBlockProof(ctx context.Context, pts *types.TipSet, m address.Address, round abi.ChainEpoch) ([]types.BeaconEntry, *types.ElectionProof, *types.Ticket, error) {
-	mc := &mca{w: cg.w, sm: cg.sm, pv: ffiwrapper.ProofVerifier}
+	mc := &mca{w: cg.w, sm: cg.sm, pv: ffiwrapper.ProofVerifier, bcn: cg.beacon}
 
 	mbi, err := mc.MinerGetBaseInfo(ctx, m, round, pts.Key())
 	if err != nil {
@@ -306,8 +310,11 @@ func (cg *ChainGen) nextBlockProof(ctx context.Context, pts *types.TipSet, m add
 		return nil, nil, nil, xerrors.Errorf("failed to cbor marshal address: %w", err)
 	}
 
-	ticketRand, err := cg.cs.GetRandomness(ctx, pts.Cids(), crypto.DomainSeparationTag_TicketProduction,
-		round-build.TicketRandomnessLookback, buf.Bytes())
+	if len(entries) == 0 {
+		buf.Write(pts.MinTicket().VRFProof)
+	}
+
+	ticketRand, err := store.DrawRandomness(rbase.Data, crypto.DomainSeparationTag_TicketProduction, round-build.TicketRandomnessLookback, buf.Bytes())
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -482,9 +489,10 @@ type MiningCheckAPI interface {
 }
 
 type mca struct {
-	w  *wallet.Wallet
-	sm *stmgr.StateManager
-	pv ffiwrapper.Verifier
+	w   *wallet.Wallet
+	sm  *stmgr.StateManager
+	pv  ffiwrapper.Verifier
+	bcn beacon.RandomBeacon
 }
 
 func (mca mca) ChainGetRandomness(ctx context.Context, tsk types.TipSetKey, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error) {
@@ -497,7 +505,7 @@ func (mca mca) ChainGetRandomness(ctx context.Context, tsk types.TipSetKey, pers
 }
 
 func (mca mca) MinerGetBaseInfo(ctx context.Context, maddr address.Address, epoch abi.ChainEpoch, tsk types.TipSetKey) (*api.MiningBaseInfo, error) {
-	return stmgr.MinerGetBaseInfo(ctx, mca.sm, tsk, epoch, maddr, mca.pv)
+	return stmgr.MinerGetBaseInfo(ctx, mca.sm, mca.bcn, tsk, epoch, maddr, mca.pv)
 }
 
 func (mca mca) WalletSign(ctx context.Context, a address.Address, v []byte) (*crypto.Signature, error) {

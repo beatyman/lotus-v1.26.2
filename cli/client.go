@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-actors/actors/builtin/market"
 
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -172,6 +173,11 @@ var clientDealCmd = &cli.Command{
 			Name:  "from",
 			Usage: "specify address to fund the deal with",
 		},
+		&cli.Int64Flag{
+			Name:  "start-epoch",
+			Usage: "specify the epoch that the deal should start at",
+			Value: -1,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
@@ -251,6 +257,7 @@ var clientDealCmd = &cli.Command{
 			Miner:             miner,
 			EpochPrice:        types.BigInt(price),
 			MinBlocksDuration: uint64(dur),
+			DealStartEpoch:    abi.ChainEpoch(cctx.Int64("start-epoch")),
 		})
 		if err != nil {
 			return err
@@ -483,16 +490,49 @@ var clientListDeals = &cli.Command{
 		defer closer()
 		ctx := ReqContext(cctx)
 
-		deals, err := api.ClientListDeals(ctx)
+		head, err := api.ChainHead(ctx)
 		if err != nil {
 			return err
 		}
 
+		localDeals, err := api.ClientListDeals(ctx)
+		if err != nil {
+			return err
+		}
+
+		var deals []deal
+		for idx := range localDeals {
+			onChain, err := api.StateMarketStorageDeal(ctx, localDeals[idx].DealID, head.Key())
+			if err != nil {
+				return err
+			}
+
+			deals = append(deals, deal{
+				LocalDeal:        localDeals[idx],
+				OnChainDealState: onChain.State,
+			})
+		}
+
 		w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
-		fmt.Fprintf(w, "DealCid\tDealId\tProvider\tState\tPieceCID\tSize\tPrice\tDuration\tMessage\n")
+		fmt.Fprintf(w, "DealCid\tDealId\tProvider\tState\tOn Chain?\tSlashed?\tPieceCID\tSize\tPrice\tDuration\tMessage\n")
 		for _, d := range deals {
-			fmt.Fprintf(w, "%s\t%d\t%s\t%s\t%s\t%d\t%s\t%d\t%s\n", d.ProposalCid, d.DealID, d.Provider, storagemarket.DealStates[d.State], d.PieceCID, d.Size, d.PricePerEpoch, d.Duration, d.Message)
+			onChain := "N"
+			if d.OnChainDealState.SectorStartEpoch != -1 {
+				onChain = fmt.Sprintf("Y (epoch %d)", d.OnChainDealState.SectorStartEpoch)
+			}
+
+			slashed := "N"
+			if d.OnChainDealState.SlashEpoch != -1 {
+				slashed = fmt.Sprintf("Y (epoch %d)", d.OnChainDealState.SlashEpoch)
+			}
+
+			fmt.Fprintf(w, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%d\t%s\n", d.LocalDeal.ProposalCid, d.LocalDeal.DealID, d.LocalDeal.Provider, storagemarket.DealStates[d.LocalDeal.State], onChain, slashed, d.LocalDeal.PieceCID, d.LocalDeal.Size, d.LocalDeal.PricePerEpoch, d.LocalDeal.Duration, d.LocalDeal.Message)
 		}
 		return w.Flush()
 	},
+}
+
+type deal struct {
+	LocalDeal        lapi.DealInfo
+	OnChainDealState market.DealState
 }

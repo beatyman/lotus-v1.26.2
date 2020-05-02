@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
@@ -52,6 +51,8 @@ type Runtime struct {
 
 	internalExecutions []*types.ExecutionResult
 	numActorsCreated   uint64
+	allowInternal      bool
+	callerValidated    bool
 }
 
 func (rt *Runtime) TotalFilCircSupply() abi.TokenAmount {
@@ -108,6 +109,9 @@ func (rs *Runtime) Get(c cid.Cid, o vmr.CBORUnmarshaler) bool {
 	if err := rs.cst.Get(context.TODO(), c, o); err != nil {
 		var nfe notFoundErr
 		if xerrors.As(err, &nfe) && nfe.IsNotFound() {
+			if xerrors.As(err, new(cbor.SerializationError)) {
+				panic(aerrors.Newf(exitcode.ErrSerialization, "failed to unmarshal cbor object %s", err))
+			}
 			return false
 		}
 
@@ -119,6 +123,9 @@ func (rs *Runtime) Get(c cid.Cid, o vmr.CBORUnmarshaler) bool {
 func (rs *Runtime) Put(x vmr.CBORMarshaler) cid.Cid {
 	c, err := rs.cst.Put(context.TODO(), x)
 	if err != nil {
+		if xerrors.As(err, new(cbor.SerializationError)) {
+			panic(aerrors.Newf(exitcode.ErrSerialization, "failed to marshal cbor object %s", err))
+		}
 		panic(aerrors.Fatalf("failed to put cbor object: %s", err))
 	}
 	return c
@@ -140,6 +147,11 @@ func (rs *Runtime) shimCall(f func() interface{}) (rval []byte, aerr aerrors.Act
 	}()
 
 	ret := f()
+
+	if !rs.callerValidated {
+		rs.Abortf(exitcode.SysErrorIllegalActor, "Caller MUST be validated during method execution")
+	}
+
 	switch ret := ret.(type) {
 	case []byte:
 		return ret, nil
@@ -163,6 +175,7 @@ func (rs *Runtime) Message() vmr.Message {
 }
 
 func (rs *Runtime) ValidateImmediateCallerAcceptAny() {
+	rs.abortIfAlreadyValidated()
 	return
 }
 
@@ -222,8 +235,20 @@ func (rt *Runtime) NewActorAddress() address.Address {
 }
 
 func (rt *Runtime) CreateActor(codeId cid.Cid, address address.Address) {
+	if !builtin.IsBuiltinActor(codeId) {
+		rt.Abortf(exitcode.SysErrorIllegalArgument, "Can only create built-in actors.")
+	}
+
+	if builtin.IsSingletonActor(codeId) {
+		rt.Abortf(exitcode.SysErrorIllegalArgument, "Can only have one instance of singleton actors.")
+	}
+
+	_, err := rt.state.GetActor(address)
+	if err == nil {
+		rt.Abortf(exitcode.SysErrorIllegalArgument, "Actor address already exists")
+	}
+
 	rt.ChargeGas(rt.Pricelist().OnCreateActor())
-	var err error
 
 	err = rt.state.SetActor(address, &types.Actor{
 		Code:    codeId,
@@ -266,6 +291,7 @@ func (rs *Runtime) StartSpan(name string) vmr.TraceSpan {
 }
 
 func (rt *Runtime) ValidateImmediateCallerIs(as ...address.Address) {
+	rt.abortIfAlreadyValidated()
 	imm := rt.Message().Caller()
 
 	for _, a := range as {
@@ -290,6 +316,7 @@ func (rs *Runtime) AbortStateMsg(msg string) {
 }
 
 func (rt *Runtime) ValidateImmediateCallerType(ts ...cid.Cid) {
+	rt.abortIfAlreadyValidated()
 	callerCid, ok := rt.GetActorCodeCID(rt.Message().Caller())
 	if !ok {
 		panic(aerrors.Fatalf("failed to lookup code cid for caller"))
@@ -315,6 +342,9 @@ func (dwt *dumbWrapperType) Into(um vmr.CBORUnmarshaler) error {
 }
 
 func (rs *Runtime) Send(to address.Address, method abi.MethodNum, m vmr.CBORMarshaler, value abi.TokenAmount) (vmr.SendReturn, exitcode.ExitCode) {
+	if !rs.allowInternal {
+		rs.Abortf(exitcode.SysErrorIllegalActor, "runtime.Send() is currently disallowed")
+	}
 	var params []byte
 	if m != nil {
 		buf := new(bytes.Buffer)
@@ -407,20 +437,26 @@ func (ssh *shimStateHandle) Create(obj vmr.CBORMarshaler) {
 func (ssh *shimStateHandle) Readonly(obj vmr.CBORUnmarshaler) {
 	act, err := ssh.rs.state.GetActor(ssh.rs.Message().Receiver())
 	if err != nil {
-		ssh.rs.Abortf(exitcode.SysErrInternal, "failed to get actor for Readonly state: %s", err)
+		ssh.rs.Abortf(exitcode.SysErrorIllegalArgument, "failed to get actor for Readonly state: %s", err)
 	}
 	ssh.rs.Get(act.Head, obj)
 }
 
 func (ssh *shimStateHandle) Transaction(obj vmr.CBORer, f func() interface{}) interface{} {
+	if obj == nil {
+		ssh.rs.Abortf(exitcode.SysErrorIllegalActor, "Must not pass nil to Transaction()")
+	}
+
 	act, err := ssh.rs.state.GetActor(ssh.rs.Message().Receiver())
 	if err != nil {
-		ssh.rs.Abortf(exitcode.SysErrInternal, "failed to get actor for Readonly state: %s", err)
+		ssh.rs.Abortf(exitcode.SysErrorIllegalActor, "failed to get actor for Transaction: %s", err)
 	}
 	baseState := act.Head
 	ssh.rs.Get(baseState, obj)
 
+	ssh.rs.allowInternal = false
 	out := f()
+	ssh.rs.allowInternal = true
 
 	c := ssh.rs.Put(obj)
 
@@ -445,17 +481,17 @@ func (rt *Runtime) stateCommit(oldh, newh cid.Cid) aerrors.ActorError {
 	// TODO: we can make this more efficient in the future...
 	act, err := rt.state.GetActor(rt.Message().Receiver())
 	if err != nil {
-		rt.Abortf(exitcode.SysErrInternal, "failed to get actor to commit state: %s", err)
+		return aerrors.Escalate(err, "failed to get actor to commit state")
 	}
 
 	if act.Head != oldh {
-		rt.Abortf(exitcode.ErrIllegalState, "failed to update, inconsistent base reference")
+		return aerrors.Fatal("failed to update, inconsistent base reference")
 	}
 
 	act.Head = newh
 
 	if err := rt.state.SetActor(rt.Message().Receiver(), act); err != nil {
-		rt.Abortf(exitcode.SysErrInternal, "failed to set actor in commit state: %s", err)
+		return aerrors.Fatalf("failed to set actor in commit state: %s", err)
 	}
 
 	return nil
@@ -483,4 +519,11 @@ func (rt *Runtime) Pricelist() Pricelist {
 
 func (rt *Runtime) incrementNumActorsCreated() {
 	rt.numActorsCreated++
+}
+
+func (rt *Runtime) abortIfAlreadyValidated() {
+	if rt.callerValidated {
+		rt.Abortf(exitcode.SysErrorIllegalActor, "Method must validate caller identity exactly once")
+	}
+	rt.callerValidated = true
 }

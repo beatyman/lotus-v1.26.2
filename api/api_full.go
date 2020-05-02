@@ -331,6 +331,7 @@ type StartDealParams struct {
 	Miner             address.Address
 	EpochPrice        types.BigInt
 	MinBlocksDuration uint64
+	DealStartEpoch    abi.ChainEpoch
 }
 
 type IpldObject struct {
@@ -389,6 +390,7 @@ type MiningBaseInfo struct {
 	WorkerKey       address.Address
 	SectorSize      abi.SectorSize
 	PrevBeaconEntry types.BeaconEntry
+	BeaconEntries   []types.BeaconEntry
 }
 
 type BlockTemplate struct {

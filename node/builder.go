@@ -73,15 +73,15 @@ type special struct{ id int }
 
 //nolint:golint
 var (
-	DefaultTransportsKey = special{0} // Libp2p option
-	DiscoveryHandlerKey  = special{2} // Private type
-	AddrsFactoryKey      = special{3} // Libp2p option
-	SmuxTransportKey     = special{4} // Libp2p option
-	RelayKey             = special{5} // Libp2p option
-	SecurityKey          = special{6} // Libp2p option
-	BaseRoutingKey       = special{7} // fx groups + multiret
-	NatPortMapKey        = special{8} // Libp2p option
-	ConnectionManagerKey = special{9} // Libp2p option
+	DefaultTransportsKey = special{0}  // Libp2p option
+	DiscoveryHandlerKey  = special{2}  // Private type
+	AddrsFactoryKey      = special{3}  // Libp2p option
+	SmuxTransportKey     = special{4}  // Libp2p option
+	RelayKey             = special{5}  // Libp2p option
+	SecurityKey          = special{6}  // Libp2p option
+	BaseRoutingKey       = special{7}  // fx groups + multiret
+	NatPortMapKey        = special{8}  // Libp2p option
+	ConnectionManagerKey = special{9}  // Libp2p option
 	AutoNATSvcKey        = special{10} // Libp2p option
 )
 
@@ -370,6 +370,10 @@ func ConfigFullNode(c interface{}) Option {
 
 	return Options(
 		ConfigCommon(&cfg.Common),
+		If(cfg.Client.UseIpfs,
+			Override(new(dtypes.ClientBlockstore), modules.IpfsClientBlockstore),
+		),
+
 		If(cfg.Metrics.HeadNotifs,
 			Override(HeadMetricsKey, metrics.SendHeadNotifs(cfg.Metrics.Nickname)),
 		),
@@ -406,9 +410,6 @@ func Repo(r repo.Repo) Option {
 		return Options(
 			Override(new(repo.LockedRepo), modules.LockedRepo(lr)), // module handles closing
 
-			ApplyIf(isType(repo.FullNode), ConfigFullNode(c)),
-			ApplyIf(isType(repo.StorageMiner), ConfigStorageMiner(c)),
-
 			Override(new(dtypes.MetadataDS), modules.Datastore),
 			Override(new(dtypes.ChainBlockstore), modules.ChainBlockstore),
 
@@ -423,6 +424,9 @@ func Repo(r repo.Repo) Option {
 			Override(new(types.KeyStore), modules.KeyStore),
 
 			Override(new(*dtypes.APIAlg), modules.APISecret),
+
+			ApplyIf(isType(repo.FullNode), ConfigFullNode(c)),
+			ApplyIf(isType(repo.StorageMiner), ConfigStorageMiner(c)),
 		)(settings)
 	}
 }
