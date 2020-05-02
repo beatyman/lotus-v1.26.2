@@ -25,6 +25,7 @@ func TestFileServer(t *testing.T) {
 	defer func() {
 		os.RemoveAll(sealedRepo)
 	}()
+
 	if err := ioutil.WriteFile(sealedRepo+"/cache/t0100/1", []byte("testing"), 0666); err != nil {
 		t.Fatal(err)
 	}
@@ -63,5 +64,17 @@ func TestFileServer(t *testing.T) {
 	}
 	if len(r.Files) != 2 {
 		t.Fatal("expect 2 files,but:", len(r.Files))
+	}
+	resp, err = http.PostForm("http://127.0.0.1:1280/storage/delete?sid=t0100", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatal(resp.StatusCode)
+	}
+	_, err = os.Stat(sealedRepo + "/cache/t0100")
+	if !os.IsNotExist(err) {
+		t.Fatal(err)
 	}
 }
