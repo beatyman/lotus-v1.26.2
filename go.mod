@@ -14,6 +14,7 @@ require (
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/docker/go-units v0.4.0
 	github.com/drand/drand v0.8.1
+	github.com/fatih/color v1.8.0
 	github.com/filecoin-project/chain-validation v0.0.6-0.20200430201010-ce84f6e96519
 	github.com/filecoin-project/filecoin-ffi v0.0.0-20200427223233-a0014b17f124
 	github.com/filecoin-project/go-address v0.0.2-0.20200218010043-eb9bb40ed5be
@@ -28,7 +29,7 @@ require (
 	github.com/filecoin-project/go-paramfetch v0.0.2-0.20200218225740-47c639bab663
 	github.com/filecoin-project/go-statestore v0.1.0
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
-	github.com/filecoin-project/sector-storage v0.0.0-20200429155855-7f1c9c89e735
+	github.com/filecoin-project/sector-storage v0.0.0-20200501181153-e4a9a16161e9
 	github.com/filecoin-project/specs-actors v0.3.0
 	github.com/filecoin-project/specs-storage v0.0.0-20200417134612-61b2d91a6102
 	github.com/filecoin-project/storage-fsm v0.0.0-20200427182014-01487d5ad3c8
@@ -51,7 +52,7 @@ require (
 	github.com/ipfs/go-filestore v0.0.2
 	github.com/ipfs/go-fs-lock v0.0.1
 	github.com/ipfs/go-graphsync v0.0.6-0.20200408061628-e1a98fc64c42
-	github.com/ipfs/go-hamt-ipld v0.0.15-0.20200427192427-f3547695a9a2
+	github.com/ipfs/go-hamt-ipld v0.1.1-0.20200501020327-d53d20a7063e
 	github.com/ipfs/go-ipfs-blockstore v0.1.4
 	github.com/ipfs/go-ipfs-chunker v0.0.1
 	github.com/ipfs/go-ipfs-ds-help v0.1.1
@@ -103,7 +104,7 @@ require (
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/stretchr/testify v1.5.1
 	github.com/whyrusleeping/bencher v0.0.0-20190829221104-bb6607aa8bba
-	github.com/whyrusleeping/cbor-gen v0.0.0-20200414195334-429a0b5e922e
+	github.com/whyrusleeping/cbor-gen v0.0.0-20200501014322-5f9941ef88e0
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7
 	github.com/whyrusleeping/pubsub v0.0.0-20131020042734-02de8aa2db3d
 	go.opencensus.io v0.22.3
