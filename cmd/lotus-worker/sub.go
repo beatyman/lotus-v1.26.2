@@ -281,7 +281,7 @@ repush:
 		}
 
 		// release the worker when pushing happened
-		if err := api.WorkerPushing(ctx, task.Key()); err != nil {
+		if err := api.WorkerFree(ctx, w.workerCfg.ID, task.Key()); err != nil {
 			log.Warn(errors.As(err))
 
 			if errors.ErrNoData.Equal(err) {
