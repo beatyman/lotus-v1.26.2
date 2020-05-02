@@ -17,6 +17,7 @@ import (
 	"github.com/filecoin-project/go-amt-ipld/v2"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors"
+	"github.com/filecoin-project/lotus/chain/beacon"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/stmgr"
@@ -46,6 +47,7 @@ type StateAPI struct {
 	ProofVerifier ffiwrapper.Verifier
 	StateManager  *stmgr.StateManager
 	Chain         *store.ChainStore
+	Beacon        beacon.RandomBeacon
 }
 
 func (a *StateAPI) StateNetworkName(ctx context.Context) (dtypes.NetworkName, error) {
@@ -91,7 +93,7 @@ func (a *StateAPI) StateMinerDeadlines(ctx context.Context, m address.Address, t
 	return stmgr.GetMinerDeadlines(ctx, a.StateManager, ts, m)
 }
 
-func (a *StateAPI)  StateMinerProvingDeadline(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*miner.DeadlineInfo, error) {
+func (a *StateAPI) StateMinerProvingDeadline(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*miner.DeadlineInfo, error) {
 	ts, err := a.Chain.GetTipSetFromKey(tsk)
 	if err != nil {
 		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
@@ -272,7 +274,7 @@ func (a *StateAPI) StateReadState(ctx context.Context, act *types.Actor, tsk typ
 
 // This is on StateAPI because miner.Miner requires this, and MinerAPI requires miner.Miner
 func (a *StateAPI) MinerGetBaseInfo(ctx context.Context, maddr address.Address, epoch abi.ChainEpoch, tsk types.TipSetKey) (*api.MiningBaseInfo, error) {
-	return stmgr.MinerGetBaseInfo(ctx, a.StateManager, tsk, epoch, maddr, a.ProofVerifier)
+	return stmgr.MinerGetBaseInfo(ctx, a.StateManager, a.Beacon, tsk, epoch, maddr, a.ProofVerifier)
 }
 
 func (a *StateAPI) MinerCreateBlock(ctx context.Context, bt *api.BlockTemplate) (*types.BlockMsg, error) {
@@ -654,7 +656,6 @@ func (a *StateAPI) StateMinerInitialPledgeCollateral(ctx context.Context, maddr 
 		var err error
 		params, err := actors.SerializeParams(&market.VerifyDealsOnSectorProveCommitParams{
 			DealIDs:      precommit.Info.DealIDs,
-			SectorSize:   st.GetSectorSize(),
 			SectorExpiry: precommit.Info.Expiration,
 		})
 		if err != nil {

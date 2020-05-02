@@ -8,7 +8,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-storage/storage"
@@ -21,9 +20,10 @@ import (
 const StartConfidence = 4 // TODO: config
 
 type WindowPoStScheduler struct {
-	api       storageMinerApi
-	prover    storage.Prover
-	proofType abi.RegisteredProof
+	api              storageMinerApi
+	prover           storage.Prover
+	proofType        abi.RegisteredProof
+	partitionSectors uint64
 
 	actor  address.Address
 	worker address.Address
@@ -44,17 +44,20 @@ func NewWindowedPoStScheduler(api storageMinerApi, sb storage.Prover, actor addr
 		return nil, xerrors.Errorf("getting sector size: %w", err)
 	}
 
-	spt, err := ffiwrapper.SealProofTypeFromSectorSize(mi.SectorSize)
+	rt, err := mi.SealProofType.RegisteredWindowPoStProof()
 	if err != nil {
 		return nil, err
 	}
 
-	rt, err := spt.RegisteredWindowPoStProof()
-	if err != nil {
-		return nil, err
-	}
+	return &WindowPoStScheduler{
+		api:              api,
+		prover:           sb,
+		proofType:        rt,
+		partitionSectors: mi.WindowPoStPartitionSectors,
 
-	return &WindowPoStScheduler{api: api, prover: sb, actor: actor, worker: worker, proofType: rt}, nil
+		actor:  actor,
+		worker: worker,
+	}, nil
 }
 
 func deadlineEquals(a, b *miner.DeadlineInfo) bool {
@@ -129,10 +132,10 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 			}
 
 			if err := s.revert(ctx, lowest); err != nil {
-				log.Error("handling head reverts in fallbackPost sched: %+v", err)
+				log.Error("handling head reverts in windowPost sched: %+v", err)
 			}
 			if err := s.update(ctx, highest); err != nil {
-				log.Error("handling head updates in fallbackPost sched: %+v", err)
+				log.Error("handling head updates in windowPost sched: %+v", err)
 			}
 
 			span.End()
@@ -173,6 +176,7 @@ func (s *WindowPoStScheduler) update(ctx context.Context, new *types.TipSet) err
 	if deadlineEquals(s.activeDeadline, di) {
 		return nil // already working on this deadline
 	}
+
 	if !di.PeriodStarted() {
 		return nil // not proving anything yet
 	}
@@ -206,7 +210,7 @@ func (s *WindowPoStScheduler) abortActivePoSt() {
 		s.abort()
 	}
 
-	log.Warnf("Aborting Fallback PoSt (Deadline: %+v)", s.activeDeadline)
+	log.Warnf("Aborting Window PoSt (Deadline: %+v)", s.activeDeadline)
 
 	s.activeDeadline = nil
 	s.abort = nil

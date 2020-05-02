@@ -22,18 +22,14 @@ var (
 	_kpLock = sync.Mutex{}
 )
 
-func CloseKafkaProducer() {
-	_kpLock.Lock()
-	defer _kpLock.Unlock()
+func closeKafkaProducer() {
 	if _kp != nil {
 		_kp.Close()
 	}
 	time.Sleep(3e9)
 }
 
-func GetKafkaProducer() (sarama.SyncProducer, error) {
-	_kpLock.Lock()
-	defer _kpLock.Unlock()
+func getKafkaProducer() (sarama.SyncProducer, error) {
 	if _kp != nil {
 		return _kp, nil
 	}
@@ -75,27 +71,26 @@ func GetKafkaProducer() (sarama.SyncProducer, error) {
 func KafkaProducer(producerData string, topic string) error {
 	// TODO: fix this to pool
 	go func(m string) {
-	retry:
-		p, err := GetKafkaProducer()
+		_kpLock.Lock()
+		defer _kpLock.Unlock()
+		p, err := getKafkaProducer()
 		if err != nil {
 			log.Error(err)
-			CloseKafkaProducer()
-			goto retry
+			closeKafkaProducer()
+			return
 		}
 		msg := &sarama.ProducerMessage{
 			Topic: topic,
 			Value: sarama.ByteEncoder(producerData),
 		}
 		log.Infof("send kafka msg:%s", m)
-		_ = p
-		_ = msg
-		// part, offset, err := p.SendMessage(msg)
-		// if err != nil {
-		// 	log.Error(err)
-		// 	CloseKafkaProducer()
-		// 	goto retry
-		// }
-		// log.Infof("send kafka msg done:%s, partition:%d,offset:%d", m, part, offset)
+		part, offset, err := p.SendMessage(msg)
+		if err != nil {
+			log.Error(err)
+			closeKafkaProducer()
+			return
+		}
+		log.Infof("send kafka msg done:%s, partition:%d,offset:%d", m, part, offset)
 	}(producerData)
 
 	return nil

@@ -32,7 +32,6 @@ import (
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	logging "github.com/ipfs/go-log"
-	mh "github.com/multiformats/go-multihash"
 	cbg "github.com/whyrusleeping/cbor-gen"
 )
 
@@ -74,7 +73,7 @@ func (ta *testActor) Exports() []interface{} {
 }
 
 func (ta *testActor) Constructor(rt runtime.Runtime, params *adt.EmptyValue) *adt.EmptyValue {
-
+	rt.ValidateImmediateCallerAcceptAny()
 	rt.State().Create(&testActorState{11})
 	fmt.Println("NEW ACTOR ADDRESS IS: ", rt.Message().Receiver())
 
@@ -82,6 +81,7 @@ func (ta *testActor) Constructor(rt runtime.Runtime, params *adt.EmptyValue) *ad
 }
 
 func (ta *testActor) TestMethod(rt runtime.Runtime, params *adt.EmptyValue) *adt.EmptyValue {
+	rt.ValidateImmediateCallerAcceptAny()
 	var st testActorState
 	rt.State().Readonly(&st)
 
@@ -111,12 +111,6 @@ func TestForkHeightTriggers(t *testing.T) {
 	sm := NewStateManager(cg.ChainStore())
 
 	inv := vm.NewInvoker()
-
-	pref := cid.NewPrefixV1(cid.Raw, mh.IDENTITY)
-	actcid, err := pref.Sum([]byte("testactor"))
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// predicting the address here... may break if other assumptions change
 	taddr, err := address.NewIDAddress(1002)
@@ -157,7 +151,7 @@ func TestForkHeightTriggers(t *testing.T) {
 		return st.Flush(ctx)
 	}
 
-	inv.Register(actcid, &testActor{}, &testActorState{})
+	inv.Register(builtin.PaymentChannelActorCodeID, &testActor{}, &testActorState{})
 	sm.SetVMConstructor(func(c cid.Cid, h abi.ChainEpoch, r vm.Rand, b blockstore.Blockstore, s runtime.Syscalls) (*vm.VM, error) {
 		nvm, err := vm.NewVM(c, h, r, b, s)
 		if err != nil {
@@ -171,7 +165,7 @@ func TestForkHeightTriggers(t *testing.T) {
 
 	var msgs []*types.SignedMessage
 
-	enc, err := actors.SerializeParams(&init_.ExecParams{CodeCID: actcid})
+	enc, err := actors.SerializeParams(&init_.ExecParams{CodeCID: builtin.PaymentChannelActorCodeID})
 	if err != nil {
 		t.Fatal(err)
 	}
