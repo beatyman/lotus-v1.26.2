@@ -42,6 +42,35 @@ var disableHLMWorkerCmd = &cli.Command{
 }
 
 var infoHLMWorkerCmd = &cli.Command{
+	Name:  "info",
+	Usage: "worker information",
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		wstat, err := nodeApi.WorkerStatus(ctx)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Worker use:\n")
+		fmt.Printf("\tLocal: %d / %d (+%d reserved)\n", wstat.LocalTotal-wstat.LocalReserved-wstat.LocalFree, wstat.LocalTotal-wstat.LocalReserved, wstat.LocalReserved)
+		fmt.Printf("\tRemote: %d / %d\n", wstat.RemotesTotal-wstat.RemotesFree, wstat.RemotesTotal)
+
+		fmt.Printf("Queues:\n")
+		fmt.Printf("\tAddPiece: %d\n", wstat.AddPieceWait)
+		fmt.Printf("\tPreCommit1: %d\n", wstat.PreCommit1Wait)
+		fmt.Printf("\tPreCommit2: %d\n", wstat.PreCommit2Wait)
+		fmt.Printf("\tCommit1: %d\n", wstat.Commit1Wait)
+		fmt.Printf("\tCommit2: %d\n", wstat.Commit2Wait)
+		fmt.Printf("\tUnseal: %d\n", wstat.UnsealWait)
+		return nil
+	},
+}
+var listHLMWorkerCmd = &cli.Command{
 	Name:  "list",
 	Usage: "list worker status",
 	Action: func(cctx *cli.Context) error {
