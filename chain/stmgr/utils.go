@@ -98,6 +98,16 @@ func SectorSetSizes(ctx context.Context, sm *StateManager, maddr address.Address
 		return api.MinerSectors{}, xerrors.Errorf("(get sset) failed to load miner actor state: %w", err)
 	}
 
+	notProving, err := abi.BitFieldUnion(mas.Faults, mas.Recoveries)
+	if err != nil {
+		return api.MinerSectors{}, err
+	}
+
+	npc, err := notProving.Count()
+	if err != nil {
+		return api.MinerSectors{}, err
+	}
+
 	blks := cbor.NewCborStore(sm.ChainStore().Blockstore())
 	ss, err := amt.LoadAMT(ctx, blks, mas.Sectors)
 	if err != nil {
@@ -106,6 +116,7 @@ func SectorSetSizes(ctx context.Context, sm *StateManager, maddr address.Address
 
 	return api.MinerSectors{
 		Sset: ss.Count,
+		Pset: ss.Count - npc,
 	}, nil
 }
 
@@ -468,8 +479,7 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcn beacon.RandomBe
 		return nil, xerrors.Errorf("failed to marshal miner address: %w", err)
 	}
 
-	// TODO: use the right dst, also NB: not using any 'entropy' in this call because nicola really didnt want it
-	prand, err := store.DrawRandomness(rbase.Data, crypto.DomainSeparationTag_WinningPoStChallengeSeed, round-1, buf.Bytes())
+	prand, err := store.DrawRandomness(rbase.Data, crypto.DomainSeparationTag_WinningPoStChallengeSeed, round, buf.Bytes())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get randomness for winning post: %w", err)
 	}
