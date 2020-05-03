@@ -57,37 +57,19 @@ func SerialJson(obj interface{}) string {
 	return string(out)
 }
 
-var syncedTs *types.TipSet
-
 func syncHead(ctx context.Context, api api.FullNode, ts *types.TipSet) {
 	// tsData := SerialJson(ts)
 	// _ = tsData
 	// log.Infof("Getting synced block list:%s", string(tsData))
-
-	// continue from the db height
-	if syncedTs == nil {
-		syncedTs = ts
-	}
-	maxHeight, err := GetCurHeight()
+	historyHeight, err := GetCurHeight()
 	if err != nil {
 		log.Error(err)
 		return
 	}
-	if (int64(ts.Height()) - 1) > maxHeight {
-		oldTs, err := api.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(maxHeight+1), types.EmptyTSK)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		log.Infof("sync history:%d, oldTs:%s", maxHeight+1, oldTs.Height())
-		syncHead(ctx, api, oldTs)
-		if int64(syncedTs.Height()) > maxHeight {
-			syncHead(ctx, api, syncedTs)
-		}
+	if historyHeight == int64(ts.Height()) {
+		log.Info("synced:%s,%s", historyHeight, ts.Height())
 		return
 	}
-
-	// sync the new one
 
 	pledgeNum, err := api.StatePledgeCollateral(ctx, ts.Key())
 	if err != nil {
