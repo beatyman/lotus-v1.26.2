@@ -358,8 +358,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		WorkerCfg: w.workerCfg,
 	}
 
-	switch task.Type {
-	case ffiwrapper.WorkerAddPiece:
+	if task.Type == ffiwrapper.WorkerAddPiece {
 		// keep cache clean, the task will lock the cache.
 		if err := w.cleanCache(ctx); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
@@ -374,7 +373,11 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// 	return errRes(xerrors.Errorf("pushing unsealed data: %w", err))
 		// }
 		res.Pieces = rsp
+		return res
+	}
+	// checking is the cache in a different storage server, do fetch when it is.
 
+	switch task.Type {
 	case ffiwrapper.WorkerPreCommit1:
 		// checking staging data
 		unsealedFile := filepath.Join(w.repo, "unsealed", w.sb.SectorName(task.SectorID))
@@ -385,7 +388,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 
 			log.Infof("not found %d local staging data, try fetch", task.SectorID)
 			// not found local staging data, try fetch
-			if err := w.fetchSector(task.SectorID, task.Type); err != nil {
+			if err := w.fetch(task.SectorID); err != nil {
 				// return the err task not found and drop it.
 				return errRes(ffiwrapper.ErrTaskNotFound.As(err, task), task)
 			}

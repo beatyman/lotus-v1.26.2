@@ -2,85 +2,99 @@ package main
 
 import (
 	"context"
-	"mime"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
-
 	"path/filepath"
+	"strconv"
 
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
-	files "github.com/ipfs/go-ipfs-files"
+	"github.com/gwaylib/errors"
 	"golang.org/x/xerrors"
-	"gopkg.in/cheggaaa/pb.v1"
-
-	"github.com/filecoin-project/lotus/lib/tarutil"
 )
 
-func (w *worker) sizeForType(typ string) int64 {
-	size := int64(w.sb.SectorSize())
-	if typ == "cache" {
-		size *= 10
+func fetchFile(uri, to string) error {
+	file, err := os.OpenFile(to, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return errors.As(err, uri, to)
 	}
-	return size
+	defer file.Close()
+	stat, err := file.Stat()
+	if err != nil {
+		return errors.As(err, uri, to)
+	}
+	req, err := http.NewRequest("GET", uri, nil)
+	if err != nil {
+		return errors.As(err, uri, to)
+	}
+	req.Header.Set("Range", "bytes="+strconv.FormatInt(stat.Size(), 10)+"-")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return errors.As(err, uri, to)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return errors.New("server error").As(resp.StatusCode, uri, to)
+	}
+	if _, err := io.Copy(file, resp.Body); err != nil {
+		return errors.As(err, uri, to)
+	}
+	return nil
 }
 
-func (w *worker) fetch(typ string, sectorID abi.SectorID) error {
+func (w *worker) fetch(serverUri string, sectorID string) error {
 	// Close the fetch in the miner storage directory.
 	// TODO: fix to env
 	if filepath.Base(w.repo) == ".lotusstorage" {
 		return nil
 	}
 
-	outname := filepath.Join(w.repo, typ, w.sb.SectorName(sectorID))
-
-	url := w.minerEndpoint + "/remote/" + typ + "/" + w.sb.SectorName(sectorID)
-	log.Infof("Fetch %s %s", typ, url)
-
-	req, err := http.NewRequest("GET", url, nil)
+	// fetch cache
+	cacheResp, err := http.Get(fmt.Sprintf("http://%s/cache/%s/", serverUri, sectorID))
 	if err != nil {
-		return xerrors.Errorf("request: %w", err)
+		return errors.As(err)
 	}
-	req.Header = w.auth
-
-	resp, err := http.DefaultClient.Do(req)
+	defer cacheResp.Body.Close()
+	cacheRespData, err := ioutil.ReadAll(cacheResp.Body)
 	if err != nil {
-		return xerrors.Errorf("do request: %w", err)
+		return errors.As(err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return xerrors.Errorf("non-200 code: %d", resp.StatusCode)
+	cacheDir := &StorageDirectoryResp{}
+	if err := xml.Unmarshal(cacheRespData, cacheDir); err != nil {
+		return errors.As(err)
 	}
-
-	bar := pb.New64(w.sizeForType(typ))
-	bar.ShowPercent = true
-	bar.ShowSpeed = true
-	bar.Units = pb.U_BYTES
-
-	barreader := bar.NewProxyReader(resp.Body)
-
-	bar.Start()
-	defer bar.Finish()
-
-	mediatype, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	if err != nil {
-		return xerrors.Errorf("parse media type: %w", err)
+	if err := os.MkdirAll(filepath.Join(w.repo, "cache", sectorID), 0755); err != nil {
+		return errors.As(err)
+	}
+	for _, file := range cacheDir.Files {
+		if err := fetchFile(
+			fmt.Sprintf("http://%s/cache/%s/%s", serverUri, sectorID, file.Value),
+			filepath.Join(w.repo, "cache", sectorID, file.Value),
+		); err != nil {
+			return errors.As(err)
+		}
 	}
 
-	if err := os.RemoveAll(outname); err != nil {
-		return xerrors.Errorf("removing dest: %w", err)
+	// fetch sealed
+	if err := fetchFile(
+		fmt.Sprintf("http://%s/sealed/%s", serverUri, sectorID),
+		filepath.Join(w.repo, "sealed", sectorID),
+	); err != nil {
+		return errors.As(err)
 	}
 
-	switch mediatype {
-	case "application/x-tar":
-		return tarutil.ExtractTar(barreader, outname)
-	case "application/octet-stream":
-		return files.WriteTo(files.NewReaderFile(barreader), outname)
-	default:
-		return xerrors.Errorf("unknown content type: '%s'", mediatype)
+	// fetch unsealed
+	if err := fetchFile(
+		fmt.Sprintf("http://%s/unsealed/%s", serverUri, sectorID),
+		filepath.Join(w.repo, "unsealed", sectorID),
+	); err != nil {
+		return errors.As(err)
 	}
-
+	return nil
 }
 
 func (w *worker) push(ctx context.Context, typ string, sectorID string) error {
@@ -115,16 +129,4 @@ func (w *worker) remove(typ string, sectorID abi.SectorID) error {
 	filename := filepath.Join(w.repo, typ, w.sb.SectorName(sectorID))
 	log.Infof("Remove file: %s", filename)
 	return os.RemoveAll(filename)
-}
-
-func (w *worker) fetchSector(sectorID abi.SectorID, typ ffiwrapper.WorkerTaskType) error {
-	var err error
-	switch typ {
-	case ffiwrapper.WorkerPreCommit1:
-		err = w.fetch("staging", sectorID)
-	}
-	if err != nil {
-		return xerrors.Errorf("fetch failed: %w", err)
-	}
-	return nil
 }
