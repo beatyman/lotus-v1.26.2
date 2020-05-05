@@ -245,7 +245,7 @@ var runCmd = &cli.Command{
 			fileServer = netIp + ":1280"
 		}
 
-		fileServerToken, err := ioutil.ReadFile(filepath.Join(r, "token"))
+		fileServerToken, err := ioutil.ReadFile(filepath.Join(cctx.String("storagerepo"), "token"))
 		if err != nil {
 			return errors.As(err)
 		}
