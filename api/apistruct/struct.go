@@ -226,9 +226,11 @@ type StorageMinerStruct struct {
 		WorkerStatusAll    func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
 		WorkerQueue        func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
 		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
-		WorkerFree         func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
+		WorkerLock         func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
+		WorkerUnlock       func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
 		WorkerDone         func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
 		WorkerDisable      func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
+		WorkerAddConn      func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
 
 		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error       `perm:"write"`
 		DisableHLMStorage func(ctx context.Context, id int64) error                         `perm:"write"`
@@ -890,14 +892,20 @@ func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.Wor
 func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return c.Internal.WorkerWorking(ctx, workerId)
 }
-func (c *StorageMinerStruct) WorkerFree(ctx context.Context, workerId, taskKey string) error {
-	return c.Internal.WorkerFree(ctx, workerId, taskKey)
+func (c *StorageMinerStruct) WorkerLock(ctx context.Context, workerId, taskKey string) error {
+	return c.Internal.WorkerLock(ctx, workerId, taskKey)
+}
+func (c *StorageMinerStruct) WorkerUnlock(ctx context.Context, workerId, taskKey string) error {
+	return c.Internal.WorkerUnlock(ctx, workerId, taskKey)
 }
 func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return c.Internal.WorkerDone(ctx, res)
 }
 func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return c.Internal.WorkerDisable(ctx, wid, disable)
+}
+func (c *StorageMinerStruct) WorkerAddConn(ctx context.Context, wid string, num int) error {
+	return c.Internal.WorkerAddConn(ctx, wid, num)
 }
 
 func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {

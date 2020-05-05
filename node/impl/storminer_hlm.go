@@ -70,15 +70,20 @@ func (sm *StorageMinerAPI) WorkerQueue(ctx context.Context, cfg ffiwrapper.Worke
 func (sm *StorageMinerAPI) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorking(workerId)
 }
-func (sm *StorageMinerAPI) WorkerFree(ctx context.Context, workerId, taskKey string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).FreeWorker(ctx, workerId, taskKey)
+func (sm *StorageMinerAPI) WorkerLock(ctx context.Context, workerId, taskKey string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).LockWorker(ctx, workerId, taskKey)
 }
-
+func (sm *StorageMinerAPI) WorkerUnlock(ctx context.Context, workerId, taskKey string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockWorker(ctx, workerId, taskKey)
+}
 func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskDone(ctx, res)
 }
 func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableWorker(ctx, wid, disable)
+}
+func (sm *StorageMinerAPI) WorkerAddConn(ctx context.Context, wid string, num int) error {
+	return database.AddWorkerConn(wid, num)
 }
 func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddStorage(ctx, sInfo)

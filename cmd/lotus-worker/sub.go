@@ -38,6 +38,7 @@ func acceptJobs(ctx context.Context,
 	sb, sealedSB *ffiwrapper.Sealer,
 	act, workerAddr address.Address,
 	endpoint string, auth http.Header,
+	fileServer string,
 	repo, sealedRepo string,
 	noAddPiece, noPrecommit1, noPrecommit2, noCommit1, noCommit2, noVerify bool,
 ) error {
@@ -47,6 +48,7 @@ func acceptJobs(ctx context.Context,
 	workerCfg := ffiwrapper.WorkerCfg{
 		ID:           workerId,
 		IP:           netIp,
+		SvcUri:       fileServer,
 		NoAddPiece:   noAddPiece,
 		NoPrecommit1: noPrecommit1,
 		NoPrecommit2: noPrecommit2,
@@ -55,6 +57,10 @@ func acceptJobs(ctx context.Context,
 		NoVerify:     noVerify,
 	}
 
+	api, err := GetNodeApi()
+	if err != nil {
+		return errors.As(err)
+	}
 	w := &worker{
 		minerEndpoint: endpoint,
 		auth:          auth,
@@ -69,10 +75,6 @@ func acceptJobs(ctx context.Context,
 		workOn:    map[string]ffiwrapper.WorkerTask{},
 	}
 
-	api, err := GetNodeApi()
-	if err != nil {
-		return errors.As(err)
-	}
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
 		return err
@@ -284,7 +286,7 @@ repush:
 		}
 
 		// release the worker when pushing happened
-		if err := api.WorkerFree(ctx, w.workerCfg.ID, task.Key()); err != nil {
+		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key()); err != nil {
 			log.Warn(errors.As(err))
 
 			if errors.ErrNoData.Equal(err) {
@@ -357,8 +359,45 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		TaskID:    task.Key(),
 		WorkerCfg: w.workerCfg,
 	}
-
-	if task.Type == ffiwrapper.WorkerAddPiece {
+	api, err := GetNodeApi()
+	if err != nil {
+		ReleaseNodeApi(false)
+		return errRes(errors.As(err, w.workerCfg), task)
+	}
+	// checking is the cache in a different storage server, do fetch when it is.
+	if len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID {
+		log.Infof("fetch %s data from %s", task.SectorID, task.WorkerID)
+		// lock bandwidth
+		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
+			ReleaseNodeApi(false)
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+		// fetch data
+		if err := w.fetch(
+			task.SectorStorage.WorkerInfo.SvcUri,
+			task.SectorStorage.SectorInfo.ID,
+		); err != nil {
+			// return the err task not found and drop it.
+			return errRes(ffiwrapper.ErrTaskNotFound.As(err, task), task)
+		}
+		// release bandwidth
+		if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
+			ReleaseNodeApi(false)
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+		// download pass, and unlock the origin worker
+		if err := api.WorkerUnlock(ctx, task.WorkerID, task.Key()); err != nil {
+			ReleaseNodeApi(false)
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+	}
+	// lock the task to this worker
+	if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key()); err != nil {
+		ReleaseNodeApi(false)
+		return errRes(errors.As(err, w.workerCfg), task)
+	}
+	switch task.Type {
+	case ffiwrapper.WorkerAddPiece:
 		// keep cache clean, the task will lock the cache.
 		if err := w.cleanCache(ctx); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
@@ -373,27 +412,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// 	return errRes(xerrors.Errorf("pushing unsealed data: %w", err))
 		// }
 		res.Pieces = rsp
-		return res
-	}
-	// checking is the cache in a different storage server, do fetch when it is.
-
-	switch task.Type {
 	case ffiwrapper.WorkerPreCommit1:
-		// checking staging data
-		unsealedFile := filepath.Join(w.repo, "unsealed", w.sb.SectorName(task.SectorID))
-		if _, err := os.Lstat(unsealedFile); err != nil {
-			if !os.IsNotExist(err) {
-				return errRes(errors.As(err, w.workerCfg), task)
-			}
-
-			log.Infof("not found %d local staging data, try fetch", task.SectorID)
-			// not found local staging data, try fetch
-			if err := w.fetch(task.SectorID); err != nil {
-				// return the err task not found and drop it.
-				return errRes(ffiwrapper.ErrTaskNotFound.As(err, task), task)
-			}
-			// pass
-		}
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)

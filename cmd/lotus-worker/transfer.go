@@ -9,12 +9,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gwaylib/errors"
-	"golang.org/x/xerrors"
 )
 
 func fetchFile(uri, to string) error {
@@ -31,7 +28,7 @@ func fetchFile(uri, to string) error {
 	if err != nil {
 		return errors.As(err, uri, to)
 	}
-	req.Header.Set("Range", "bytes="+strconv.FormatInt(stat.Size(), 10)+"-")
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-", stat.Size()))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return errors.As(err, uri, to)
@@ -54,7 +51,7 @@ func (w *worker) fetch(serverUri string, sectorID string) error {
 	}
 
 	// fetch cache
-	cacheResp, err := http.Get(fmt.Sprintf("http://%s/cache/%s/", serverUri, sectorID))
+	cacheResp, err := http.Get(fmt.Sprintf("%s/cache/%s/", serverUri, sectorID))
 	if err != nil {
 		return errors.As(err)
 	}
@@ -72,7 +69,7 @@ func (w *worker) fetch(serverUri string, sectorID string) error {
 	}
 	for _, file := range cacheDir.Files {
 		if err := fetchFile(
-			fmt.Sprintf("http://%s/cache/%s/%s", serverUri, sectorID, file.Value),
+			fmt.Sprintf("%s/cache/%s/%s", serverUri, sectorID, file.Value),
 			filepath.Join(w.repo, "cache", sectorID, file.Value),
 		); err != nil {
 			return errors.As(err)
@@ -81,7 +78,7 @@ func (w *worker) fetch(serverUri string, sectorID string) error {
 
 	// fetch sealed
 	if err := fetchFile(
-		fmt.Sprintf("http://%s/sealed/%s", serverUri, sectorID),
+		fmt.Sprintf("%s/sealed/%s", serverUri, sectorID),
 		filepath.Join(w.repo, "sealed", sectorID),
 	); err != nil {
 		return errors.As(err)
@@ -89,7 +86,7 @@ func (w *worker) fetch(serverUri string, sectorID string) error {
 
 	// fetch unsealed
 	if err := fetchFile(
-		fmt.Sprintf("http://%s/unsealed/%s", serverUri, sectorID),
+		fmt.Sprintf("%s/unsealed/%s", serverUri, sectorID),
 		filepath.Join(w.repo, "unsealed", sectorID),
 	); err != nil {
 		return errors.As(err)

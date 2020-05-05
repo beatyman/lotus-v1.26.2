@@ -241,7 +241,8 @@ var runCmd = &cli.Command{
 		// make download server
 		fileServer := cctx.String("file-server")
 		if len(fileServer) == 0 {
-			fileServer = ":1280"
+			netIp := os.Getenv("NETIP")
+			fileServer = netIp + ":1280"
 		}
 
 		fileServerToken, err := ioutil.ReadFile(filepath.Join(r, "token"))
@@ -266,6 +267,7 @@ var runCmd = &cli.Command{
 					sb, sealedSB,
 					act, workerAddr,
 					"http://"+storageAddr, ainfo.AuthHeader(),
+					"http://"+fileServer,
 					r, sealedRepo,
 					cctx.Bool("no-addpiece"), cctx.Bool("no-precommit1"), cctx.Bool("no-precommit2"), cctx.Bool("no-commit1"), cctx.Bool("no-commit2"), cctx.Bool("no-verify"),
 				); err == nil {
