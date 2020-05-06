@@ -13,8 +13,9 @@ require (
 	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/davidlazar/go-crypto v0.0.0-20190912175916-7055855a373f // indirect
 	github.com/docker/go-units v0.4.0
-	github.com/drand/drand v0.7.2
-	github.com/filecoin-project/chain-validation v0.0.6-0.20200429181200-c83b25321997
+	github.com/drand/drand v0.8.1
+	github.com/fatih/color v1.8.0
+	github.com/filecoin-project/chain-validation v0.0.6-0.20200430201010-ce84f6e96519
 	github.com/filecoin-project/filecoin-ffi v0.0.0-20200427223233-a0014b17f124
 	github.com/filecoin-project/go-address v0.0.2-0.20200218010043-eb9bb40ed5be
 	github.com/filecoin-project/go-amt-ipld/v2 v2.0.1-0.20200131012142-05d80eeccc5e
@@ -28,7 +29,7 @@ require (
 	github.com/filecoin-project/go-paramfetch v0.0.2-0.20200218225740-47c639bab663
 	github.com/filecoin-project/go-statestore v0.1.0
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
-	github.com/filecoin-project/sector-storage v0.0.0-20200425102315-c19a25449861
+	github.com/filecoin-project/sector-storage v0.0.0-20200501181153-e4a9a16161e9
 	github.com/filecoin-project/specs-actors v0.3.0
 	github.com/filecoin-project/specs-storage v0.0.0-20200417134612-61b2d91a6102
 	github.com/filecoin-project/storage-fsm v0.0.0-20200427182014-01487d5ad3c8
@@ -51,13 +52,14 @@ require (
 	github.com/ipfs/go-filestore v0.0.2
 	github.com/ipfs/go-fs-lock v0.0.1
 	github.com/ipfs/go-graphsync v0.0.6-0.20200408061628-e1a98fc64c42
-	github.com/ipfs/go-hamt-ipld v0.0.15-0.20200204200533-99b8553ef242
+	github.com/ipfs/go-hamt-ipld v0.1.1-0.20200501020327-d53d20a7063e
 	github.com/ipfs/go-ipfs-blockstore v0.1.4
 	github.com/ipfs/go-ipfs-chunker v0.0.1
 	github.com/ipfs/go-ipfs-ds-help v0.1.1
 	github.com/ipfs/go-ipfs-exchange-interface v0.0.1
 	github.com/ipfs/go-ipfs-exchange-offline v0.0.1
 	github.com/ipfs/go-ipfs-files v0.0.7
+	github.com/ipfs/go-ipfs-http-client v0.0.5
 	github.com/ipfs/go-ipfs-routing v0.1.0
 	github.com/ipfs/go-ipld-cbor v0.0.5-0.20200428170625-a0bd04d3cbdf
 	github.com/ipfs/go-ipld-format v0.0.2
@@ -66,21 +68,22 @@ require (
 	github.com/ipfs/go-merkledag v0.2.4
 	github.com/ipfs/go-path v0.0.7
 	github.com/ipfs/go-unixfs v0.2.2-0.20190827150610-868af2e9e5cb
+	github.com/ipfs/interface-go-ipfs-core v0.2.3
 	github.com/ipld/go-ipld-prime v0.0.2-0.20191108012745-28a82f04c785
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/lib/pq v1.2.0
 	github.com/libp2p/go-eventbus v0.1.0
 	github.com/libp2p/go-libp2p v0.8.1
 	github.com/libp2p/go-libp2p-circuit v0.2.1
-	github.com/libp2p/go-libp2p-connmgr v0.1.0
-	github.com/libp2p/go-libp2p-core v0.5.1
-	github.com/libp2p/go-libp2p-discovery v0.3.0
+	github.com/libp2p/go-libp2p-connmgr v0.1.1
+	github.com/libp2p/go-libp2p-core v0.5.2
+	github.com/libp2p/go-libp2p-discovery v0.4.0
 	github.com/libp2p/go-libp2p-kad-dht v0.7.6
 	github.com/libp2p/go-libp2p-mplex v0.2.3
 	github.com/libp2p/go-libp2p-peer v0.2.0
 	github.com/libp2p/go-libp2p-peerstore v0.2.3
 	github.com/libp2p/go-libp2p-protocol v0.1.0
-	github.com/libp2p/go-libp2p-pubsub v0.2.6
+	github.com/libp2p/go-libp2p-pubsub v0.2.7-0.20200429194044-27b987071d1f
 	github.com/libp2p/go-libp2p-quic-transport v0.1.1
 	github.com/libp2p/go-libp2p-record v0.1.2
 	github.com/libp2p/go-libp2p-routing-helpers v0.2.1
@@ -101,7 +104,7 @@ require (
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/stretchr/testify v1.5.1
 	github.com/whyrusleeping/bencher v0.0.0-20190829221104-bb6607aa8bba
-	github.com/whyrusleeping/cbor-gen v0.0.0-20200414195334-429a0b5e922e
+	github.com/whyrusleeping/cbor-gen v0.0.0-20200501014322-5f9941ef88e0
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7
 	github.com/whyrusleeping/pubsub v0.0.0-20131020042734-02de8aa2db3d
 	go.opencensus.io v0.22.3
@@ -110,7 +113,7 @@ require (
 	go.uber.org/multierr v1.5.0
 	go.uber.org/zap v1.14.1
 	golang.org/x/net v0.0.0-20200301022130-244492dfa37a // indirect
-	golang.org/x/sys v0.0.0-20200409092240-59c9f1ba88fa
+	golang.org/x/sys v0.0.0-20200427175716-29b57079015a
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
@@ -124,6 +127,6 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 replace github.com/coreos/go-systemd => github.com/coreos/go-systemd/v22 v22.0.0
 
-replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200429014336-00712cd7dd99
+replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200502050041-11636f326a7c
 
-replace github.com/filecoin-project/storage-fsm => git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200429014644-1758f743aa28
+replace github.com/filecoin-project/storage-fsm => git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200502050839-bf7fe5868d51
