@@ -249,7 +249,7 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err)
 		}
-		fileHandle := NewStorageFileServer(sealedRepo, string(fileServerToken))
+		fileHandle := NewStorageFileServer(r, string(fileServerToken))
 		go func() {
 			log.Info("File server listen at: " + fileServer)
 			if err := http.ListenAndServe(fileServer, fileHandle); err != nil {
