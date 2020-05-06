@@ -122,11 +122,9 @@ loop:
 				}()
 
 				res := w.processTask(ctx, task)
+				w.workerDone(ctx, task, res)
 
 				log.Infof("Task %s done, err: %+v", task.Key(), res.GoErr)
-
-				// retry to commit the result.
-				w.workerDone(ctx, task, res)
 			}(task)
 
 		case <-ctx.Done():
@@ -392,7 +390,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 	}
 	// lock the task to this worker
-	if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key()); err != nil {
+	if err := api.WorkerLock(ctx, w.workerCfg.ID, task.Key()); err != nil {
 		ReleaseNodeApi(false)
 		return errRes(errors.As(err, w.workerCfg), task)
 	}
