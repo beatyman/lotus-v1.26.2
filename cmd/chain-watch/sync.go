@@ -5,6 +5,8 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/store"
+	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 )
 
 func runSyncer(ctx context.Context, api api.FullNode) {
@@ -17,7 +19,20 @@ func runSyncer(ctx context.Context, api api.FullNode) {
 	}
 	if len(base.ActiveSyncs) > 0 {
 		log.Infof("Base sync state:%+v", base.ActiveSyncs[0].Base.Height())
-		syncHead(ctx, api, base.ActiveSyncs[0].Base)
+		historyHeight, err := GetCurHeight()
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		baseHeight := int64(base.ActiveSyncs[0].Base.Height())
+		for i := historyHeight + 1; i < baseHeight; i++ {
+			oldTs, err := api.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(i), types.EmptyTSK)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			syncHead(ctx, api, oldTs)
+		}
 	}
 
 	// listen change
