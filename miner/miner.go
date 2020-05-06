@@ -200,8 +200,8 @@ eventLoop:
 
 		blks := make([]*types.BlockMsg, 0)
 
-		for _, addr := range addrs {
-			log.Infof("mineOne addrs:%s", addr)
+		for idx, addr := range addrs {
+			log.Infof("mineOne addrs:%d, %s", idx, addr)
 			b, err := m.mineOne(ctx, addr, base)
 			if err != nil {
 				log.Errorf("mining block failed: %+v", err)

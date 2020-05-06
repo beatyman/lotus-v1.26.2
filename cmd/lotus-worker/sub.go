@@ -284,7 +284,7 @@ repush:
 		}
 
 		// release the worker when pushing happened
-		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key()); err != nil {
+		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "pushing commit"); err != nil {
 			log.Warn(errors.As(err))
 
 			if errors.ErrNoData.Equal(err) {
@@ -383,14 +383,9 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			ReleaseNodeApi(false)
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
-		// download pass, and unlock the origin worker
-		if err := api.WorkerUnlock(ctx, task.WorkerID, task.Key()); err != nil {
-			ReleaseNodeApi(false)
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
 	}
 	// lock the task to this worker
-	if err := api.WorkerLock(ctx, w.workerCfg.ID, task.Key()); err != nil {
+	if err := api.WorkerLock(ctx, w.workerCfg.ID, task.Key(), "task in", int(task.Type)); err != nil {
 		ReleaseNodeApi(false)
 		return errRes(errors.As(err, w.workerCfg), task)
 	}
@@ -455,6 +450,21 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 
 		if err := w.pushCommit(ctx, task); err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+	}
+
+	// TODO: checking the next step is interrupt
+	if w.workerCfg.NoPrecommit2 {
+		api, err := GetNodeApi()
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+
+		// release the worker when pushing happened
+		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker"); err != nil {
+			log.Warn(errors.As(err))
+			ReleaseNodeApi(false)
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 	}

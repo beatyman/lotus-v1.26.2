@@ -70,11 +70,11 @@ func (sm *StorageMinerAPI) WorkerQueue(ctx context.Context, cfg ffiwrapper.Worke
 func (sm *StorageMinerAPI) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorking(workerId)
 }
-func (sm *StorageMinerAPI) WorkerLock(ctx context.Context, workerId, taskKey string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).LockWorker(ctx, workerId, taskKey)
+func (sm *StorageMinerAPI) WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).LockWorker(ctx, workerId, taskKey, memo, status)
 }
-func (sm *StorageMinerAPI) WorkerUnlock(ctx context.Context, workerId, taskKey string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockWorker(ctx, workerId, taskKey)
+func (sm *StorageMinerAPI) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockWorker(ctx, workerId, taskKey, memo)
 }
 func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskDone(ctx, res)
