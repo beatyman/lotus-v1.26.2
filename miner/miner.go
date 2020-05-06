@@ -154,8 +154,6 @@ func (m *Miner) mine(ctx context.Context) {
 	defer span.End()
 
 	var lastBase MiningBase
-	var nextRound time.Time
-	const tryRounds = 1
 
 eventLoop:
 	for {
@@ -198,6 +196,7 @@ eventLoop:
 			m.niceSleep(build.BlockDelay * time.Second)
 			continue
 		}
+		lastBase = *base
 
 		blks := make([]*types.BlockMsg, 0)
 
@@ -253,14 +252,10 @@ eventLoop:
 				}
 			}
 		} else {
-			now := time.Now()
-			if nextRound.Before(now) {
-				nextRound = now.Add(time.Duration(build.BlockDelay-(now.Unix()-nextRound.Unix())%build.BlockDelay) * time.Second)
-			}
-			// goto next round
-			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
+			nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds)), 0)
+
 			select {
-			case <-time.After(nextRound.Sub(now)):
+			case <-time.After(time.Until(nextRound)):
 			case <-m.stop:
 				stopping := m.stopping
 				m.stop = nil
