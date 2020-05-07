@@ -33,14 +33,14 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	block "github.com/ipfs/go-block-format"
-	car "github.com/ipfs/go-car"
-	carutil "github.com/ipfs/go-car/util"
 	"github.com/ipfs/go-cid"
 	dstore "github.com/ipfs/go-datastore"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	bstore "github.com/ipfs/go-ipfs-blockstore"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	logging "github.com/ipfs/go-log/v2"
+	car "github.com/ipld/go-car"
+	carutil "github.com/ipld/go-car/util"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	pubsub "github.com/whyrusleeping/pubsub"
 	"golang.org/x/xerrors"
@@ -940,7 +940,11 @@ func (cs *ChainStore) GetRandomness(ctx context.Context, blks []cid.Cid, pers cr
 	}
 }
 
-func (cs *ChainStore) GetTipsetByHeight(ctx context.Context, h abi.ChainEpoch, ts *types.TipSet) (*types.TipSet, error) {
+// GetTipsetByHeight returns the tipset on the chain behind 'ts' at the given
+// height. In the case that the given height is a null round, the 'prev' flag
+// selects the tipset before the null round if true, and the tipset following
+// the null round if false.
+func (cs *ChainStore) GetTipsetByHeight(ctx context.Context, h abi.ChainEpoch, ts *types.TipSet, prev bool) (*types.TipSet, error) {
 	if ts == nil {
 		ts = cs.GetHeaviestTipSet()
 	}
@@ -964,6 +968,9 @@ func (cs *ChainStore) GetTipsetByHeight(ctx context.Context, h abi.ChainEpoch, t
 		}
 
 		if h > pts.Height() {
+			if prev {
+				return pts, nil
+			}
 			return ts, nil
 		}
 		if h == pts.Height() {
