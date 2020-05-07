@@ -150,7 +150,7 @@ type FullNodeStruct struct {
 
 		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
-		MarketEnsureAvailable func(context.Context, address.Address, address.Address, types.BigInt) error `perm:"sign"`
+		MarketEnsureAvailable func(context.Context, address.Address, address.Address, types.BigInt) (cid.Cid, error) `perm:"sign"`
 
 		PaychGet                   func(ctx context.Context, from, to address.Address, ensureFunds types.BigInt) (*api.ChannelInfo, error)   `perm:"sign"`
 		PaychList                  func(context.Context) ([]address.Address, error)                                                          `perm:"read"`
@@ -226,9 +226,11 @@ type StorageMinerStruct struct {
 		WorkerStatusAll    func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
 		WorkerQueue        func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
 		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
-		WorkerPushing      func(ctx context.Context, taskKey string) error                                           `perm:"write"`
+		WorkerLock         func(ctx context.Context, workerId, taskKey, memo string, status int) error               `perm:"write"`
+		WorkerUnlock       func(ctx context.Context, workerId, taskKey, memo string) error                           `perm:"write"`
 		WorkerDone         func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
 		WorkerDisable      func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
+		WorkerAddConn      func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
 
 		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error       `perm:"write"`
 		DisableHLMStorage func(ctx context.Context, id int64) error                         `perm:"write"`
@@ -649,7 +651,7 @@ func (c *FullNodeStruct) MsigGetAvailableBalance(ctx context.Context, a address.
 	return c.Internal.MsigGetAvailableBalance(ctx, a, tsk)
 }
 
-func (c *FullNodeStruct) MarketEnsureAvailable(ctx context.Context, addr, wallet address.Address, amt types.BigInt) error {
+func (c *FullNodeStruct) MarketEnsureAvailable(ctx context.Context, addr, wallet address.Address, amt types.BigInt) (cid.Cid, error) {
 	return c.Internal.MarketEnsureAvailable(ctx, addr, wallet, amt)
 }
 
@@ -890,14 +892,20 @@ func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.Wor
 func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return c.Internal.WorkerWorking(ctx, workerId)
 }
-func (c *StorageMinerStruct) WorkerPushing(ctx context.Context, taskKey string) error {
-	return c.Internal.WorkerPushing(ctx, taskKey)
+func (c *StorageMinerStruct) WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error {
+	return c.Internal.WorkerLock(ctx, workerId, taskKey, memo, status)
+}
+func (c *StorageMinerStruct) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string) error {
+	return c.Internal.WorkerUnlock(ctx, workerId, taskKey, memo)
 }
 func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return c.Internal.WorkerDone(ctx, res)
 }
 func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return c.Internal.WorkerDisable(ctx, wid, disable)
+}
+func (c *StorageMinerStruct) WorkerAddConn(ctx context.Context, wid string, num int) error {
+	return c.Internal.WorkerAddConn(ctx, wid, num)
 }
 
 func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {

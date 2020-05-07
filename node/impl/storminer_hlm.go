@@ -2,59 +2,15 @@ package impl
 
 import (
 	"context"
-	"io"
-	"net/http"
-	"os"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/sector-storage/tarutil"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
-	"github.com/gorilla/mux"
 	"github.com/ipfs/go-cid"
 )
-
-func (sm *StorageMinerAPI) remoteGetSector(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-
-	id := vars["id"]
-	if len(id) == 0 {
-		log.Error("sector id not found")
-		w.WriteHeader(500)
-		return
-	}
-
-	path := sm.StorageMgr.Prover.(*ffiwrapper.Sealer).SectorPath(vars["type"], id)
-	stat, err := os.Stat(string(path))
-	if err != nil {
-		log.Error(err)
-		w.WriteHeader(500)
-		return
-	}
-
-	var rd io.Reader
-	if stat.IsDir() {
-		rd, err = tarutil.TarDirectory(string(path))
-		w.Header().Set("Content-Type", "application/x-tar")
-	} else {
-		rd, err = os.OpenFile(string(path), os.O_RDONLY, 0644)
-		w.Header().Set("Content-Type", "application/octet-stream")
-	}
-	if err != nil {
-		log.Error(err)
-		w.WriteHeader(500)
-		return
-	}
-
-	w.WriteHeader(200)
-	if _, err := io.Copy(w, rd); err != nil {
-		log.Error(err)
-		return
-	}
-}
 
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
 	return sm.Miner.RunPledgeSector()
@@ -114,15 +70,20 @@ func (sm *StorageMinerAPI) WorkerQueue(ctx context.Context, cfg ffiwrapper.Worke
 func (sm *StorageMinerAPI) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorking(workerId)
 }
-func (sm *StorageMinerAPI) WorkerPushing(ctx context.Context, taskKey string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskPushing(ctx, taskKey)
+func (sm *StorageMinerAPI) WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).LockWorker(ctx, workerId, taskKey, memo, status)
 }
-
+func (sm *StorageMinerAPI) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockWorker(ctx, workerId, taskKey, memo)
+}
 func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskDone(ctx, res)
 }
 func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableWorker(ctx, wid, disable)
+}
+func (sm *StorageMinerAPI) WorkerAddConn(ctx context.Context, wid string, num int) error {
+	return database.AddWorkerConn(wid, num)
 }
 func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddStorage(ctx, sInfo)

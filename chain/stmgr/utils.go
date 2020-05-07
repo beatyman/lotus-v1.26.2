@@ -289,9 +289,17 @@ func GetStorageDeal(ctx context.Context, sm *StateManager, dealId abi.DealID, ts
 		return nil, err
 	}
 
-	st, err := sa.Get(dealId)
+	st, found, err := sa.Get(dealId)
 	if err != nil {
 		return nil, err
+	}
+
+	if !found {
+		st = &market.DealState{
+			SectorStartEpoch: -1,
+			LastUpdatedEpoch: -1,
+			SlashEpoch:       -1,
+		}
 	}
 
 	return &api.MarketDeal{
@@ -426,7 +434,7 @@ func GetLookbackTipSetForRound(ctx context.Context, sm *StateManager, ts *types.
 		return ts, nil
 	}
 
-	lbts, err := sm.ChainStore().GetTipsetByHeight(ctx, lbr, ts)
+	lbts, err := sm.ChainStore().GetTipsetByHeight(ctx, lbr, ts, true)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get lookback tipset: %w", err)
 	}

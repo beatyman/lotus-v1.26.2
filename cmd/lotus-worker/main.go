@@ -1,7 +1,10 @@
 package main
 
 import (
+	"io/ioutil"
+	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -235,6 +238,25 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err, sealedRepo)
 		}
+		// make download server
+		fileServer := cctx.String("file-server")
+		if len(fileServer) == 0 {
+			netIp := os.Getenv("NETIP")
+			fileServer = netIp + ":1280"
+		}
+
+		fileServerToken, err := ioutil.ReadFile(filepath.Join(cctx.String("storagerepo"), "token"))
+		if err != nil {
+			return errors.As(err)
+		}
+		fileHandle := NewStorageFileServer(r, string(fileServerToken))
+		go func() {
+			log.Info("File server listen at: " + fileServer)
+			if err := http.ListenAndServe(fileServer, fileHandle); err != nil {
+				panic(err)
+			}
+		}()
+
 		for {
 
 			select {
@@ -245,8 +267,9 @@ var runCmd = &cli.Command{
 					sb, sealedSB,
 					act, workerAddr,
 					"http://"+storageAddr, ainfo.AuthHeader(),
+					"http://"+fileServer,
 					r, sealedRepo,
-					cctx.Bool("no-addpiece"), cctx.Bool("no-seal"), cctx.Bool("no-verify"),
+					cctx.Bool("no-addpiece"), cctx.Bool("no-precommit1"), cctx.Bool("no-precommit2"), cctx.Bool("no-commit1"), cctx.Bool("no-commit2"), cctx.Bool("no-verify"),
 				); err == nil {
 					break
 				} else {

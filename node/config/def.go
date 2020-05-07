@@ -11,6 +11,7 @@ import (
 type Common struct {
 	API    API
 	Libp2p Libp2p
+	Pubsub Pubsub
 }
 
 // FullNode is a full node config
@@ -47,12 +48,17 @@ type Libp2p struct {
 	ConnMgrGrace Duration
 }
 
+type Pubsub struct {
+	Bootstrapper bool
+	DirectPeers  []string
+	RemoteTracer string
+}
+
 // // Full Node
 
 type Metrics struct {
-	Nickname      string
-	HeadNotifs    bool
-	PubsubTracing bool
+	Nickname   string
+	HeadNotifs bool
 }
 
 type Client struct {
@@ -75,6 +81,11 @@ func defCommon() Common {
 			ConnMgrHigh:  180,
 			ConnMgrGrace: Duration(20 * time.Second),
 		},
+		Pubsub: Pubsub{
+			Bootstrapper: false,
+			DirectPeers:  nil,
+			RemoteTracer: "/ip4/147.75.67.199/tcp/4001/p2p/QmTd6UvR47vUidRNZ1ZKXHrAFhqTJAD27rKL9XYghEKgKX",
+		},
 	}
 
 }
@@ -94,7 +105,7 @@ func DefaultStorageMiner() *StorageMiner {
 			AllowPreCommit1: true,
 			AllowPreCommit2: true,
 			AllowCommit:     true,
-			RemoteMode:      true,
+			RemoteMode:      false,
 		},
 	}
 	cfg.Common.API.ListenAddress = "/ip4/127.0.0.1/tcp/2345/http"
