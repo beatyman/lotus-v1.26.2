@@ -389,6 +389,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		ReleaseNodeApi(false)
 		return errRes(errors.As(err, w.workerCfg), task)
 	}
+	unlockWorker := false
 	switch task.Type {
 	case ffiwrapper.WorkerAddPiece:
 		// keep cache clean, the task will lock the cache.
@@ -400,11 +401,11 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
-
-		// if err := w.push("staging", task.SectorID); err != nil {
-		// 	return errRes(xerrors.Errorf("pushing unsealed data: %w", err))
-		// }
 		res.Pieces = rsp
+
+		// checking is the next step interrupted
+		unlockWorker = !w.workerCfg.NoPrecommit1
+
 	case ffiwrapper.WorkerPreCommit1:
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
@@ -415,6 +416,9 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 		res.PreCommit1Out = rspco
+
+		// checking is the next step interrupted
+		unlockWorker = !w.workerCfg.NoPrecommit2
 	case ffiwrapper.WorkerPreCommit2:
 		out, err := w.sb.SealPreCommit2(ctx, task.SectorID, task.PreCommit1Out)
 		if err != nil {
@@ -424,6 +428,9 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			Unsealed: out.Unsealed.String(),
 			Sealed:   out.Sealed.String(),
 		}
+
+		// checking is the next step interrupted
+		unlockWorker = !w.workerCfg.NoCommit1
 	case ffiwrapper.WorkerCommit1:
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
@@ -438,6 +445,8 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 		res.Commit1Out = out
+		// checking is the next step interrupted
+		unlockWorker = !w.workerCfg.NoCommit2
 	case ffiwrapper.WorkerCommit2:
 		out, err := w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
 		if err != nil {
@@ -454,21 +463,14 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 	}
 
-	// TODO: checking the next step is interrupt
-	if w.workerCfg.NoPrecommit2 {
-		api, err := GetNodeApi()
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
-
-		// release the worker when pushing happened
+	// release the worker when stage is interrupted
+	if unlockWorker {
 		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker"); err != nil {
 			log.Warn(errors.As(err))
 			ReleaseNodeApi(false)
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 	}
-
 	return res
 }
 
