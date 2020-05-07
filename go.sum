@@ -22,6 +22,8 @@ git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200505132810-3d07
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200505132810-3d0713d88dcd/go.mod h1:MtjLTWeIi9dnXAPh7hfmvGELkwLpc4c71R5xj8T6wkM=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200505145417-434bc619a6cd h1:AvFv6o+vF3k2RYrOdo1I8huEqvASxjHDHOI4nyGmqgA=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200505145417-434bc619a6cd/go.mod h1:MtjLTWeIi9dnXAPh7hfmvGELkwLpc4c71R5xj8T6wkM=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200506120350-ad193e17e110 h1:GRnafknXtwJFlGl/xT9swQO033xnpSnaEXKbMTnfd+g=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200506120350-ad193e17e110/go.mod h1:MtjLTWeIi9dnXAPh7hfmvGELkwLpc4c71R5xj8T6wkM=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200418063404-480c89b8f584 h1:hKCi6cEs61XdhvgV6NbYcOlo3WD30a5WjUAFBDWPR5I=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200418063404-480c89b8f584/go.mod h1:4VZ4VsbjJ+dlNnWwVlER/xihqkmBn8DlYEplXkuPmpA=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200420104215-24bf63ab08de h1:rMwA6KRj/vusN1e+dVaQAzJYJIkSqh69xDENPdBkWgQ=
@@ -36,6 +38,8 @@ git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200429014644-1758f74
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200429014644-1758f743aa28/go.mod h1:DibY7ANnU2VRZiSlFPHsmm6eqUA/6VssNgeMxRLCcRg=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200502050839-bf7fe5868d51 h1:W+nNNQpIenV0gkenidnjUzXoDdxCwUa2OglZnKGUtjY=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200502050839-bf7fe5868d51/go.mod h1:LHGZys2OzCCiqndu2iI0/QQdySLJIzUiA1PrP8MdWuo=
+git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200507022621-c3b1de36a7f8 h1:P091m12WI/x0ZuGoDvPYYBdSLYFPCfUq5mzDa7/DMPM=
+git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200507022621-c3b1de36a7f8/go.mod h1:Q88KAravRHX+c9GmXGM3nKQznsYOTP5x73PCobVKZDo=
 github.com/AndreasBriese/bbloom v0.0.0-20180913140656-343706a395b7/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
 github.com/AndreasBriese/bbloom v0.0.0-20190306092124-e2d15f34fcf9/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
