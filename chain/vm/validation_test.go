@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	suites "github.com/filecoin-project/chain-validation/suites"
+
 	factory "github.com/filecoin-project/lotus/chain/validation"
 )
 
