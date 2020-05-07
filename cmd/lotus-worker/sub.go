@@ -404,7 +404,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		res.Pieces = rsp
 
 		// checking is the next step interrupted
-		unlockWorker = !w.workerCfg.NoPrecommit1
+		unlockWorker = w.workerCfg.NoPrecommit1
 
 	case ffiwrapper.WorkerPreCommit1:
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
@@ -418,7 +418,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		res.PreCommit1Out = rspco
 
 		// checking is the next step interrupted
-		unlockWorker = !w.workerCfg.NoPrecommit2
+		unlockWorker = w.workerCfg.NoPrecommit2
 	case ffiwrapper.WorkerPreCommit2:
 		out, err := w.sb.SealPreCommit2(ctx, task.SectorID, task.PreCommit1Out)
 		if err != nil {
@@ -430,7 +430,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 
 		// checking is the next step interrupted
-		unlockWorker = !w.workerCfg.NoCommit1
+		unlockWorker = w.workerCfg.NoCommit1
 	case ffiwrapper.WorkerCommit1:
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
@@ -446,7 +446,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 		res.Commit1Out = out
 		// checking is the next step interrupted
-		unlockWorker = !w.workerCfg.NoCommit2
+		unlockWorker = w.workerCfg.NoCommit2
 	case ffiwrapper.WorkerCommit2:
 		out, err := w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
 		if err != nil {
