@@ -30,6 +30,8 @@ git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200508025406-05fd
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200508025406-05fd06a5b76a/go.mod h1:MtjLTWeIi9dnXAPh7hfmvGELkwLpc4c71R5xj8T6wkM=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200508073815-c5ee610f0e49 h1:gdNIcRTSshtW4nswLAj5pxybDrJfbblpCZOKtyXPCfM=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200508073815-c5ee610f0e49/go.mod h1:MtjLTWeIi9dnXAPh7hfmvGELkwLpc4c71R5xj8T6wkM=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200508095721-ffa5bd05766e h1:6eau80fO6u3Qsg+xo0JP6C5sDIjgdWPl52jz2pEfCno=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200508095721-ffa5bd05766e/go.mod h1:MtjLTWeIi9dnXAPh7hfmvGELkwLpc4c71R5xj8T6wkM=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200418063404-480c89b8f584 h1:hKCi6cEs61XdhvgV6NbYcOlo3WD30a5WjUAFBDWPR5I=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200418063404-480c89b8f584/go.mod h1:4VZ4VsbjJ+dlNnWwVlER/xihqkmBn8DlYEplXkuPmpA=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200420104215-24bf63ab08de h1:rMwA6KRj/vusN1e+dVaQAzJYJIkSqh69xDENPdBkWgQ=
