@@ -47,16 +47,32 @@ func fetchFile(uri, to string) error {
 		return errors.As(err, uri, to)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 206 {
+	switch resp.StatusCode {
+	case 206:
+		if _, err := io.Copy(file, resp.Body); err != nil {
+			return errors.As(err, uri, to)
+		}
+	case 416:
+		return nil
+	default:
 		return errors.New(resp.Status).As(resp.StatusCode, uri, to)
-	}
-	if _, err := io.Copy(file, resp.Body); err != nil {
-		return errors.As(err, uri, to)
 	}
 	return nil
 }
 
 func (w *worker) fetch(serverUri string, sectorID string) error {
+	var err error
+	for i := 0; i < 3; i++ {
+		err = w.tryFetch(serverUri, sectorID)
+		if err != nil {
+			log.Warn(errors.As(err, serverUri, sectorID))
+			continue
+		}
+		return nil
+	}
+	return err
+}
+func (w *worker) tryFetch(serverUri string, sectorID string) error {
 	// Close the fetch in the miner storage directory.
 	// TODO: fix to env
 	if filepath.Base(w.repo) == ".lotusstorage" {
