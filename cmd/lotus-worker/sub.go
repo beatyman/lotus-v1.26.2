@@ -366,7 +366,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 	// checking is the cache in a different storage server, do fetch when it is.
 	if len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID {
-		log.Infof("fetch %s data from %s", task.SectorID, task.WorkerID)
+		log.Infof("fetch %s data from %s", task.Key(), task.WorkerID)
 		// lock bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
 			ReleaseNodeApi(false)
@@ -383,6 +383,13 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// release bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
 			ReleaseNodeApi(false)
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+		// release the storage cache
+		if err := deleteCache(
+			task.SectorStorage.WorkerInfo.SvcUri,
+			task.SectorStorage.SectorInfo.ID,
+		); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 	}

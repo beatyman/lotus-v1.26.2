@@ -7,12 +7,25 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gwaylib/errors"
 )
+
+func deleteCache(uri, sid string) error {
+	resp, err := http.PostForm(fmt.Sprintf("%s/storage/delete", uri), url.Values{"sid": []string{sid}})
+	if err != nil {
+		return errors.As(err, uri, sid)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return errors.New(resp.Status).As(resp.StatusCode, uri, sid)
+	}
+	return nil
+}
 
 func fetchFile(uri, to string) error {
 	file, err := os.OpenFile(to, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -34,8 +47,8 @@ func fetchFile(uri, to string) error {
 		return errors.As(err, uri, to)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return errors.New("server error").As(resp.StatusCode, uri, to)
+	if resp.StatusCode != 206 {
+		return errors.New(resp.Status).As(resp.StatusCode, uri, to)
 	}
 	if _, err := io.Copy(file, resp.Body); err != nil {
 		return errors.As(err, uri, to)
@@ -51,11 +64,14 @@ func (w *worker) fetch(serverUri string, sectorID string) error {
 	}
 
 	// fetch cache
-	cacheResp, err := http.Get(fmt.Sprintf("%s/cache/%s/", serverUri, sectorID))
+	cacheResp, err := http.Get(fmt.Sprintf("%s/storage/cache/%s/", serverUri, sectorID))
 	if err != nil {
 		return errors.As(err)
 	}
 	defer cacheResp.Body.Close()
+	if cacheResp.StatusCode != 200 {
+		return errors.New(cacheResp.Status).As(serverUri, sectorID)
+	}
 	cacheRespData, err := ioutil.ReadAll(cacheResp.Body)
 	if err != nil {
 		return errors.As(err)
@@ -69,7 +85,7 @@ func (w *worker) fetch(serverUri string, sectorID string) error {
 	}
 	for _, file := range cacheDir.Files {
 		if err := fetchFile(
-			fmt.Sprintf("%s/cache/%s/%s", serverUri, sectorID, file.Value),
+			fmt.Sprintf("%s/storage/cache/%s/%s", serverUri, sectorID, file.Value),
 			filepath.Join(w.repo, "cache", sectorID, file.Value),
 		); err != nil {
 			return errors.As(err)
@@ -78,7 +94,7 @@ func (w *worker) fetch(serverUri string, sectorID string) error {
 
 	// fetch sealed
 	if err := fetchFile(
-		fmt.Sprintf("%s/sealed/%s", serverUri, sectorID),
+		fmt.Sprintf("%s/storage/sealed/%s", serverUri, sectorID),
 		filepath.Join(w.repo, "sealed", sectorID),
 	); err != nil {
 		return errors.As(err)
@@ -86,7 +102,7 @@ func (w *worker) fetch(serverUri string, sectorID string) error {
 
 	// fetch unsealed
 	if err := fetchFile(
-		fmt.Sprintf("%s/unsealed/%s", serverUri, sectorID),
+		fmt.Sprintf("%s/storage/unsealed/%s", serverUri, sectorID),
 		filepath.Join(w.repo, "unsealed", sectorID),
 	); err != nil {
 		return errors.As(err)
