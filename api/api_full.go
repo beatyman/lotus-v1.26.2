@@ -65,6 +65,7 @@ type FullNode interface {
 	MpoolPushMessage(context.Context, *types.Message) (*types.SignedMessage, error) // get nonce, sign, push
 	MpoolGetNonce(context.Context, address.Address) (uint64, error)
 	MpoolSub(context.Context) (<-chan MpoolUpdate, error)
+	MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error
 	MpoolEstimateGasPrice(context.Context, uint64, address.Address, int64, types.TipSetKey) (types.BigInt, error)
 
 	// FullNodeStruct

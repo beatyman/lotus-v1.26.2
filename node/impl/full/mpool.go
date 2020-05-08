@@ -119,6 +119,11 @@ func (a *MpoolAPI) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, error)
 	return a.Mpool.Updates(ctx)
 }
 
+func (a *MpoolAPI) MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error {
+	a.Mpool.Remove(from, nonce)
+	return nil
+}
+
 func (a *MpoolAPI) MpoolEstimateGasPrice(ctx context.Context, nblocksincl uint64, sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error) {
 	return a.Mpool.EstimateGasPrice(ctx, nblocksincl, sender, gaslimit, tsk)
 }

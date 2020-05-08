@@ -56,11 +56,15 @@ func closeNodeApi() {
 func ReleaseNodeApi(shutdown bool) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
+	if nodeApi == nil {
+		return
+	}
 
 	if shutdown {
 		closeNodeApi()
 		return
 	}
+
 	ctx := lcli.ReqContext(nodeCCtx)
 
 	// try reconnection
