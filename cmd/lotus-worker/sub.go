@@ -181,6 +181,7 @@ func (w *worker) cleanCache(ctx context.Context) error {
 					continue sealedLoop
 				}
 			}
+			log.Infof("clean sealed:%s", filepath.Join(sealed, f.Name()))
 			if err := os.RemoveAll(filepath.Join(sealed, f.Name())); err != nil {
 				return errors.As(err, w.workerCfg.IP, filepath.Join(sealed, f.Name()))
 			}
@@ -198,6 +199,7 @@ func (w *worker) cleanCache(ctx context.Context) error {
 					continue cacheLoop
 				}
 			}
+			log.Infof("clean cache:%s", filepath.Join(cache, f.Name()))
 			if err := os.RemoveAll(filepath.Join(cache, f.Name())); err != nil {
 				return errors.As(err, w.workerCfg.IP, filepath.Join(cache, f.Name()))
 			}
@@ -214,6 +216,7 @@ func (w *worker) cleanCache(ctx context.Context) error {
 					continue stagedLoop
 				}
 			}
+			log.Infof("clean unsealed:%s", filepath.Join(unsealed, f.Name()))
 			if err := os.RemoveAll(filepath.Join(unsealed, f.Name())); err != nil {
 				return errors.As(err, w.workerCfg.IP, filepath.Join(unsealed, f.Name()))
 			}
@@ -366,7 +369,12 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 	// checking is the cache in a different storage server, do fetch when it is.
 	if len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID {
-		log.Infof("fetch %s data from %s", task.SectorID, task.WorkerID)
+		// keep cache clean, the task will lock the cache.
+		if err := w.cleanCache(ctx); err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+
+		log.Infof("fetch %s data from %s", task.Key(), task.WorkerID)
 		// lock bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
 			ReleaseNodeApi(false)
@@ -383,6 +391,14 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// release bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
 			ReleaseNodeApi(false)
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+		// release the storage cache
+		log.Infof("fetch %s done, try delete.", task.Key())
+		if err := deleteCache(
+			task.SectorStorage.WorkerInfo.SvcUri,
+			task.SectorStorage.SectorInfo.ID,
+		); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 	}

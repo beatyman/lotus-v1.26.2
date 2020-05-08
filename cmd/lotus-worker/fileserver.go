@@ -38,6 +38,7 @@ func NewStorageFileServer(repo, token string) *StorageFileServer {
 			w.Write([]byte("sector id not found"))
 			return
 		}
+		log.Infof("try delete cache:%s", sid)
 		if err := os.RemoveAll(filepath.Join(repo, "cache", sid)); err != nil {
 			w.WriteHeader(500)
 			w.Write([]byte("delete cache failed:" + err.Error()))
