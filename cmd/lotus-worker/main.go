@@ -144,10 +144,20 @@ func main() {
 				Name: "no-addpiece",
 			},
 			&cli.BoolFlag{
-				Name: "no-seal",
+				Name: "no-precommit1",
 			},
 			&cli.BoolFlag{
-				Name: "no-verify",
+				Name: "no-precommit2",
+			},
+			&cli.BoolFlag{
+				Name: "no-commit1",
+			},
+			&cli.BoolFlag{
+				Name: "no-commit2",
+			},
+			&cli.BoolFlag{
+				Name:  "no-verify",
+				Value: true,
 			},
 		},
 
