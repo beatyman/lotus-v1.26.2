@@ -341,6 +341,12 @@ func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res
 }
 
 func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ffiwrapper.SealRes {
+	res := ffiwrapper.SealRes{
+		Type:      task.Type,
+		TaskID:    task.Key(),
+		WorkerCfg: w.workerCfg,
+	}
+
 	switch task.Type {
 	case ffiwrapper.WorkerAddPiece:
 	case ffiwrapper.WorkerPreCommit1:
@@ -348,14 +354,10 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerCommit1:
 	case ffiwrapper.WorkerCommit2:
 	case ffiwrapper.WorkerFinalize:
+		log.Info("Ignore Finalize called because it was done at commit2")
+		return res
 	default:
 		return errRes(errors.New("unknown task type").As(task.Type, w.workerCfg), task)
-	}
-
-	res := ffiwrapper.SealRes{
-		Type:      task.Type,
-		TaskID:    task.Key(),
-		WorkerCfg: w.workerCfg,
 	}
 	api, err := GetNodeApi()
 	if err != nil {
@@ -465,6 +467,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 
 	// release the worker when stage is interrupted
 	if unlockWorker {
+		log.Info("Release Worker by:", task)
 		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker"); err != nil {
 			log.Warn(errors.As(err))
 			ReleaseNodeApi(false)
