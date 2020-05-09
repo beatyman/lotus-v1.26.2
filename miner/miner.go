@@ -113,11 +113,16 @@ func (m *Miner) niceSleep(d time.Duration) bool {
 	}
 }
 
+func nextRoundTime(base *MiningBase) time.Time {
+	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelay*(base.NullRounds+1)), 0)
+}
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
 	defer span.End()
 
 	var lastBase MiningBase
+	var nextRound time.Time
+	const tryRounds = 1
 
 	for {
 		select {
@@ -150,12 +155,26 @@ func (m *Miner) mine(ctx context.Context) {
 			log.Errorf("failed to get best mining candidate: %s", err)
 			continue
 		}
-		if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
-			log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
-			m.niceSleep(build.BlockDelay * time.Second)
+		now := time.Now()
+		if !base.TipSet.Equals(lastBase.TipSet) {
+			nextRound = nextRoundTime(base)
+			lastBase = *base
+		} else {
+			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
+
+			// if the base was dead, make the nullRound++ step by round actually change.
+			if (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
+				time.Sleep(1e9)
+				continue
+			}
+			lastBase.NullRounds++
+			nextRound = nextRoundTime(&lastBase)
+		}
+		if nextRound.Unix()-now.Unix() < (build.BlockDelay - build.PropagationDelay - build.PropagationDelay/2) {
+			// no time to mining, just skip this round, and have to prepare to mine the next round.
+			time.Sleep(nextRound.Sub(now))
 			continue
 		}
-		lastBase = *base
 
 		b, err := m.mineOne(ctx, base)
 		if err != nil {
@@ -189,10 +208,14 @@ func (m *Miner) mine(ctx context.Context) {
 				log.Errorf("failed to submit newly mined block: %s", err)
 			}
 		} else {
-			nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds)), 0)
-
+			now := time.Now()
+			if nextRound.Before(now) {
+				nextRound = now.Add(time.Duration(build.BlockDelay-(now.Unix()-nextRound.Unix())%build.BlockDelay) * time.Second)
+			}
+			// goto next round
+			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
 			select {
-			case <-time.After(time.Until(nextRound)):
+			case <-time.After(nextRound.Sub(now)):
 			case <-m.stop:
 				stopping := m.stopping
 				m.stop = nil
