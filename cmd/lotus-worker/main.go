@@ -50,12 +50,13 @@ func closeNodeApi() {
 	}
 	nodeApi = nil
 	nodeCloser = nil
-	time.Sleep(3e9)
 }
 
 func ReleaseNodeApi(shutdown bool) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
+	time.Sleep(3e9)
+
 	if nodeApi == nil {
 		return
 	}
