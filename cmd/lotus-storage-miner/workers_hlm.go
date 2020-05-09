@@ -14,6 +14,7 @@ var hlmWorkerCmd = &cli.Command{
 	Usage: "Manage worker",
 	Subcommands: []*cli.Command{
 		infoHLMWorkerCmd,
+		listHLMWorkerCmd,
 		disableHLMWorkerCmd,
 	},
 }
