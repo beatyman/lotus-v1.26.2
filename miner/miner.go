@@ -495,13 +495,13 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 		}
 
 		if msg.Message.Nonce > inclNonces[from] {
-			log.Warnf("message in mempool has too high of a nonce (%d > %d, inclcount %d) %s (%d pending for orig)", msg.Message.Nonce, inclNonces[from], inclCount[from], msg.Message.String(), countFrom(mpool.Msgs, from))
+			// log.Warnf("message in mempool has too high of a nonce (%d > %d, inclcount %d) %s (%d pending for orig)", msg.Message.Nonce, inclNonces[from], inclCount[from], msg.Message.String(), countFrom(mpool.Msgs, from))
 			mpool.Remove(ctx, msg)
 			continue
 		}
 
 		if msg.Message.Nonce < inclNonces[from] {
-			log.Warnf("message in mempool has already used nonce (%d < %d), %s (%d pending for)", msg.Message.Nonce, inclNonces[from], msg.Message.String(), countFrom(mpool.Msgs, from))
+			//log.Warnf("message in mempool has already used nonce (%d < %d), %s (%d pending for)", msg.Message.Nonce, inclNonces[from], msg.Message.String(), countFrom(mpool.Msgs, from))
 			mpool.Remove(ctx, msg)
 			continue
 		}
