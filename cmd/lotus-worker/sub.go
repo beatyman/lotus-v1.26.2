@@ -40,7 +40,7 @@ func acceptJobs(ctx context.Context,
 	endpoint string, auth http.Header,
 	fileServer string,
 	repo, sealedRepo string,
-	noAddPiece, noPrecommit1, noPrecommit2, noCommit1, noCommit2, noVerify bool,
+	noAddPiece, noPrecommit1, noPrecommit2, noCommit1, noCommit2, noWPoSt, noPoSt bool,
 ) error {
 	workerId := GetWorkerID(repo)
 	netIp := os.Getenv("NETIP")
@@ -54,7 +54,8 @@ func acceptJobs(ctx context.Context,
 		NoPrecommit2: noPrecommit2,
 		NoCommit1:    noCommit1,
 		NoCommit2:    noCommit2,
-		NoVerify:     noVerify,
+		NoWPoSt:      noWPoSt,
+		NoPoSt:       noPoSt,
 	}
 
 	api, err := GetNodeApi()
@@ -356,9 +357,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerPreCommit2:
 	case ffiwrapper.WorkerCommit1:
 	case ffiwrapper.WorkerCommit2:
-	case ffiwrapper.WorkerFinalize:
-		log.Info("Ignore Finalize called because it was done at commit2")
-		return res
 	default:
 		return errRes(errors.New("unknown task type").As(task.Type, w.workerCfg), task)
 	}
