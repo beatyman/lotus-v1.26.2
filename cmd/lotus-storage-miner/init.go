@@ -48,6 +48,7 @@ import (
 	"github.com/filecoin-project/lotus/storage"
 
 	sealing "github.com/filecoin-project/storage-fsm"
+
 	"github.com/gwaylib/errors"
 )
 
@@ -578,7 +579,7 @@ func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.
 		Params:   enc,
 		Value:    types.NewInt(0),
 		GasPrice: gasPrice,
-		GasLimit: 100000000,
+		GasLimit: 99999999,
 	}
 
 	smsg, err := api.MpoolPushMessage(ctx, msg)

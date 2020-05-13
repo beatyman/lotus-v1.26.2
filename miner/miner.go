@@ -18,11 +18,12 @@ import (
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/gwaylib/errors"
 
 	logging "github.com/ipfs/go-log/v2"
 	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
+
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("miner")
@@ -174,6 +175,7 @@ func (m *Miner) mine(ctx context.Context) {
 		//			time.Sleep(nextRound.Sub(now))
 		//			continue
 		//		}
+
 		if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
 			log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
 			m.niceSleep(build.BlockDelay * time.Second)
@@ -219,6 +221,7 @@ func (m *Miner) mine(ctx context.Context) {
 			//}
 			nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds)), 0)
 			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
+
 			select {
 			case <-time.After(time.Until(nextRound)):
 			case <-m.stop:
@@ -420,7 +423,6 @@ func (m *Miner) computeTicket(ctx context.Context, brand *types.BeaconEntry, bas
 func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket,
 	eproof *types.ElectionProof, bvals []types.BeaconEntry, wpostProof []abi.PoStProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
 	uts := base.TipSet.MinTimestamp() + uint64(build.BlockDelay*(base.NullRounds+1))
-
 	nheight := base.TipSet.Height() + base.NullRounds + 1
 
 	// why even return this? that api call could just submit it for us
@@ -467,6 +469,12 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 	inclCount := make(map[address.Address]int)
 
 	for _, msg := range mpool.Msgs {
+
+		// TODO: this should be in some more general 'validate message' call
+		if msg.Message.GasLimit > build.BlockGasLimit {
+			log.Warnf("message in mempool had too high of a gas limit (%d)", msg.Message.GasLimit)
+			continue
+		}
 
 		if msg.Message.To == address.Undef {
 			log.Warnf("message in mempool had bad 'To' address")
