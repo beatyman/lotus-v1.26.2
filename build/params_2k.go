@@ -5,11 +5,15 @@ package build
 import (
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
+	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 )
 
 func init() {
 	power.ConsensusMinerMinPower = big.NewInt(2048)
+	miner.SupportedProofTypes = map[abi.RegisteredProof]struct{}{
+		abi.RegisteredProof_StackedDRG2KiBSeal: {},
+	}
 }
 
 var SectorSizes = []abi.SectorSize{
