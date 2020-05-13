@@ -161,7 +161,11 @@ func main() {
 				Name: "no-commit2",
 			},
 			&cli.BoolFlag{
-				Name:  "no-verify",
+				Name:  "no-wpost",
+				Value: true,
+			},
+			&cli.BoolFlag{
+				Name:  "no-post",
 				Value: true,
 			},
 		},
@@ -284,7 +288,8 @@ var runCmd = &cli.Command{
 					"http://"+storageAddr, ainfo.AuthHeader(),
 					"http://"+fileServer,
 					r, sealedRepo,
-					cctx.Bool("no-addpiece"), cctx.Bool("no-precommit1"), cctx.Bool("no-precommit2"), cctx.Bool("no-commit1"), cctx.Bool("no-commit2"), cctx.Bool("no-verify"),
+					cctx.Bool("no-addpiece"), cctx.Bool("no-precommit1"), cctx.Bool("no-precommit2"), cctx.Bool("no-commit1"), cctx.Bool("no-commit2"),
+					cctx.Bool("no-wpost"), cctx.Bool("no-post"),
 				); err == nil {
 					break
 				} else {
