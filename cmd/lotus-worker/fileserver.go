@@ -26,6 +26,8 @@ type StorageDirectoryResp struct {
 
 func NewStorageFileServer(repo, token string) *StorageFileServer {
 	r := mux.NewRouter()
+	r.PathPrefix("/filecoin/params").Handler(http.StripPrefix("/filecoin/params", http.FileServer(http.Dir("/var/tmp/filecoin-proof-parameters"))))
+
 	r.PathPrefix("/storage/cache").Handler(http.StripPrefix("/storage/cache", http.FileServer(http.Dir(filepath.Join(repo, "cache")))))
 	r.PathPrefix("/storage/unsealed").Handler(http.StripPrefix("/storage/unsealed", http.FileServer(http.Dir(filepath.Join(repo, "unsealed")))))
 	r.PathPrefix("/storage/sealed").Handler(http.StripPrefix("/storage/sealed", http.FileServer(http.Dir(filepath.Join(repo, "sealed")))))
