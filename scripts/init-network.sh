@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+export IPFS_GATEWAY="https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs/"
 
 set -xeo
 
