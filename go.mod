@@ -15,22 +15,22 @@ require (
 	github.com/docker/go-units v0.4.0
 	github.com/drand/drand v0.8.1
 	github.com/fatih/color v1.8.0
-	github.com/filecoin-project/chain-validation v0.0.6-0.20200430201010-ce84f6e96519
+	github.com/filecoin-project/chain-validation v0.0.6-0.20200512163011-8cf67ee7998d
 	github.com/filecoin-project/filecoin-ffi v0.0.0-20200427223233-a0014b17f124
 	github.com/filecoin-project/go-address v0.0.2-0.20200504173055-8b6f2fb2b3ef
 	github.com/filecoin-project/go-amt-ipld/v2 v2.0.1-0.20200424220931-6263827e49f2
-	github.com/filecoin-project/go-bitfield v0.0.0-20200416002808-b3ee67ec9060
+	github.com/filecoin-project/go-bitfield v0.0.1
 	github.com/filecoin-project/go-cbor-util v0.0.0-20191219014500-08c40a1e63a2
 	github.com/filecoin-project/go-crypto v0.0.0-20191218222705-effae4ea9f03
-	github.com/filecoin-project/go-data-transfer v0.2.1
+	github.com/filecoin-project/go-data-transfer v0.3.0
 	github.com/filecoin-project/go-fil-commcid v0.0.0-20200208005934-2b8bd03caca5
-	github.com/filecoin-project/go-fil-markets v0.2.0
+	github.com/filecoin-project/go-fil-markets v0.2.3
 	github.com/filecoin-project/go-padreader v0.0.0-20200210211231-548257017ca6
 	github.com/filecoin-project/go-paramfetch v0.0.2-0.20200505180321-973f8949ea8e
 	github.com/filecoin-project/go-statestore v0.1.0
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
-	github.com/filecoin-project/sector-storage v0.0.0-20200501181153-e4a9a16161e9
-	github.com/filecoin-project/specs-actors v0.4.0
+	github.com/filecoin-project/sector-storage v0.0.0-20200509005126-ebc27d314ba4
+	github.com/filecoin-project/specs-actors v0.4.1-0.20200512154829-da721a49952f
 	github.com/filecoin-project/specs-storage v0.0.0-20200417134612-61b2d91a6102
 	github.com/filecoin-project/storage-fsm v0.0.0-20200427182014-01487d5ad3c8
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
@@ -45,7 +45,6 @@ require (
 	github.com/ipfs/go-bitswap v0.2.8
 	github.com/ipfs/go-block-format v0.0.2
 	github.com/ipfs/go-blockservice v0.1.3
-	github.com/ipfs/go-car v0.0.3-0.20200121013634-f188c0e24291
 	github.com/ipfs/go-cid v0.0.6-0.20200501230655-7c82f3b81c00
 	github.com/ipfs/go-datastore v0.4.4
 	github.com/ipfs/go-ds-badger2 v0.1.0
@@ -83,7 +82,6 @@ require (
 	github.com/libp2p/go-libp2p-mplex v0.2.3
 	github.com/libp2p/go-libp2p-peer v0.2.0
 	github.com/libp2p/go-libp2p-peerstore v0.2.3
-	github.com/libp2p/go-libp2p-protocol v0.1.0
 	github.com/libp2p/go-libp2p-pubsub v0.2.7-0.20200505181014-5bbe37191afb
 	github.com/libp2p/go-libp2p-quic-transport v0.1.1
 	github.com/libp2p/go-libp2p-record v0.1.2
@@ -126,10 +124,10 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 replace github.com/coreos/go-systemd => github.com/coreos/go-systemd/v22 v22.0.0
 
-replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200510001033-6bcdc3e960c6
+replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200513020512-44588a3cc8eb
 
 //replace github.com/filecoin-project/sector-storage => ../sector-storage
 
-replace github.com/filecoin-project/storage-fsm => git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200511072055-bad3c9b42e79
+replace github.com/filecoin-project/storage-fsm => git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200513020711-df91a67eb27d
 
 //replace github.com/filecoin-project/storage-fsm => ../storage-fsm

@@ -1,8 +1,8 @@
 package vm_test
 
-/*
 import (
 	"fmt"
+	"github.com/filecoin-project/chain-validation/suites/message"
 	"reflect"
 	"runtime"
 	"strings"
@@ -35,6 +35,7 @@ var TestSuiteSkipper TestSkipper
 func init() {
 	// initialize the test skipper with tests being skipped
 	TestSuiteSkipper = TestSkipper{testSkips: []suites.TestCase{
+		message.MessageTest_NestedSends,
 		// tests to skip go here
 	}}
 }
@@ -52,6 +53,7 @@ func TestChainValidationMessageSuite(t *testing.T) {
 }
 
 func TestChainValidationTipSetSuite(t *testing.T) {
+	t.Skip("bls sigs changed")
 	f := factory.NewFactories()
 	for _, testCase := range suites.TipSetTestCases() {
 		if TestSuiteSkipper.Skip(testCase) {
@@ -68,4 +70,3 @@ func caseName(testCase suites.TestCase) string {
 	toks := strings.Split(fqName, ".")
 	return toks[len(toks)-1]
 }
-*/
