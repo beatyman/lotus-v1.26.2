@@ -159,7 +159,6 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, pstate cid.Cid, bms []B
 	var receipts []cbg.CBORMarshaler
 	processedMsgs := map[cid.Cid]bool{}
 	for _, b := range bms {
-
 		penalty := types.NewInt(0)
 		gasReward := big.Zero()
 
@@ -402,6 +401,10 @@ func (sm *StateManager) LoadActorStateRaw(ctx context.Context, a address.Address
 
 	cst := cbor.NewCborStore(sm.cs.Blockstore())
 	if err := cst.Get(ctx, act.Head, out); err != nil {
+		var r cbg.Deferred
+		cst.Get(ctx, act.Head, &r)
+		fmt.Printf("badhead %x\n", r.Raw)
+
 		return nil, err
 	}
 
