@@ -82,6 +82,8 @@ type StorageMiner interface {
 	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 	WorkerAddConn(ctx context.Context, wid string, num int) error
+	WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error)
+	WorkerMinerConn(ctx context.Context) (int, error)
 
 	//Storage
 	AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error
