@@ -281,24 +281,24 @@ repush:
 	case <-ctx.Done():
 		return ffiwrapper.ErrWorkerExit.As(task)
 	default:
-		api, err := GetNodeApi()
-		if err != nil {
-			log.Warn(errors.As(err))
-			goto repush
-		}
-
-		// release the worker when pushing happened
-		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "pushing commit"); err != nil {
-			log.Warn(errors.As(err))
-
-			if errors.ErrNoData.Equal(err) {
-				// drop data
-				return nil
-			}
-
-			ReleaseNodeApi(false)
-			goto repush
-		}
+		// TODO: check cache is support two task
+		//api, err := GetNodeApi()
+		//if err != nil {
+		//	log.Warn(errors.As(err))
+		//	goto repush
+		//}
+		//// release the worker when pushing happened
+		//if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "pushing commit"); err != nil {
+		//	log.Warn(errors.As(err))
+		//
+		//	if errors.ErrNoData.Equal(err) {
+		//		// drop data
+		//		return nil
+		//	}
+		//
+		//	ReleaseNodeApi(false)
+		//	goto repush
+		//}
 
 		if err := w.pushCache(ctx, task); err != nil {
 			log.Error(errors.As(err, task))
