@@ -19,7 +19,6 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/auth"
-	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/lib/jsonrpc"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/node"
@@ -161,8 +160,7 @@ var runCmd = &cli.Command{
 			Next:   mux.ServeHTTP,
 		}
 
-		fileHandle := fileserver.NewStorageFileServer(storageRepoPath, "", ah)
-		srv := &http.Server{Handler: fileHandle}
+		srv := &http.Server{Handler: ah}
 
 		sigChan := make(chan os.Signal, 2)
 		go func() {
@@ -177,6 +175,9 @@ var runCmd = &cli.Command{
 			log.Warn("Graceful shutdown successful")
 		}()
 		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+
+		// TODO: make fileHandle
+		// fileHandle := fileserver.NewStorageFileServer(storageRepoPath, "", nil)
 
 		return srv.Serve(manet.NetListener(lst))
 	},

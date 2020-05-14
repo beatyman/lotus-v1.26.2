@@ -2,6 +2,7 @@ package fileserver
 
 import (
 	"encoding/xml"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -111,10 +112,12 @@ func addConns(n int) {
 
 func (s *StorageFileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// TODO: make auth
+	fmt.Printf("1:%+v\n", w.Header())
 	s.router.ServeHTTP(w, r)
-	if len(w.Header()) > 0 {
-		return
-	}
+	fmt.Printf("2:%+v\n", w.Header())
+	//if len(w.Header()) > 0 {
+	//	return
+	//}
 
 	if s.next != nil {
 		s.next.ServeHTTP(w, r)
