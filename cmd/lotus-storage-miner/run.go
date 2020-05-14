@@ -19,6 +19,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/auth"
+	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/lib/jsonrpc"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/node"
@@ -160,7 +161,8 @@ var runCmd = &cli.Command{
 			Next:   mux.ServeHTTP,
 		}
 
-		srv := &http.Server{Handler: ah}
+		fileHandle := fileserver.NewStorageFileServer(storageRepoPath, "", ah)
+		srv := &http.Server{Handler: fileHandle}
 
 		sigChan := make(chan os.Signal, 2)
 		go func() {

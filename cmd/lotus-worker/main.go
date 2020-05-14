@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -23,6 +24,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/lib/jsonrpc"
 	"github.com/filecoin-project/lotus/lib/lotuslog"
 	"github.com/filecoin-project/lotus/node/repo"
@@ -201,6 +203,10 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("could not get api info: %w", err)
 		}
 		_, storageAddr, err := manet.DialArgs(ainfo.Addr)
+		if err != nil {
+			return err
+		}
+		fmt.Println(storageAddr)
 
 		r, err := homedir.Expand(cctx.String("repo"))
 		if err != nil {
@@ -226,6 +232,12 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err)
 		}
+
+		// fetch parameters from hlm
+		// TODO: need more develop time
+		//if err := FetchHlmParams(ctx, nodeApi, storageAddr); err != nil {
+		//	return errors.As(err)
+		//}
 
 		if err := paramfetch.GetParams(build.ParametersJson(), uint64(ssize)); err != nil {
 			return xerrors.Errorf("get params: %w", err)
@@ -268,7 +280,7 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err)
 		}
-		fileHandle := NewStorageFileServer(r, string(fileServerToken))
+		fileHandle := fileserver.NewStorageFileServer(r, string(fileServerToken), nil)
 		go func() {
 			log.Info("File server listen at: " + fileServer)
 			if err := http.ListenAndServe(fileServer, fileHandle); err != nil {

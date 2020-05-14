@@ -1,4 +1,4 @@
-package main
+package fileserver
 
 import (
 	"encoding/xml"
@@ -39,7 +39,7 @@ func TestFileServer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fileServer := ":1280"
+	fileServer := ":1281"
 	fileHandle := NewStorageFileServer(sealedRepo, string(fileServerToken))
 	go func() {
 		log.Info("File server listen at: " + fileServer)
@@ -49,7 +49,7 @@ func TestFileServer(t *testing.T) {
 	}()
 	time.Sleep(1e9)
 
-	resp, err := http.Get("http://127.0.0.1:1280/storage/cache/t0100/")
+	resp, err := http.Get("http://127.0.0.1:1281/storage/cache/t0100/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestFileServer(t *testing.T) {
 	if len(r.Files) != 2 {
 		t.Fatal("expect 2 files,but:", len(r.Files))
 	}
-	resp, err = http.PostForm("http://127.0.0.1:1280/storage/delete?sid=t0100", nil)
+	resp, err = http.PostForm("http://127.0.0.1:1281/storage/delete?sid=t0100", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
