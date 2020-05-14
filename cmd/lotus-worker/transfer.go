@@ -57,6 +57,8 @@ func fetchFile(uri, to string) error {
 		}
 	case 416:
 		return nil
+	case 404:
+		return errors.ErrNoData.As(uri, to)
 	default:
 		return errors.New(resp.Status).As(resp.StatusCode, uri, to)
 	}
