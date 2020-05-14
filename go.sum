@@ -12,6 +12,8 @@ git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200513131416-601a
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200513131416-601a8399b1ae/go.mod h1:YucOYJvjkh2IsORQFrmAW1imznfyWfZYJfeulaQmB1s=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200514055024-85abd31e17e5 h1:H2v5ZoXIY17odsTziQmhM2MAlQZswQxADN4YFSrrC8A=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200514055024-85abd31e17e5/go.mod h1:YucOYJvjkh2IsORQFrmAW1imznfyWfZYJfeulaQmB1s=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200514082834-d9296b8e74aa h1:uPqeIXYG5x6OpChK/Pu4HhVvt3thHVXB5ZGvpZKz7YI=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200514082834-d9296b8e74aa/go.mod h1:YucOYJvjkh2IsORQFrmAW1imznfyWfZYJfeulaQmB1s=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200513020711-df91a67eb27d h1:lgQtbGtHmywi0Ai8hJhAIM6YlpiEitoo6S+uw8qIPHQ=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200513020711-df91a67eb27d/go.mod h1:JbEels7AHsSQxou/zy6twQkDR9qKVBSAAjfTQ7Sx2EM=
 github.com/AndreasBriese/bbloom v0.0.0-20180913140656-343706a395b7/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
