@@ -6,6 +6,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
@@ -84,6 +85,12 @@ func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disabl
 }
 func (sm *StorageMinerAPI) WorkerAddConn(ctx context.Context, wid string, num int) error {
 	return database.AddWorkerConn(wid, num)
+}
+func (sm *StorageMinerAPI) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
+	return database.PrepareWorkerConn()
+}
+func (sm *StorageMinerAPI) WorkerMinerConn(ctx context.Context) (int, error) {
+	return fileserver.Conns(), nil
 }
 func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddStorage(ctx, sInfo)
