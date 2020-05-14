@@ -128,6 +128,6 @@ replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/file
 
 //replace github.com/filecoin-project/sector-storage => ../sector-storage
 
-replace github.com/filecoin-project/storage-fsm => git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200513020711-df91a67eb27d
+replace github.com/filecoin-project/storage-fsm => git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200514195008-cddb50f4608b
 
 //replace github.com/filecoin-project/storage-fsm => ../storage-fsm
