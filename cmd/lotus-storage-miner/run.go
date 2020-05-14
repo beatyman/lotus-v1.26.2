@@ -176,6 +176,9 @@ var runCmd = &cli.Command{
 		}()
 		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
+		// TODO: make fileHandle
+		// fileHandle := fileserver.NewStorageFileServer(storageRepoPath, "", nil)
+
 		return srv.Serve(manet.NetListener(lst))
 	},
 }

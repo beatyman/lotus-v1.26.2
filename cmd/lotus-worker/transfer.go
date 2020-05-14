@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/filecoin-project/lotus/lib/fileserver"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gwaylib/errors"
 )
@@ -28,6 +30,7 @@ func deleteCache(uri, sid string) error {
 }
 
 func fetchFile(uri, to string) error {
+	log.Infof("fetch file from %s to %s", uri, to)
 	file, err := os.OpenFile(to, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return errors.As(err, uri, to)
@@ -54,57 +57,61 @@ func fetchFile(uri, to string) error {
 		}
 	case 416:
 		return nil
+	case 404:
+		return errors.ErrNoData.As(uri, to)
 	default:
 		return errors.New(resp.Status).As(resp.StatusCode, uri, to)
 	}
 	return nil
 }
 
-func (w *worker) fetch(serverUri string, sectorID string) error {
+func (w *worker) fetch(serverUri string, sectorID string, typ ffiwrapper.WorkerTaskType) error {
 	var err error
 	for i := 0; i < 3; i++ {
-		err = w.tryFetch(serverUri, sectorID)
+		err = w.tryFetch(serverUri, sectorID, typ)
 		if err != nil {
-			log.Warn(errors.As(err, serverUri, sectorID))
+			log.Warn(errors.As(err, serverUri, sectorID, typ))
 			continue
 		}
 		return nil
 	}
 	return err
 }
-func (w *worker) tryFetch(serverUri string, sectorID string) error {
+func (w *worker) tryFetch(serverUri string, sectorID string, typ ffiwrapper.WorkerTaskType) error {
 	// Close the fetch in the miner storage directory.
 	// TODO: fix to env
 	if filepath.Base(w.repo) == ".lotusstorage" {
 		return nil
 	}
 
-	// fetch cache
-	cacheResp, err := http.Get(fmt.Sprintf("%s/storage/cache/%s/", serverUri, sectorID))
-	if err != nil {
-		return errors.As(err)
-	}
-	defer cacheResp.Body.Close()
-	if cacheResp.StatusCode != 200 {
-		return errors.New(cacheResp.Status).As(serverUri, sectorID)
-	}
-	cacheRespData, err := ioutil.ReadAll(cacheResp.Body)
-	if err != nil {
-		return errors.As(err)
-	}
-	cacheDir := &StorageDirectoryResp{}
-	if err := xml.Unmarshal(cacheRespData, cacheDir); err != nil {
-		return errors.As(err)
-	}
-	if err := os.MkdirAll(filepath.Join(w.repo, "cache", sectorID), 0755); err != nil {
-		return errors.As(err)
-	}
-	for _, file := range cacheDir.Files {
-		if err := fetchFile(
-			fmt.Sprintf("%s/storage/cache/%s/%s", serverUri, sectorID, file.Value),
-			filepath.Join(w.repo, "cache", sectorID, file.Value),
-		); err != nil {
+	if typ > ffiwrapper.WorkerPreCommit1 {
+		// fetch cache
+		cacheResp, err := http.Get(fmt.Sprintf("%s/storage/cache/%s/", serverUri, sectorID))
+		if err != nil {
 			return errors.As(err)
+		}
+		defer cacheResp.Body.Close()
+		if cacheResp.StatusCode != 200 {
+			return errors.New(cacheResp.Status).As(serverUri, sectorID)
+		}
+		cacheRespData, err := ioutil.ReadAll(cacheResp.Body)
+		if err != nil {
+			return errors.As(err)
+		}
+		cacheDir := &fileserver.StorageDirectoryResp{}
+		if err := xml.Unmarshal(cacheRespData, cacheDir); err != nil {
+			return errors.As(err)
+		}
+		if err := os.MkdirAll(filepath.Join(w.repo, "cache", sectorID), 0755); err != nil {
+			return errors.As(err)
+		}
+		for _, file := range cacheDir.Files {
+			if err := fetchFile(
+				fmt.Sprintf("%s/storage/cache/%s/%s", serverUri, sectorID, file.Value),
+				filepath.Join(w.repo, "cache", sectorID, file.Value),
+			); err != nil {
+				return errors.As(err)
+			}
 		}
 	}
 

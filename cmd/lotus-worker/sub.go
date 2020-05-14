@@ -372,19 +372,35 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 
-		log.Infof("fetch %s data from %s", task.Key(), task.WorkerID)
 		// lock bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
 			ReleaseNodeApi(false)
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
+	retryFetch:
 		// fetch data
+		uri := task.SectorStorage.WorkerInfo.SvcUri
+		if len(uri) == 0 {
+			uri = w.minerEndpoint
+		}
 		if err := w.fetch(
-			task.SectorStorage.WorkerInfo.SvcUri,
+			uri,
 			task.SectorStorage.SectorInfo.ID,
+			task.Type,
 		); err != nil {
-			// return the err task not found and drop it.
-			return errRes(ffiwrapper.ErrTaskNotFound.As(err, task), task)
+			if errors.ErrNoData.Equal(err) {
+				// release bandwidth
+				if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
+					ReleaseNodeApi(false)
+					return errRes(errors.As(err, w.workerCfg), task)
+				}
+
+				// return the err task not found and drop it.
+				return errRes(ffiwrapper.ErrTaskNotFound.As(err, task), task)
+			}
+			log.Warnf("fileserver error, retry 10s later:%+s", err.Error())
+			time.Sleep(10e9)
+			goto retryFetch
 		}
 		// release bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
