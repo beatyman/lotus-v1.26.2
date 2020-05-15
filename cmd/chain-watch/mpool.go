@@ -51,7 +51,7 @@ func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address) (ma
 	// 获取矿工节点信息
 	mInfo, err := api.StateMinerInfo(ctx, addr, types.EmptyTSK)
 	if err != nil {
-		return nil, errors.As(err)
+		return nil, errors.As(err, addr)
 	}
 
 	// 获取失败的扇区数
