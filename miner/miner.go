@@ -123,7 +123,7 @@ func (m *Miner) mine(ctx context.Context) {
 	defer span.End()
 
 	var lastBase MiningBase
-	//var nextRound time.Time
+	var nextRound time.Time
 
 	for {
 		select {
@@ -156,33 +156,33 @@ func (m *Miner) mine(ctx context.Context) {
 			log.Errorf("failed to get best mining candidate: %s", err)
 			continue
 		}
-		//		now := time.Now()
-		//		if !base.TipSet.Equals(lastBase.TipSet) {
-		//			nextRound = nextRoundTime(base)
-		//			lastBase = *base
-		//		} else {
-		//			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
-		//
-		//			// if the base was dead, make the nullRound++ step by round actually change.
-		//			if (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
-		//				time.Sleep(1e9)
-		//				continue
-		//			}
-		//			lastBase.NullRounds++
-		//			nextRound = nextRoundTime(&lastBase)
-		//		}
-		//		if nextRound.Unix()-now.Unix() < (build.BlockDelay - build.PropagationDelay - build.PropagationDelay/2) {
-		//			// no time to mining, just skip this round, and have to prepare to mine the next round.
-		//			time.Sleep(nextRound.Sub(now))
-		//			continue
-		//		}
 
-		if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
-			log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
-			m.niceSleep(build.BlockDelay * time.Second)
+		now := time.Now()
+		if !base.TipSet.Equals(lastBase.TipSet) {
+			nextRound = nextRoundTime(base)
+			lastBase = *base
+		} else {
+			// if the base was dead, make the nullRound++ step by round actually change.
+			if (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
+				log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
+				time.Sleep(1e9)
+				continue
+			}
+			nextRound = nextRoundTime(&lastBase)
+		}
+		leftTime := nextRound.Unix() - now.Unix()
+		if leftTime > 0 && leftTime < (build.BlockDelay-build.PropagationDelay-build.PropagationDelay/2) {
+			// no time to mining, just skip this round, and have to prepare to mine the next round.
+			time.Sleep(nextRound.Sub(now))
 			continue
 		}
-		lastBase = *base
+
+		//if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
+		//	log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
+		//	m.niceSleep(build.BlockDelay * time.Second)
+		//	continue
+		//}
+		//lastBase = *base
 
 		b, err := m.mineOne(ctx, base)
 		if err != nil {
@@ -208,7 +208,7 @@ func (m *Miner) mine(ctx context.Context) {
 			blkKey := fmt.Sprintf("%d", b.Header.Height)
 			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
 				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
-				continue
+				//continue
 			}
 
 			m.minedBlockHeights.Add(blkKey, true)
@@ -216,11 +216,12 @@ func (m *Miner) mine(ctx context.Context) {
 				log.Errorf("failed to submit newly mined block: %s", err)
 			}
 		} else {
-			//now := time.Now()
-			//if nextRound.Before(now) {
-			//	nextRound = now.Add(time.Duration(build.BlockDelay-(now.Unix()-nextRound.Unix())%build.BlockDelay) * time.Second)
-			//}
-			nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds)), 0)
+			now := time.Now()
+			if nextRound.Before(now) {
+				nextRound = now.Add(time.Duration(build.BlockDelay-(now.Unix()-nextRound.Unix())%build.BlockDelay) * time.Second)
+			}
+			// nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds)), 0)
+
 			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
 
 			select {

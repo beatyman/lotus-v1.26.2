@@ -22,4 +22,4 @@ func init() {
 // Seconds
 const BlockDelay = builtin.EpochDurationSeconds
 
-const PropagationDelay = 6
+const PropagationDelay = 4
