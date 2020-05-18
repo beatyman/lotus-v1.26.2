@@ -164,10 +164,10 @@ func (m *Miner) mine(ctx context.Context) {
 		} else {
 			// if the base was dead, make the nullRound++ step by round actually change.
 			if (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
-				log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
 				time.Sleep(1e9)
 				continue
 			}
+			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
 			nextRound = nextRoundTime(&lastBase)
 		}
 		leftTime := nextRound.Unix() - now.Unix()
