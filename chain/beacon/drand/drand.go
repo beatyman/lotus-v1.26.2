@@ -2,7 +2,6 @@ package drand
 
 import (
 	"context"
-	"math/rand"
 	"sync"
 	"time"
 
