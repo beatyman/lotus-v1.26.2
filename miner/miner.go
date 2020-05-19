@@ -169,6 +169,7 @@ func (m *Miner) mine(ctx context.Context) {
 				continue
 			}
 			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
+			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
 		}
 		leftTime := nextRound.Unix() - now.Unix()
@@ -537,7 +538,8 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 
 		minGas := vm.PricelistByEpoch(ts.Height()).OnChainMessage(msg.ChainLength()) // TODO: really should be doing just msg.ChainLength() but the sync side of this code doesnt seem to have access to that
 		if err := msg.VMMessage().ValidForBlockInclusion(minGas); err != nil {
-			log.Warnf("invalid message in message pool: %s", err)
+			log.Infof("invalid message in message pool: %s", err)
+			mpool.Remove(ctx, msg)
 			continue
 		}
 
@@ -546,6 +548,7 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 		// TODO: this should be in some more general 'validate message' call
 		if msg.Message.GasLimit > build.BlockGasLimit {
 			log.Warnf("message in mempool had too high of a gas limit (%d)", msg.Message.GasLimit)
+			mpool.Remove(ctx, msg)
 			continue
 		}
 

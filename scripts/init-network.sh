@@ -4,8 +4,8 @@ export IPFS_GATEWAY="https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs
 set -xeo
 
 NUM_SECTORS=2
-#SECTOR_SIZE=2048
-SECTOR_SIZE=536870912
+SECTOR_SIZE=2048
+#SECTOR_SIZE=536870912
 
 
 sdt0111=/data/lotus/dev/.sdt0111 # $(mktemp -d)
