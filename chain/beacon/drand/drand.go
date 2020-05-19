@@ -88,7 +88,8 @@ func NewDrandBeacon(genesisTs, interval uint64) (*DrandBeacon, error) {
 		db.peers = append(db.peers, &drandPeer{addr: ds, tls: true})
 	}
 
-	db.peersIndex = rand.Intn(len(db.peers))
+	// set to 0 by default.
+	// db.peersIndex = rand.Intn(len(db.peers))
 
 	groupResp, err := db.client.Group(context.TODO(), db.peers[db.peersIndex], &dproto.GroupRequest{})
 	if err != nil {
@@ -120,7 +121,8 @@ func NewDrandBeacon(genesisTs, interval uint64) (*DrandBeacon, error) {
 
 func (db *DrandBeacon) rotatePeersIndex() {
 	db.peersIndexMtx.Lock()
-	nval := rand.Intn(len(db.peers))
+	//nval := rand.Intn(len(db.peers))
+	nval := (db.peersIndex + 1) % len(db.peers)
 	db.peersIndex = nval
 	db.peersIndexMtx.Unlock()
 
