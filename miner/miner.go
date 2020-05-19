@@ -538,7 +538,7 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 
 		minGas := vm.PricelistByEpoch(ts.Height()).OnChainMessage(msg.ChainLength()) // TODO: really should be doing just msg.ChainLength() but the sync side of this code doesnt seem to have access to that
 		if err := msg.VMMessage().ValidForBlockInclusion(minGas); err != nil {
-			log.Warnf("invalid message in message pool: %s", err)
+			log.Infof("invalid message in message pool: %s", err)
 			mpool.Remove(ctx, msg)
 			continue
 		}
