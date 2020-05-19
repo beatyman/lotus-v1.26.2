@@ -147,6 +147,10 @@ func main() {
 				Usage: "enable use of GPU for mining operations",
 				Value: true,
 			},
+			&cli.UintFlag{
+				Name:  "cache-sectors",
+				Value: 1,
+			},
 			&cli.BoolFlag{
 				Name: "no-addpiece",
 			},
@@ -300,6 +304,7 @@ var runCmd = &cli.Command{
 					"http://"+storageAddr, ainfo.AuthHeader(),
 					"http://"+fileServer,
 					r, sealedRepo,
+					cctx.Uint("cache-sectors"),
 					cctx.Bool("no-addpiece"), cctx.Bool("no-precommit1"), cctx.Bool("no-precommit2"), cctx.Bool("no-commit1"), cctx.Bool("no-commit2"),
 					cctx.Bool("no-wpost"), cctx.Bool("no-post"),
 				); err == nil {
