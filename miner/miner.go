@@ -218,10 +218,10 @@ func (m *Miner) mine(ctx context.Context) {
 				log.Errorf("failed to submit newly mined block: %s", err)
 			}
 		} else {
-			now := time.Now()
-			if nextRound.Before(now) {
-				nextRound = now.Add(time.Duration(build.BlockDelay-(now.Unix()-nextRound.Unix())%build.BlockDelay) * time.Second)
-			}
+			//now := time.Now()
+			//if nextRound.Before(now) {
+			//	nextRound = now.Add(time.Duration(build.BlockDelay-(now.Unix()-nextRound.Unix())%build.BlockDelay) * time.Second)
+			//}
 			// nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds)), 0)
 
 			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
@@ -608,7 +608,7 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 	}
 
 	if tooHighNonceMsgs > 0 {
-		log.Warnf("%d messages in mempool had too high nonce", tooLowFundMsgs)
+		log.Warnf("%d messages in mempool had too high nonce", tooHighNonceMsgs)
 	}
 
 	sm := time.Now()
