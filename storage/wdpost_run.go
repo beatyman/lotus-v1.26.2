@@ -173,7 +173,7 @@ func (s *WindowPoStScheduler) checkRecoveries(ctx context.Context, deadline uint
 	if rec.Receipt.ExitCode == 0 {
 		return xerrors.Errorf("declare faults recovered wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
-	log.Info("declare faults recovered exit done")
+	log.Info("declare faults recovered exit 0")
 
 	return nil
 }
