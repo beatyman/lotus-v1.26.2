@@ -11,20 +11,25 @@ SECTOR_SIZE=2048
 sdt0111=/data/lotus/dev/.sdt0111 # $(mktemp -d)
 
 staging=/data/lotus/dev/.staging # $(mktemp -d)
-rm -rf $sdt0111 && mkdir -p $sdt0111
-rm -rf $staging && mkdir -p $staging
+mkdir -p $sdt0111
+mkdir -p $staging
 
 make debug
 make lotus-shed
 make fountain
-
-./lotus-seed genesis new "${staging}/genesis.json"
-
-./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
-
-./lotus-seed genesis add-miner "${staging}/genesis.json" "${sdt0111}/pre-seal-t01000.json"
-
-
+ if [[  "`ls -A ${sdt0111}`" = ""  &&  "`ls -A ${staging}`" = ""  ]];
+ then
+    ./lotus-seed genesis new "${staging}/genesis.json"
+     if [ $SECTOR_SIZE -gt 536870912 ]
+     then
+         FIL_PROOFS_MAXIMIZE_CACHING=1  ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+     else
+        ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+      fi
+      ./lotus-seed genesis add-miner "${staging}/genesis.json" "${sdt0111}/pre-seal-t01000.json"
+ else
+   echo "创始扇区已存在"
+  fi
 ldt0111=/data/lotus/dev/.ldt0111 # $(mktemp -d)
 rm -rf $ldt0111 && mkdir -p $ldt0111
 
