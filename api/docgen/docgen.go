@@ -14,6 +14,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
+	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -29,11 +30,11 @@ import (
 )
 
 var ExampleValues = map[reflect.Type]interface{}{
-	reflect.TypeOf(api.Permission("")): api.Permission("write"),
-	reflect.TypeOf(""):                 "string value",
-	reflect.TypeOf(uint64(42)):         uint64(42),
-	reflect.TypeOf(byte(7)):            byte(7),
-	reflect.TypeOf([]byte{}):           []byte("byte array"),
+	reflect.TypeOf(auth.Permission("")): auth.Permission("write"),
+	reflect.TypeOf(""):                  "string value",
+	reflect.TypeOf(uint64(42)):          uint64(42),
+	reflect.TypeOf(byte(7)):             byte(7),
+	reflect.TypeOf([]byte{}):            []byte("byte array"),
 }
 
 func addExample(v interface{}) {
@@ -190,7 +191,9 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 	return v
 }
 
-func parseApiASTInfo() map[string]string {
+const noComment = "There are not yet any comments for this method."
+
+func parseApiASTInfo() (map[string]string, map[string]string) {
 
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, "./api", nil, parser.AllErrors|parser.ParseComments)
@@ -207,16 +210,33 @@ func parseApiASTInfo() map[string]string {
 	v := &Visitor{make(map[string]ast.Node)}
 	ast.Walk(v, pkgs["api"])
 
+	groupDocs := make(map[string]string)
 	out := make(map[string]string)
 	for mn, node := range v.Methods {
 		cs := cmap.Filter(node).Comments()
 		if len(cs) == 0 {
-			out[mn] = "NO COMMENTS"
+			out[mn] = noComment
 		} else {
-			out[mn] = cs[len(cs)-1].Text()
+			for _, c := range cs {
+				if strings.HasPrefix(c.Text(), "MethodGroup:") {
+					parts := strings.Split(c.Text(), "\n")
+					groupName := strings.TrimSpace(parts[0][12:])
+					comment := strings.Join(parts[1:], "\n")
+					groupDocs[groupName] = comment
+
+					break
+				}
+			}
+
+			last := cs[len(cs)-1].Text()
+			if !strings.HasPrefix(last, "MethodGroup:") {
+				out[mn] = last
+			} else {
+				out[mn] = noComment
+			}
 		}
 	}
-	return out
+	return out, groupDocs
 }
 
 type MethodGroup struct {
@@ -244,7 +264,7 @@ func methodGroupFromName(mn string) string {
 
 func main() {
 
-	comments := parseApiASTInfo()
+	comments, groupComments := parseApiASTInfo()
 
 	groups := make(map[string]*MethodGroup)
 
@@ -258,7 +278,7 @@ func main() {
 		g, ok := groups[groupName]
 		if !ok {
 			g = new(MethodGroup)
-			g.Header = groupName
+			g.Header = groupComments[groupName]
 			g.GroupName = groupName
 			groups[groupName] = g
 		}

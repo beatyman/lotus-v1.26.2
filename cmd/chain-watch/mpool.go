@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -59,6 +58,10 @@ func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address) (ma
 	if err != nil {
 		return nil, errors.As(err)
 	}
+	nfaults, err := sectorFaults.Count()
+	if err != nil {
+		return nil, errors.As(err)
+	}
 	return map[string]interface{}{
 		"TotalPower": fmt.Sprint(pow.TotalPower.RawBytePower),
 		"MinerPower": fmt.Sprint(pow.MinerPower.RawBytePower),
@@ -68,7 +71,7 @@ func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address) (ma
 		"Worker": fmt.Sprint(mInfo.Worker),
 
 		"SectorSize":  mInfo.SectorSize.String(),
-		"FaultNumber": strconv.Itoa(len(sectorFaults)),
+		"FaultNumber": nfaults,
 	}, nil
 }
 

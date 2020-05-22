@@ -108,12 +108,20 @@ func (a *StateAPI) StateMinerProvingDeadline(ctx context.Context, addr address.A
 	return miner.ComputeProvingPeriodDeadline(mas.ProvingPeriodStart, ts.Height()), nil
 }
 
-func (a *StateAPI) StateMinerFaults(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]abi.SectorNumber, error) {
+func (a *StateAPI) StateMinerFaults(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*abi.BitField, error) {
 	ts, err := a.Chain.GetTipSetFromKey(tsk)
 	if err != nil {
 		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
 	}
 	return stmgr.GetMinerFaults(ctx, a.StateManager, ts, addr)
+}
+
+func (a *StateAPI) StateMinerRecoveries(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*abi.BitField, error) {
+	ts, err := a.Chain.GetTipSetFromKey(tsk)
+	if err != nil {
+		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
+	}
+	return stmgr.GetMinerRecoveries(ctx, a.StateManager, ts, addr)
 }
 
 func (a *StateAPI) StateMinerPower(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*api.MinerPower, error) {
@@ -437,7 +445,13 @@ func (a *StateAPI) StateMarketDeals(ctx context.Context, tsk types.TipSetKey) (m
 
 		var s market.DealState
 		if err := sa.Get(ctx, i, &s); err != nil {
-			return err
+			if err != nil {
+				if _, ok := err.(*amt.ErrNotFound); !ok {
+					return xerrors.Errorf("failed to get state for deal in proposals array: %w", err)
+				}
+
+				s.SectorStartEpoch = -1
+			}
 		}
 		out[strconv.FormatInt(int64(i), 10)] = api.MarketDeal{
 			Proposal: d,
