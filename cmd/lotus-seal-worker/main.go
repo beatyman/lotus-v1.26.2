@@ -259,7 +259,7 @@ var runCmd = &cli.Command{
 		// Create / expose the worker
 
 		workerApi := &worker{
-			LocalWorker: sectorstorage.NewLocalWorker(sectorstorage.WorkerConfig{
+			LocalWorker: sectorstorage.NewLocalWorker(false, sectorstorage.WorkerConfig{
 				SealProof: spt,
 				TaskTypes: taskTypes,
 			}, remote, localStore, nodeApi),
