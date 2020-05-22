@@ -28,7 +28,7 @@ make fountain
       fi
       ./lotus-seed genesis add-miner "${staging}/genesis.json" "${sdt0111}/pre-seal-t01000.json"
  else
-   echo "创始扇区已存在"
+   echo "genesis sectos already exists"
   fi
 ldt0111=/data/lotus/dev/.ldt0111 # $(mktemp -d)
 rm -rf $ldt0111 && mkdir -p $ldt0111
