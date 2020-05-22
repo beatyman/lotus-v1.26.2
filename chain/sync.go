@@ -1107,7 +1107,20 @@ loop:
 			return blockSet, nil
 		}
 
-		log.Warnf("(fork detected) synced header chain (%s - %d) does not link to our best block (%s - %d)", from.Cids(), from.Height(), to.Cids(), to.Height())
+		fromHeaviestMiners := []string{}
+		for _, blk := range from.Blocks() {
+			fromHeaviestMiners = append(fromHeaviestMiners,
+				fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+			)
+		}
+		toHeaviestMiners := []string{}
+		for _, blk := range to.Blocks() {
+			toHeaviestMiners = append(toHeaviestMiners,
+				fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+			)
+		}
+
+		log.Warnf("(fork detected) synced header chain (%s - %d)(%+v) does not link to our best block (%s - %d)(%+v)", from.Cids(), from.Height(), fromHeaviestMiners, to.Cids(), to.Height(), toHeaviestMiners)
 		fork, err := syncer.syncFork(ctx, last, to)
 		if err != nil {
 			if xerrors.Is(err, ErrForkTooLong) {
