@@ -173,12 +173,6 @@ func (m *Miner) mine(ctx context.Context) {
 			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
 		}
-		leftTime := nextRound.Unix() - now.Unix()
-		if leftTime > 0 && leftTime < (build.BlockDelay-build.PropagationDelay-build.PropagationDelay/2) {
-			// no time to mining, just skip this round, and have to prepare to mine the next round.
-			time.Sleep(nextRound.Sub(now))
-			continue
-		}
 
 		//if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
 		//	log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
