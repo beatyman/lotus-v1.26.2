@@ -159,8 +159,7 @@ func (m *Miner) mine(ctx context.Context) {
 		}
 
 		now := time.Now()
-		//if !base.TipSet.Equals(lastBase.TipSet) {
-		if lastBase.TipSet == nil || base.TipSet.Height() != lastBase.TipSet.Height() {
+		if !base.TipSet.Equals(lastBase.TipSet) {
 			nextRound = nextRoundTime(base)
 			lastBase = *base
 		} else {
