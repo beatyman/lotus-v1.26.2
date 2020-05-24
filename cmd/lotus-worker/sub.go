@@ -359,6 +359,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerPreCommit2:
 	case ffiwrapper.WorkerCommit1:
 	case ffiwrapper.WorkerCommit2:
+	case ffiwrapper.WorkerFinalize:
 	default:
 		return errRes(errors.New("unknown task type").As(task.Type, w.workerCfg), task)
 	}
@@ -487,7 +488,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 		res.Commit2Out = out
-		// case ffiwrapper.WorkerFinalize:
+	case ffiwrapper.WorkerFinalize:
 		if err := w.sb.FinalizeSector(ctx, task.SectorID); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
