@@ -354,19 +354,20 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 
 	log.Infof("Submitted window post: %s", sm.Cid())
 
-	go func() {
-		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid())
+	go func(m *types.SignedMessage) {
+		rec, err := s.api.StateWaitMsg(context.TODO(), m.Cid())
 		if err != nil {
 			log.Error(err)
 			return
 		}
 
 		if rec.Receipt.ExitCode == 0 {
+			log.Infof("Submitting window post %s success.", m.Cid())
 			return
 		}
 
-		log.Errorf("Submitting window post %s failed: exit %d", sm.Cid(), rec.Receipt.ExitCode)
-	}()
+		log.Errorf("Submitting window post %s failed: exit %d", m.Cid(), rec.Receipt.ExitCode)
+	}(sm)
 
 	return nil
 }
