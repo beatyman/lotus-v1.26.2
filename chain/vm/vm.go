@@ -200,7 +200,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		if xerrors.Is(err, init_.ErrAddressNotFound) {
 			a, err := TryCreateAccountActor(rt, msg.To)
 			if err != nil {
-				return nil, aerrors.Absorb(err, 1, "could not create account"), rt
+				return nil, aerrors.Wrapf(err, "could not create account"), rt
 			}
 			toActor = a
 		} else {
@@ -210,7 +210,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 
 	if types.BigCmp(msg.Value, types.NewInt(0)) != 0 {
 		if err := vm.transfer(msg.From, msg.To, msg.Value); err != nil {
-			return nil, aerrors.Absorb(err, 1, "failed to transfer funds"), nil
+			return nil, aerrors.Wrap(err, "failed to transfer funds"), nil
 		}
 	}
 
@@ -277,6 +277,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 	pl := PricelistByEpoch(vm.blockHeight)
 
 	msgGasCost := pl.OnChainMessage(cmsg.ChainLength())
+	// this should never happen, but is currently still exercised by some tests
 	if msgGasCost > msg.GasLimit {
 		return &ApplyRet{
 			MessageReceipt: types.MessageReceipt{
@@ -292,6 +293,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 
 	minerPenaltyAmount := types.BigMul(msg.GasPrice, types.NewInt(uint64(msgGasCost)))
 	fromActor, err := st.GetActor(msg.From)
+	// this should never happen, but is currently still exercised by some tests
 	if err != nil {
 		if xerrors.Is(err, types.ErrActorNotFound) {
 			return &ApplyRet{
@@ -306,6 +308,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 		return nil, xerrors.Errorf("failed to look up from actor: %w", err)
 	}
 
+	// this should never happen, but is currently still exercised by some tests
 	if !fromActor.Code.Equals(builtin.AccountActorCodeID) {
 		return &ApplyRet{
 			MessageReceipt: types.MessageReceipt{
@@ -317,6 +320,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 		}, nil
 	}
 
+	// TODO: We should remove this, we might punish miners for no fault of their own
 	if msg.Nonce != fromActor.Nonce {
 		return &ApplyRet{
 			MessageReceipt: types.MessageReceipt{
@@ -360,27 +364,25 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 		return nil, xerrors.Errorf("[from=%s,to=%s,n=%d,m=%d,h=%d] fatal error: %w", msg.From, msg.To, msg.Nonce, msg.Method, vm.blockHeight, actorErr)
 	}
 
-	{
-		if rt == nil {
-			return nil, xerrors.Errorf("send returned nil runtime, send error was: %s", actorErr)
-		}
-		actorErr2 := rt.chargeGasSafe(rt.Pricelist().OnChainReturnValue(len(ret)))
-		if actorErr2 != nil {
-			return &ApplyRet{
-				MessageReceipt: types.MessageReceipt{
-					ExitCode: aerrors.RetCode(actorErr2),
-					GasUsed:  rt.gasUsed,
-				},
-				ActorErr: actorErr2,
-				Penalty:  types.NewInt(0),
-				Duration: time.Since(start),
-			}, nil
-
-		}
-	}
-
 	if actorErr != nil {
 		log.Warnw("Send actor error", "from", msg.From, "to", msg.To, "nonce", msg.Nonce, "method", msg.Method, "height", vm.blockHeight, "error", fmt.Sprintf("%+v", actorErr))
+	}
+
+	if actorErr != nil && len(ret) != 0 {
+		// This should not happen, something is wonky
+		return nil, xerrors.Errorf("message invocation errored, but had a return value anyway: %w", actorErr)
+	}
+
+	if rt == nil {
+		return nil, xerrors.Errorf("send returned nil runtime, send error was: %s", actorErr)
+	}
+
+	if len(ret) != 0 {
+		// safely override actorErr since it must be nil
+		actorErr = rt.chargeGasSafe(rt.Pricelist().OnChainReturnValue(len(ret)))
+		if actorErr != nil {
+			ret = nil
+		}
 	}
 
 	var errcode exitcode.ExitCode
@@ -600,36 +602,36 @@ func (vm *VM) incrementNonce(addr address.Address) error {
 	})
 }
 
-func (vm *VM) transfer(from, to address.Address, amt types.BigInt) error {
+func (vm *VM) transfer(from, to address.Address, amt types.BigInt) aerrors.ActorError {
 	if from == to {
 		return nil
 	}
 
 	if amt.LessThan(types.NewInt(0)) {
-		return xerrors.Errorf("attempted to transfer negative value")
+		return aerrors.Newf(exitcode.SysErrForbidden, "attempted to transfer negative value: %s", amt)
 	}
 
 	f, err := vm.cstate.GetActor(from)
 	if err != nil {
-		return xerrors.Errorf("transfer failed when retrieving sender actor")
+		return aerrors.Fatalf("transfer failed when retrieving sender actor: %s", err)
 	}
 
 	t, err := vm.cstate.GetActor(to)
 	if err != nil {
-		return xerrors.Errorf("transfer failed when retrieving receiver actor")
+		return aerrors.Fatalf("transfer failed when retrieving receiver actor: %s", err)
 	}
 
 	if err := deductFunds(f, amt); err != nil {
-		return err
+		return aerrors.Newf(exitcode.SysErrInsufficientFunds, "transfer failed when deducting funds: %s", err)
 	}
 	depositFunds(t, amt)
 
 	if err := vm.cstate.SetActor(from, f); err != nil {
-		return err
+		return aerrors.Fatalf("transfer failed when setting receiver actor: %s", err)
 	}
 
 	if err := vm.cstate.SetActor(to, t); err != nil {
-		return err
+		return aerrors.Fatalf("transfer failed when setting sender actor: %s", err)
 	}
 
 	return nil

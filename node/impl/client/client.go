@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/filecoin-project/go-fil-markets/pieceio"
-	ipldfree "github.com/ipld/go-ipld-prime/impl/free"
+	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 
@@ -15,7 +15,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/ipfs/go-blockservice"
-	"github.com/ipfs/go-car"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-filestore"
 	chunker "github.com/ipfs/go-ipfs-chunker"
@@ -26,6 +25,7 @@ import (
 	unixfile "github.com/ipfs/go-unixfs/file"
 	"github.com/ipfs/go-unixfs/importer/balanced"
 	ihelper "github.com/ipfs/go-unixfs/importer/helpers"
+	"github.com/ipld/go-car"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"go.uber.org/fx"
 
@@ -331,7 +331,7 @@ func (a *API) ClientRetrieve(ctx context.Context, order api.RetrievalOrder, ref 
 
 	ppb := types.BigDiv(order.Total, types.NewInt(order.Size))
 
-	a.Retrieval.Retrieve(
+	_, err := a.Retrieval.Retrieve(
 		ctx,
 		order.Root,
 		retrievalmarket.NewParamsV0(ppb, order.PaymentInterval, order.PaymentIntervalIncrease),
@@ -339,6 +339,9 @@ func (a *API) ClientRetrieve(ctx context.Context, order api.RetrievalOrder, ref 
 		order.MinerPeerID,
 		order.Client,
 		order.Miner)
+	if err != nil {
+		return xerrors.Errorf("Retrieve failed: %w", err)
+	}
 	select {
 	case <-ctx.Done():
 		return xerrors.New("Retrieval Timed Out")
@@ -425,7 +428,7 @@ func (a *API) ClientGenCar(ctx context.Context, ref api.FileRef, outputPath stri
 	}
 
 	defer bufferedDS.Remove(ctx, c)
-	ssb := builder.NewSelectorSpecBuilder(ipldfree.NodeBuilder())
+	ssb := builder.NewSelectorSpecBuilder(basicnode.Style.Any)
 
 	// entire DAG selector
 	allSelector := ssb.ExploreRecursive(selector.RecursionLimitNone(),

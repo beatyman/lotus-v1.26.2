@@ -248,24 +248,24 @@ func GetMinerDeadlines(ctx context.Context, sm *StateManager, ts *types.TipSet, 
 	return mas.LoadDeadlines(sm.cs.Store(ctx))
 }
 
-func GetMinerFaults(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) ([]abi.SectorNumber, error) {
+func GetMinerFaults(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) (*abi.BitField, error) {
 	var mas miner.State
 	_, err := sm.LoadActorState(ctx, maddr, &mas, ts)
 	if err != nil {
-		return nil, xerrors.Errorf("(get ssize) failed to load miner actor state: %w", err)
+		return nil, xerrors.Errorf("(get faults) failed to load miner actor state: %w", err)
 	}
 
-	faults, err := mas.Faults.All(miner.SectorsMax)
+	return mas.Faults, nil
+}
+
+func GetMinerRecoveries(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) (*abi.BitField, error) {
+	var mas miner.State
+	_, err := sm.LoadActorState(ctx, maddr, &mas, ts)
 	if err != nil {
-		return nil, xerrors.Errorf("reading fault bit set: %w", err)
+		return nil, xerrors.Errorf("(get recoveries) failed to load miner actor state: %w", err)
 	}
 
-	out := make([]abi.SectorNumber, len(faults))
-	for i, fault := range faults {
-		out[i] = abi.SectorNumber(fault)
-	}
-
-	return out, nil
+	return mas.Recoveries, nil
 }
 
 func GetStorageDeal(ctx context.Context, sm *StateManager, dealId abi.DealID, ts *types.TipSet) (*api.MarketDeal, error) {
@@ -289,9 +289,17 @@ func GetStorageDeal(ctx context.Context, sm *StateManager, dealId abi.DealID, ts
 		return nil, err
 	}
 
-	st, err := sa.Get(dealId)
+	st, found, err := sa.Get(dealId)
 	if err != nil {
 		return nil, err
+	}
+
+	if !found {
+		st = &market.DealState{
+			SectorStartEpoch: -1,
+			LastUpdatedEpoch: -1,
+			SlashEpoch:       -1,
+		}
 	}
 
 	return &api.MarketDeal{
@@ -426,7 +434,7 @@ func GetLookbackTipSetForRound(ctx context.Context, sm *StateManager, ts *types.
 		return ts, nil
 	}
 
-	lbts, err := sm.ChainStore().GetTipsetByHeight(ctx, lbr, ts)
+	lbts, err := sm.ChainStore().GetTipsetByHeight(ctx, lbr, ts, true)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get lookback tipset: %w", err)
 	}

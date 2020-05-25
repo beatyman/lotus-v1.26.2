@@ -3,7 +3,6 @@ package modules
 import (
 	"context"
 	"path/filepath"
-	"reflect"
 
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	"github.com/ipfs/go-merkledag"
@@ -45,7 +44,12 @@ func ClientFstore(r repo.LockedRepo) (dtypes.ClientFilestore, error) {
 	}
 	blocks := namespace.Wrap(clientds, datastore.NewKey("blocks"))
 
-	fm := filestore.NewFileManager(clientds, filepath.Dir(r.Path()))
+	absPath, err := filepath.Abs(r.Path())
+	if err != nil {
+		return nil, err
+	}
+
+	fm := filestore.NewFileManager(clientds, filepath.Dir(absPath))
 	fm.AllowFiles = true
 	// TODO: fm.AllowUrls (needs more code in client import)
 
@@ -60,16 +64,17 @@ func ClientBlockstore(fstore dtypes.ClientFilestore) dtypes.ClientBlockstore {
 // RegisterClientValidator is an initialization hook that registers the client
 // request validator with the data transfer module as the validator for
 // StorageDataTransferVoucher types
-func RegisterClientValidator(crv *requestvalidation.ClientRequestValidator, dtm dtypes.ClientDataTransfer) {
-	if err := dtm.RegisterVoucherType(reflect.TypeOf(&requestvalidation.StorageDataTransferVoucher{}), crv); err != nil {
+func RegisterClientValidator(crv dtypes.ClientRequestValidator, dtm dtypes.ClientDataTransfer) {
+	if err := dtm.RegisterVoucherType(&requestvalidation.StorageDataTransferVoucher{}, (*requestvalidation.UnifiedRequestValidator)(crv)); err != nil {
 		panic(err)
 	}
 }
 
 // NewClientGraphsyncDataTransfer returns a data transfer manager that just
 // uses the clients's Client DAG service for transfers
-func NewClientGraphsyncDataTransfer(h host.Host, gs dtypes.Graphsync) dtypes.ClientDataTransfer {
-	return graphsyncimpl.NewGraphSyncDataTransfer(h, gs)
+func NewClientGraphsyncDataTransfer(h host.Host, gs dtypes.Graphsync, ds dtypes.MetadataDS) dtypes.ClientDataTransfer {
+	sc := storedcounter.New(ds, datastore.NewKey("/datatransfer/client/counter"))
+	return graphsyncimpl.NewGraphSyncDataTransfer(h, gs, sc)
 }
 
 // NewClientDealStore creates a statestore for the client to store its deals
@@ -100,13 +105,27 @@ func ClientDAG(mctx helpers.MetricsCtx, lc fx.Lifecycle, ibs dtypes.ClientBlocks
 	return dag
 }
 
-func NewClientRequestValidator(deals dtypes.ClientDealStore) *requestvalidation.ClientRequestValidator {
-	return requestvalidation.NewClientRequestValidator(deals)
+func NewClientRequestValidator(deals dtypes.ClientDealStore) dtypes.ClientRequestValidator {
+	return requestvalidation.NewUnifiedRequestValidator(nil, deals)
 }
 
-func StorageClient(h host.Host, ibs dtypes.ClientBlockstore, r repo.LockedRepo, dataTransfer dtypes.ClientDataTransfer, discovery *discovery.Local, deals dtypes.ClientDatastore, scn storagemarket.StorageClientNode) (storagemarket.StorageClient, error) {
+func StorageClient(lc fx.Lifecycle, h host.Host, ibs dtypes.ClientBlockstore, r repo.LockedRepo, dataTransfer dtypes.ClientDataTransfer, discovery *discovery.Local, deals dtypes.ClientDatastore, scn storagemarket.StorageClientNode) (storagemarket.StorageClient, error) {
 	net := smnet.NewFromLibp2pHost(h)
-	return storageimpl.NewClient(net, ibs, dataTransfer, discovery, deals, scn)
+	c, err := storageimpl.NewClient(net, ibs, dataTransfer, discovery, deals, scn)
+	if err != nil {
+		return nil, err
+	}
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			c.Run(ctx)
+			return nil
+		},
+		OnStop: func(context.Context) error {
+			c.Stop()
+			return nil
+		},
+	})
+	return c, nil
 }
 
 // RetrievalClient creates a new retrieval client attached to the client blockstore
@@ -114,5 +133,5 @@ func RetrievalClient(h host.Host, bs dtypes.ClientBlockstore, pmgr *paychmgr.Man
 	adapter := retrievaladapter.NewRetrievalClientNode(pmgr, payapi, chainapi)
 	network := rmnet.NewFromLibp2pHost(h)
 	sc := storedcounter.New(ds, datastore.NewKey("/retr"))
-	return retrievalimpl.NewClient(network, bs, adapter, resolver, ds, sc)
+	return retrievalimpl.NewClient(network, bs, adapter, resolver, namespace.Wrap(ds, datastore.NewKey("/retrievals/client")), sc)
 }

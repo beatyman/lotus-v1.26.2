@@ -7,20 +7,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
-	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-actors/actors/abi/big"
+	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
+	"github.com/filecoin-project/specs-actors/actors/builtin/power"
+	"github.com/filecoin-project/specs-actors/actors/builtin/verifreg"
+
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+	mocktypes "github.com/filecoin-project/lotus/chain/types/mock"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/modules"
@@ -30,8 +34,11 @@ import (
 func init() {
 	build.InsecurePoStValidation = true
 	os.Setenv("TRUST_PARAMS", "1")
-	build.SectorSizes = []abi.SectorSize{2048}
+	miner.SupportedProofTypes = map[abi.RegisteredProof]struct{}{
+		abi.RegisteredProof_StackedDRG2KiBSeal: {},
+	}
 	power.ConsensusMinerMinPower = big.NewInt(2048)
+	verifreg.MinVerifiedDealSize = big.NewInt(256)
 }
 
 const source = 0
@@ -510,4 +517,31 @@ func runSyncBenchLength(b *testing.B, l int) {
 	tu.connect(1, 0)
 
 	tu.waitUntilSync(0, client)
+}
+
+func TestSyncInputs(t *testing.T) {
+	H := 10
+	tu := prepSyncTest(t, H)
+
+	p1 := tu.addClientNode()
+
+	fn := tu.nds[p1].(*impl.FullNodeAPI)
+
+	s := fn.SyncAPI.Syncer
+
+	err := s.ValidateBlock(context.TODO(), &types.FullBlock{
+		Header: &types.BlockHeader{},
+	})
+	if err == nil {
+		t.Fatal("should error on empty block")
+	}
+
+	h := mocktypes.MkBlock(nil, 123, 432)
+
+	h.ElectionProof = nil
+
+	err = s.ValidateBlock(context.TODO(), &types.FullBlock{Header: h})
+	if err == nil {
+		t.Fatal("should error on block with nil election proof")
+	}
 }

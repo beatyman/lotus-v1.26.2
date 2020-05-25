@@ -23,7 +23,7 @@ import (
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket/discovery"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
-	"github.com/filecoin-project/go-fil-markets/storagemarket/impl/requestvalidation"
+	"github.com/filecoin-project/go-fil-markets/storagemarket/impl/storedask"
 
 	"github.com/filecoin-project/specs-actors/actors/runtime"
 	storage2 "github.com/filecoin-project/specs-storage/storage"
@@ -142,12 +142,14 @@ type Settings struct {
 
 	Online bool // Online option applied
 	Config bool // Config option applied
+
 }
 
 func defaults() []Option {
 	return []Option{
 		Override(new(helpers.MetricsCtx), context.Background),
 		Override(new(record.Validator), modules.RecordValidator),
+		Override(new(dtypes.Bootstrapper), dtypes.Bootstrapper(false)),
 
 		// Filecoin modules
 
@@ -175,10 +177,15 @@ func libp2p() Option {
 
 		Override(NatPortMapKey, lp2p.NatPortMap),
 
-		Override(ConnectionManagerKey, lp2p.ConnectionManager(50, 200, 20*time.Second, nil)),
+		Override(ConnectionManagerKey, lp2p.ConnectionManager(3, 10, 20*time.Second, nil)),
 		Override(AutoNATSvcKey, lp2p.AutoNATService),
 
-		Override(new(*pubsub.PubSub), lp2p.GossipSub()),
+		Override(new(*pubsub.PubSub), lp2p.GossipSub),
+		Override(new(*config.Pubsub), func(bs dtypes.Bootstrapper) *config.Pubsub {
+			return &config.Pubsub{
+				Bootstrapper: bool(bs),
+			}
+		}),
 
 		Override(PstoreAddSelfKeysKey, lp2p.PstoreAddSelfKeys),
 		Override(StartListeningKey, lp2p.StartListening(config.DefaultFullNode().Libp2p.ListenAddresses)),
@@ -252,7 +259,7 @@ func Online() Option {
 			Override(new(dtypes.ClientDealStore), modules.NewClientDealStore),
 			Override(new(dtypes.ClientDatastore), modules.NewClientDatastore),
 			Override(new(dtypes.ClientDataTransfer), modules.NewClientGraphsyncDataTransfer),
-			Override(new(*requestvalidation.ClientRequestValidator), modules.NewClientRequestValidator),
+			Override(new(dtypes.ClientRequestValidator), modules.NewClientRequestValidator),
 			Override(new(storagemarket.StorageClient), modules.StorageClient),
 			Override(new(storagemarket.StorageClientNode), storageadapter.NewClientNodeAdapter),
 			Override(RegisterClientValidatorKey, modules.RegisterClientValidator),
@@ -293,8 +300,9 @@ func Online() Option {
 			Override(new(retrievalmarket.RetrievalProvider), modules.RetrievalProvider),
 			Override(new(dtypes.ProviderDealStore), modules.NewProviderDealStore),
 			Override(new(dtypes.ProviderDataTransfer), modules.NewProviderDAGServiceDataTransfer),
-			Override(new(*requestvalidation.ProviderRequestValidator), modules.NewProviderRequestValidator),
+			Override(new(dtypes.ProviderRequestValidator), modules.NewProviderRequestValidator),
 			Override(new(dtypes.ProviderPieceStore), modules.NewProviderPieceStore),
+			Override(new(*storedask.StoredAsk), modules.NewStorageAsk),
 			Override(new(storagemarket.StorageProvider), modules.StorageProvider),
 			Override(new(storagemarket.StorageProviderNode), storageadapter.NewProviderNodeAdapter),
 			Override(RegisterProviderValidatorKey, modules.RegisterProviderValidator),
@@ -354,6 +362,8 @@ func ConfigCommon(cfg *config.Common) Option {
 				cfg.Libp2p.ConnMgrHigh,
 				time.Duration(cfg.Libp2p.ConnMgrGrace),
 				cfg.Libp2p.ProtectedPeers)),
+			Override(new(*pubsub.PubSub), lp2p.GossipSub),
+			Override(new(*config.Pubsub), &cfg.Pubsub),
 
 			ApplyIf(func(s *Settings) bool { return len(cfg.Libp2p.BootstrapPeers) > 0 },
 				Override(new(dtypes.BootstrapPeers), modules.ConfigBootstrap(cfg.Libp2p.BootstrapPeers)),
@@ -376,9 +386,6 @@ func ConfigFullNode(c interface{}) Option {
 
 		If(cfg.Metrics.HeadNotifs,
 			Override(HeadMetricsKey, metrics.SendHeadNotifs(cfg.Metrics.Nickname)),
-		),
-		If(cfg.Metrics.PubsubTracing,
-			Override(new(*pubsub.PubSub), lp2p.GossipSub(lp2p.PubsubTracer())),
 		),
 	)
 }

@@ -1,10 +1,15 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/filecoin-project/go-jsonrpc"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/sector-storage/ffiwrapper/basicfs"
@@ -20,7 +25,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/lotus/lib/jsonrpc"
+	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/lib/lotuslog"
 	"github.com/filecoin-project/lotus/node/repo"
 
@@ -47,17 +52,22 @@ func closeNodeApi() {
 	}
 	nodeApi = nil
 	nodeCloser = nil
-	time.Sleep(3e9)
 }
 
 func ReleaseNodeApi(shutdown bool) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
+	time.Sleep(3e9)
+
+	if nodeApi == nil {
+		return
+	}
 
 	if shutdown {
 		closeNodeApi()
 		return
 	}
+
 	ctx := lcli.ReqContext(nodeCCtx)
 
 	// try reconnection
@@ -137,14 +147,32 @@ func main() {
 				Usage: "enable use of GPU for mining operations",
 				Value: true,
 			},
+			&cli.UintFlag{
+				Name:  "cache-sectors",
+				Value: 1,
+			},
 			&cli.BoolFlag{
 				Name: "no-addpiece",
 			},
 			&cli.BoolFlag{
-				Name: "no-seal",
+				Name: "no-precommit1",
 			},
 			&cli.BoolFlag{
-				Name: "no-verify",
+				Name: "no-precommit2",
+			},
+			&cli.BoolFlag{
+				Name: "no-commit1",
+			},
+			&cli.BoolFlag{
+				Name: "no-commit2",
+			},
+			&cli.BoolFlag{
+				Name:  "no-wpost",
+				Value: true,
+			},
+			&cli.BoolFlag{
+				Name:  "no-post",
+				Value: true,
 			},
 		},
 
@@ -179,6 +207,10 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("could not get api info: %w", err)
 		}
 		_, storageAddr, err := manet.DialArgs(ainfo.Addr)
+		if err != nil {
+			return err
+		}
+		fmt.Println(storageAddr)
 
 		r, err := homedir.Expand(cctx.String("repo"))
 		if err != nil {
@@ -204,6 +236,12 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err)
 		}
+
+		// fetch parameters from hlm
+		// TODO: need more develop time
+		//if err := FetchHlmParams(ctx, nodeApi, storageAddr); err != nil {
+		//	return errors.As(err)
+		//}
 
 		if err := paramfetch.GetParams(build.ParametersJson(), uint64(ssize)); err != nil {
 			return xerrors.Errorf("get params: %w", err)
@@ -235,6 +273,25 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err, sealedRepo)
 		}
+		// make download server
+		fileServer := cctx.String("file-server")
+		if len(fileServer) == 0 {
+			netIp := os.Getenv("NETIP")
+			fileServer = netIp + ":1280"
+		}
+
+		fileServerToken, err := ioutil.ReadFile(filepath.Join(cctx.String("storagerepo"), "token"))
+		if err != nil {
+			return errors.As(err)
+		}
+		fileHandle := fileserver.NewStorageFileServer(r, string(fileServerToken), nil)
+		go func() {
+			log.Info("File server listen at: " + fileServer)
+			if err := http.ListenAndServe(fileServer, fileHandle); err != nil {
+				panic(err)
+			}
+		}()
+
 		for {
 
 			select {
@@ -245,8 +302,11 @@ var runCmd = &cli.Command{
 					sb, sealedSB,
 					act, workerAddr,
 					"http://"+storageAddr, ainfo.AuthHeader(),
+					"http://"+fileServer,
 					r, sealedRepo,
-					cctx.Bool("no-addpiece"), cctx.Bool("no-seal"), cctx.Bool("no-verify"),
+					cctx.Uint("cache-sectors"),
+					cctx.Bool("no-addpiece"), cctx.Bool("no-precommit1"), cctx.Bool("no-precommit2"), cctx.Bool("no-commit1"), cctx.Bool("no-commit2"),
+					cctx.Bool("no-wpost"), cctx.Bool("no-post"),
 				); err == nil {
 					break
 				} else {

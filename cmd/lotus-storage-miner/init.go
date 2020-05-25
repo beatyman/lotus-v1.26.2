@@ -48,6 +48,7 @@ import (
 	"github.com/filecoin-project/lotus/storage"
 
 	sealing "github.com/filecoin-project/storage-fsm"
+
 	"github.com/gwaylib/errors"
 )
 
@@ -81,7 +82,7 @@ var initCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "sector-size",
 			Usage: "specify sector size to use",
-			Value: fmt.Sprint(build.SectorSizes[0]),
+			Value: units.BytesSize(float64(build.DefaultSectorSize())),
 		},
 		&cli.StringSliceFlag{
 			Name:  "pre-sealed-sectors",
@@ -372,7 +373,7 @@ func migratePreSealMeta(ctx context.Context, api lapi.FullNode, metadata string,
 
 	buf := make([]byte, binary.MaxVarintLen64)
 	size := binary.PutUvarint(buf, uint64(maxSectorID+1))
-	return mds.Put(datastore.NewKey("/storage/nextid"), buf[:size])
+	return mds.Put(datastore.NewKey(modules.StorageCounterDSPrefix), buf[:size])
 }
 
 func findMarketDealID(ctx context.Context, api lapi.FullNode, deal market.DealProposal) (abi.DealID, error) {
@@ -466,15 +467,15 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 				return err
 			}
 
-			m := miner.NewMiner(api, epp, beacon)
+			m := miner.NewMiner(api, epp, beacon, a)
 			{
-				if err := m.Register(a); err != nil {
+				if err := m.Start(ctx); err != nil {
 					return xerrors.Errorf("failed to start up genesis miner: %w", err)
 				}
 
 				cerr := configureStorageMiner(ctx, api, a, peerid, gasPrice)
 
-				if err := m.Unregister(ctx, a); err != nil {
+				if err := m.Stop(ctx); err != nil {
 					log.Error("failed to shut down storage miner: ", err)
 				}
 
@@ -578,7 +579,7 @@ func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.
 		Params:   enc,
 		Value:    types.NewInt(0),
 		GasPrice: gasPrice,
-		GasLimit: 100000000,
+		GasLimit: 99999999,
 	}
 
 	smsg, err := api.MpoolPushMessage(ctx, msg)
@@ -613,7 +614,10 @@ func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, 
 		return address.Undef, err
 	}
 
-	ssize := cctx.Uint64("sector-size")
+	ssize, err := units.RAMInBytes(cctx.String("sector-size"))
+	if err != nil {
+		return address.Undef, fmt.Errorf("failed to parse sector size: %w", err)
+	}
 
 	worker := owner
 	if cctx.String("worker") != "" {
