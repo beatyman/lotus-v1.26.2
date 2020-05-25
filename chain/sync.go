@@ -45,6 +45,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/lotus/lib/sigs"
 	"github.com/filecoin-project/lotus/metrics"
 )
@@ -88,7 +89,7 @@ type Syncer struct {
 func NewSyncer(sm *stmgr.StateManager, bsync *blocksync.BlockSync, connmgr connmgr.ConnManager, self peer.ID, beacon beacon.RandomBeacon, verifier ffiwrapper.Verifier) (*Syncer, error) {
 	gen, err := sm.ChainStore().GetGenesis()
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("getting genesis block: %w", err)
 	}
 
 	gent, err := types.NewTipSet([]*types.BlockHeader{gen})
@@ -505,12 +506,36 @@ func (syncer *Syncer) minerIsValid(ctx context.Context, maddr address.Address, b
 
 var ErrTemporal = errors.New("temporal error")
 
+func blockSanityChecks(h *types.BlockHeader) error {
+	if h.ElectionProof == nil {
+		return xerrors.Errorf("block cannot have nil election proof")
+	}
+
+	if h.Ticket == nil {
+		return xerrors.Errorf("block cannot have nil ticket")
+	}
+
+	if h.BlockSig == nil {
+		return xerrors.Errorf("block had nil signature")
+	}
+
+	if h.BLSAggregate == nil {
+		return xerrors.Errorf("block had nil bls aggregate signature")
+	}
+
+	return nil
+}
+
 // Should match up with 'Semantical Validation' in validation.md in the spec
 func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) error {
 	ctx, span := trace.StartSpan(ctx, "validateBlock")
 	defer span.End()
 	if build.InsecurePoStValidation {
 		log.Warn("insecure test validation is enabled, if you see this outside of a test, it is a severe bug!")
+	}
+
+	if err := blockSanityChecks(b.Header); err != nil {
+		return xerrors.Errorf("incoming header failed basic sanity checks: %w", err)
 	}
 
 	h := b.Header
@@ -538,9 +563,6 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) err
 	//nulls := h.Height - (baseTs.Height() + 1)
 
 	// fast checks first
-	if h.BlockSig == nil {
-		return xerrors.Errorf("block had nil signature")
-	}
 
 	now := uint64(time.Now().Unix())
 	if h.Timestamp > now+build.AllowableClockDrift {
@@ -617,8 +639,7 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) err
 			return xerrors.Errorf("could not draw randomness: %w", err)
 		}
 
-		err = gen.VerifyVRF(ctx, waddr, vrfBase, h.ElectionProof.VRFProof)
-		if err != nil {
+		if err := gen.VerifyVRF(ctx, waddr, vrfBase, h.ElectionProof.VRFProof); err != nil {
 			return xerrors.Errorf("validating block election proof failed: %w", err)
 		}
 
@@ -651,9 +672,6 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) err
 	})
 
 	beaconValuesCheck := async.Err(func() error {
-		// // IGNORE DRAND, wait for offical fix
-		// return nil
-
 		if os.Getenv("LOTUS_IGNORE_DRAND") == "_yes_" {
 			return nil
 		}
@@ -788,6 +806,7 @@ func (syncer *Syncer) VerifyWinningPoStProof(ctx context.Context, h *types.Block
 	return nil
 }
 
+// TODO: We should extract this somewhere else and make the message pool and miner use the same logic
 func (syncer *Syncer) checkBlockMessages(ctx context.Context, b *types.FullBlock, baseTs *types.TipSet) error {
 	{
 		var sigCids []cid.Cid // this is what we get for people not wanting the marshalcbor method on the cid type
@@ -822,16 +841,27 @@ func (syncer *Syncer) checkBlockMessages(ctx context.Context, b *types.FullBlock
 		return xerrors.Errorf("failed to load base state tree: %w", err)
 	}
 
-	checkMsg := func(m *types.Message) error {
-		if m.To == address.Undef {
-			return xerrors.New("'To' address cannot be empty")
+	checkMsg := func(msg types.ChainMsg) error {
+		m := msg.VMMessage()
+
+		// Phase 1: syntactic validation, as defined in the spec
+		minGas := vm.PricelistByEpoch(baseTs.Height()).OnChainMessage(msg.ChainLength())
+		if err := m.ValidForBlockInclusion(minGas); err != nil {
+			return err
 		}
 
+		// Phase 2: (Partial) semantic validation:
+		// the sender exists and is an account actor, and the nonces make sense
 		if _, ok := nonces[m.From]; !ok {
 			// `GetActor` does not validate that this is an account actor.
 			act, err := st.GetActor(m.From)
 			if err != nil {
 				return xerrors.Errorf("failed to get actor: %w", err)
+			}
+
+			// redundant check
+			if !act.IsAccountActor() {
+				return xerrors.New("Sender must be an account actor")
 			}
 			nonces[m.From] = act.Nonce
 		}
@@ -857,7 +887,7 @@ func (syncer *Syncer) checkBlockMessages(ctx context.Context, b *types.FullBlock
 
 	var secpkCids []cbg.CBORMarshaler
 	for i, m := range b.SecpkMessages {
-		if err := checkMsg(&m.Message); err != nil {
+		if err := checkMsg(m); err != nil {
 			return xerrors.Errorf("block had invalid secpk message at index %d: %w", i, err)
 		}
 
@@ -1077,7 +1107,20 @@ loop:
 			return blockSet, nil
 		}
 
-		log.Warnf("(fork detected) synced header chain (%s - %d) does not link to our best block (%s - %d)", from.Cids(), from.Height(), to.Cids(), to.Height())
+		fromHeaviestMiners := []string{}
+		for _, blk := range from.Blocks() {
+			fromHeaviestMiners = append(fromHeaviestMiners,
+				fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+			)
+		}
+		toHeaviestMiners := []string{}
+		for _, blk := range to.Blocks() {
+			toHeaviestMiners = append(toHeaviestMiners,
+				fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+			)
+		}
+
+		log.Warnf("(fork detected) synced header chain (%s - %d)(%+v) does not link to our best block (%s - %d)(%+v)", from.Cids(), from.Height(), fromHeaviestMiners, to.Cids(), to.Height(), toHeaviestMiners)
 		fork, err := syncer.syncFork(ctx, last, to)
 		if err != nil {
 			if xerrors.Is(err, ErrForkTooLong) {
@@ -1099,7 +1142,7 @@ loop:
 var ErrForkTooLong = fmt.Errorf("fork longer than threshold")
 
 func (syncer *Syncer) syncFork(ctx context.Context, from *types.TipSet, to *types.TipSet) ([]*types.TipSet, error) {
-	tips, err := syncer.Bsync.GetBlocks(ctx, from.Parents(), build.ForkLengthThreshold)
+	tips, err := syncer.Bsync.GetBlocks(ctx, from.Parents(), int(build.ForkLengthThreshold))
 	if err != nil {
 		return nil, err
 	}
@@ -1270,7 +1313,7 @@ func (syncer *Syncer) collectChain(ctx context.Context, ts *types.TipSet) error 
 
 	ss.SetStage(api.StagePersistHeaders)
 
-	toPersist := make([]*types.BlockHeader, 0, len(headers)*build.BlocksPerEpoch)
+	toPersist := make([]*types.BlockHeader, 0, len(headers)*int(build.BlocksPerEpoch))
 	for _, ts := range headers {
 		toPersist = append(toPersist, ts.Blocks()...)
 	}

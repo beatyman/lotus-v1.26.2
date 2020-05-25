@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -51,11 +50,15 @@ func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address) (ma
 	// 获取矿工节点信息
 	mInfo, err := api.StateMinerInfo(ctx, addr, types.EmptyTSK)
 	if err != nil {
-		return nil, errors.As(err)
+		return nil, errors.As(err, addr)
 	}
 
 	// 获取失败的扇区数
 	sectorFaults, err := api.StateMinerFaults(ctx, addr, types.EmptyTSK)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	nfaults, err := sectorFaults.Count()
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -68,7 +71,7 @@ func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address) (ma
 		"Worker": fmt.Sprint(mInfo.Worker),
 
 		"SectorSize":  mInfo.SectorSize.String(),
-		"FaultNumber": strconv.Itoa(len(sectorFaults)),
+		"FaultNumber": nfaults,
 	}, nil
 }
 

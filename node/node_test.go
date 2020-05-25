@@ -22,11 +22,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	saminer "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
+	"github.com/filecoin-project/specs-actors/actors/builtin/verifreg"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
@@ -38,7 +40,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/lotus/cmd/lotus-seed/seed"
 	genesis "github.com/filecoin-project/lotus/genesis"
-	"github.com/filecoin-project/lotus/lib/jsonrpc"
 	"github.com/filecoin-project/lotus/miner"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/modules"
@@ -51,8 +52,11 @@ import (
 func init() {
 	_ = logging.SetLogLevel("*", "INFO")
 
-	build.SectorSizes = []abi.SectorSize{2048}
 	power.ConsensusMinerMinPower = big.NewInt(2048)
+	saminer.SupportedProofTypes = map[abi.RegisteredProof]struct{}{
+		abi.RegisteredProof_StackedDRG2KiBSeal: {},
+	}
+	verifreg.MinVerifiedDealSize = big.NewInt(256)
 }
 
 func testStorageNode(ctx context.Context, t *testing.T, waddr address.Address, act address.Address, pk crypto.PrivKey, tnd test.TestNode, mn mocknet.Mocknet, opts node.Option) test.TestStorageNode {
@@ -78,7 +82,7 @@ func testStorageNode(ctx context.Context, t *testing.T, waddr address.Address, a
 	err = ds.Put(datastore.NewKey("miner-address"), act.Bytes())
 	require.NoError(t, err)
 
-	nic := storedcounter.New(ds, datastore.NewKey("/storage/nextid"))
+	nic := storedcounter.New(ds, datastore.NewKey(modules.StorageCounterDSPrefix))
 	for i := 0; i < nGenesisPreseals; i++ {
 		nic.Next()
 	}
@@ -195,7 +199,7 @@ func builder(t *testing.T, nFull int, storage []test.StorageMiner) ([]test.TestN
 
 		genaccs = append(genaccs, genesis.Actor{
 			Type:    genesis.TAccount,
-			Balance: big.NewInt(5000000000000000000),
+			Balance: big.Mul(big.NewInt(50000), types.NewInt(build.FilecoinPrecision)),
 			Meta:    (&genesis.AccountMeta{Owner: wk.Address}).ActorMeta(),
 		})
 
@@ -331,7 +335,7 @@ func mockSbBuilder(t *testing.T, nFull int, storage []test.StorageMiner) ([]test
 
 		genaccs = append(genaccs, genesis.Actor{
 			Type:    genesis.TAccount,
-			Balance: big.NewInt(5000000000000000000),
+			Balance: big.Mul(big.NewInt(50000), types.NewInt(build.FilecoinPrecision)),
 			Meta:    (&genesis.AccountMeta{Owner: wk.Address}).ActorMeta(),
 		})
 
@@ -391,7 +395,7 @@ func mockSbBuilder(t *testing.T, nFull int, storage []test.StorageMiner) ([]test
 
 		storers[i] = testStorageNode(ctx, t, genms[i].Worker, maddrs[i], pidKeys[i], f, mn, node.Options(
 			node.Override(new(sectorstorage.SectorManager), func() (sectorstorage.SectorManager, error) {
-				return mock.NewMockSectorMgr(5, build.SectorSizes[0]), nil
+				return mock.NewMockSectorMgr(build.DefaultSectorSize()), nil
 			}),
 			node.Override(new(ffiwrapper.Verifier), mock.MockVerifier),
 			node.Unset(new(*sectorstorage.Manager)),

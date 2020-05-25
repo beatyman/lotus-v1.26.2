@@ -9,6 +9,8 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
+	"github.com/filecoin-project/go-jsonrpc/auth"
+
 	"github.com/filecoin-project/sector-storage/sealtasks"
 	"github.com/filecoin-project/sector-storage/stores"
 	"github.com/filecoin-project/sector-storage/storiface"
@@ -33,8 +35,8 @@ var _ = AllPermissions
 
 type CommonStruct struct {
 	Internal struct {
-		AuthVerify func(ctx context.Context, token string) ([]api.Permission, error) `perm:"read"`
-		AuthNew    func(ctx context.Context, perms []api.Permission) ([]byte, error) `perm:"admin"`
+		AuthVerify func(ctx context.Context, token string) ([]auth.Permission, error) `perm:"read"`
+		AuthNew    func(ctx context.Context, perms []auth.Permission) ([]byte, error) `perm:"admin"`
 
 		NetConnectedness func(context.Context, peer.ID) (network.Connectedness, error) `perm:"read"`
 		NetPeers         func(context.Context) ([]peer.AddrInfo, error)                `perm:"read"`
@@ -87,6 +89,7 @@ type FullNodeStruct struct {
 		MpoolPushMessage      func(context.Context, *types.Message) (*types.SignedMessage, error)                          `perm:"sign"`
 		MpoolGetNonce         func(context.Context, address.Address) (uint64, error)                                       `perm:"read"`
 		MpoolSub              func(context.Context) (<-chan api.MpoolUpdate, error)                                        `perm:"read"`
+		MpoolRemove           func(context.Context, address.Address, uint64) error                                         `perm:"write"`
 		MpoolEstimateGasPrice func(context.Context, uint64, address.Address, int64, types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
 		MinerGetBaseInfo func(context.Context, address.Address, abi.ChainEpoch, types.TipSetKey) (*api.MiningBaseInfo, error) `perm:"read"`
@@ -123,7 +126,8 @@ type FullNodeStruct struct {
 		StateMinerPower                   func(context.Context, address.Address, types.TipSetKey) (*api.MinerPower, error)                                    `perm:"read"`
 		StateMinerInfo                    func(context.Context, address.Address, types.TipSetKey) (miner.MinerInfo, error)                                    `perm:"read"`
 		StateMinerDeadlines               func(context.Context, address.Address, types.TipSetKey) (*miner.Deadlines, error)                                   `perm:"read"`
-		StateMinerFaults                  func(context.Context, address.Address, types.TipSetKey) ([]abi.SectorNumber, error)                                 `perm:"read"`
+		StateMinerFaults                  func(context.Context, address.Address, types.TipSetKey) (*abi.BitField, error)                                      `perm:"read"`
+		StateMinerRecoveries              func(context.Context, address.Address, types.TipSetKey) (*abi.BitField, error)                                      `perm:"read"`
 		StateMinerInitialPledgeCollateral func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (types.BigInt, error)                     `perm:"read"`
 		StateMinerAvailableBalance        func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                       `perm:"read"`
 		StateSectorPreCommitInfo          func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) `perm:"read"`
@@ -148,9 +152,13 @@ type FullNodeStruct struct {
 		StateListMessages                 func(ctx context.Context, match *types.Message, tsk types.TipSetKey, toht abi.ChainEpoch) ([]cid.Cid, error)        `perm:"read"`
 		StateCompute                      func(context.Context, abi.ChainEpoch, []*types.Message, types.TipSetKey) (*api.ComputeStateOutput, error)           `perm:"read"`
 
-		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error) `perm:"read"`
+		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                                                    `perm:"read"`
+		MsigCreate              func(context.Context, int64, []address.Address, types.BigInt, address.Address, types.BigInt) (cid.Cid, error)                                    `perm:"sign"`
+		MsigPropose             func(context.Context, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)                          `perm:"sign"`
+		MsigApprove             func(context.Context, address.Address, uint64, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error) `perm:"sign"`
+		MsigCancel              func(context.Context, address.Address, uint64, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error) `perm:"sign"`
 
-		MarketEnsureAvailable func(context.Context, address.Address, address.Address, types.BigInt) error `perm:"sign"`
+		MarketEnsureAvailable func(context.Context, address.Address, address.Address, types.BigInt) (cid.Cid, error) `perm:"sign"`
 
 		PaychGet                   func(ctx context.Context, from, to address.Address, ensureFunds types.BigInt) (*api.ChannelInfo, error)   `perm:"sign"`
 		PaychList                  func(context.Context) ([]address.Address, error)                                                          `perm:"read"`
@@ -196,15 +204,16 @@ type StorageMinerStruct struct {
 		WorkerConnect func(context.Context, string) error                             `perm:"admin"` // TODO: worker perm
 		WorkerStats   func(context.Context) (map[uint64]storiface.WorkerStats, error) `perm:"admin"`
 
-		StorageList          func(context.Context) (map[stores.ID][]stores.Decl, error)                                            `perm:"admin"`
-		StorageLocal         func(context.Context) (map[stores.ID]string, error)                                                   `perm:"admin"`
-		StorageStat          func(context.Context, stores.ID) (stores.FsStat, error)                                               `perm:"admin"`
-		StorageAttach        func(context.Context, stores.StorageInfo, stores.FsStat) error                                        `perm:"admin"`
-		StorageDeclareSector func(context.Context, stores.ID, abi.SectorID, stores.SectorFileType) error                           `perm:"admin"`
-		StorageDropSector    func(context.Context, stores.ID, abi.SectorID, stores.SectorFileType) error                           `perm:"admin"`
-		StorageFindSector    func(context.Context, abi.SectorID, stores.SectorFileType, bool) ([]stores.StorageInfo, error)        `perm:"admin"`
-		StorageInfo          func(context.Context, stores.ID) (stores.StorageInfo, error)                                          `perm:"admin"`
-		StorageBestAlloc     func(ctx context.Context, allocate stores.SectorFileType, sealing bool) ([]stores.StorageInfo, error) `perm:"admin"`
+		StorageList          func(context.Context) (map[stores.ID][]stores.Decl, error)                                                                     `perm:"admin"`
+		StorageLocal         func(context.Context) (map[stores.ID]string, error)                                                                            `perm:"admin"`
+		StorageStat          func(context.Context, stores.ID) (stores.FsStat, error)                                                                        `perm:"admin"`
+		StorageAttach        func(context.Context, stores.StorageInfo, stores.FsStat) error                                                                 `perm:"admin"`
+		StorageDeclareSector func(context.Context, stores.ID, abi.SectorID, stores.SectorFileType) error                                                    `perm:"admin"`
+		StorageDropSector    func(context.Context, stores.ID, abi.SectorID, stores.SectorFileType) error                                                    `perm:"admin"`
+		StorageFindSector    func(context.Context, abi.SectorID, stores.SectorFileType, bool) ([]stores.StorageInfo, error)                                 `perm:"admin"`
+		StorageInfo          func(context.Context, stores.ID) (stores.StorageInfo, error)                                                                   `perm:"admin"`
+		StorageBestAlloc     func(ctx context.Context, allocate stores.SectorFileType, spt abi.RegisteredProof, sealing bool) ([]stores.StorageInfo, error) `perm:"admin"`
+		StorageReportHealth  func(ctx context.Context, id stores.ID, report stores.HealthReport) error                                                      `perm:"admin"`
 
 		DealsImportData func(ctx context.Context, dealPropCid cid.Cid, file string) error `perm:"write"`
 		DealsList       func(ctx context.Context) ([]storagemarket.StorageDeal, error)    `perm:"read"`
@@ -226,9 +235,13 @@ type StorageMinerStruct struct {
 		WorkerStatusAll    func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
 		WorkerQueue        func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
 		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
-		WorkerPushing      func(ctx context.Context, taskKey string) error                                           `perm:"write"`
+		WorkerLock         func(ctx context.Context, workerId, taskKey, memo string, status int) error               `perm:"write"`
+		WorkerUnlock       func(ctx context.Context, workerId, taskKey, memo string) error                           `perm:"write"`
 		WorkerDone         func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
 		WorkerDisable      func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
+		WorkerAddConn      func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
+		WorkerPreConn      func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
+		WorkerMinerConn    func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
 		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error       `perm:"write"`
 		DisableHLMStorage func(ctx context.Context, id int64) error                         `perm:"write"`
@@ -261,11 +274,13 @@ type WorkerStruct struct {
 	}
 }
 
-func (c *CommonStruct) AuthVerify(ctx context.Context, token string) ([]api.Permission, error) {
+// CommonStruct
+
+func (c *CommonStruct) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 	return c.Internal.AuthVerify(ctx, token)
 }
 
-func (c *CommonStruct) AuthNew(ctx context.Context, perms []api.Permission) ([]byte, error) {
+func (c *CommonStruct) AuthNew(ctx context.Context, perms []auth.Permission) ([]byte, error) {
 	return c.Internal.AuthNew(ctx, perms)
 }
 
@@ -310,6 +325,8 @@ func (c *CommonStruct) LogList(ctx context.Context) ([]string, error) {
 func (c *CommonStruct) LogSetLevel(ctx context.Context, group, level string) error {
 	return c.Internal.LogSetLevel(ctx, group, level)
 }
+
+// FullNodeStruct
 
 func (c *FullNodeStruct) ClientListImports(ctx context.Context) ([]api.Import, error) {
 	return c.Internal.ClientListImports(ctx)
@@ -368,7 +385,9 @@ func (c *FullNodeStruct) MpoolPushMessage(ctx context.Context, msg *types.Messag
 func (c *FullNodeStruct) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, error) {
 	return c.Internal.MpoolSub(ctx)
 }
-
+func (c *FullNodeStruct) MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error {
+	return c.Internal.MpoolRemove(ctx, from, nonce)
+}
 func (c *FullNodeStruct) MpoolEstimateGasPrice(ctx context.Context, nblocksincl uint64, sender address.Address, limit int64, tsk types.TipSetKey) (types.BigInt, error) {
 	return c.Internal.MpoolEstimateGasPrice(ctx, nblocksincl, sender, limit, tsk)
 }
@@ -553,8 +572,12 @@ func (c *FullNodeStruct) StateMinerDeadlines(ctx context.Context, m address.Addr
 	return c.Internal.StateMinerDeadlines(ctx, m, tsk)
 }
 
-func (c *FullNodeStruct) StateMinerFaults(ctx context.Context, actor address.Address, tsk types.TipSetKey) ([]abi.SectorNumber, error) {
+func (c *FullNodeStruct) StateMinerFaults(ctx context.Context, actor address.Address, tsk types.TipSetKey) (*abi.BitField, error) {
 	return c.Internal.StateMinerFaults(ctx, actor, tsk)
+}
+
+func (c *FullNodeStruct) StateMinerRecoveries(ctx context.Context, actor address.Address, tsk types.TipSetKey) (*abi.BitField, error) {
+	return c.Internal.StateMinerRecoveries(ctx, actor, tsk)
 }
 
 func (c *FullNodeStruct) StateMinerInitialPledgeCollateral(ctx context.Context, maddr address.Address, snum abi.SectorNumber, tsk types.TipSetKey) (types.BigInt, error) {
@@ -649,7 +672,23 @@ func (c *FullNodeStruct) MsigGetAvailableBalance(ctx context.Context, a address.
 	return c.Internal.MsigGetAvailableBalance(ctx, a, tsk)
 }
 
-func (c *FullNodeStruct) MarketEnsureAvailable(ctx context.Context, addr, wallet address.Address, amt types.BigInt) error {
+func (c *FullNodeStruct) MsigCreate(ctx context.Context, req int64, addrs []address.Address, val types.BigInt, src address.Address, gp types.BigInt) (cid.Cid, error) {
+	return c.Internal.MsigCreate(ctx, req, addrs, val, src, gp)
+}
+
+func (c *FullNodeStruct) MsigPropose(ctx context.Context, msig address.Address, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
+	return c.Internal.MsigPropose(ctx, msig, to, amt, src, method, params)
+}
+
+func (c *FullNodeStruct) MsigApprove(ctx context.Context, msig address.Address, txID uint64, proposer address.Address, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
+	return c.Internal.MsigApprove(ctx, msig, txID, proposer, to, amt, src, method, params)
+}
+
+func (c *FullNodeStruct) MsigCancel(ctx context.Context, msig address.Address, txID uint64, proposer address.Address, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
+	return c.Internal.MsigCancel(ctx, msig, txID, proposer, to, amt, src, method, params)
+}
+
+func (c *FullNodeStruct) MarketEnsureAvailable(ctx context.Context, addr, wallet address.Address, amt types.BigInt) (cid.Cid, error) {
 	return c.Internal.MarketEnsureAvailable(ctx, addr, wallet, amt)
 }
 
@@ -700,6 +739,8 @@ func (c *FullNodeStruct) PaychNewPayment(ctx context.Context, from, to address.A
 func (c *FullNodeStruct) PaychVoucherSubmit(ctx context.Context, ch address.Address, sv *paych.SignedVoucher) (cid.Cid, error) {
 	return c.Internal.PaychVoucherSubmit(ctx, ch, sv)
 }
+
+// StorageMinerStruct
 
 func (c *StorageMinerStruct) ActorAddress(ctx context.Context) (address.Address, error) {
 	return c.Internal.ActorAddress(ctx)
@@ -775,8 +816,12 @@ func (c *StorageMinerStruct) StorageInfo(ctx context.Context, id stores.ID) (sto
 	return c.Internal.StorageInfo(ctx, id)
 }
 
-func (c *StorageMinerStruct) StorageBestAlloc(ctx context.Context, allocate stores.SectorFileType, sealing bool) ([]stores.StorageInfo, error) {
-	return c.Internal.StorageBestAlloc(ctx, allocate, sealing)
+func (c *StorageMinerStruct) StorageBestAlloc(ctx context.Context, allocate stores.SectorFileType, spt abi.RegisteredProof, sealing bool) ([]stores.StorageInfo, error) {
+	return c.Internal.StorageBestAlloc(ctx, allocate, spt, sealing)
+}
+
+func (c *StorageMinerStruct) StorageReportHealth(ctx context.Context, id stores.ID, report stores.HealthReport) error {
+	return c.Internal.StorageReportHealth(ctx, id, report)
 }
 
 func (c *StorageMinerStruct) MarketImportDealData(ctx context.Context, propcid cid.Cid, path string) error {
@@ -806,6 +851,8 @@ func (c *StorageMinerStruct) DealsList(ctx context.Context) ([]storagemarket.Sto
 func (c *StorageMinerStruct) StorageAddLocal(ctx context.Context, path string) error {
 	return c.Internal.StorageAddLocal(ctx, path)
 }
+
+// WorkerStruct
 
 func (w *WorkerStruct) Version(ctx context.Context) (build.Version, error) {
 	return w.Internal.Version(ctx)
@@ -890,14 +937,26 @@ func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.Wor
 func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return c.Internal.WorkerWorking(ctx, workerId)
 }
-func (c *StorageMinerStruct) WorkerPushing(ctx context.Context, taskKey string) error {
-	return c.Internal.WorkerPushing(ctx, taskKey)
+func (c *StorageMinerStruct) WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error {
+	return c.Internal.WorkerLock(ctx, workerId, taskKey, memo, status)
+}
+func (c *StorageMinerStruct) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string) error {
+	return c.Internal.WorkerUnlock(ctx, workerId, taskKey, memo)
 }
 func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return c.Internal.WorkerDone(ctx, res)
 }
 func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return c.Internal.WorkerDisable(ctx, wid, disable)
+}
+func (c *StorageMinerStruct) WorkerAddConn(ctx context.Context, wid string, num int) error {
+	return c.Internal.WorkerAddConn(ctx, wid, num)
+}
+func (c *StorageMinerStruct) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
+	return c.Internal.WorkerPreConn(ctx)
+}
+func (c *StorageMinerStruct) WorkerMinerConn(ctx context.Context) (int, error) {
+	return c.Internal.WorkerMinerConn(ctx)
 }
 
 func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {

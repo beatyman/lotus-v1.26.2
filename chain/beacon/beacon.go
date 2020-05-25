@@ -8,6 +8,8 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	logging "github.com/ipfs/go-log"
 	"golang.org/x/xerrors"
+
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("beacon")
@@ -61,12 +63,19 @@ func BeaconEntriesForBlock(ctx context.Context, beacon RandomBeacon, round abi.C
 	}
 
 	cur := maxRound
+	retry := 0
 	var out []types.BeaconEntry
 	for cur > prev.Round {
+	retryLoop:
 		rch := beacon.Entry(ctx, cur)
 		select {
 		case resp := <-rch:
 			if resp.Err != nil {
+				log.Warn(errors.As(resp.Err))
+				retry++
+				if retry < 3 {
+					goto retryLoop
+				}
 				return nil, xerrors.Errorf("beacon entry request returned error: %w", resp.Err)
 			}
 
@@ -77,7 +86,7 @@ func BeaconEntriesForBlock(ctx context.Context, beacon RandomBeacon, round abi.C
 		}
 	}
 
-	log.Debugw("fetching beacon entries", "took", time.Since(start), "numEntries", len(out))
+	log.Infow("fetching beacon entries", "took", time.Since(start), "numEntries", len(out))
 	reverse(out)
 	return out, nil
 }

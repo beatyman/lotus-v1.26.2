@@ -26,6 +26,7 @@ func closeKafkaProducer() {
 	if _kp != nil {
 		_kp.Close()
 	}
+	time.Sleep(3e9)
 }
 
 func getKafkaProducer() (sarama.SyncProducer, error) {

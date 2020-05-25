@@ -7,9 +7,9 @@ import (
 	"github.com/ipfs/go-bitswap"
 	"github.com/ipfs/go-bitswap/network"
 	"github.com/ipfs/go-blockservice"
-	"github.com/ipfs/go-car"
 	"github.com/ipfs/go-datastore"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
+	"github.com/ipld/go-car"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/routing"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -60,14 +60,19 @@ func MessagePool(lc fx.Lifecycle, sm *stmgr.StateManager, ps *pubsub.PubSub, ds 
 	return mp, nil
 }
 
-func ChainBlockstore(r repo.LockedRepo) (dtypes.ChainBlockstore, error) {
+func ChainBlockstore(lc fx.Lifecycle, mctx helpers.MetricsCtx, r repo.LockedRepo) (dtypes.ChainBlockstore, error) {
 	blocks, err := r.Datastore("/blocks")
 	if err != nil {
 		return nil, err
 	}
 
 	bs := blockstore.NewBlockstore(blocks)
-	return blockstore.NewIdStore(bs), nil
+	cbs, err := blockstore.CachedBlockstore(helpers.LifecycleCtx(mctx, lc), bs, blockstore.DefaultCacheOpts())
+	if err != nil {
+		return nil, err
+	}
+
+	return blockstore.NewIdStore(cbs), nil
 }
 
 func ChainGCBlockstore(bs dtypes.ChainBlockstore, gcl dtypes.ChainGCLocker) dtypes.ChainGCBlockstore {

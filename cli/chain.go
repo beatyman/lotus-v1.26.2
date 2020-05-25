@@ -18,6 +18,7 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/account"
+	"github.com/filecoin-project/specs-actors/actors/builtin/market"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/util/adt"
@@ -521,6 +522,12 @@ var chainGetCmd = &cli.Command{
 			cbu = new(power.CronEvent)
 		case "account-state":
 			cbu = new(account.State)
+		case "miner-state":
+			cbu = new(miner.State)
+		case "power-state":
+			cbu = new(power.State)
+		case "market-state":
+			cbu = new(market.State)
 		default:
 			return fmt.Errorf("unknown type: %q", t)
 		}
@@ -692,7 +699,7 @@ var chainBisectCmd = &cli.Command{
 
 		highest, err := api.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(end), types.EmptyTSK)
 		if err != nil {
-			return err
+			return xerrors.Errorf("getting end tipset: %w", err)
 		}
 
 		prev := highest.Height()
@@ -717,7 +724,7 @@ var chainBisectCmd = &cli.Command{
 				return err
 			}
 
-			b, err := json.MarshalIndent(nd, "", "\t")
+			b, err := json.MarshalIndent(nd.Obj, "", "\t")
 			if err != nil {
 				return err
 			}
@@ -726,15 +733,32 @@ var chainBisectCmd = &cli.Command{
 			cmd.Stdin = bytes.NewReader(b)
 
 			var out bytes.Buffer
+			var serr bytes.Buffer
+
 			cmd.Stdout = &out
+			cmd.Stderr = &serr
 
 			switch cmd.Run().(type) {
 			case nil:
 				// it's lower
-				end = mid
-				highest = midTs
-				fmt.Println("true")
+				if strings.TrimSpace(out.String()) != "false" {
+					end = mid
+					highest = midTs
+					fmt.Println("true")
+				} else {
+					start = mid
+					fmt.Printf("false (cli)\n")
+				}
 			case *exec.ExitError:
+				if len(serr.String()) > 0 {
+					fmt.Println("error")
+
+					fmt.Printf("> Command: %s\n---->\n", strings.Join(cctx.Args().Slice()[3:], " "))
+					fmt.Println(string(b))
+					fmt.Println("<----")
+					return xerrors.Errorf("error running bisect check: %s", serr.String())
+				}
+
 				start = mid
 				fmt.Println("false")
 			default:

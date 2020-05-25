@@ -271,15 +271,15 @@ func (rt *Runtime) DeleteActor(addr address.Address) {
 		panic(aerrors.Fatalf("failed to get actor: %s", err))
 	}
 	if !act.Balance.IsZero() {
-		rt.vm.transfer(rt.Message().Receiver(), builtin.BurntFundsActorAddr, act.Balance)
+		if err := rt.vm.transfer(rt.Message().Receiver(), builtin.BurntFundsActorAddr, act.Balance); err != nil {
+			panic(aerrors.Fatalf("failed to transfer balance to burnt funds actor: %s", err))
+		}
 	}
 
 	if err := rt.state.DeleteActor(rt.Message().Receiver()); err != nil {
 		panic(aerrors.Fatalf("failed to delete actor: %s", err))
 	}
 }
-
-const GasVerifySignature = 50
 
 func (rs *Runtime) Syscalls() vmr.Syscalls {
 	// TODO: Make sure this is wrapped in something that charges gas for each of the calls

@@ -62,6 +62,8 @@ type calledEvents struct {
 	ctx          context.Context
 	gcConfidence uint64
 
+	at abi.ChainEpoch
+
 	lk sync.Mutex
 
 	ctr triggerId
@@ -83,14 +85,16 @@ type calledEvents struct {
 func (e *calledEvents) headChangeCalled(rev, app []*types.TipSet) error {
 	for _, ts := range rev {
 		e.handleReverts(ts)
+		e.at = ts.Height()
 	}
 
 	for _, ts := range app {
 		// called triggers
-
 		e.checkNewCalls(ts)
-		e.applyWithConfidence(ts)
-		e.applyTimeouts(ts)
+		for ; e.at <= ts.Height(); e.at++ {
+			e.applyWithConfidence(ts, e.at)
+			e.applyTimeouts(ts)
+		}
 	}
 
 	return nil
@@ -121,7 +125,13 @@ func (e *calledEvents) handleReverts(ts *types.TipSet) {
 }
 
 func (e *calledEvents) checkNewCalls(ts *types.TipSet) {
-	e.messagesForTs(ts, func(msg *types.Message) {
+	pts, err := e.cs.ChainGetTipSet(e.ctx, ts.Parents()) // we actually care about messages in the parent tipset here
+	if err != nil {
+		log.Errorf("getting parent tipset in checkNewCalls: %s", err)
+		return
+	}
+
+	e.messagesForTs(pts, func(msg *types.Message) {
 		// TODO: provide receipts
 
 		for tid, matchFns := range e.matchers {
@@ -150,8 +160,7 @@ func (e *calledEvents) checkNewCalls(ts *types.TipSet) {
 func (e *calledEvents) queueForConfidence(triggerId uint64, msg *types.Message, ts *types.TipSet) {
 	trigger := e.triggers[triggerId]
 
-	// messages are not applied in the tipset they are included in
-	appliedH := ts.Height() + 1
+	appliedH := ts.Height()
 
 	triggerH := appliedH + abi.ChainEpoch(trigger.confidence)
 
@@ -170,8 +179,8 @@ func (e *calledEvents) queueForConfidence(triggerId uint64, msg *types.Message, 
 	e.revertQueue[appliedH] = append(e.revertQueue[appliedH], triggerH)
 }
 
-func (e *calledEvents) applyWithConfidence(ts *types.TipSet) {
-	byOrigH, ok := e.confQueue[ts.Height()]
+func (e *calledEvents) applyWithConfidence(ts *types.TipSet, height abi.ChainEpoch) {
+	byOrigH, ok := e.confQueue[height]
 	if !ok {
 		return // no triggers at thin height
 	}
@@ -179,7 +188,7 @@ func (e *calledEvents) applyWithConfidence(ts *types.TipSet) {
 	for origH, events := range byOrigH {
 		triggerTs, err := e.tsc.get(origH)
 		if err != nil {
-			log.Errorf("events: applyWithConfidence didn't find tipset for event; wanted %d; current %d", origH, ts.Height())
+			log.Errorf("events: applyWithConfidence didn't find tipset for event; wanted %d; current %d", origH, height)
 		}
 
 		for _, event := range events {
@@ -198,9 +207,9 @@ func (e *calledEvents) applyWithConfidence(ts *types.TipSet) {
 				return
 			}
 
-			more, err := trigger.handle(event.msg, rec, triggerTs, ts.Height())
+			more, err := trigger.handle(event.msg, rec, triggerTs, height)
 			if err != nil {
-				log.Errorf("chain trigger (call %s.%d() @H %d, called @ %d) failed: %s", event.msg.To, event.msg.Method, origH, ts.Height(), err)
+				log.Errorf("chain trigger (call %s.%d() @H %d, called @ %d) failed: %s", event.msg.To, event.msg.Method, origH, height, err)
 				continue // don't revert failed calls
 			}
 
