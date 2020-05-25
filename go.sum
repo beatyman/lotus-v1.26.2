@@ -6,6 +6,8 @@ contrib.go.opencensus.io/exporter/prometheus v0.1.0 h1:SByaIoWwNgMdPSgl5sMqM2KDE
 contrib.go.opencensus.io/exporter/prometheus v0.1.0/go.mod h1:cGFniUXGZlKRjzOyuZJ6mgB+PgBcCIa79kEKR8YCW+A=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200521094227-2b00a6b70b62 h1:WBd84/qCuj7aKhn0xHttYSPt1geEDWirQlKQ8r3nTOg=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200521094227-2b00a6b70b62/go.mod h1:9WtA5kCzgej32VNMXCwcwcWKPkOb3eb6osNwmEVXf3I=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200524113719-a2e0a1b5fe6f h1:ApD8yLQQzpgOrmB85dYu5hiHWn/GLv+Rw1S7blqf7ck=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200524113719-a2e0a1b5fe6f/go.mod h1:9WtA5kCzgej32VNMXCwcwcWKPkOb3eb6osNwmEVXf3I=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200514195008-cddb50f4608b h1:0NaJmCguSLfWLryR4Tpg4SAFacmvzC/+1P6bJgH+f2g=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200514195008-cddb50f4608b/go.mod h1:yzOZ2eHczpRsHuh7fHPP9SdM7QMvzhGPcM3SjBnQx48=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200521082758-7d2ade78f273 h1:RVANGi2S9uPCN3T8bfTmXWfY6gltTcw8+rgDquAoHTc=
