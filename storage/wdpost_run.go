@@ -15,6 +15,7 @@ import (
 	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/types"
 )
@@ -337,12 +338,13 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	}
 
 	msg := &types.Message{
-		To:       s.actor,
-		From:     s.worker,
-		Method:   builtin.MethodsMiner.SubmitWindowedPoSt,
-		Params:   enc,
-		Value:    types.NewInt(1000), // currently hard-coded late fee in actor, returned if not late
-		GasLimit: 10000000,           // i dont know help
+		To:     s.actor,
+		From:   s.worker,
+		Method: builtin.MethodsMiner.SubmitWindowedPoSt,
+		Params: enc,
+		Value:  types.NewInt(1000), // currently hard-coded late fee in actor, returned if not late
+		// TODO: Gaslimit needs to be calculated accurately. Before that, use the largest Gaslimit
+		GasLimit: build.BlockGasLimit,
 		GasPrice: types.NewInt(1),
 	}
 
@@ -354,19 +356,20 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 
 	log.Infof("Submitted window post: %s", sm.Cid())
 
-	go func() {
-		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid())
+	go func(m *types.SignedMessage) {
+		rec, err := s.api.StateWaitMsg(context.TODO(), m.Cid())
 		if err != nil {
 			log.Error(err)
 			return
 		}
 
 		if rec.Receipt.ExitCode == 0 {
+			log.Infof("Submitting window post %s success.", m.Cid())
 			return
 		}
 
-		log.Errorf("Submitting window post %s failed: exit %d", sm.Cid(), rec.Receipt.ExitCode)
-	}()
+		log.Errorf("Submitting window post %s failed: exit %d", m.Cid(), rec.Receipt.ExitCode)
+	}(sm)
 
 	return nil
 }

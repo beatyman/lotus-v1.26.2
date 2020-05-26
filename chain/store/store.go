@@ -194,9 +194,6 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 				}
 				if len(out) > 0 {
 					log.Warnf("head change sub is slow, has %d buffered entries", len(out))
-					if len(out) > 10 {
-						return
-					}
 				}
 				select {
 				case out <- val.([]*api.HeadChange):
