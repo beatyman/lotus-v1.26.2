@@ -153,6 +153,23 @@ func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]ab
 	return g.PledgeSector(ctx)
 }
 
+func (w *worker) removeCache(ctx context.Context, sid string) error {
+	if filepath.Base(w.repo) == ".lotusstorage" {
+		return nil
+	}
+
+	if err := os.RemoveAll(filepath.Join(w.repo, "sealed", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
+	if err := os.RemoveAll(filepath.Join(w.repo, "cache", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
+	if err := os.RemoveAll(filepath.Join(w.repo, "unsealed", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
+	return nil
+}
+
 func (w *worker) cleanCache(ctx context.Context) error {
 	if filepath.Base(w.repo) == ".lotusstorage" {
 		return nil
@@ -307,8 +324,8 @@ repush:
 			time.Sleep(60e9)
 			goto repush
 		}
-		if err := w.cleanCache(ctx); err != nil {
-			return errors.As(err)
+		if err := w.removeCache(ctx, task.GetSectorID()); err != nil {
+			log.Warn(errors.As(err))
 		}
 	}
 	return nil
@@ -483,6 +500,11 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// checking is the next step interrupted
 		unlockWorker = w.workerCfg.NoCommit2
 	case ffiwrapper.WorkerCommit2:
+		// clean unsealed
+		if err := os.RemoveAll(filepath.Join(w.repo, "unsealed", task.GetSectorID())); err != nil {
+			log.Error(errors.As(err, task.GetSectorID()))
+		}
+
 		out, err := w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
