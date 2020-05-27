@@ -352,7 +352,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	log.Infow("submitting window PoSt", "elapsed", elapsed)
 
 	return &miner.SubmitWindowedPoStParams{
-		Deadline:   di.Index,
+		//		Deadline:   di.Index,
 		Partitions: partitions,
 		Proofs:     postOut,
 		Skipped:    *abi.NewBitField(), // TODO: Faults here?
@@ -405,20 +405,20 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 
 	log.Infof("Submitted window post: %s", sm.Cid())
 
-	go func(m *types.SignedMessage) {
-		rec, err := s.api.StateWaitMsg(context.TODO(), m.Cid())
+	go func() {
+		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid())
 		if err != nil {
 			log.Error(err)
 			return
 		}
 
 		if rec.Receipt.ExitCode == 0 {
-			log.Infof("Submitting window post %s success.", m.Cid())
+			log.Infof("Submitting window post %s success.", sm.Cid())
 			return
 		}
 
-		log.Errorf("Submitting window post %s failed: exit %d", m.Cid(), rec.Receipt.ExitCode)
-	}(sm)
+		log.Errorf("Submitting window post %s failed: exit %d", sm.Cid(), rec.Receipt.ExitCode)
+	}()
 
 	return nil
 }
