@@ -175,7 +175,9 @@ func (syncer *Syncer) InformNewHead(from peer.ID, fts *store.FullTipSet) bool {
 		for _, blk := range fts.TipSet().Blocks() {
 			miners = append(miners, blk.Miner.String())
 		}
-		log.Infof("incoming tipset from %s does not appear to be better than our best chain, ignoring for now", miners)
+		log.Infof("incoming tipset(%d) from %s does not appear to be better(%d<%d) than our best chain, ignoring for now",
+			fts.TipSet().Height(), miners, targetWeight, bestPweight,
+		)
 		return false
 	}
 

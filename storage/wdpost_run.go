@@ -199,6 +199,49 @@ func (s *WindowPoStScheduler) checkFaults(ctx context.Context, ssi []abi.SectorN
 	return nil, nil
 }
 
+// the input sectors must match with the miner actor
+func (s *WindowPoStScheduler) getNeedProveSectors(ctx context.Context, deadlineSectors *abi.BitField, ts *types.TipSet) (*abi.BitField, error) {
+	faults, err := s.api.StateMinerFaults(ctx, s.actor, ts.Key())
+	if err != nil {
+		return nil, xerrors.Errorf("getting on-chain faults: %w", err)
+	}
+
+	declaredFaults, err := bitfield.IntersectBitField(deadlineSectors, faults)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to intersect proof sectors with faults: %w", err)
+	}
+
+	recoveries, err := s.api.StateMinerRecoveries(ctx, s.actor, ts.Key())
+	if err != nil {
+		return nil, xerrors.Errorf("getting on-chain recoveries: %w", err)
+	}
+
+	expectedRecoveries, err := bitfield.IntersectBitField(declaredFaults, recoveries)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to intersect recoveries with faults: %w", err)
+	}
+
+	expectedFaults, err := bitfield.SubtractBitField(declaredFaults, expectedRecoveries)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to subtract recoveries from faults: %w", err)
+	}
+
+	nonFaults, err := bitfield.SubtractBitField(deadlineSectors, expectedFaults)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to diff bitfields: %w", err)
+	}
+
+	empty, err := nonFaults.IsEmpty()
+	if err != nil {
+		return nil, xerrors.Errorf("failed to check if bitfield was empty: %w", err)
+	}
+	if empty {
+		return nil, xerrors.Errorf("no non-faulty sectors in partitions: %w", err)
+	}
+
+	return nonFaults, nil
+}
+
 func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo, ts *types.TipSet) (*miner.SubmitWindowedPoStParams, error) {
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
@@ -254,7 +297,12 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		partitions[i] = firstPartition + uint64(i)
 	}
 
-	ssi, err := s.sortedSectorInfo(ctx, deadlines.Due[di.Index], ts)
+	nps, err := s.getNeedProveSectors(ctx, deadlines.Due[di.Index], ts)
+	if err != nil {
+		return nil, xerrors.Errorf("get need prove sectors: %w", err)
+	}
+
+	ssi, err := s.sortedSectorInfo(ctx, nps, ts)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sorted sector info: %w", err)
 	}
@@ -304,6 +352,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	log.Infow("submitting window PoSt", "elapsed", elapsed)
 
 	return &miner.SubmitWindowedPoStParams{
+		Deadline:   di.Index,
 		Partitions: partitions,
 		Proofs:     postOut,
 		Skipped:    *abi.NewBitField(), // TODO: Faults here?
@@ -356,20 +405,20 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 
 	log.Infof("Submitted window post: %s", sm.Cid())
 
-	go func(m *types.SignedMessage) {
-		rec, err := s.api.StateWaitMsg(context.TODO(), m.Cid())
+	go func() {
+		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid())
 		if err != nil {
 			log.Error(err)
 			return
 		}
 
 		if rec.Receipt.ExitCode == 0 {
-			log.Infof("Submitting window post %s success.", m.Cid())
+			log.Infof("Submitting window post %s success.", sm.Cid())
 			return
 		}
 
-		log.Errorf("Submitting window post %s failed: exit %d", m.Cid(), rec.Receipt.ExitCode)
-	}(sm)
+		log.Errorf("Submitting window post %s failed: exit %d", sm.Cid(), rec.Receipt.ExitCode)
+	}()
 
 	return nil
 }

@@ -385,13 +385,12 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		ReleaseNodeApi(false)
 		return errRes(errors.As(err, w.workerCfg), task)
 	}
+	// keep cache clean, the task will lock the cache.
+	if err := w.cleanCache(ctx); err != nil {
+		return errRes(errors.As(err, w.workerCfg), task)
+	}
 	// checking is the cache in a different storage server, do fetch when it is.
 	if len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID {
-		// keep cache clean, the task will lock the cache.
-		if err := w.cleanCache(ctx); err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
-
 		// lock bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
 			ReleaseNodeApi(false)
@@ -444,11 +443,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	unlockWorker := false
 	switch task.Type {
 	case ffiwrapper.WorkerAddPiece:
-		// keep cache clean, the task will lock the cache.
-		if err := w.cleanCache(ctx); err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
-
 		rsp, err := w.addPiece(ctx, task)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
