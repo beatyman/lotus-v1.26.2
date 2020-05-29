@@ -135,3 +135,5 @@ replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/file
 replace github.com/filecoin-project/storage-fsm => git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200523035529-590d3f24c05f
 
 //replace github.com/filecoin-project/storage-fsm => ../storage-fsm
+
+replace github.com/filecoin-project/go-jsonrpc => github.com/IPFS-grandhelmsman/go-jsonrpc v0.1.1-0.20200529144250-64d94f619cad
