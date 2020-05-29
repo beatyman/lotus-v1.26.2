@@ -145,21 +145,22 @@ func (m *Miner) mine(ctx context.Context) {
 			continue
 		}
 
-		// Wait until propagation delay period after block we plan to mine on
-		onDone, err := m.waitFunc(ctx, prebase.TipSet.MinTimestamp())
-		if err != nil {
-			log.Error(err)
-			return
-		}
-
-		base, err := m.GetBestMiningCandidate(ctx)
-		if err != nil {
-			log.Errorf("failed to get best mining candidate: %s", err)
-			continue
-		}
+		//// Wait until propagation delay period after block we plan to mine on
+		//onDone, err := m.waitFunc(ctx, prebase.TipSet.MinTimestamp())
+		//if err != nil {
+		//	log.Error(err)
+		//	return
+		//}
 
 		now := time.Now()
-		if !base.TipSet.Equals(lastBase.TipSet) {
+		if lastBase.TipSet == nil || !prebase.TipSet.Equals(lastBase.TipSet) {
+			time.Sleep(build.PropagationDelay * 1e9) // wait for other weight incomming
+
+			base, err := m.GetBestMiningCandidate(ctx)
+			if err != nil {
+				log.Errorf("failed to get best mining candidate: %s", err)
+				continue
+			}
 			nextRound = nextRoundTime(base)
 			lastBase = *base
 		} else {
@@ -180,13 +181,13 @@ func (m *Miner) mine(ctx context.Context) {
 		//}
 		//lastBase = *base
 
-		b, err := m.mineOne(ctx, base)
+		b, err := m.mineOne(ctx, &lastBase)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
 			continue
 		}
 
-		onDone(b != nil)
+		//onDone(b != nil)
 
 		if b != nil {
 			btime := time.Unix(int64(b.Header.Timestamp), 0)
