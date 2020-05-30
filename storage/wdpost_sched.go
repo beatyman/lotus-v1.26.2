@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"go.opencensus.io/trace"
@@ -166,9 +167,23 @@ func (s *WindowPoStScheduler) revert(ctx context.Context, newLowest *types.TipSe
 	return nil
 }
 
+var (
+	doPoStSync = sync.Mutex{}
+	doPoStDone = false
+)
+
 func (s *WindowPoStScheduler) update(ctx context.Context, new *types.TipSet) error {
 	if new == nil {
 		return xerrors.Errorf("no new tipset in WindowPoStScheduler.update")
+	}
+
+	// TODO: remove this when offical fixed.
+	doPoStSync.Lock()
+	if !doPoStDone {
+		doPoStDone = true
+		doPoStSync.Unlock()
+
+		s.checkWindowPoSt(ctx)
 	}
 
 	di, err := s.api.StateMinerProvingDeadline(ctx, s.actor, new.Key())

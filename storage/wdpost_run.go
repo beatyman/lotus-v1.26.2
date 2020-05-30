@@ -32,6 +32,50 @@ func (s *WindowPoStScheduler) failPost(deadline *miner.DeadlineInfo) {
 	s.failLk.Unlock()*/
 }
 
+func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context) {
+	log.Info("DEBUG:checkWindowPoStPost")
+	new, err := s.api.ChainHead(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	//new, err := s.api.ChainGetTipSetByHeight(ctx, 51840, types.EmptyTSK)
+	//if err != nil {
+	//	panic(err)
+	//}
+	deadline, err := s.api.StateMinerProvingDeadline(ctx, s.actor, new.Key())
+	if err != nil {
+		panic(err)
+	}
+	ts := new
+
+	log.Infof("DEBUG:tipset:%d,%d,%+v", new.Height(), ts.Height(), deadline)
+	deadline.Index = 0
+
+	ctx, abort := context.WithCancel(ctx)
+
+	s.abort = abort
+	s.activeDeadline = deadline
+
+	defer abort()
+
+	ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.doPost")
+	defer span.End()
+
+	_, err = s.runPost(ctx, *deadline, ts)
+	switch err {
+	case errNoPartitions:
+		log.Info("NoPartitions")
+		return
+	case nil:
+		// no commit
+	default:
+		log.Errorf("runPost failed: %+v", err)
+		s.failPost(deadline)
+		return
+	}
+}
+
 func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *miner.DeadlineInfo, ts *types.TipSet) {
 	ctx, abort := context.WithCancel(ctx)
 
@@ -47,6 +91,7 @@ func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *miner.Deadli
 		proof, err := s.runPost(ctx, *deadline, ts)
 		switch err {
 		case errNoPartitions:
+			log.Info("NoPartitions")
 			return
 		case nil:
 			if err := s.submitPost(ctx, proof); err != nil {
