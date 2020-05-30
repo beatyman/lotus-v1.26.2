@@ -100,6 +100,7 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 				notifs = nil
 				continue
 			}
+			log.Info("DEBUG: chain notify")
 
 			if !gotCur {
 				if len(changes) != 1 {
@@ -178,13 +179,13 @@ func (s *WindowPoStScheduler) update(ctx context.Context, new *types.TipSet) err
 	}
 
 	// TODO: remove this when offical fixed.
-	doPoStSync.Lock()
-	if !doPoStDone {
-		doPoStDone = true
-		doPoStSync.Unlock()
-
-		s.checkWindowPoSt(ctx)
-	}
+	//doPoStSync.Lock()
+	//if !doPoStDone {
+	//	doPoStDone = true
+	//	doPoStSync.Unlock()
+	//
+	//	s.checkWindowPoSt(ctx)
+	//}
 
 	di, err := s.api.StateMinerProvingDeadline(ctx, s.actor, new.Key())
 	if err != nil {
