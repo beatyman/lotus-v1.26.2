@@ -52,16 +52,6 @@ func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context) {
 	log.Infof("DEBUG:tipset:%d,%d,%+v", new.Height(), ts.Height(), deadline)
 	deadline.Index = 0
 
-	ctx, abort := context.WithCancel(ctx)
-
-	s.abort = abort
-	s.activeDeadline = deadline
-
-	defer abort()
-
-	ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.doPost")
-	defer span.End()
-
 	_, err = s.runPost(ctx, *deadline, ts)
 	switch err {
 	case errNoPartitions:
@@ -295,7 +285,8 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 
 	// check recoveries for the *next* deadline. It's already too late to
 	// declare them for this deadline
-	if err := s.checkRecoveries(ctx, (di.Index+1)%miner.WPoStPeriodDeadlines, ts); err != nil {
+	// if err := s.checkRecoveries(ctx, (di.Index+1)%miner.WPoStPeriodDeadlines, ts); err != nil {
+	if err := s.checkRecoveries(ctx, di.Index, ts); err != nil {
 		// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
 		log.Errorf("checking sector recoveries: %v", err)
 	}
