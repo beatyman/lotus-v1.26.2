@@ -17,7 +17,7 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-func deleteCache(uri, sid string) error {
+func deleteRemoteCache(uri, sid string) error {
 	resp, err := http.PostForm(fmt.Sprintf("%s/storage/delete", uri), url.Values{"sid": []string{sid}})
 	if err != nil {
 		return errors.As(err, uri, sid)
