@@ -69,9 +69,10 @@ func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context) {
 		return
 	case nil:
 		// no commit
+		log.Info("checking windowpost done")
+		return
 	default:
 		log.Errorf("runPost failed: %+v", err)
-		s.failPost(deadline)
 		return
 	}
 }
