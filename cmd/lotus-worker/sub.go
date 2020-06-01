@@ -407,16 +407,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			task.SectorStorage.SectorInfo.ID,
 			task.Type,
 		); err != nil {
-			//if errors.ErrNoData.Equal(err) {
-			//	// release bandwidth
-			//	if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
-			//		ReleaseNodeApi(false)
-			//		return errRes(errors.As(err, w.workerCfg), task)
-			//	}
-			//
-			//	// return the err task not found and drop it.
-			//	return errRes(ffiwrapper.ErrTaskNotFound.As(err, task), task)
-			//}
 			log.Warnf("fileserver error, retry 10s later:%+s", err.Error())
 			time.Sleep(10e9)
 			goto retryFetch
@@ -428,7 +418,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 		// release the storage cache
 		log.Infof("fetch %s done, try delete.", task.Key())
-		if err := deleteCache(
+		if err := deleteRemoteCache(
 			task.SectorStorage.WorkerInfo.SvcUri,
 			task.SectorStorage.SectorInfo.ID,
 		); err != nil {
@@ -504,7 +494,10 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 		res.Commit2Out = out
-	case ffiwrapper.WorkerFinalize:
+		// SPEC: cancel deal with worker finalize, because it will post failed when commit2 is online and finalize is interrupt.
+		// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
+		// TODO: when testing stable finalize retrying and reopen it.
+		// case ffiwrapper.WorkerFinalize:
 		if err := w.sb.FinalizeSector(ctx, task.SectorID); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}

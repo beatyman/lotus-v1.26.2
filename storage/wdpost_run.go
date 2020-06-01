@@ -32,6 +32,41 @@ func (s *WindowPoStScheduler) failPost(deadline *miner.DeadlineInfo) {
 	s.failLk.Unlock()*/
 }
 
+func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context) {
+	log.Info("DEBUG:checkWindowPoStPost")
+	new, err := s.api.ChainHead(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	//new, err := s.api.ChainGetTipSetByHeight(ctx, 51840, types.EmptyTSK)
+	//if err != nil {
+	//	panic(err)
+	//}
+	deadline, err := s.api.StateMinerProvingDeadline(ctx, s.actor, new.Key())
+	if err != nil {
+		panic(err)
+	}
+	ts := new
+
+	log.Infof("DEBUG:tipset:%d,%d,%+v", new.Height(), ts.Height(), deadline)
+	deadline.Index = 0
+
+	_, err = s.runPost(ctx, *deadline, ts)
+	switch err {
+	case errNoPartitions:
+		log.Info("NoPartitions")
+		return
+	case nil:
+		// no commit
+		log.Info("checking windowpost done")
+		return
+	default:
+		log.Errorf("runPost failed: %+v", err)
+		return
+	}
+}
+
 func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *miner.DeadlineInfo, ts *types.TipSet) {
 	ctx, abort := context.WithCancel(ctx)
 
@@ -47,6 +82,7 @@ func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *miner.Deadli
 		proof, err := s.runPost(ctx, *deadline, ts)
 		switch err {
 		case errNoPartitions:
+			log.Info("NoPartitions")
 			return
 		case nil:
 			if err := s.submitPost(ctx, proof); err != nil {
@@ -249,7 +285,8 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 
 	// check recoveries for the *next* deadline. It's already too late to
 	// declare them for this deadline
-	if err := s.checkRecoveries(ctx, (di.Index+1)%miner.WPoStPeriodDeadlines, ts); err != nil {
+	// if err := s.checkRecoveries(ctx, (di.Index+1)%miner.WPoStPeriodDeadlines, ts); err != nil {
+	if err := s.checkRecoveries(ctx, di.Index, ts); err != nil {
 		// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
 		log.Errorf("checking sector recoveries: %v", err)
 	}
