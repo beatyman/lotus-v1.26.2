@@ -67,6 +67,7 @@ var infoHLMWorkerCmd = &cli.Command{
 		fmt.Printf("\tPreCommit2: %d\n", wstat.PreCommit2Wait)
 		fmt.Printf("\tCommit1: %d\n", wstat.Commit1Wait)
 		fmt.Printf("\tCommit2: %d\n", wstat.Commit2Wait)
+		fmt.Printf("\tFinalize: %d\n", wstat.FinalizeWait)
 		fmt.Printf("\tUnseal: %d\n", wstat.UnsealWait)
 		return nil
 	},

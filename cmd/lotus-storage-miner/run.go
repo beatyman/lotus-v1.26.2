@@ -28,6 +28,7 @@ import (
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/filecoin-project/sector-storage/database"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
 
@@ -106,6 +107,10 @@ var runCmd = &cli.Command{
 		// init storage database
 		database.InitDB(storageRepoPath)
 		if err := database.MountAllStorage(); err != nil {
+			return errors.As(err)
+		}
+		// checking sealed for proof
+		if err := ffiwrapper.CheckSealed(storageRepoPath); err != nil {
 			return errors.As(err)
 		}
 
