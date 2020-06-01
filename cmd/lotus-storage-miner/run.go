@@ -106,6 +106,7 @@ var runCmd = &cli.Command{
 
 		// init storage database
 		database.InitDB(storageRepoPath)
+		// mount nfs storage node
 		if err := database.MountAllStorage(); err != nil {
 			return errors.As(err)
 		}
