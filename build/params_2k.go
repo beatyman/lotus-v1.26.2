@@ -19,6 +19,8 @@ func init() {
 		abi.RegisteredProof_StackedDRG64GiBSeal:  {},
 	}
 	verifreg.MinVerifiedDealSize = big.NewInt(256)
+
+	BuildType |= Build2k
 }
 
 var SectorSizes = []abi.SectorSize{

@@ -124,7 +124,7 @@ func main() {
 	app := &cli.App{
 		Name:    "lotus-seal-worker",
 		Usage:   "Remote storage miner worker",
-		Version: build.UserVersion,
+		Version: build.UserVersion(),
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "repo",
@@ -243,7 +243,7 @@ var runCmd = &cli.Command{
 		//	return errors.As(err)
 		//}
 
-		if err := paramfetch.GetParams(build.ParametersJson(), uint64(ssize)); err != nil {
+		if err := paramfetch.GetParams(build.ParametersJSON(), uint64(ssize)); err != nil {
 			return xerrors.Errorf("get params: %w", err)
 		}
 

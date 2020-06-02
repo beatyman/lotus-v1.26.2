@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/lotus/chain/types"
 	"io"
 	"io/ioutil"
 	"os"
@@ -16,7 +17,6 @@ import (
 	"github.com/filecoin-project/go-address"
 	genesis2 "github.com/filecoin-project/lotus/chain/gen/genesis"
 	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 
 	"github.com/filecoin-project/lotus/cmd/lotus-seed/seed"
@@ -65,7 +65,7 @@ func (api *api) Spawn() (nodeInfo, error) {
 		template.Miners = append(template.Miners, *genm)
 		template.Accounts = append(template.Accounts, genesis.Actor{
 			Type:    genesis.TAccount,
-			Balance: big.NewInt(100000000000000),
+			Balance: types.FromFil(5000000),
 			Meta:    (&genesis.AccountMeta{Owner: genm.Owner}).ActorMeta(),
 		})
 
@@ -171,7 +171,7 @@ func (api *api) SpawnStorage(fullNodeRepo string) (nodeInfo, error) {
 	initArgs := []string{"init", "--nosync"}
 	if fullNodeRepo == api.running[1].meta.Repo {
 		presealPrefix := filepath.Join(fullNodeRepo, "preseal")
-		initArgs = []string{"init", "--actor=t01000", "--genesis-miner", "--pre-sealed-sectors=" + presealPrefix, "--pre-sealed-metadata=" + filepath.Join(presealPrefix, "pre-seal-t0101.json")}
+		initArgs = []string{"init", "--actor=t01000", "--genesis-miner", "--pre-sealed-sectors=" + presealPrefix, "--pre-sealed-metadata=" + filepath.Join(presealPrefix, "pre-seal-t01000.json")}
 	}
 
 	id := atomic.AddInt32(&api.cmds, 1)

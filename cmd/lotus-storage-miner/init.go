@@ -37,7 +37,6 @@ import (
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
-	"github.com/filecoin-project/lotus/chain/beacon/drand"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/genesis"
@@ -130,7 +129,7 @@ var initCmd = &cli.Command{
 		}
 
 		log.Info("Checking proof parameters")
-		if err := paramfetch.GetParams(build.ParametersJson(), uint64(ssize)); err != nil {
+		if err := paramfetch.GetParams(build.ParametersJSON(), uint64(ssize)); err != nil {
 			return xerrors.Errorf("fetching proof parameters: %w", err)
 		}
 
@@ -400,7 +399,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 	if err != nil {
 		return err
 	}
-	defer lr.Close()
+	defer lr.Close() //nolint:errcheck
 
 	log.Info("Initializing libp2p identity")
 
@@ -448,7 +447,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 
 			smgr, err := sectorstorage.New(ctx, lr, stores.NewIndex(), &ffiwrapper.Config{
 				SealProofType: spt,
-			}, sectorstorage.SealerConfig{true, true, true, false}, nil, sa)
+			}, sectorstorage.SealerConfig{true, true, true, true, false}, nil, sa)
 			if err != nil {
 				return err
 			}
@@ -457,17 +456,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 				return err
 			}
 
-			gen, err := api.ChainGetGenesis(ctx)
-			if err != nil {
-				return err
-			}
-
-			beacon, err := drand.NewDrandBeacon(gen.Blocks()[0].Timestamp, build.BlockDelay)
-			if err != nil {
-				return err
-			}
-
-			m := miner.NewMiner(api, epp, beacon, a)
+			m := miner.NewMiner(api, epp, a)
 			{
 				if err := m.Start(ctx); err != nil {
 					return xerrors.Errorf("failed to start up genesis miner: %w", err)

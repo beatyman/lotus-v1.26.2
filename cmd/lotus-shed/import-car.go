@@ -34,7 +34,7 @@ var importCarCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		defer lr.Close()
+		defer lr.Close() //nolint:errcheck
 
 		cf := cctx.Args().Get(0)
 		f, err := os.OpenFile(cf, os.O_RDONLY, 0664)
@@ -42,7 +42,7 @@ var importCarCmd = &cli.Command{
 			return xerrors.Errorf("opening the car file: %w", err)
 		}
 
-		ds, err := lr.Datastore("/blocks")
+		ds, err := lr.Datastore("/chain")
 		if err != nil {
 			return err
 		}
