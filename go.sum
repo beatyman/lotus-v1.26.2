@@ -32,6 +32,8 @@ git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200523035529-590d3f2
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200523035529-590d3f24c05f/go.mod h1:B84UDZgtmJeYQycyWZigxFhvLyl6dejvi3yzSN/fP0Y=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200602065400-175f865811a6 h1:DJDeiq0wKgLNde5k/tIJwIZ/fm44HjpMeLiIoYr3n7w=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200602065400-175f865811a6/go.mod h1:/S2A+4L57WcJrsUctxhhiSnC5xHKIpeNLjd7FFGJjtU=
+git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200602081911-baf8f2699ad9 h1:qWMNaG3n/VuAkU0VG8pvd2rkBTUpAaPdlF3e6PtXE3c=
+git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200602081911-baf8f2699ad9/go.mod h1:/S2A+4L57WcJrsUctxhhiSnC5xHKIpeNLjd7FFGJjtU=
 github.com/AndreasBriese/bbloom v0.0.0-20180913140656-343706a395b7/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
 github.com/AndreasBriese/bbloom v0.0.0-20190306092124-e2d15f34fcf9 h1:HD8gA2tkByhMAwYaFAX9w2l7vxvBQ5NMoxDrkhqhtn4=
 github.com/AndreasBriese/bbloom v0.0.0-20190306092124-e2d15f34fcf9/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
