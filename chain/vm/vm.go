@@ -246,7 +246,7 @@ func (vm *VM) ApplyImplicitMessage(ctx context.Context, msg *types.Message) (*Ap
 	ret, actorErr, rt := vm.send(ctx, msg, nil, 0)
 	return &ApplyRet{
 		MessageReceipt: types.MessageReceipt{
-			ExitCode: exitcode.ExitCode(aerrors.RetCode(actorErr)),
+			ExitCode: aerrors.RetCode(actorErr),
 			Return:   ret,
 			GasUsed:  0,
 		},
@@ -415,7 +415,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 
 	return &ApplyRet{
 		MessageReceipt: types.MessageReceipt{
-			ExitCode: exitcode.ExitCode(errcode),
+			ExitCode: errcode,
 			Return:   ret,
 			GasUsed:  gasUsed,
 		},
@@ -607,16 +607,30 @@ func (vm *VM) transfer(from, to address.Address, amt types.BigInt) aerrors.Actor
 		return nil
 	}
 
+	fromId, err := vm.cstate.LookupID(from)
+	if err != nil {
+		return aerrors.Fatalf("transfer failed when resolving sender address: %s", err)
+	}
+
+	toId, err := vm.cstate.LookupID(to)
+	if err != nil {
+		return aerrors.Fatalf("transfer failed when resolving receiver address: %s", err)
+	}
+
+	if fromId == toId {
+		return nil
+	}
+
 	if amt.LessThan(types.NewInt(0)) {
 		return aerrors.Newf(exitcode.SysErrForbidden, "attempted to transfer negative value: %s", amt)
 	}
 
-	f, err := vm.cstate.GetActor(from)
+	f, err := vm.cstate.GetActor(fromId)
 	if err != nil {
 		return aerrors.Fatalf("transfer failed when retrieving sender actor: %s", err)
 	}
 
-	t, err := vm.cstate.GetActor(to)
+	t, err := vm.cstate.GetActor(toId)
 	if err != nil {
 		return aerrors.Fatalf("transfer failed when retrieving receiver actor: %s", err)
 	}
@@ -626,11 +640,11 @@ func (vm *VM) transfer(from, to address.Address, amt types.BigInt) aerrors.Actor
 	}
 	depositFunds(t, amt)
 
-	if err := vm.cstate.SetActor(from, f); err != nil {
+	if err := vm.cstate.SetActor(fromId, f); err != nil {
 		return aerrors.Fatalf("transfer failed when setting receiver actor: %s", err)
 	}
 
-	if err := vm.cstate.SetActor(to, t); err != nil {
+	if err := vm.cstate.SetActor(toId, t); err != nil {
 		return aerrors.Fatalf("transfer failed when setting sender actor: %s", err)
 	}
 

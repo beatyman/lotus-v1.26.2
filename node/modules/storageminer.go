@@ -43,8 +43,6 @@ import (
 
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
-	"github.com/filecoin-project/lotus/chain/beacon"
-	"github.com/filecoin-project/lotus/chain/beacon/drand"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/markets/retrievaladapter"
@@ -72,7 +70,7 @@ func GetParams(sbc *ffiwrapper.Config) error {
 		return err
 	}
 
-	if err := paramfetch.GetParams(build.ParametersJson(), uint64(ssize)); err != nil {
+	if err := paramfetch.GetParams(build.ParametersJSON(), uint64(ssize)); err != nil {
 		return xerrors.Errorf("fetching proof parameters: %w", err)
 	}
 
@@ -167,12 +165,10 @@ func StorageMiner(mctx helpers.MetricsCtx, lc fx.Lifecycle, api lapi.FullNode, h
 func HandleRetrieval(host host.Host, lc fx.Lifecycle, m retrievalmarket.RetrievalProvider) {
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			m.Start()
-			return nil
+			return m.Start()
 		},
 		OnStop: func(context.Context) error {
-			m.Stop()
-			return nil
+			return m.Stop()
 		},
 	})
 }
@@ -182,12 +178,10 @@ func HandleDeals(mctx helpers.MetricsCtx, lc fx.Lifecycle, host host.Host, h sto
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			h.Start(ctx)
-			return nil
+			return h.Start(ctx)
 		},
 		OnStop: func(context.Context) error {
-			h.Stop()
-			return nil
+			return h.Stop()
 		},
 	})
 }
@@ -263,13 +257,13 @@ func StagingGraphsync(mctx helpers.MetricsCtx, lc fx.Lifecycle, ibs dtypes.Stagi
 	return gs
 }
 
-func SetupBlockProducer(lc fx.Lifecycle, ds dtypes.MetadataDS, api lapi.FullNode, epp gen.WinningPoStProver, beacon beacon.RandomBeacon) (*miner.Miner, error) {
+func SetupBlockProducer(lc fx.Lifecycle, ds dtypes.MetadataDS, api lapi.FullNode, epp gen.WinningPoStProver) (*miner.Miner, error) {
 	minerAddr, err := minerAddrFromDS(ds)
 	if err != nil {
 		return nil, err
 	}
 
-	m := miner.NewMiner(api, epp, beacon, minerAddr)
+	m := miner.NewMiner(api, epp, minerAddr)
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -366,13 +360,4 @@ func StorageAuth(ctx helpers.MetricsCtx, ca lapi.Common) (sectorstorage.StorageA
 	headers := http.Header{}
 	headers.Add("Authorization", "Bearer "+string(token))
 	return sectorstorage.StorageAuth(headers), nil
-}
-
-func MinerRandomBeacon(api lapi.FullNode) (beacon.RandomBeacon, error) {
-	gents, err := api.ChainGetGenesis(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-
-	return drand.NewDrandBeacon(gents.Blocks()[0].Timestamp, build.BlockDelay)
 }

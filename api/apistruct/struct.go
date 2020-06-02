@@ -2,6 +2,7 @@ package apistruct
 
 import (
 	"context"
+	"io"
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -132,6 +133,7 @@ type FullNodeStruct struct {
 		StateMinerInitialPledgeCollateral func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (types.BigInt, error)                     `perm:"read"`
 		StateMinerAvailableBalance        func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                       `perm:"read"`
 		StateSectorPreCommitInfo          func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) `perm:"read"`
+		StateSectorGetInfo                func(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (*miner.SectorOnChainInfo, error)         `perm:"read"`
 		StateCall                         func(context.Context, *types.Message, types.TipSetKey) (*api.InvocResult, error)                                    `perm:"read"`
 		StateReplay                       func(context.Context, types.TipSetKey, cid.Cid) (*api.InvocResult, error)                                           `perm:"read"`
 		StateGetActor                     func(context.Context, address.Address, types.TipSetKey) (*types.Actor, error)                                       `perm:"read"`
@@ -205,16 +207,16 @@ type StorageMinerStruct struct {
 		WorkerConnect func(context.Context, string) error                             `perm:"admin"` // TODO: worker perm
 		WorkerStats   func(context.Context) (map[uint64]storiface.WorkerStats, error) `perm:"admin"`
 
-		StorageList          func(context.Context) (map[stores.ID][]stores.Decl, error)                                                                     `perm:"admin"`
-		StorageLocal         func(context.Context) (map[stores.ID]string, error)                                                                            `perm:"admin"`
-		StorageStat          func(context.Context, stores.ID) (stores.FsStat, error)                                                                        `perm:"admin"`
-		StorageAttach        func(context.Context, stores.StorageInfo, stores.FsStat) error                                                                 `perm:"admin"`
-		StorageDeclareSector func(context.Context, stores.ID, abi.SectorID, stores.SectorFileType) error                                                    `perm:"admin"`
-		StorageDropSector    func(context.Context, stores.ID, abi.SectorID, stores.SectorFileType) error                                                    `perm:"admin"`
-		StorageFindSector    func(context.Context, abi.SectorID, stores.SectorFileType, bool) ([]stores.StorageInfo, error)                                 `perm:"admin"`
-		StorageInfo          func(context.Context, stores.ID) (stores.StorageInfo, error)                                                                   `perm:"admin"`
-		StorageBestAlloc     func(ctx context.Context, allocate stores.SectorFileType, spt abi.RegisteredProof, sealing bool) ([]stores.StorageInfo, error) `perm:"admin"`
-		StorageReportHealth  func(ctx context.Context, id stores.ID, report stores.HealthReport) error                                                      `perm:"admin"`
+		StorageList          func(context.Context) (map[stores.ID][]stores.Decl, error)                                                                                `perm:"admin"`
+		StorageLocal         func(context.Context) (map[stores.ID]string, error)                                                                                       `perm:"admin"`
+		StorageStat          func(context.Context, stores.ID) (stores.FsStat, error)                                                                                   `perm:"admin"`
+		StorageAttach        func(context.Context, stores.StorageInfo, stores.FsStat) error                                                                            `perm:"admin"`
+		StorageDeclareSector func(context.Context, stores.ID, abi.SectorID, stores.SectorFileType, bool) error                                                         `perm:"admin"`
+		StorageDropSector    func(context.Context, stores.ID, abi.SectorID, stores.SectorFileType) error                                                               `perm:"admin"`
+		StorageFindSector    func(context.Context, abi.SectorID, stores.SectorFileType, bool) ([]stores.SectorStorageInfo, error)                                      `perm:"admin"`
+		StorageInfo          func(context.Context, stores.ID) (stores.StorageInfo, error)                                                                              `perm:"admin"`
+		StorageBestAlloc     func(ctx context.Context, allocate stores.SectorFileType, spt abi.RegisteredProof, sealing stores.PathType) ([]stores.StorageInfo, error) `perm:"admin"`
+		StorageReportHealth  func(ctx context.Context, id stores.ID, report stores.HealthReport) error                                                                 `perm:"admin"`
 
 		DealsImportData func(ctx context.Context, dealPropCid cid.Cid, file string) error `perm:"write"`
 		DealsList       func(ctx context.Context) ([]storagemarket.StorageDeal, error)    `perm:"read"`
@@ -269,7 +271,10 @@ type WorkerStruct struct {
 		SealCommit2    func(context.Context, abi.SectorID, storage.Commit1Out) (storage.Proof, error)                                                                                                             `perm:"admin"`
 		FinalizeSector func(context.Context, abi.SectorID) error                                                                                                                                                  `perm:"admin"`
 
-		Fetch func(context.Context, abi.SectorID, stores.SectorFileType, bool) error `perm:"admin"`
+		UnsealPiece func(context.Context, abi.SectorID, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) error `perm:"admin"`
+		ReadPiece   func(context.Context, io.Writer, abi.SectorID, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize) error                   `perm:"admin"`
+
+		Fetch func(context.Context, abi.SectorID, stores.SectorFileType, bool, stores.AcquireMode) error `perm:"admin"`
 
 		Closing func(context.Context) (<-chan struct{}, error) `perm:"admin"`
 	}
@@ -597,6 +602,10 @@ func (c *FullNodeStruct) StateSectorPreCommitInfo(ctx context.Context, maddr add
 	return c.Internal.StateSectorPreCommitInfo(ctx, maddr, n, tsk)
 }
 
+func (c *FullNodeStruct) StateSectorGetInfo(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (*miner.SectorOnChainInfo, error) {
+	return c.Internal.StateSectorGetInfo(ctx, maddr, n, tsk)
+}
+
 func (c *FullNodeStruct) StateCall(ctx context.Context, msg *types.Message, tsk types.TipSetKey) (*api.InvocResult, error) {
 	return c.Internal.StateCall(ctx, msg, tsk)
 }
@@ -793,15 +802,15 @@ func (c *StorageMinerStruct) StorageAttach(ctx context.Context, si stores.Storag
 	return c.Internal.StorageAttach(ctx, si, st)
 }
 
-func (c *StorageMinerStruct) StorageDeclareSector(ctx context.Context, storageId stores.ID, s abi.SectorID, ft stores.SectorFileType) error {
-	return c.Internal.StorageDeclareSector(ctx, storageId, s, ft)
+func (c *StorageMinerStruct) StorageDeclareSector(ctx context.Context, storageId stores.ID, s abi.SectorID, ft stores.SectorFileType, primary bool) error {
+	return c.Internal.StorageDeclareSector(ctx, storageId, s, ft, primary)
 }
 
 func (c *StorageMinerStruct) StorageDropSector(ctx context.Context, storageId stores.ID, s abi.SectorID, ft stores.SectorFileType) error {
 	return c.Internal.StorageDropSector(ctx, storageId, s, ft)
 }
 
-func (c *StorageMinerStruct) StorageFindSector(ctx context.Context, si abi.SectorID, types stores.SectorFileType, allowFetch bool) ([]stores.StorageInfo, error) {
+func (c *StorageMinerStruct) StorageFindSector(ctx context.Context, si abi.SectorID, types stores.SectorFileType, allowFetch bool) ([]stores.SectorStorageInfo, error) {
 	return c.Internal.StorageFindSector(ctx, si, types, allowFetch)
 }
 
@@ -821,8 +830,8 @@ func (c *StorageMinerStruct) StorageInfo(ctx context.Context, id stores.ID) (sto
 	return c.Internal.StorageInfo(ctx, id)
 }
 
-func (c *StorageMinerStruct) StorageBestAlloc(ctx context.Context, allocate stores.SectorFileType, spt abi.RegisteredProof, sealing bool) ([]stores.StorageInfo, error) {
-	return c.Internal.StorageBestAlloc(ctx, allocate, spt, sealing)
+func (c *StorageMinerStruct) StorageBestAlloc(ctx context.Context, allocate stores.SectorFileType, spt abi.RegisteredProof, pt stores.PathType) ([]stores.StorageInfo, error) {
+	return c.Internal.StorageBestAlloc(ctx, allocate, spt, pt)
 }
 
 func (c *StorageMinerStruct) StorageReportHealth(ctx context.Context, id stores.ID, report stores.HealthReport) error {
@@ -895,8 +904,16 @@ func (w *WorkerStruct) FinalizeSector(ctx context.Context, sector abi.SectorID) 
 	return w.Internal.FinalizeSector(ctx, sector)
 }
 
-func (w *WorkerStruct) Fetch(ctx context.Context, id abi.SectorID, fileType stores.SectorFileType, b bool) error {
-	return w.Internal.Fetch(ctx, id, fileType, b)
+func (w *WorkerStruct) UnsealPiece(ctx context.Context, id abi.SectorID, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, c cid.Cid) error {
+	return w.Internal.UnsealPiece(ctx, id, index, size, randomness, c)
+}
+
+func (w *WorkerStruct) ReadPiece(ctx context.Context, writer io.Writer, id abi.SectorID, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) error {
+	return w.Internal.ReadPiece(ctx, writer, id, index, size)
+}
+
+func (w *WorkerStruct) Fetch(ctx context.Context, id abi.SectorID, fileType stores.SectorFileType, b bool, am stores.AcquireMode) error {
+	return w.Internal.Fetch(ctx, id, fileType, b, am)
 }
 
 func (w *WorkerStruct) Closing(ctx context.Context) (<-chan struct{}, error) {
@@ -989,4 +1006,4 @@ func (c *StorageMinerStruct) ScaleHLMStorage(ctx context.Context, id int64, size
 var _ api.Common = &CommonStruct{}
 var _ api.FullNode = &FullNodeStruct{}
 var _ api.StorageMiner = &StorageMinerStruct{}
-var _ api.WorkerApi = &WorkerStruct{}
+var _ api.WorkerAPI = &WorkerStruct{}

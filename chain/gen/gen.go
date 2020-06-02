@@ -104,7 +104,7 @@ func NewGeneratorWithSectors(numSectors int) (*ChainGen, error) {
 		return nil, xerrors.Errorf("failed to get metadata datastore: %w", err)
 	}
 
-	bds, err := lr.Datastore("/blocks")
+	bds, err := lr.Datastore("/chain")
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get blocks datastore: %w", err)
 	}
@@ -219,6 +219,10 @@ func NewGeneratorWithSectors(numSectors int) (*ChainGen, error) {
 	miners := []address.Address{maddr1, maddr2}
 
 	beac := beacon.NewMockBeacon(time.Second)
+	//beac, err := drand.NewDrandBeacon(tpl.Timestamp, build.BlockDelay)
+	//if err != nil {
+	//return nil, xerrors.Errorf("creating drand beacon: %w", err)
+	//}
 
 	gen := &ChainGen{
 		bs:           bs,

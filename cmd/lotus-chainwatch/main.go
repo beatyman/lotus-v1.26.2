@@ -29,7 +29,7 @@ func main() {
 	app := &cli.App{
 		Name:    "lotus-chainwatch",
 		Usage:   "Devnet token distribution utility",
-		Version: build.UserVersion,
+		Version: build.UserVersion(),
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "repo",
@@ -86,7 +86,7 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		defer st.close()
+		defer st.close() //nolint:errcheck
 
 		runSyncer(ctx, api, st, maxBatch)
 

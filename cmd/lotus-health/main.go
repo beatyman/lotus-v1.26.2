@@ -36,7 +36,7 @@ func main() {
 	app := &cli.App{
 		Name:     "lotus-health",
 		Usage:    "Tools for monitoring lotus daemon health",
-		Version:  build.UserVersion,
+		Version:  build.UserVersion(),
 		Commands: local,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -79,7 +79,7 @@ var watchHeadCmd = &cli.Command{
 		&cli.IntFlag{
 			Name:  "api-retries",
 			Value: 8,
-			Usage: "number of API retry attemps",
+			Usage: "number of API retry attempts",
 		},
 	},
 	Action: func(c *cli.Context) error {
