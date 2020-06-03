@@ -152,7 +152,7 @@ func (m *Miner) mine(ctx context.Context) {
 		now := time.Now()
 		if lastBase.TipSet == nil || !prebase.TipSet.Equals(lastBase.TipSet) {
 			// cause net delay, skip for in a late time.
-			if now.After(time.Unix(int64(prebase.TipSet.MinTimestamp()+uint64(build.PropagationDelay)), 0)) {
+			if int64(prebase.TipSet.MinTimestamp()) < now.Unix()-build.BlockDelay {
 				time.Sleep(build.PropagationDelay)
 			}
 			base, err := m.GetBestMiningCandidate(ctx)
