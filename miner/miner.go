@@ -113,15 +113,11 @@ func (m *Miner) niceSleep(d time.Duration) bool {
 	}
 }
 
-func nextRoundTime(base *MiningBase) time.Time {
-	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelay*(base.NullRounds+1)), 0)
-}
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
 	defer span.End()
 
 	var lastBase MiningBase
-	var nextRound time.Time
 
 	for {
 		select {
@@ -142,51 +138,32 @@ func (m *Miner) mine(ctx context.Context) {
 			continue
 		}
 
-		//// Wait until propagation delay period after block we plan to mine on
-		//onDone, err := m.waitFunc(ctx, prebase.TipSet.MinTimestamp())
-		//if err != nil {
-		//	log.Error(err)
-		//	return
-		//}
-
-		now := time.Now()
-		if lastBase.TipSet == nil || !prebase.TipSet.Equals(lastBase.TipSet) {
-			// cause net delay, skip for in a late time.
-			if now.After(time.Unix(int64(prebase.TipSet.MinTimestamp()+uint64(build.PropagationDelay)), 0)) {
-				time.Sleep(build.PropagationDelay)
-			}
-			base, err := m.GetBestMiningCandidate(ctx)
-			if err != nil {
-				log.Errorf("failed to get best mining candidate: %s", err)
-				continue
-			}
-			nextRound = nextRoundTime(base)
-			lastBase = *base
-		} else {
-			// if the base was dead, make the nullRound++ step by round actually change.
-			if lastBase.TipSet == nil || (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
-				time.Sleep(1e9)
-				continue
-			}
-			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
-			lastBase.NullRounds++
-			nextRound = nextRoundTime(&lastBase)
+		// Wait until propagation delay period after block we plan to mine on
+		onDone, err := m.waitFunc(ctx, prebase.TipSet.MinTimestamp())
+		if err != nil {
+			log.Error(err)
+			return
 		}
 
-		//if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
-		//	log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
-		//	m.niceSleep(build.BlockDelay * time.Second)
-		//	continue
-		//}
-		//lastBase = *base
+		base, err := m.GetBestMiningCandidate(ctx)
+		if err != nil {
+			log.Errorf("failed to get best mining candidate: %s", err)
+			continue
+		}
+		if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
+			log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
+			m.niceSleep(build.BlockDelay * time.Second)
+			continue
+		}
+		lastBase = *base
 
-		b, err := m.mineOne(ctx, &lastBase)
+		b, err := m.mineOne(ctx, base)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
 			continue
 		}
 
-		//onDone(b != nil)
+		onDone(b != nil)
 
 		if b != nil {
 			btime := time.Unix(int64(b.Header.Timestamp), 0)
@@ -204,7 +181,7 @@ func (m *Miner) mine(ctx context.Context) {
 			blkKey := fmt.Sprintf("%d", b.Header.Height)
 			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
 				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
-				//continue
+				continue
 			}
 
 			m.minedBlockHeights.Add(blkKey, true)
@@ -216,7 +193,7 @@ func (m *Miner) mine(ctx context.Context) {
 			// has enough time to form.
 			//
 			// See:  https://github.com/filecoin-project/lotus/issues/1845
-			//nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds))+int64(build.PropagationDelay), 0)
+			nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds))+int64(build.PropagationDelay), 0)
 
 			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
 			select {
