@@ -15,7 +15,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"golang.org/x/xerrors"
-	"gopkg.in/urfave/cli.v2"
+	"github.com/urfave/cli/v2"
 
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -215,14 +215,14 @@ func (h *handler) mkminer(w http.ResponseWriter, r *http.Request) {
 	owner, err := address.NewFromString(r.FormValue("address"))
 	if err != nil {
 		w.WriteHeader(400)
-		w.Write([]byte(err.Error()))
+		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 
 	if owner.Protocol() != address.BLS {
 		w.WriteHeader(400)
-		w.Write([]byte("Miner address must use BLS. A BLS address starts with the prefix 't3'."))
-		w.Write([]byte("Please create a BLS address by running \"lotus wallet new bls\" while connected to a Lotus node."))
+		_, _ = w.Write([]byte("Miner address must use BLS. A BLS address starts with the prefix 't3'."))
+		_, _ = w.Write([]byte("Please create a BLS address by running \"lotus wallet new bls\" while connected to a Lotus node."))
 		return
 	}
 
@@ -334,7 +334,7 @@ func (h *handler) msgwait(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mw, err := h.api.StateWaitMsg(r.Context(), c)
+	mw, err := h.api.StateWaitMsg(r.Context(), c, build.MessageConfidence)
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write([]byte(err.Error()))
@@ -357,7 +357,7 @@ func (h *handler) msgwaitaddr(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mw, err := h.api.StateWaitMsg(r.Context(), c)
+	mw, err := h.api.StateWaitMsg(r.Context(), c, build.MessageConfidence)
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write([]byte(err.Error()))
