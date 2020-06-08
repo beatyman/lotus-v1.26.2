@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
-	"golang.org/x/xerrors"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
@@ -148,14 +148,14 @@ var runCmd = &cli.Command{
 		}
 
 		if cctx.Bool("commit") {
-			if err := paramfetch.GetParams(build.ParametersJSON(), uint64(ssize)); err != nil {
+			if err := paramfetch.GetParams(ctx, build.ParametersJSON(), uint64(ssize)); err != nil {
 				return xerrors.Errorf("get params: %w", err)
 			}
 		}
 
 		var taskTypes []sealtasks.TaskType
 
-		taskTypes = append(taskTypes, sealtasks.TTFetch)
+		taskTypes = append(taskTypes, sealtasks.TTFetch, sealtasks.TTCommit1, sealtasks.TTFinalize)
 
 		if cctx.Bool("precommit1") {
 			taskTypes = append(taskTypes, sealtasks.TTPreCommit1)

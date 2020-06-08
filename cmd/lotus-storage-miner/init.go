@@ -18,8 +18,8 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/mitchellh/go-homedir"
-	"golang.org/x/xerrors"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	cborutil "github.com/filecoin-project/go-cbor-util"
@@ -128,8 +128,11 @@ var initCmd = &cli.Command{
 			log.Info("will attempt to symlink to imported sectors")
 		}
 
+		ctx := lcli.ReqContext(cctx)
+
 		log.Info("Checking proof parameters")
-		if err := paramfetch.GetParams(build.ParametersJSON(), uint64(ssize)); err != nil {
+
+		if err := paramfetch.GetParams(ctx, build.ParametersJSON(), uint64(ssize)); err != nil {
 			return xerrors.Errorf("fetching proof parameters: %w", err)
 		}
 
@@ -140,7 +143,6 @@ var initCmd = &cli.Command{
 			return err
 		}
 		defer closer()
-		ctx := lcli.ReqContext(cctx)
 
 		log.Info("Checking full node sync status")
 
@@ -556,7 +558,7 @@ func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.
 		return xerrors.Errorf("getWorkerAddr returned bad address: %w", err)
 	}
 
-	enc, err := actors.SerializeParams(&miner2.ChangePeerIDParams{NewID: peerid})
+	enc, err := actors.SerializeParams(&miner2.ChangePeerIDParams{NewID: abi.PeerID(peerid)})
 	if err != nil {
 		return err
 	}
@@ -633,7 +635,7 @@ func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, 
 		Owner:         owner,
 		Worker:        worker,
 		SealProofType: spt,
-		Peer:          peerid,
+		Peer:          abi.PeerID(peerid),
 	})
 	if err != nil {
 		return address.Undef, err
