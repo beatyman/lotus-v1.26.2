@@ -67,7 +67,7 @@ func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address) (ma
 		"TotalPower": fmt.Sprint(pow.TotalPower.RawBytePower),
 		"MinerPower": fmt.Sprint(pow.MinerPower.RawBytePower),
 
-		"PeerID": mInfo.PeerId.String(),
+		"PeerID": "", // mInfo.PeerId.String(),
 		"Owner":  fmt.Sprint(mInfo.Owner),
 		"Worker": fmt.Sprint(mInfo.Worker),
 
