@@ -1,5 +1,10 @@
 #!/bin/sh
 
+export IPFS_GATEWAY="https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs/"
+
+export FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1 # give us gpu precommit2, https://filecoinproject.slack.com/archives/CEGB67XJ8/p1588805545137700
+export FIL_PROOFS_MAXIMIZE_CACHING=0  # open cache for 32GB or 64GB
+
 size=536870912
 #size=2048
 #RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench sealing --storage-dir=/data/cache/.lotus-bench --sector-size=$size --skip-unseal=true --parallel=2
