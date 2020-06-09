@@ -469,9 +469,12 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	}
 
 	// TODO: Faults!
-	postOut, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), ssi, abi.PoStRandomness(rand))
+	postOut, skipSectors, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), ssi, abi.PoStRandomness(rand))
 	if err != nil {
 		return nil, xerrors.Errorf("running post failed: %w", err)
+	}
+	if len(skipSectors) > 0 {
+		log.Warn("skip sectors:", skipSectors)
 	}
 
 	if len(postOut) == 0 {

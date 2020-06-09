@@ -15,6 +15,8 @@ git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200605084120-5609
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200605084120-56090960b9a2/go.mod h1:1iTdfxGsf0OGasPu05ZpvX/cdZvNiZCMfm5M4MEhdLw=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200606030326-e67b4a4eda4d h1:BT4l7tLUZpx/2jV+KSOMdB2g4jZDbtRYSALCYo/B2yE=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200606030326-e67b4a4eda4d/go.mod h1:1iTdfxGsf0OGasPu05ZpvX/cdZvNiZCMfm5M4MEhdLw=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200609033627-3c7f6fee3d42 h1:aMYHj7EXRhADjdQICRHS68AvtSF8hKlHo2rl8mWHgK4=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200609033627-3c7f6fee3d42/go.mod h1:m2q8uUq+oIqZjNuN7mwoyh5i3zF/n95DLtUSFmf9Cfw=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200602081911-baf8f2699ad9 h1:qWMNaG3n/VuAkU0VG8pvd2rkBTUpAaPdlF3e6PtXE3c=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200602081911-baf8f2699ad9/go.mod h1:/S2A+4L57WcJrsUctxhhiSnC5xHKIpeNLjd7FFGJjtU=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200606030417-d4e5e0a37601 h1:QyebIod5QhOjqnUw1n6uf8JgQofCrwIMbjIn8AWv35c=
@@ -245,6 +247,8 @@ github.com/filecoin-project/specs-actors v0.5.6 h1:WlhtoXwFoKlP1b06NI4NJaxC4m9EX
 github.com/filecoin-project/specs-actors v0.5.6/go.mod h1:dRdy3cURykh2R8O/DKqy8olScl70rmIS7GrB4hB1IDY=
 github.com/filecoin-project/specs-storage v0.0.0-20200417134612-61b2d91a6102 h1:T3f/zkuvgtgqcXrb0NO3BicuveGOxxUAMPa/Yif2kuE=
 github.com/filecoin-project/specs-storage v0.0.0-20200417134612-61b2d91a6102/go.mod h1:xJ1/xl9+8zZeSSSFmDC3Wr6uusCTxyYPI0VeNVSFmPE=
+github.com/filecoin-project/specs-storage v0.1.0 h1:PkDgTOT5W5Ao7752onjDl4QSv+sgOVdJbvFjOnD5w94=
+github.com/filecoin-project/specs-storage v0.1.0/go.mod h1:Pr5ntAaxsh+sLG/LYiL4tKzvA83Vk5vLODYhfNwOg7k=
 github.com/filecoin-project/storage-fsm v0.0.0-20200605082304-aa405b2176aa h1:kTCIBKMhhhVcjCh1ws72vpdDr4cdZjCyIUDFijuWuvA=
 github.com/filecoin-project/storage-fsm v0.0.0-20200605082304-aa405b2176aa/go.mod h1:S0u14Wr55mpe22lElCSKbXrhtWg/jquVTTMhefQ8f4Q=
 github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568/go.mod h1:xEzjJPgXI435gkrCt3MPfRiAkVrwSbHsst4LCFVfpJc=

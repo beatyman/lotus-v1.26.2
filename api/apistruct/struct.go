@@ -2,6 +2,7 @@ package apistruct
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/ipfs/go-cid"
@@ -226,7 +227,8 @@ type StorageMinerStruct struct {
 		DealsImportData func(ctx context.Context, dealPropCid cid.Cid, file string) error `perm:"write"`
 		DealsList       func(ctx context.Context) ([]storagemarket.StorageDeal, error)    `perm:"read"`
 
-		StorageAddLocal func(ctx context.Context, path string) error `perm:"admin"`
+		StorageAddLocal func(ctx context.Context, path string) error                                                                          `perm:"admin"`
+		StorageTryLock  func(ctx context.Context, sector abi.SectorID, read stores.SectorFileType, write stores.SectorFileType) (bool, error) `perm:"admin"`
 
 		// implements by hlm
 		RunPledgeSector    func(context.Context) error                                                               `perm:"write"`
@@ -880,6 +882,10 @@ func (c *StorageMinerStruct) DealsList(ctx context.Context) ([]storagemarket.Sto
 
 func (c *StorageMinerStruct) StorageAddLocal(ctx context.Context, path string) error {
 	return c.Internal.StorageAddLocal(ctx, path)
+}
+
+func (c *StorageMinerStruct) StorageTryLock(ctx context.Context, sector abi.SectorID, read stores.SectorFileType, write stores.SectorFileType) (bool, error) {
+	return false, errors.New("unimplement")
 }
 
 // WorkerStruct
