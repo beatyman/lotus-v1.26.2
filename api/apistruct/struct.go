@@ -45,12 +45,15 @@ type CommonStruct struct {
 		NetAddrsListen   func(context.Context) (peer.AddrInfo, error)                  `perm:"read"`
 		NetDisconnect    func(context.Context, peer.ID) error                          `perm:"write"`
 		NetFindPeer      func(context.Context, peer.ID) (peer.AddrInfo, error)         `perm:"read"`
+		NetPubsubScores  func(context.Context) ([]api.PubsubScore, error)              `perm:"read"`
 
 		ID      func(context.Context) (peer.ID, error)     `perm:"read"`
 		Version func(context.Context) (api.Version, error) `perm:"read"`
 
 		LogList     func(context.Context) ([]string, error)     `perm:"write"`
 		LogSetLevel func(context.Context, string, string) error `perm:"write"`
+
+		Shutdown func(context.Context) error `perm:"admin"`
 	}
 }
 
@@ -107,6 +110,7 @@ type FullNodeStruct struct {
 		WalletSetDefault     func(context.Context, address.Address) error                                         `perm:"admin"`
 		WalletExport         func(context.Context, address.Address) (*types.KeyInfo, error)                       `perm:"admin"`
 		WalletImport         func(context.Context, *types.KeyInfo) (address.Address, error)                       `perm:"admin"`
+		WalletDelete         func(context.Context, address.Address) error                                         `perm:"write"`
 
 		ClientImport      func(ctx context.Context, ref api.FileRef) (cid.Cid, error)                                          `perm:"admin"`
 		ClientListImports func(ctx context.Context) ([]api.Import, error)                                                      `perm:"write"`
@@ -139,7 +143,7 @@ type FullNodeStruct struct {
 		StateGetActor                     func(context.Context, address.Address, types.TipSetKey) (*types.Actor, error)                                       `perm:"read"`
 		StateReadState                    func(context.Context, *types.Actor, types.TipSetKey) (*api.ActorState, error)                                       `perm:"read"`
 		StatePledgeCollateral             func(context.Context, types.TipSetKey) (types.BigInt, error)                                                        `perm:"read"`
-		StateWaitMsg                      func(context.Context, cid.Cid) (*api.MsgLookup, error)                                                              `perm:"read"`
+		StateWaitMsg                      func(ctx context.Context, cid cid.Cid, confidence uint64) (*api.MsgLookup, error)                                   `perm:"read"`
 		StateSearchMsg                    func(context.Context, cid.Cid) (*api.MsgLookup, error)                                                              `perm:"read"`
 		StateListMiners                   func(context.Context, types.TipSetKey) ([]address.Address, error)                                                   `perm:"read"`
 		StateListActors                   func(context.Context, types.TipSetKey) ([]address.Address, error)                                                   `perm:"read"`
@@ -217,6 +221,7 @@ type StorageMinerStruct struct {
 		StorageInfo          func(context.Context, stores.ID) (stores.StorageInfo, error)                                                                              `perm:"admin"`
 		StorageBestAlloc     func(ctx context.Context, allocate stores.SectorFileType, spt abi.RegisteredProof, sealing stores.PathType) ([]stores.StorageInfo, error) `perm:"admin"`
 		StorageReportHealth  func(ctx context.Context, id stores.ID, report stores.HealthReport) error                                                                 `perm:"admin"`
+		StorageLock          func(ctx context.Context, sector abi.SectorID, read stores.SectorFileType, write stores.SectorFileType) error                             `perm:"admin"`
 
 		DealsImportData func(ctx context.Context, dealPropCid cid.Cid, file string) error `perm:"write"`
 		DealsList       func(ctx context.Context) ([]storagemarket.StorageDeal, error)    `perm:"read"`
@@ -224,11 +229,6 @@ type StorageMinerStruct struct {
 		StorageAddLocal func(ctx context.Context, path string) error `perm:"admin"`
 
 		// implements by hlm
-		// Message communication
-		MpoolPushMessage func(context.Context, *types.Message) (*types.SignedMessage, error)       `perm:"write"`
-		StateWaitMsg     func(context.Context, cid.Cid) (*api.MsgLookup, error)                    `perm:"read"`
-		WalletSign       func(context.Context, address.Address, []byte) (*crypto.Signature, error) `perm:"sign"`
-
 		RunPledgeSector    func(context.Context) error                                                               `perm:"write"`
 		StatusPledgeSector func(context.Context) (int, error)                                                        `perm:"read"`
 		StopPledgeSector   func(context.Context) error                                                               `perm:"write"`
@@ -270,11 +270,12 @@ type WorkerStruct struct {
 		SealCommit1    func(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) `perm:"admin"`
 		SealCommit2    func(context.Context, abi.SectorID, storage.Commit1Out) (storage.Proof, error)                                                                                                             `perm:"admin"`
 		FinalizeSector func(context.Context, abi.SectorID) error                                                                                                                                                  `perm:"admin"`
+		MoveStorage    func(ctx context.Context, sector abi.SectorID) error                                                                                                                                       `perm:"admin"`
 
 		UnsealPiece func(context.Context, abi.SectorID, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) error `perm:"admin"`
 		ReadPiece   func(context.Context, io.Writer, abi.SectorID, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize) error                   `perm:"admin"`
 
-		Fetch func(context.Context, abi.SectorID, stores.SectorFileType, bool, stores.AcquireMode) error `perm:"admin"`
+		Fetch func(context.Context, abi.SectorID, stores.SectorFileType, stores.PathType, stores.AcquireMode) error `perm:"admin"`
 
 		Closing func(context.Context) (<-chan struct{}, error) `perm:"admin"`
 	}
@@ -290,6 +291,9 @@ func (c *CommonStruct) AuthNew(ctx context.Context, perms []auth.Permission) ([]
 	return c.Internal.AuthNew(ctx, perms)
 }
 
+func (c *CommonStruct) NetPubsubScores(ctx context.Context) ([]api.PubsubScore, error) {
+	return c.Internal.NetPubsubScores(ctx)
+}
 func (c *CommonStruct) NetConnectedness(ctx context.Context, pid peer.ID) (network.Connectedness, error) {
 	return c.Internal.NetConnectedness(ctx, pid)
 }
@@ -330,6 +334,10 @@ func (c *CommonStruct) LogList(ctx context.Context) ([]string, error) {
 
 func (c *CommonStruct) LogSetLevel(ctx context.Context, group, level string) error {
 	return c.Internal.LogSetLevel(ctx, group, level)
+}
+
+func (c *CommonStruct) Shutdown(ctx context.Context) error {
+	return c.Internal.Shutdown(ctx)
 }
 
 // FullNodeStruct
@@ -460,6 +468,10 @@ func (c *FullNodeStruct) WalletExport(ctx context.Context, a address.Address) (*
 
 func (c *FullNodeStruct) WalletImport(ctx context.Context, ki *types.KeyInfo) (address.Address, error) {
 	return c.Internal.WalletImport(ctx, ki)
+}
+
+func (c *FullNodeStruct) WalletDelete(ctx context.Context, addr address.Address) error {
+	return c.Internal.WalletDelete(ctx, addr)
 }
 
 func (c *FullNodeStruct) MpoolGetNonce(ctx context.Context, addr address.Address) (uint64, error) {
@@ -626,8 +638,8 @@ func (c *FullNodeStruct) StatePledgeCollateral(ctx context.Context, tsk types.Ti
 	return c.Internal.StatePledgeCollateral(ctx, tsk)
 }
 
-func (c *FullNodeStruct) StateWaitMsg(ctx context.Context, msgc cid.Cid) (*api.MsgLookup, error) {
-	return c.Internal.StateWaitMsg(ctx, msgc)
+func (c *FullNodeStruct) StateWaitMsg(ctx context.Context, msgc cid.Cid, confidence uint64) (*api.MsgLookup, error) {
+	return c.Internal.StateWaitMsg(ctx, msgc, confidence)
 }
 
 func (c *FullNodeStruct) StateSearchMsg(ctx context.Context, msgc cid.Cid) (*api.MsgLookup, error) {
@@ -838,6 +850,10 @@ func (c *StorageMinerStruct) StorageReportHealth(ctx context.Context, id stores.
 	return c.Internal.StorageReportHealth(ctx, id, report)
 }
 
+func (c *StorageMinerStruct) StorageLock(ctx context.Context, sector abi.SectorID, read stores.SectorFileType, write stores.SectorFileType) error {
+	return c.Internal.StorageLock(ctx, sector, read, write)
+}
+
 func (c *StorageMinerStruct) MarketImportDealData(ctx context.Context, propcid cid.Cid, path string) error {
 	return c.Internal.MarketImportDealData(ctx, propcid, path)
 }
@@ -904,6 +920,10 @@ func (w *WorkerStruct) FinalizeSector(ctx context.Context, sector abi.SectorID) 
 	return w.Internal.FinalizeSector(ctx, sector)
 }
 
+func (w *WorkerStruct) MoveStorage(ctx context.Context, sector abi.SectorID) error {
+	return w.Internal.MoveStorage(ctx, sector)
+}
+
 func (w *WorkerStruct) UnsealPiece(ctx context.Context, id abi.SectorID, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, c cid.Cid) error {
 	return w.Internal.UnsealPiece(ctx, id, index, size, randomness, c)
 }
@@ -912,8 +932,8 @@ func (w *WorkerStruct) ReadPiece(ctx context.Context, writer io.Writer, id abi.S
 	return w.Internal.ReadPiece(ctx, writer, id, index, size)
 }
 
-func (w *WorkerStruct) Fetch(ctx context.Context, id abi.SectorID, fileType stores.SectorFileType, b bool, am stores.AcquireMode) error {
-	return w.Internal.Fetch(ctx, id, fileType, b, am)
+func (w *WorkerStruct) Fetch(ctx context.Context, id abi.SectorID, fileType stores.SectorFileType, ptype stores.PathType, am stores.AcquireMode) error {
+	return w.Internal.Fetch(ctx, id, fileType, ptype, am)
 }
 
 func (w *WorkerStruct) Closing(ctx context.Context) (<-chan struct{}, error) {
@@ -921,16 +941,6 @@ func (w *WorkerStruct) Closing(ctx context.Context) (<-chan struct{}, error) {
 }
 
 // implements by hlm start
-func (c *StorageMinerStruct) MpoolPushMessage(ctx context.Context, msg *types.Message) (*types.SignedMessage, error) {
-	return c.Internal.MpoolPushMessage(ctx, msg)
-}
-func (c *StorageMinerStruct) StateWaitMsg(ctx context.Context, msgc cid.Cid) (*api.MsgLookup, error) {
-	return c.Internal.StateWaitMsg(ctx, msgc)
-}
-func (c *StorageMinerStruct) WalletSign(ctx context.Context, k address.Address, msg []byte) (*crypto.Signature, error) {
-	return c.Internal.WalletSign(ctx, k, msg)
-}
-
 func (c *StorageMinerStruct) RunPledgeSector(ctx context.Context) error {
 	return c.Internal.RunPledgeSector(ctx)
 }

@@ -7,8 +7,8 @@ import (
 
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	"github.com/ipld/go-car"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
-	"gopkg.in/urfave/cli.v2"
 
 	"github.com/filecoin-project/lotus/node/repo"
 )

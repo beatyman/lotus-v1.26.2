@@ -11,8 +11,8 @@ import (
 	mux "github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr-net"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
-	"gopkg.in/urfave/cli.v2"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
@@ -115,9 +115,12 @@ var runCmd = &cli.Command{
 			return errors.As(err)
 		}
 
+		shutdownChan := make(chan struct{})
+
 		var minerapi api.StorageMiner
 		stop, err := node.New(ctx,
 			node.StorageMiner(&minerapi),
+			node.Override(new(dtypes.ShutdownChan), shutdownChan),
 			node.Online(),
 			node.Repo(r),
 
@@ -171,8 +174,12 @@ var runCmd = &cli.Command{
 
 		sigChan := make(chan os.Signal, 2)
 		go func() {
-			<-sigChan
-			log.Warn("Shutting down..")
+			select {
+			case <-sigChan:
+			case <-shutdownChan:
+			}
+
+			log.Warn("Shutting down...")
 			if err := stop(context.TODO()); err != nil {
 				log.Errorf("graceful shutting down failed: %s", err)
 			}

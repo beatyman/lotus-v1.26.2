@@ -13,6 +13,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	aapi "github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
@@ -66,7 +67,7 @@ func minerInfo(ctx context.Context, api aapi.FullNode, addr address.Address) (ma
 		"TotalPower": fmt.Sprint(pow.TotalPower.RawBytePower),
 		"MinerPower": fmt.Sprint(pow.MinerPower.RawBytePower),
 
-		"PeerID": mInfo.PeerId.String(),
+		"PeerID": "", // mInfo.PeerId.String(),
 		"Owner":  fmt.Sprint(mInfo.Owner),
 		"Worker": fmt.Sprint(mInfo.Worker),
 
@@ -82,7 +83,7 @@ var (
 func getReceipt(ctx context.Context, api aapi.FullNode, cid cid.Cid) (*aapi.MsgLookup, error) {
 	waitMsgLock.Lock()
 	defer waitMsgLock.Unlock()
-	return api.StateWaitMsg(ctx, cid)
+	return api.StateWaitMsg(ctx, cid, build.MessageConfidence)
 }
 
 func subMpool(ctx context.Context, api aapi.FullNode, ts *types.TipSet, blkCid cid.Cid, blk *types.BlockHeader, blkMessage []aapi.Message) {
