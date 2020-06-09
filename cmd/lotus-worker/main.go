@@ -16,8 +16,8 @@ import (
 	"github.com/mitchellh/go-homedir"
 
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
-	"gopkg.in/urfave/cli.v2"
 
 	manet "github.com/multiformats/go-multiaddr-net"
 
@@ -243,7 +243,7 @@ var runCmd = &cli.Command{
 		//	return errors.As(err)
 		//}
 
-		if err := paramfetch.GetParams(build.ParametersJSON(), uint64(ssize)); err != nil {
+		if err := paramfetch.GetParams(ctx, build.ParametersJSON(), uint64(ssize)); err != nil {
 			return xerrors.Errorf("get params: %w", err)
 		}
 
