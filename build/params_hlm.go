@@ -1,6 +1,4 @@
-// +build !debug
-// +build !2k
-// +build !hlm
+// +build hlm
 
 package build
 
@@ -11,6 +9,11 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 )
+
+func init() {
+	InsecurePoStValidation = true
+	BuildType |= BuildDebug
+}
 
 func init() {
 	power.ConsensusMinerMinPower = big.NewInt(1024 << 20)

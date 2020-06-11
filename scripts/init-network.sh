@@ -4,8 +4,28 @@ export IPFS_GATEWAY="https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs
 set -xeo
 
 NUM_SECTORS=2
-#SECTOR_SIZE=2048
-SECTOR_SIZE=536870912
+
+SECTOR_SIZE=2048
+#SECTOR_SIZE=536870912
+#SECTOR_SIZE=34359738368
+car_name="devnet.car"
+build_mode="debug"
+echo $1
+case $1 in
+    "hlm")
+        SECTOR_SIZE=34359738368
+        #SECTOR_SIZE=536870912
+        car_name="hlmnet.car"
+        build_mode="hlm"
+    ;;
+
+    *)
+        SECTOR_SIZE=2048
+        car_name="devnet.car"
+        build_mode="debug"
+    ;;
+esac
+echo "SECTOR_SIZE:"$SECTOR_SIZE" mode:"$build_mode
 
 
 sdt0111=/data/lotus/dev/.sdt0111 # $(mktemp -d)
@@ -14,7 +34,7 @@ staging=/data/lotus/dev/.staging # $(mktemp -d)
 mkdir -p $sdt0111
 mkdir -p $staging
 
-make debug
+make $build_mode
 make lotus-shed
 make fountain
  if [[  "`ls -A ${sdt0111}`" = ""  &&  "`ls -A ${staging}`" = ""  ]];
@@ -44,9 +64,9 @@ kill "$lpid"
 wait
 
 cp "${staging}/devnet.car" build/genesis/devnet.car
-cp "${staging}/devnet.car" scripts/devnet.car
+cp "${staging}/devnet.car" scripts/$car_name
 
-make debug
+make $build_mode
 git checkout build
 
 ./lotus --repo="${ldt0111}" daemon --api "3000$i" --bootstrap=false &
