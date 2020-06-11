@@ -31,7 +31,7 @@ require (
 	github.com/filecoin-project/go-paramfetch v0.0.2-0.20200605171344-fcac609550ca
 	github.com/filecoin-project/go-statestore v0.1.0
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
-	github.com/filecoin-project/sector-storage v0.0.0-20200605192746-4b9317d1f08f
+	github.com/filecoin-project/sector-storage v0.0.0-20200609231555-252c2b0c969d
 	github.com/filecoin-project/specs-actors v0.5.6
 	github.com/filecoin-project/specs-storage v0.1.0
 	github.com/filecoin-project/storage-fsm v0.0.0-20200605082304-aa405b2176aa
@@ -71,7 +71,7 @@ require (
 	github.com/ipfs/go-ipld-cbor v0.0.5-0.20200428170625-a0bd04d3cbdf
 	github.com/ipfs/go-ipld-format v0.2.0
 	github.com/ipfs/go-log v1.0.4
-	github.com/ipfs/go-log/v2 v2.1.1
+	github.com/ipfs/go-log/v2 v2.1.2-0.20200609205458-f8d20c392cb7
 	github.com/ipfs/go-merkledag v0.3.1
 	github.com/ipfs/go-path v0.0.7
 	github.com/ipfs/go-unixfs v0.2.4
