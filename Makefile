@@ -60,6 +60,9 @@ deps: $(BUILD_DEPS)
 debug: GOFLAGS+=-tags=debug
 debug: lotus lotus-storage-miner lotus-seal-worker chain-watch lotus-seed
 
+hlm: GOFLAGS+=-tags=hlm
+hlm: lotus lotus-storage-miner lotus-seal-worker chain-watch lotus-seed
+
 2k: GOFLAGS+=-tags=2k
 2k: lotus lotus-storage-miner lotus-seal-worker chain-watch lotus-seed
 
