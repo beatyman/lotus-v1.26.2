@@ -70,7 +70,7 @@ func (w *worker) fetch(serverUri string, sectorID string, typ ffiwrapper.WorkerT
 	for i := 0; i < 3; i++ {
 		err = w.tryFetch(serverUri, sectorID, typ)
 		if err != nil {
-			log.Warn(errors.As(err, serverUri, sectorID, typ))
+			log.Warn(errors.As(err, i, serverUri, sectorID, typ))
 			continue
 		}
 		return nil
@@ -84,52 +84,55 @@ func (w *worker) tryFetch(serverUri string, sectorID string, typ ffiwrapper.Work
 		return nil
 	}
 
-	if typ > ffiwrapper.WorkerPreCommit1 {
+	switch typ {
+	case ffiwrapper.WorkerPreCommit1:
+		// fetch unsealed
+		if err := fetchFile(
+			fmt.Sprintf("%s/storage/unsealed/%s", serverUri, sectorID),
+			filepath.Join(w.repo, "unsealed", sectorID),
+		); err != nil {
+			return errors.As(err, typ)
+		}
+
+	default:
 		// fetch cache
 		cacheResp, err := http.Get(fmt.Sprintf("%s/storage/cache/%s/", serverUri, sectorID))
 		if err != nil {
-			return errors.As(err)
+			return errors.As(err, serverUri, sectorID, typ)
 		}
 		defer cacheResp.Body.Close()
 		if cacheResp.StatusCode != 200 {
-			return errors.New(cacheResp.Status).As(serverUri, sectorID)
+			return errors.New(cacheResp.Status).As(serverUri, sectorID, typ)
 		}
 		cacheRespData, err := ioutil.ReadAll(cacheResp.Body)
 		if err != nil {
-			return errors.As(err)
+			return errors.As(err, serverUri, sectorID, typ)
 		}
 		cacheDir := &fileserver.StorageDirectoryResp{}
 		if err := xml.Unmarshal(cacheRespData, cacheDir); err != nil {
-			return errors.As(err)
+			return errors.As(err, serverUri, sectorID, typ)
 		}
 		if err := os.MkdirAll(filepath.Join(w.repo, "cache", sectorID), 0755); err != nil {
-			return errors.As(err)
+			return errors.As(err, serverUri, sectorID, typ)
 		}
 		for _, file := range cacheDir.Files {
 			if err := fetchFile(
 				fmt.Sprintf("%s/storage/cache/%s/%s", serverUri, sectorID, file.Value),
 				filepath.Join(w.repo, "cache", sectorID, file.Value),
 			); err != nil {
-				return errors.As(err)
+				return errors.As(err, serverUri, sectorID, typ)
 			}
+		}
+
+		// fetch sealed
+		if err := fetchFile(
+			fmt.Sprintf("%s/storage/sealed/%s", serverUri, sectorID),
+			filepath.Join(w.repo, "sealed", sectorID),
+		); err != nil {
+			return errors.As(err, serverUri, sectorID, typ)
 		}
 	}
 
-	// fetch sealed
-	if err := fetchFile(
-		fmt.Sprintf("%s/storage/sealed/%s", serverUri, sectorID),
-		filepath.Join(w.repo, "sealed", sectorID),
-	); err != nil {
-		return errors.As(err)
-	}
-
-	// fetch unsealed
-	if err := fetchFile(
-		fmt.Sprintf("%s/storage/unsealed/%s", serverUri, sectorID),
-		filepath.Join(w.repo, "unsealed", sectorID),
-	); err != nil {
-		return errors.As(err)
-	}
 	return nil
 }
 
