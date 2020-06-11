@@ -2,7 +2,6 @@ package apistruct
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	"github.com/ipfs/go-cid"
@@ -130,7 +129,7 @@ type FullNodeStruct struct {
 		StateMinerProvingSet              func(context.Context, address.Address, types.TipSetKey) ([]*api.ChainSectorInfo, error)                             `perm:"read"`
 		StateMinerProvingDeadline         func(context.Context, address.Address, types.TipSetKey) (*miner.DeadlineInfo, error)                                `perm:"read"`
 		StateMinerPower                   func(context.Context, address.Address, types.TipSetKey) (*api.MinerPower, error)                                    `perm:"read"`
-		StateMinerInfo                    func(context.Context, address.Address, types.TipSetKey) (miner.MinerInfo, error)                                    `perm:"read"`
+		StateMinerInfo                    func(context.Context, address.Address, types.TipSetKey) (api.MinerInfo, error)                                      `perm:"read"`
 		StateMinerDeadlines               func(context.Context, address.Address, types.TipSetKey) (*miner.Deadlines, error)                                   `perm:"read"`
 		StateMinerFaults                  func(context.Context, address.Address, types.TipSetKey) (*abi.BitField, error)                                      `perm:"read"`
 		StateAllMinerFaults               func(context.Context, abi.ChainEpoch, types.TipSetKey) ([]*api.Fault, error)                                        `perm:"read"`
@@ -223,12 +222,12 @@ type StorageMinerStruct struct {
 		StorageBestAlloc     func(ctx context.Context, allocate stores.SectorFileType, spt abi.RegisteredProof, sealing stores.PathType) ([]stores.StorageInfo, error) `perm:"admin"`
 		StorageReportHealth  func(ctx context.Context, id stores.ID, report stores.HealthReport) error                                                                 `perm:"admin"`
 		StorageLock          func(ctx context.Context, sector abi.SectorID, read stores.SectorFileType, write stores.SectorFileType) error                             `perm:"admin"`
+		StorageTryLock       func(ctx context.Context, sector abi.SectorID, read stores.SectorFileType, write stores.SectorFileType) (bool, error)                     `perm:"admin"`
 
 		DealsImportData func(ctx context.Context, dealPropCid cid.Cid, file string) error `perm:"write"`
 		DealsList       func(ctx context.Context) ([]storagemarket.StorageDeal, error)    `perm:"read"`
 
-		StorageAddLocal func(ctx context.Context, path string) error                                                                          `perm:"admin"`
-		StorageTryLock  func(ctx context.Context, sector abi.SectorID, read stores.SectorFileType, write stores.SectorFileType) (bool, error) `perm:"admin"`
+		StorageAddLocal func(ctx context.Context, path string) error `perm:"admin"`
 
 		// implements by hlm
 		RunPledgeSector    func(context.Context) error                                                               `perm:"write"`
@@ -584,7 +583,7 @@ func (c *FullNodeStruct) StateMinerPower(ctx context.Context, a address.Address,
 	return c.Internal.StateMinerPower(ctx, a, tsk)
 }
 
-func (c *FullNodeStruct) StateMinerInfo(ctx context.Context, actor address.Address, tsk types.TipSetKey) (miner.MinerInfo, error) {
+func (c *FullNodeStruct) StateMinerInfo(ctx context.Context, actor address.Address, tsk types.TipSetKey) (api.MinerInfo, error) {
 	return c.Internal.StateMinerInfo(ctx, actor, tsk)
 }
 
@@ -856,6 +855,10 @@ func (c *StorageMinerStruct) StorageLock(ctx context.Context, sector abi.SectorI
 	return c.Internal.StorageLock(ctx, sector, read, write)
 }
 
+func (c *StorageMinerStruct) StorageTryLock(ctx context.Context, sector abi.SectorID, read stores.SectorFileType, write stores.SectorFileType) (bool, error) {
+	return c.Internal.StorageTryLock(ctx, sector, read, write)
+}
+
 func (c *StorageMinerStruct) MarketImportDealData(ctx context.Context, propcid cid.Cid, path string) error {
 	return c.Internal.MarketImportDealData(ctx, propcid, path)
 }
@@ -882,10 +885,6 @@ func (c *StorageMinerStruct) DealsList(ctx context.Context) ([]storagemarket.Sto
 
 func (c *StorageMinerStruct) StorageAddLocal(ctx context.Context, path string) error {
 	return c.Internal.StorageAddLocal(ctx, path)
-}
-
-func (c *StorageMinerStruct) StorageTryLock(ctx context.Context, sector abi.SectorID, read stores.SectorFileType, write stores.SectorFileType) (bool, error) {
-	return false, errors.New("unimplement")
 }
 
 // WorkerStruct
