@@ -116,6 +116,13 @@ func (m *Miner) Stop(ctx context.Context) error {
 	defer m.sealing.Stop(ctx)
 	return nil
 }
+func (m *Miner) Sealer() *sectorstorage.Manager {
+	return m.sealer.(*sectorstorage.Manager)
+}
+func (m *Miner) Maddr() string {
+	log.Info("addr:", m.maddr.String())
+	return string(m.maddr.String())
+}
 
 func (m *Miner) runPreflightChecks(ctx context.Context) error {
 	has, err := m.api.WalletHas(ctx, m.worker)

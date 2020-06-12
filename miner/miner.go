@@ -221,7 +221,7 @@ func (m *Miner) mine(ctx context.Context) {
 			// See:  https://github.com/filecoin-project/lotus/issues/1845
 			//nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds))+int64(build.PropagationDelay), 0)
 
-			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
+			//log.Info("mine next round at:", nextRound.Format(time.RFC3339))
 			select {
 			case <-time.After(time.Until(nextRound)):
 			case <-m.stop:
@@ -287,7 +287,7 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get pending messages: %w", err)
 	}
-	log.Infof("all pending msgs len:%d", len(pending))
+	//log.Infof("all pending msgs len:%d", len(pending))
 	pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
 	if err != nil {
 		return nil, xerrors.Errorf("message filtering failed: %w", err)
