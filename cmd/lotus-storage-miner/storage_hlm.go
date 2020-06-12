@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"gopkg.in/urfave/cli.v2"
+	"github.com/urfave/cli/v2"
 
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/sector-storage/database"
@@ -59,6 +59,12 @@ var addHLMStorageCmd = &cli.Command{
 			Usage: "the storage should keep size for other, in byte",
 			Value: 0,
 		},
+		&cli.Int64Flag{
+			Name:  "sector-size",
+			Usage: "sector size, the result sizes of sealed+cache, default is 100GB",
+			Value: 107374182400,
+		},
+
 		&cli.IntFlag{
 			Name:  "max-work",
 			Usage: "the max number currency work",
@@ -82,8 +88,9 @@ var addHLMStorageCmd = &cli.Command{
 		}
 
 		keepSize := cctx.Int64("keep-size")
+		sectorSize := cctx.Int64("sector-size")
 		maxWork := cctx.Int("max-work")
-		fmt.Println(mountType, mountUri, mountDir, maxSize, keepSize, maxWork)
+		fmt.Println(mountType, mountUri, mountDir, maxSize, keepSize, sectorSize, maxWork)
 
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -92,13 +99,14 @@ var addHLMStorageCmd = &cli.Command{
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 		return nodeApi.AddHLMStorage(ctx, database.StorageInfo{
-			MountType: mountType,
-			MountUri:  mountUri,
-			MountDir:  mountDir,
-			MountOpt:  mountOpt,
-			MaxSize:   maxSize,
-			KeepSize:  keepSize,
-			MaxWork:   maxWork,
+			MountType:  mountType,
+			MountUri:   mountUri,
+			MountDir:   mountDir,
+			MountOpt:   mountOpt,
+			MaxSize:    maxSize,
+			KeepSize:   keepSize,
+			SectorSize: sectorSize,
+			MaxWork:    maxWork,
 		})
 	},
 }

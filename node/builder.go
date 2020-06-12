@@ -150,6 +150,7 @@ func defaults() []Option {
 		Override(new(helpers.MetricsCtx), context.Background),
 		Override(new(record.Validator), modules.RecordValidator),
 		Override(new(dtypes.Bootstrapper), dtypes.Bootstrapper(false)),
+		Override(new(dtypes.ShutdownChan), make(chan struct{})),
 
 		// Filecoin modules
 
@@ -180,6 +181,7 @@ func libp2p() Option {
 		Override(ConnectionManagerKey, lp2p.ConnectionManager(15, 50, 20*time.Second, nil)),
 		Override(AutoNATSvcKey, lp2p.AutoNATService),
 
+		Override(new(*dtypes.ScoreKeeper), lp2p.ScoreKeeper),
 		Override(new(*pubsub.PubSub), lp2p.GossipSub),
 		Override(new(*config.Pubsub), func(bs dtypes.Bootstrapper) *config.Pubsub {
 			return &config.Pubsub{
@@ -216,6 +218,7 @@ func Online() Option {
 			// TODO: Fix offline mode
 
 			Override(new(dtypes.BootstrapPeers), modules.BuiltinBootstrap),
+			Override(new(dtypes.DrandBootstrap), modules.DrandBootstrap),
 
 			Override(HandleIncomingMessagesKey, modules.HandleIncomingMessages),
 
@@ -292,7 +295,6 @@ func Online() Option {
 			Override(new(*sectorblocks.SectorBlocks), sectorblocks.NewSectorBlocks),
 			Override(new(*storage.Miner), modules.StorageMiner),
 			Override(new(dtypes.NetworkName), modules.StorageNetworkName),
-			Override(new(beacon.RandomBeacon), modules.MinerRandomBeacon),
 
 			Override(new(dtypes.StagingBlockstore), modules.StagingBlockstore),
 			Override(new(dtypes.StagingDAG), modules.StagingDAG),

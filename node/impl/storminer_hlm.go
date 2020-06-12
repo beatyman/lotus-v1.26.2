@@ -9,8 +9,6 @@ import (
 	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
-	"github.com/ipfs/go-cid"
 )
 
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
@@ -24,16 +22,6 @@ func (sm *StorageMinerAPI) StopPledgeSector(ctx context.Context) error {
 }
 
 // Message communication
-func (sm *StorageMinerAPI) MpoolPushMessage(ctx context.Context, msg *types.Message) (*types.SignedMessage, error) {
-	return sm.Full.MpoolPushMessage(ctx, msg)
-}
-func (sm *StorageMinerAPI) StateWaitMsg(ctx context.Context, id cid.Cid) (*api.MsgLookup, error) {
-	return sm.Full.StateWaitMsg(ctx, id)
-}
-
-func (sm *StorageMinerAPI) WalletSign(ctx context.Context, addr address.Address, data []byte) (*crypto.Signature, error) {
-	return sm.Full.WalletSign(ctx, addr, data)
-}
 func (sm *StorageMinerAPI) SectorsListAll(context.Context) ([]api.SectorInfo, error) {
 	sectors, err := sm.Miner.ListSectors()
 	if err != nil {

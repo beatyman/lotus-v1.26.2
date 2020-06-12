@@ -63,6 +63,8 @@ type ChainStore struct {
 	tstLk   sync.Mutex
 	tipsets map[abi.ChainEpoch][]cid.Cid
 
+	cindex *ChainIndex
+
 	reorgCh          chan<- reorg
 	headChangeNotifs []func(rev, app []*types.TipSet) error
 
@@ -84,6 +86,10 @@ func NewChainStore(bs bstore.Blockstore, ds dstore.Batching, vmcalls runtime.Sys
 		tsCache:  tsc,
 		vmcalls:  vmcalls,
 	}
+
+	ci := NewChainIndex(cs.LoadTipSet)
+
+	cs.cindex = ci
 
 	cs.reorgCh = cs.reorgWorker(context.TODO())
 
@@ -394,7 +400,7 @@ func (cs *ChainStore) LoadTipSet(tsk types.TipSetKey) (*types.TipSet, error) {
 	return ts, nil
 }
 
-// returns true if 'a' is an ancestor of 'b'
+// IsAncestorOf returns true if 'a' is an ancestor of 'b'
 func (cs *ChainStore) IsAncestorOf(a, b *types.TipSet) (bool, error) {
 	if b.Height() <= a.Height() {
 		return false, nil
@@ -902,39 +908,50 @@ func DrawRandomness(rbase []byte, pers crypto.DomainSeparationTag, round abi.Cha
 		return nil, xerrors.Errorf("deriving randomness: %w", err)
 	}
 	VRFDigest := blake2b.Sum256(rbase)
-	h.Write(VRFDigest[:])
+	_, err := h.Write(VRFDigest[:])
+	if err != nil {
+		return nil, xerrors.Errorf("hashing VRFDigest: %w", err)
+	}
 	if err := binary.Write(h, binary.BigEndian, round); err != nil {
 		return nil, xerrors.Errorf("deriving randomness: %w", err)
 	}
-	h.Write(entropy)
+	_, err = h.Write(entropy)
+	if err != nil {
+		return nil, xerrors.Errorf("hashing entropy: %w", err)
+	}
 
 	return h.Sum(nil), nil
 }
 
-func (cs *ChainStore) GetRandomness(ctx context.Context, blks []cid.Cid, pers crypto.DomainSeparationTag, round abi.ChainEpoch, entropy []byte) (out []byte, err error) {
+func (cs *ChainStore) GetRandomness(ctx context.Context, blks []cid.Cid, pers crypto.DomainSeparationTag, round abi.ChainEpoch, entropy []byte) ([]byte, error) {
 	_, span := trace.StartSpan(ctx, "store.GetRandomness")
 	defer span.End()
 	span.AddAttributes(trace.Int64Attribute("round", int64(round)))
 
-	//defer func() {
-	//log.Infof("getRand %v %d %d %x -> %x", blks, pers, round, entropy, out)
-	//}()
-	for {
-		nts, err := cs.LoadTipSet(types.NewTipSetKey(blks...))
-		if err != nil {
-			return nil, err
-		}
-
-		mtb := nts.MinTicketBlock()
-
-		// if at (or just past -- for null epochs) appropriate epoch
-		// or at genesis (works for negative epochs)
-		if nts.Height() <= round || mtb.Height == 0 {
-			return DrawRandomness(nts.MinTicketBlock().Ticket.VRFProof, pers, round, entropy)
-		}
-
-		blks = mtb.Parents
+	ts, err := cs.LoadTipSet(types.NewTipSetKey(blks...))
+	if err != nil {
+		return nil, err
 	}
+
+	if round > ts.Height() {
+		return nil, xerrors.Errorf("cannot draw randomness from the future")
+	}
+
+	searchHeight := round
+	if searchHeight < 0 {
+		searchHeight = 0
+	}
+
+	randTs, err := cs.GetTipsetByHeight(ctx, searchHeight, ts, true)
+	if err != nil {
+		return nil, err
+	}
+
+	mtb := randTs.MinTicketBlock()
+
+	// if at (or just past -- for null epochs) appropriate epoch
+	// or at genesis (works for negative epochs)
+	return DrawRandomness(mtb.Ticket.VRFProof, pers, round, entropy)
 }
 
 // GetTipsetByHeight returns the tipset on the chain behind 'ts' at the given
@@ -947,7 +964,7 @@ func (cs *ChainStore) GetTipsetByHeight(ctx context.Context, h abi.ChainEpoch, t
 	}
 
 	if h > ts.Height() {
-		return nil, xerrors.Errorf("looking for tipset with height less than start point")
+		return nil, xerrors.Errorf("looking for tipset with height greater than start point")
 	}
 
 	if h == ts.Height() {
@@ -958,24 +975,24 @@ func (cs *ChainStore) GetTipsetByHeight(ctx context.Context, h abi.ChainEpoch, t
 		log.Warnf("expensive call to GetTipsetByHeight, seeking %d levels", ts.Height()-h)
 	}
 
-	for {
-		pts, err := cs.LoadTipSet(ts.Parents())
+	lbts, err := cs.cindex.GetTipsetByHeight(ctx, ts, h)
+	if err != nil {
+		return nil, err
+	}
+
+	if lbts.Height() < h {
+		log.Warnf("chain index returned the wrong tipset at height %d, using slow retrieval", h)
+		lbts, err = cs.cindex.GetTipsetByHeightWithoutCache(ts, h)
 		if err != nil {
 			return nil, err
 		}
-
-		if h > pts.Height() {
-			if prev {
-				return pts, nil
-			}
-			return ts, nil
-		}
-		if h == pts.Height() {
-			return pts, nil
-		}
-
-		ts = pts
 	}
+
+	if lbts.Height() == h || !prev {
+		return lbts, nil
+	}
+
+	return cs.LoadTipSet(lbts.Parents())
 }
 
 func recurseLinks(bs blockstore.Blockstore, root cid.Cid, in []cid.Cid) ([]cid.Cid, error) {
@@ -1155,7 +1172,6 @@ func (cr *chainRand) GetRandomness(ctx context.Context, pers crypto.DomainSepara
 func (cs *ChainStore) GetTipSetFromKey(tsk types.TipSetKey) (*types.TipSet, error) {
 	if tsk.IsEmpty() {
 		return cs.GetHeaviestTipSet(), nil
-	} else {
-		return cs.LoadTipSet(tsk)
 	}
+	return cs.LoadTipSet(tsk)
 }

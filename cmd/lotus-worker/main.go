@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"net"
      "net/http"
-	// "io/ioutil"
 	"os"
-   	// "path/filepath"
 	"sync"
 	"time"
    
@@ -18,8 +16,8 @@ import (
 	"github.com/mitchellh/go-homedir"
 
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
-	"gopkg.in/urfave/cli.v2"
 	 "github.com/filecoin-project/go-jsonrpc/auth"
 
 	manet "github.com/multiformats/go-multiaddr-net"
@@ -127,7 +125,7 @@ func main() {
 	app := &cli.App{
 		Name:    "lotus-seal-worker",
 		Usage:   "Remote storage miner worker",
-		Version: build.UserVersion,
+		Version: build.UserVersion(),
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "repo",
@@ -246,7 +244,7 @@ var runCmd = &cli.Command{
 		//	return errors.As(err)
 		//}
 
-		if err := paramfetch.GetParams(build.ParametersJson(), uint64(ssize)); err != nil {
+		if err := paramfetch.GetParams(ctx, build.ParametersJSON(), uint64(ssize)); err != nil {
 			return xerrors.Errorf("get params: %w", err)
 		}
 

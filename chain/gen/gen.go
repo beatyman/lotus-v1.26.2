@@ -104,7 +104,7 @@ func NewGeneratorWithSectors(numSectors int) (*ChainGen, error) {
 		return nil, xerrors.Errorf("failed to get metadata datastore: %w", err)
 	}
 
-	bds, err := lr.Datastore("/blocks")
+	bds, err := lr.Datastore("/chain")
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get blocks datastore: %w", err)
 	}
@@ -219,6 +219,10 @@ func NewGeneratorWithSectors(numSectors int) (*ChainGen, error) {
 	miners := []address.Address{maddr1, maddr2}
 
 	beac := beacon.NewMockBeacon(time.Second)
+	//beac, err := drand.NewDrandBeacon(tpl.Timestamp, build.BlockDelay)
+	//if err != nil {
+	//return nil, xerrors.Errorf("creating drand beacon: %w", err)
+	//}
 
 	gen := &ChainGen{
 		bs:           bs,
@@ -427,7 +431,7 @@ func (cg *ChainGen) makeBlock(parents *types.TipSet, m address.Address, vrfticke
 	return fblk, err
 }
 
-// This function is awkward. It's used to deal with messages made when
+// ResyncBankerNonce is used for dealing with messages made when
 // simulating forks
 func (cg *ChainGen) ResyncBankerNonce(ts *types.TipSet) error {
 	act, err := cg.sm.GetActor(cg.banker, ts)
@@ -532,13 +536,6 @@ func (wpp *wppProvider) ComputeProof(context.Context, []abi.SectorInfo, abi.PoSt
 	return []abi.PoStProof{{
 		ProofBytes: []byte("valid proof"),
 	}}, nil
-}
-
-type ProofInput struct {
-	sectors           []abi.SectorInfo
-	hvrf              []byte
-	challengedSectors []uint64
-	vrfout            []byte
 }
 
 func IsRoundWinner(ctx context.Context, ts *types.TipSet, round abi.ChainEpoch,

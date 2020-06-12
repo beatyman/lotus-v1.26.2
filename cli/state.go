@@ -15,9 +15,9 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multihash"
+	"github.com/urfave/cli/v2"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	"golang.org/x/xerrors"
-	"gopkg.in/urfave/cli.v2"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -35,6 +35,7 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/util/adt"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/miner"
 )
@@ -392,7 +393,7 @@ var stateReplaySetCmd = &cli.Command{
 
 				ts, err = types.NewTipSet(headers)
 			} else {
-				r, err := api.StateWaitMsg(ctx, mcid)
+				r, err := api.StateWaitMsg(ctx, mcid, build.MessageConfidence)
 				if err != nil {
 					return xerrors.Errorf("finding message in chain: %w", err)
 				}
@@ -1041,7 +1042,7 @@ func computeStateHtml(ts *types.TipSet, o *api.ComputeStateOutput, getCode func(
 
 		if len(ir.InternalExecutions) > 0 {
 			fmt.Println("<div>Internal executions:</div>")
-			if err := printInternalExecutionsHtml(ir.InternalExecutions, getCode); err != nil {
+			if err := printInternalExecutionsHtml(cid.String(), ir.InternalExecutions, getCode); err != nil {
 				return err
 			}
 		}
@@ -1053,8 +1054,10 @@ func computeStateHtml(ts *types.TipSet, o *api.ComputeStateOutput, getCode func(
 	return nil
 }
 
-func printInternalExecutionsHtml(trace []*types.ExecutionResult, getCode func(addr address.Address) (cid.Cid, error)) error {
-	for _, im := range trace {
+func printInternalExecutionsHtml(hashName string, trace []*types.ExecutionResult, getCode func(addr address.Address) (cid.Cid, error)) error {
+	for i, im := range trace {
+		hashName := fmt.Sprintf("%s-r%d", hashName, i)
+
 		toCode, err := getCode(im.Msg.To)
 		if err != nil {
 			return xerrors.Errorf("getting code for %s: %w", toCode, err)
@@ -1082,18 +1085,21 @@ func printInternalExecutionsHtml(trace []*types.ExecutionResult, getCode func(ad
 			ret = `, Return</div><div><pre class="ret">` + ret + `</pre></div>`
 		}
 
-		fmt.Printf(`<div class="exec">
-<div><h4 class="call">%s:%s</h4></div>
+		slow := im.Duration > 10*time.Millisecond
+		veryslow := im.Duration > 50*time.Millisecond
+
+		fmt.Printf(`<div class="exec" id="%s">
+<div><a href="#%s"><h4 class="call">%s:%s</h4></a></div>
 <div><b>%s</b> -&gt; <b>%s</b> (%s FIL), M%d</div>
 %s
-<div><span class="exit%d">Exit: <b>%d</b></span>%s
-`, codeStr(toCode), methods[toCode][im.Msg.Method].name, im.Msg.From, im.Msg.To, types.FIL(im.Msg.Value), im.Msg.Method, params, im.MsgRct.ExitCode, im.MsgRct.ExitCode, ret)
+<div><span class="slow-%t-%t">Took %s</span>, <span class="exit%d">Exit: <b>%d</b></span>%s
+`, hashName, hashName, codeStr(toCode), methods[toCode][im.Msg.Method].name, im.Msg.From, im.Msg.To, types.FIL(im.Msg.Value), im.Msg.Method, params, slow, veryslow, im.Duration, im.MsgRct.ExitCode, im.MsgRct.ExitCode, ret)
 		if im.MsgRct.ExitCode != 0 {
 			fmt.Printf(`<div class="error">Error: <pre>%s</pre></div>`, im.Error)
 		}
 		if len(im.Subcalls) > 0 {
 			fmt.Println("<div>Subcalls:</div>")
-			if err := printInternalExecutionsHtml(im.Subcalls, getCode); err != nil {
+			if err := printInternalExecutionsHtml(hashName, im.Subcalls, getCode); err != nil {
 				return err
 			}
 		}
@@ -1153,7 +1159,7 @@ var stateWaitMsgCmd = &cli.Command{
 			return err
 		}
 
-		mw, err := api.StateWaitMsg(ctx, msg)
+		mw, err := api.StateWaitMsg(ctx, msg, build.MessageConfidence)
 		if err != nil {
 			return err
 		}
