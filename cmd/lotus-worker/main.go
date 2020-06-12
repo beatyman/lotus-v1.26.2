@@ -3,22 +3,22 @@ package main
 import (
 	"fmt"
 	"net"
-     "net/http"
+	"net/http"
 	"os"
 	"sync"
 	"time"
-   
-	mux "github.com/gorilla/mux"
+
 	"github.com/filecoin-project/go-jsonrpc"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/sector-storage/ffiwrapper/basicfs"
+	mux "github.com/gorilla/mux"
 	"github.com/mitchellh/go-homedir"
 
+	"github.com/filecoin-project/go-jsonrpc/auth"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
-	 "github.com/filecoin-project/go-jsonrpc/auth"
 
 	manet "github.com/multiformats/go-multiaddr-net"
 
@@ -271,7 +271,7 @@ var runCmd = &cli.Command{
 		sealedSB, err := ffiwrapper.New(false, &basicfs.Provider{
 			Root: sealedRepo,
 		}, cfg)
-		if err != nil {	
+		if err != nil {
 			return errors.As(err, sealedRepo)
 		}
 		// make download server
@@ -285,31 +285,31 @@ var runCmd = &cli.Command{
 		//if err != nil {
 		//	return err
 		//}
-        log.Info("repo:",r)
-        mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo:r}).FileHttpServer)
-       ah := &auth.Handler{
+		log.Info("repo:", r)
+		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: r}).FileHttpServer)
+		ah := &auth.Handler{
 			Verify: nodeApi.AuthVerify,
 			Next:   mux.ServeHTTP,
 		}
-        srv := &http.Server{Handler: ah}
-        nl, err := net.Listen("tcp", fileServer)
-	    if err != nil {
+		srv := &http.Server{Handler: ah}
+		nl, err := net.Listen("tcp", fileServer)
+		if err != nil {
 			return err
-         }
+		}
 
- 	//	fileServerToken, err := ioutil.ReadFile(filepath.Join(cctx.String("storagerepo"), "token"))
-	//	if err != nil {
-	//		return errors.As(err)
-	//	}
-	//	fileHandle := fileserver.NewStorageFileServer(r, string(fileServerToken), nil)
-		go func() {
-	    //		log.Info("File server listen at: " + fileServer)
-		//	if err := http.ListenAndServe(fileServer, fileHandle); err != nil {
-		//		panic(err)
+		//	fileServerToken, err := ioutil.ReadFile(filepath.Join(cctx.String("storagerepo"), "token"))
+		//	if err != nil {
+		//		return errors.As(err)
 		//	}
-		  if err :=  srv.Serve(nl); err != nil {
-			  log.Warn(err)
-		  }
+		//	fileHandle := fileserver.NewStorageFileServer(r, string(fileServerToken), nil)
+		go func() {
+			//		log.Info("File server listen at: " + fileServer)
+			//	if err := http.ListenAndServe(fileServer, fileHandle); err != nil {
+			//		panic(err)
+			//	}
+			if err := srv.Serve(nl); err != nil {
+				log.Warn(err)
+			}
 
 		}()
 

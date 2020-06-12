@@ -1,19 +1,17 @@
 package fileserver
 
 import (
-	"encoding/xml"
 	"encoding/json"
-	"io"
+	"encoding/xml"
+	"fmt"
 	"net/http"
 	"os"
-    "fmt"
 	"path/filepath"
 	"sync"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/sector-storage/stores"
-	"github.com/filecoin-project/sector-storage/tarutil"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
@@ -211,128 +209,6 @@ func (f *FileHandle) FileHttpServer(w http.ResponseWriter, r *http.Request) {
 	})
 
 	mu.ServeHTTP(w, r)
-}
-
-func (f *FileHandle) fileProofParameters(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("proofParameters fileServer")
-	path := "/var/tmp/filecoin-proof-parameters"
-	stat, err := os.Stat(path)
-	if err != nil {
-		log.Error("%+v", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	var rd io.Reader
-	if stat.IsDir() {
-		rd, err = tarutil.TarDirectory(path)
-		w.Header().Set("Content-Type", "application/x-tar")
-	} else {
-		rd, err = os.OpenFile(path, os.O_RDONLY, 0644)
-		w.Header().Set("Content-Type", "application/octet-stream")
-	}
-	if err != nil {
-		log.Error("%+v", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	w.WriteHeader(200)
-	if _, err := io.Copy(w, rd); err != nil { // TODO: default 32k buf may be too small
-		log.Error("%+v", err)
-		return
-	}
-}
-
-func (f *FileHandle) fileGetSector(w http.ResponseWriter, r *http.Request) {
-	log.Infof("SERVE GET %s", r.URL)
-	vars := mux.Vars(r)
-
-	id, err := parseSectorID(vars["id"])
-	if err != nil {
-		log.Error("%+v", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	ft, err := ftFromString(vars["type"])
-	if err != nil {
-		log.Error("%+v", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	path := filepath.Join(f.Repo, ft, id)
-	fmt.Println("path :", path)
-	stat, err := os.Stat(path)
-	if err != nil {
-		log.Error("%+v", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	var rd io.Reader
-	if stat.IsDir() {
-		rd, err = tarutil.TarDirectory(path)
-		w.Header().Set("Content-Type", "application/x-tar")
-	} else {
-		rd, err = os.OpenFile(path, os.O_RDONLY, 0644)
-		w.Header().Set("Content-Type", "application/octet-stream")
-	}
-	if err != nil {
-		log.Error("%+v", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	w.WriteHeader(200)
-	if _, err := io.Copy(w, rd); err != nil { // TODO: default 32k buf may be too small
-		log.Error("%+v", err)
-		return
-	}
-}
-
-func (f *FileHandle) fileDeleteSector(w http.ResponseWriter, r *http.Request) {
-	log.Infof("SERVE DELETE %s", r.URL)
-	vars := mux.Vars(r)
-
-	sid, err := parseSectorID(vars["id"])
-	if err != nil {
-		log.Error("%+v", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	ft, err := ftFromString(vars["type"])
-	if err != nil {
-		log.Error("%+v", err)
-		w.WriteHeader(500)
-		return
-	}
-	if ft == "all" {
-		if err := os.RemoveAll(filepath.Join(f.Repo, "cache", sid)); err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte("delete cache failed:" + err.Error()))
-			return
-		}
-		if err := os.RemoveAll(filepath.Join(f.Repo, "sealed", sid)); err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte("delete sealed failed:" + err.Error()))
-			return
-		}
-		if err := os.RemoveAll(filepath.Join(f.Repo, "unsealed", sid)); err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte("delete unsealed failed:" + err.Error()))
-			return
-		}
-	} else {
-		path := filepath.Join(f.Repo, ft, sid)
-		fmt.Println("path :", path)
-		if err := os.RemoveAll(path); err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte(fmt.Sprint("delete %s failed:", ft) + err.Error()))
-		}
-	}
 }
 
 func parseSectorID(baseName string) (string, error) {
