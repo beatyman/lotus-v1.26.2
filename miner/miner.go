@@ -196,7 +196,7 @@ func (m *Miner) mine(ctx context.Context) {
 			// See:  https://github.com/filecoin-project/lotus/issues/1845
 			nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds))+int64(build.PropagationDelay), 0)
 
-			//log.Info("mine next round at:", nextRound.Format(time.RFC3339))
+			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
 			select {
 			case <-time.After(time.Until(nextRound)):
 			case <-m.stop:
