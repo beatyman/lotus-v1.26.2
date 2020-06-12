@@ -114,7 +114,6 @@ func (st *SectorBlocks) AddPiece(ctx context.Context, size abi.UnpaddedPieceSize
 	if err = st.Miner.SealPiece(ctx, size, r, sectorID, d); err == nil {
 		manager := st.Miner.Sealer()
 		taskey := fmt.Sprintf("s-%s-%s_-1", st.Miner.Maddr(), sectorID.String())
-		log.Info("taskey:", taskey)
 		if err = manager.Prover.(*ffiwrapper.Sealer).LockWorker(ctx, "miner", taskey, "task in", -1); err != nil {
 			log.Warn("LockWorker failure,taskey:", taskey)
 		}
