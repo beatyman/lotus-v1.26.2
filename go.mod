@@ -1,5 +1,4 @@
 module github.com/filecoin-project/lotus
-
 go 1.13
 
 require (
@@ -128,9 +127,9 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 replace github.com/coreos/go-systemd => github.com/coreos/go-systemd/v22 v22.0.0
 
-replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200531063300-17b37778ef94
+//replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200531063300-17b37778ef94
 
-//replace github.com/filecoin-project/sector-storage => ../sector-storage
+replace github.com/filecoin-project/sector-storage => ../sector-storage
 
 replace github.com/filecoin-project/storage-fsm => git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200523035529-590d3f24c05f
 
