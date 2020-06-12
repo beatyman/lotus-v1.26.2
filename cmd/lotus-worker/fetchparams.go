@@ -7,8 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"path/filepath"
-	"time"
+	//"path/filepath"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/lib/fileserver"
@@ -45,11 +44,11 @@ func FetchHlmParams(ctx context.Context, napi api.StorageMiner, endpoint string)
 
 	for {
 		log.Info("try fetch hlm params")
-		if err := fetchParams(paramUri, "/var/tmp/filecoin-proof-parameters"); err != nil {
-			log.Warn(errors.As(err))
-			time.Sleep(10e9)
-			continue
-		}
+		//		if err := fetchParams(paramUri, "/var/tmp/filecoin-proof-parameters"); err != nil {
+		//			log.Warn(errors.As(err))
+		//			time.Sleep(10e9)
+		//			continue
+		//		}
 		return nil
 	}
 }
@@ -87,13 +86,13 @@ func tryFetchParams(serverUri, to string) error {
 	if err := os.MkdirAll(to, 0755); err != nil {
 		return errors.As(err)
 	}
-	for _, file := range cacheDir.Files {
-		if err := fetchFile(
-			fmt.Sprintf("%s/filecoin-proof-parameters/%s", serverUri, file.Value),
-			filepath.Join(to, file.Value),
-		); err != nil {
-			return errors.As(err)
-		}
-	}
+	//for _, file := range cacheDir.Files {
+	//		if err := fetchFile(
+	//			fmt.Sprintf("%s/filecoin-proof-parameters/%s", serverUri, file.Value),
+	//			filepath.Join(to, file.Value),
+	//		); err != nil {
+	//			return errors.As(err)
+	//		}
+	//}
 	return nil
 }

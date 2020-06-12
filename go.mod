@@ -133,7 +133,7 @@ replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
-replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200610020214-5ff72e3641b8
+replace github.com/filecoin-project/sector-storage => git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200612091002-9a33880b0cde
 
 //replace github.com/filecoin-project/sector-storage => ../sector-storage
 

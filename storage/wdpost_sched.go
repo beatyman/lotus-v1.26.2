@@ -100,7 +100,7 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 				notifs = nil
 				continue
 			}
-			log.Info("DEBUG: chain notify")
+			//log.Info("DEBUG: chain notify")
 
 			if !gotCur {
 				if len(changes) != 1 {
