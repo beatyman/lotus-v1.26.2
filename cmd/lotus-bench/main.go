@@ -173,7 +173,7 @@ var sealBenchCmd = &cli.Command{
 }
 
 func action(c *cli.Context, i int) string {
-	// make a func just for compare to origin, example:
+	// make this func format just cause to making easy compare to origin source, compare example
 	// vimdiff main.go ../../../lotus.bak/cmd/lotus-bench/main.go
 	return func() string {
 		if c.Bool("no-gpu") {
