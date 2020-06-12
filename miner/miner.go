@@ -262,7 +262,7 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get pending messages: %w", err)
 	}
-	//log.Infof("all pending msgs len:%d", len(pending))
+	log.Infof("all pending msgs len:%d", len(pending))
 	pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
 	if err != nil {
 		return nil, xerrors.Errorf("message filtering failed: %w", err)

@@ -235,8 +235,3 @@ func ftFromString(t string) (string, error) {
 	}
 	return t, nil
 }
-func fileTest(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(200)
-	json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: fileTest"})
-	return
-}
