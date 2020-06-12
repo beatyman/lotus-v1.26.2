@@ -107,6 +107,7 @@ func DefaultStorageMiner() *StorageMiner {
 			AllowPreCommit1: true,
 			AllowPreCommit2: true,
 			AllowCommit:     true,
+			AllowUnseal:     true,
 			RemoteMode:      false,
 		},
 	}

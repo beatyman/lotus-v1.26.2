@@ -13,7 +13,6 @@ import (
 	"github.com/filecoin-project/sector-storage/stores"
 	"github.com/filecoin-project/sector-storage/storiface"
 	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
 
 	"github.com/filecoin-project/lotus/chain/types"
 )
@@ -65,11 +64,6 @@ type StorageMiner interface {
 	RunPledgeSector(context.Context) error
 	StatusPledgeSector(context.Context) (int, error)
 	StopPledgeSector(context.Context) error
-
-	// Message communication
-	MpoolPushMessage(context.Context, *types.Message) (*types.SignedMessage, error) // get nonce, sign, push
-	StateWaitMsg(context.Context, cid.Cid) (*MsgLookup, error)
-	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
 
 	SectorsListAll(context.Context) ([]SectorInfo, error)
 	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)

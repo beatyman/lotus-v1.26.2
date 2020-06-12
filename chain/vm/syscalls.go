@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	goruntime "runtime"
+	"sync"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/ipfs/go-cid"
@@ -183,7 +185,7 @@ func (ss *syscallShim) VerifyBlockSig(blk *types.BlockHeader) error {
 		return err
 	}
 
-	if err := sigs.CheckBlockSignature(blk, ss.ctx, waddr); err != nil {
+	if err := sigs.CheckBlockSignature(ss.ctx, blk, waddr); err != nil {
 		return err
 	}
 
@@ -201,20 +203,6 @@ func (ss *syscallShim) VerifyPoSt(proof abi.WindowPoStVerifyInfo) error {
 	return nil
 }
 
-func cidToCommD(c cid.Cid) [32]byte {
-	b := c.Bytes()
-	var out [32]byte
-	copy(out[:], b[len(b)-32:])
-	return out
-}
-
-func cidToCommR(c cid.Cid) [32]byte {
-	b := c.Bytes()
-	var out [32]byte
-	copy(out[:], b[len(b)-32:])
-	return out
-}
-
 func (ss *syscallShim) VerifySeal(info abi.SealVerifyInfo) error {
 	//_, span := trace.StartSpan(ctx, "ValidatePoRep")
 	//defer span.End()
@@ -225,7 +213,7 @@ func (ss *syscallShim) VerifySeal(info abi.SealVerifyInfo) error {
 	}
 
 	ticket := []byte(info.Randomness)
-	proof := []byte(info.Proof)
+	proof := info.Proof
 	seed := []byte(info.InteractiveRandomness)
 
 	log.Debugf("Verif r:%x; d:%x; m:%s; t:%x; s:%x; N:%d; p:%x", info.SealedCID, info.UnsealedCID, miner, ticket, seed, info.SectorID.Number, proof)
@@ -251,4 +239,36 @@ func (ss *syscallShim) VerifySignature(sig crypto.Signature, addr address.Addres
 	}
 
 	return sigs.Verify(&sig, kaddr, input)
+}
+
+func (ss *syscallShim) BatchVerifySeals(inp map[address.Address][]abi.SealVerifyInfo) (map[address.Address][]bool, error) {
+	out := make(map[address.Address][]bool)
+
+	sema := make(chan struct{}, goruntime.NumCPU())
+
+	var wg sync.WaitGroup
+	for addr, seals := range inp {
+		results := make([]bool, len(seals))
+		out[addr] = results
+
+		for i, s := range seals {
+			wg.Add(1)
+			go func(ma address.Address, ix int, svi abi.SealVerifyInfo, res []bool) {
+				defer wg.Done()
+				sema <- struct{}{}
+
+				if err := ss.VerifySeal(svi); err != nil {
+					log.Warnw("seal verify in batch failed", "miner", ma, "index", ix, "err", err)
+					res[ix] = false
+				} else {
+					res[ix] = true
+				}
+
+				<-sema
+			}(addr, i, s, results)
+		}
+	}
+	wg.Wait()
+
+	return out, nil
 }

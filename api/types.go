@@ -3,10 +3,12 @@ package api
 import (
 	"encoding/json"
 
+	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
 // TODO: check if this exists anywhere else
+
 type MultiaddrSlice []ma.Multiaddr
 
 func (m *MultiaddrSlice) UnmarshalJSON(raw []byte) (err error) {
@@ -31,4 +33,9 @@ var _ json.Unmarshaler = new(MultiaddrSlice)
 type ObjStat struct {
 	Size  uint64
 	Links uint64
+}
+
+type PubsubScore struct {
+	ID    peer.ID
+	Score float64
 }
