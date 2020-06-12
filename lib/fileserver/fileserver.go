@@ -1,13 +1,12 @@
 package fileserver
 
 import (
-	"encoding/json"
 	"encoding/xml"
-	"fmt"
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
-
+    "fmt"
 	"path/filepath"
 	"sync"
 
