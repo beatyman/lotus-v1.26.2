@@ -190,6 +190,8 @@ func (m *Miner) mine(ctx context.Context) {
 				log.Errorf("failed to submit newly mined block: %s", err)
 			}
 		} else {
+			base.NullRounds++
+
 			// Wait until the next epoch, plus the propagation delay, so a new tipset
 			// has enough time to form.
 			//
@@ -280,7 +282,6 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
-		base.NullRounds++
 		return nil, nil
 	}
 
@@ -297,7 +298,6 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 	}
 	if !hasPower {
 		// slashed or just have no power yet
-		base.NullRounds++
 		return nil, nil
 	}
 
@@ -322,7 +322,6 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 
 	if winner == nil {
 		log.Info("Not Win")
-		base.NullRounds++
 		return nil, nil
 	}
 
@@ -504,7 +503,7 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 		vmstart := time.Now()
 
 		minGas := vm.PricelistByEpoch(ts.Height()).OnChainMessage(msg.ChainLength()) // TODO: really should be doing just msg.ChainLength() but the sync side of this code doesnt seem to have access to that
-		if err := msg.VMMessage().ValidForBlockInclusion(minGas); err != nil {
+		if err := msg.VMMessage().ValidForBlockInclusion(minGas.Total()); err != nil {
 			log.Infof("invalid message in message pool: %s", err)
 			mpool.Remove(ctx, msg)
 			continue
