@@ -116,7 +116,7 @@ func (ci *ChainIndex) fillCache(tsk types.TipSetKey) (*lbEntry, error) {
 
 // floors to nearest skipLength multiple
 func (ci *ChainIndex) roundHeight(h abi.ChainEpoch) abi.ChainEpoch {
-	return (h/ci.skipLength) * ci.skipLength
+	return (h / ci.skipLength) * ci.skipLength
 }
 
 func (ci *ChainIndex) roundDown(ts *types.TipSet) (*types.TipSet, error) {
