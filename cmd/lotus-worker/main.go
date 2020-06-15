@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -13,8 +12,10 @@ import (
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/sector-storage/ffiwrapper/basicfs"
+	mux "github.com/gorilla/mux"
 	"github.com/mitchellh/go-homedir"
 
+	"github.com/filecoin-project/go-jsonrpc/auth"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -279,17 +280,37 @@ var runCmd = &cli.Command{
 			netIp := os.Getenv("NETIP")
 			fileServer = netIp + ":1280"
 		}
-
-		fileServerToken, err := ioutil.ReadFile(filepath.Join(cctx.String("storagerepo"), "token"))
-		if err != nil {
-			return errors.As(err)
+		mux := mux.NewRouter()
+		//storagerepo,err := homedir.Expand(cctx.String("storagerepo"))
+		//if err != nil {
+		//	return err
+		//}
+		log.Info("repo:", r)
+		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: r}).FileHttpServer)
+		ah := &auth.Handler{
+			Verify: nodeApi.AuthVerify,
+			Next:   mux.ServeHTTP,
 		}
-		fileHandle := fileserver.NewStorageFileServer(r, string(fileServerToken), nil)
+		srv := &http.Server{Handler: ah}
+		nl, err := net.Listen("tcp", fileServer)
+		if err != nil {
+			return err
+		}
+
+		//	fileServerToken, err := ioutil.ReadFile(filepath.Join(cctx.String("storagerepo"), "token"))
+		//	if err != nil {
+		//		return errors.As(err)
+		//	}
+		//	fileHandle := fileserver.NewStorageFileServer(r, string(fileServerToken), nil)
 		go func() {
-			log.Info("File server listen at: " + fileServer)
-			if err := http.ListenAndServe(fileServer, fileHandle); err != nil {
-				panic(err)
+			//		log.Info("File server listen at: " + fileServer)
+			//	if err := http.ListenAndServe(fileServer, fileHandle); err != nil {
+			//		panic(err)
+			//	}
+			if err := srv.Serve(nl); err != nil {
+				log.Warn(err)
 			}
+
 		}()
 
 		for {
