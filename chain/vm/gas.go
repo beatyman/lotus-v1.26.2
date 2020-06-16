@@ -18,13 +18,30 @@ const (
 )
 
 type GasCharge struct {
-	Name       string
+	Name  string
+	Extra interface{}
+
 	ComputeGas int64
 	StorageGas int64
+
+	VirtualCompute int64
+	VirtualStorage int64
 }
 
 func (g GasCharge) Total() int64 {
 	return g.ComputeGas*GasComputeMulti + g.StorageGas*GasStorageMulti
+}
+func (g GasCharge) WithVirtual(compute, storage int64) GasCharge {
+	out := g
+	out.VirtualCompute = compute
+	out.VirtualStorage = storage
+	return out
+}
+
+func (g GasCharge) WithExtra(extra interface{}) GasCharge {
+	out := g
+	out.Extra = extra
+	return out
 }
 
 func newGasCharge(name string, computeGas int64, storageGas int64) GasCharge {
@@ -59,7 +76,7 @@ type Pricelist interface {
 
 	OnVerifySignature(sigType crypto.SigType, planTextSize int) (GasCharge, error)
 	OnHashing(dataSize int) GasCharge
-	OnComputeUnsealedSectorCid(proofType abi.RegisteredProof, pieces []abi.PieceInfo) GasCharge
+	OnComputeUnsealedSectorCid(proofType abi.RegisteredSealProof, pieces []abi.PieceInfo) GasCharge
 	OnVerifySeal(info abi.SealVerifyInfo) GasCharge
 	OnVerifyPost(info abi.WindowPoStVerifyInfo) GasCharge
 	OnVerifyConsensusFault() GasCharge
@@ -136,7 +153,7 @@ func (ps pricedSyscalls) HashBlake2b(data []byte) [32]byte {
 }
 
 // Computes an unsealed sector CID (CommD) from its constituent piece CIDs (CommPs) and sizes.
-func (ps pricedSyscalls) ComputeUnsealedSectorCID(reg abi.RegisteredProof, pieces []abi.PieceInfo) (cid.Cid, error) {
+func (ps pricedSyscalls) ComputeUnsealedSectorCID(reg abi.RegisteredSealProof, pieces []abi.PieceInfo) (cid.Cid, error) {
 	ps.chargeGas(ps.pl.OnComputeUnsealedSectorCid(reg, pieces))
 	return ps.under.ComputeUnsealedSectorCID(reg, pieces)
 }
