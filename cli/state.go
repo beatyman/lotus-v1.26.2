@@ -351,7 +351,7 @@ var stateReplaySetCmd = &cli.Command{
 			return fmt.Errorf("message cid was invalid: %s", err)
 		}
 
-		api, closer, err := GetFullNodeAPI(cctx)
+		fapi, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -373,7 +373,7 @@ var stateReplaySetCmd = &cli.Command{
 			if len(tscids) > 0 {
 				var headers []*types.BlockHeader
 				for _, c := range tscids {
-					h, err := api.ChainGetBlock(ctx, c)
+					h, err := fapi.ChainGetBlock(ctx, c)
 					if err != nil {
 						return err
 					}
@@ -383,12 +383,13 @@ var stateReplaySetCmd = &cli.Command{
 
 				ts, err = types.NewTipSet(headers)
 			} else {
-				r, err := api.StateWaitMsg(ctx, mcid, build.MessageConfidence)
+				var r *api.MsgLookup
+				r, err = fapi.StateWaitMsg(ctx, mcid, build.MessageConfidence)
 				if err != nil {
 					return xerrors.Errorf("finding message in chain: %w", err)
 				}
 
-				ts, err = api.ChainGetTipSet(ctx, r.TipSet.Parents())
+				ts, err = fapi.ChainGetTipSet(ctx, r.TipSet.Parents())
 			}
 			if err != nil {
 				return err
@@ -396,7 +397,7 @@ var stateReplaySetCmd = &cli.Command{
 
 		}
 
-		res, err := api.StateReplay(ctx, ts.Key(), mcid)
+		res, err := fapi.StateReplay(ctx, ts.Key(), mcid)
 		if err != nil {
 			return xerrors.Errorf("replay call failed: %w", err)
 		}
@@ -970,6 +971,7 @@ var compStateTemplate = `
    }
    .slow-true-false { color: #660; }
    .slow-true-true { color: #f80; }
+   .deemp { color: #444; }
    table {
     font-size: 12px;
     border-collapse: collapse;
@@ -1059,8 +1061,20 @@ var compStateMsg = `
 <summary>Gas Trace</summary>
 <table>
  <tr><th>Name</th><th>Total/Compute/Storage</th><th>Time Taken</th><th>Location</th></tr>
+ {{define "virt" -}}
+ {{- if . -}}
+ <span class="deemp">+({{.}})</span>
+ {{- end -}}
+ {{- end}}
+
+ {{define "gasC" -}}
+ <td>{{.TotalGas}}{{template "virt" .TotalVirtualGas }}/{{.ComputeGas}}{{template "virt" .VirtualComputeGas}}/{{.StorageGas}}{{template "virt" .VirtualStorageGas}}</td>
+ {{- end}}
+
  {{range .GasCharges}}
- <tr><td>{{.Name}}</td><td>{{.TotalGas}}/{{.ComputeGas}}/{{.StorageGas}}</td><td>{{.TimeTaken}}</td>
+ <tr><td>{{.Name}}{{if .Extra}}:{{.Extra}}{{end}}</td>
+ {{template "gasC" .}}
+ <td>{{.TimeTaken}}</td>
   <td>
    {{ $fImp := FirstImportant .Location }}
    {{ if $fImp }}
@@ -1097,7 +1111,10 @@ var compStateMsg = `
   </td></tr>
   {{end}}
   {{with SumGas .GasCharges}}
-  <tr class="sum"><td><b>Sum</b></td><td>{{.TotalGas}}/{{.ComputeGas}}/{{.StorageGas}}</td><td>{{.TimeTaken}}</td><td></td></tr>
+  <tr class="sum"><td><b>Sum</b></td>
+  {{template "gasC" .}}
+  <td>{{.TimeTaken}}</td>
+  <td></td></tr>
   {{end}}
 </table>
 </details>
@@ -1200,7 +1217,10 @@ func sumGas(changes []*types.GasTrace) types.GasTrace {
 		out.TotalGas += gc.TotalGas
 		out.ComputeGas += gc.ComputeGas
 		out.StorageGas += gc.StorageGas
-		out.TimeTaken += gc.TimeTaken
+
+		out.TotalVirtualGas += gc.TotalVirtualGas
+		out.VirtualComputeGas += gc.VirtualComputeGas
+		out.VirtualStorageGas += gc.VirtualStorageGas
 	}
 
 	return out
