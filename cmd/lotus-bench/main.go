@@ -76,7 +76,7 @@ func main() {
 
 	log.Info("Starting lotus-bench")
 
-	miner.SupportedProofTypes[abi.RegisteredProof_StackedDRG2KiBSeal] = struct{}{}
+	miner.SupportedProofTypes[abi.RegisteredSealProof_StackedDrg2KiBV1] = struct{}{}
 
 	app := &cli.App{
 		Name:    "lotus-bench",
@@ -306,9 +306,9 @@ func action(c *cli.Context, i int) string {
 
 			for _, s := range genm.Sectors {
 				sealedSectors = append(sealedSectors, abi.SectorInfo{
-					SealedCID:       s.CommR,
-					SectorNumber:    s.SectorID,
-					RegisteredProof: s.ProofType,
+					SealedCID:    s.CommR,
+					SectorNumber: s.SectorID,
+					SealProof:    s.ProofType,
 				})
 			}
 		}
@@ -320,7 +320,12 @@ func action(c *cli.Context, i int) string {
 
 		if !c.Bool("skip-commit2") {
 			log.Info("generating winning post candidates")
-			fcandidates, err := ffiwrapper.ProofVerifier.GenerateWinningPoStSectorChallenge(context.TODO(), spt, mid, challenge[:], uint64(len(sealedSectors)))
+			wipt, err := spt.RegisteredWinningPoStProof()
+			if err != nil {
+				return err
+			}
+
+			fcandidates, err := ffiwrapper.ProofVerifier.GenerateWinningPoStSectorChallenge(context.TODO(), wipt, mid, challenge[:], uint64(len(sealedSectors)))
 			if err != nil {
 				return err.Error()
 			}
@@ -522,9 +527,9 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, mid
 		precommit2 := time.Now()
 
 		sealedSectors = append(sealedSectors, abi.SectorInfo{
-			RegisteredProof: sb.SealProofType(),
-			SectorNumber:    i,
-			SealedCID:       cids.Sealed,
+			SealProof:    sb.SealProofType(),
+			SectorNumber: i,
+			SealedCID:    cids.Sealed,
 		})
 
 		seed := lapi.SealSeed{
@@ -573,7 +578,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, mid
 			svi := abi.SealVerifyInfo{
 				SectorID:              abi.SectorID{Miner: mid, Number: i},
 				SealedCID:             cids.Sealed,
-				RegisteredProof:       sb.SealProofType(),
+				SealProof:             sb.SealProofType(),
 				Proof:                 proof,
 				DealIDs:               nil,
 				Randomness:            ticket,
