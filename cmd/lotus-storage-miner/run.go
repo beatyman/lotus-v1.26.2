@@ -11,8 +11,8 @@ import (
 	mux "github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr-net"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
-	"gopkg.in/urfave/cli.v2"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
@@ -27,7 +27,9 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 
+	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/sector-storage/database"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
 
@@ -105,13 +107,21 @@ var runCmd = &cli.Command{
 
 		// init storage database
 		database.InitDB(storageRepoPath)
+		// mount nfs storage node
 		if err := database.MountAllStorage(); err != nil {
 			return errors.As(err)
 		}
+		// checking sealed for proof
+		if err := ffiwrapper.CheckSealed(storageRepoPath); err != nil {
+			return errors.As(err)
+		}
+
+		shutdownChan := make(chan struct{})
 
 		var minerapi api.StorageMiner
 		stop, err := node.New(ctx,
 			node.StorageMiner(&minerapi),
+			node.Override(new(dtypes.ShutdownChan), shutdownChan),
 			node.Online(),
 			node.Repo(r),
 
@@ -154,6 +164,7 @@ var runCmd = &cli.Command{
 
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)
+		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: storageRepoPath}).FileHttpServer)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
 		ah := &auth.Handler{
@@ -165,8 +176,12 @@ var runCmd = &cli.Command{
 
 		sigChan := make(chan os.Signal, 2)
 		go func() {
-			<-sigChan
-			log.Warn("Shutting down..")
+			select {
+			case <-sigChan:
+			case <-shutdownChan:
+			}
+
+			log.Warn("Shutting down...")
 			if err := stop(context.TODO()); err != nil {
 				log.Errorf("graceful shutting down failed: %s", err)
 			}

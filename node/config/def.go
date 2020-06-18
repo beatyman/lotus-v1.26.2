@@ -27,7 +27,12 @@ type FullNode struct {
 type StorageMiner struct {
 	Common
 
-	Storage sectorstorage.SealerConfig
+	Dealmaking DealmakingConfig
+	Storage    sectorstorage.SealerConfig
+}
+
+type DealmakingConfig struct {
+	AcceptingStorageDeals bool
 }
 
 // API contains configs for API endpoint
@@ -39,9 +44,11 @@ type API struct {
 
 // Libp2p contains configs for libp2p
 type Libp2p struct {
-	ListenAddresses []string
-	BootstrapPeers  []string
-	ProtectedPeers  []string
+	ListenAddresses     []string
+	AnnounceAddresses   []string
+	NoAnnounceAddresses []string
+	BootstrapPeers      []string
+	ProtectedPeers      []string
 
 	ConnMgrLow   uint
 	ConnMgrHigh  uint
@@ -62,7 +69,9 @@ type Metrics struct {
 }
 
 type Client struct {
-	UseIpfs bool
+	UseIpfs             bool
+	IpfsMAddr           string
+	IpfsUseForRetrieval bool
 }
 
 func defCommon() Common {
@@ -76,9 +85,11 @@ func defCommon() Common {
 				"/ip4/0.0.0.0/tcp/0",
 				"/ip6/::/tcp/0",
 			},
+			AnnounceAddresses:   []string{},
+			NoAnnounceAddresses: []string{},
 
-			ConnMgrLow:   3,
-			ConnMgrHigh:  10,
+			ConnMgrLow:   15,
+			ConnMgrHigh:  50,
 			ConnMgrGrace: Duration(20 * time.Second),
 		},
 		Pubsub: Pubsub{
@@ -105,7 +116,12 @@ func DefaultStorageMiner() *StorageMiner {
 			AllowPreCommit1: true,
 			AllowPreCommit2: true,
 			AllowCommit:     true,
+			AllowUnseal:     true,
 			RemoteMode:      false,
+		},
+
+		Dealmaking: DealmakingConfig{
+			AcceptingStorageDeals: true,
 		},
 	}
 	cfg.Common.API.ListenAddress = "/ip4/127.0.0.1/tcp/2345/http"

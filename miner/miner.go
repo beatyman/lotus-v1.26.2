@@ -15,7 +15,6 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
-	"github.com/filecoin-project/lotus/chain/beacon"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -33,7 +32,7 @@ var log = logging.Logger("miner")
 // returns a callback reporting whether we mined a blocks in this round
 type waitFunc func(ctx context.Context, baseTime uint64) (func(bool), error)
 
-func NewMiner(api api.FullNode, epp gen.WinningPoStProver, beacon beacon.RandomBeacon, addr address.Address) *Miner {
+func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address) *Miner {
 	arc, err := lru.NewARC(10000)
 	if err != nil {
 		panic(err)
@@ -42,7 +41,6 @@ func NewMiner(api api.FullNode, epp gen.WinningPoStProver, beacon beacon.RandomB
 	return &Miner{
 		api:     api,
 		epp:     epp,
-		beacon:  beacon,
 		address: addr,
 		waitFunc: func(ctx context.Context, baseTime uint64) (func(bool), error) {
 			// Wait around for half the block time in case other parents come in
@@ -58,8 +56,7 @@ func NewMiner(api api.FullNode, epp gen.WinningPoStProver, beacon beacon.RandomB
 type Miner struct {
 	api api.FullNode
 
-	epp    gen.WinningPoStProver
-	beacon beacon.RandomBeacon
+	epp gen.WinningPoStProver
 
 	lk       sync.Mutex
 	address  address.Address
@@ -116,15 +113,11 @@ func (m *Miner) niceSleep(d time.Duration) bool {
 	}
 }
 
-func nextRoundTime(base *MiningBase) time.Time {
-	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelay*(base.NullRounds+1)), 0)
-}
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
 	defer span.End()
 
 	var lastBase MiningBase
-	var nextRound time.Time
 
 	for {
 		select {
@@ -157,34 +150,19 @@ func (m *Miner) mine(ctx context.Context) {
 			log.Errorf("failed to get best mining candidate: %s", err)
 			continue
 		}
-
-		now := time.Now()
-		if !base.TipSet.Equals(lastBase.TipSet) {
-			nextRound = nextRoundTime(base)
-			lastBase = *base
-		} else {
-			// if the base was dead, make the nullRound++ step by round actually change.
-			if (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
-				time.Sleep(1e9)
-				continue
-			}
-			log.Infof("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
-			lastBase.NullRounds++
-			nextRound = nextRoundTime(&lastBase)
+		if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
+			log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
+			m.niceSleep(build.BlockDelay * time.Second)
+			continue
 		}
-
-		//if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
-		//	log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
-		//	m.niceSleep(build.BlockDelay * time.Second)
-		//	continue
-		//}
-		//lastBase = *base
 
 		b, err := m.mineOne(ctx, base)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
+			m.niceSleep(time.Second)
 			continue
 		}
+		lastBase = *base
 
 		onDone(b != nil)
 
@@ -204,7 +182,7 @@ func (m *Miner) mine(ctx context.Context) {
 			blkKey := fmt.Sprintf("%d", b.Header.Height)
 			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
 				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
-				//continue
+				continue
 			}
 
 			m.minedBlockHeights.Add(blkKey, true)
@@ -212,14 +190,15 @@ func (m *Miner) mine(ctx context.Context) {
 				log.Errorf("failed to submit newly mined block: %s", err)
 			}
 		} else {
-			//now := time.Now()
-			//if nextRound.Before(now) {
-			//	nextRound = now.Add(time.Duration(build.BlockDelay-(now.Unix()-nextRound.Unix())%build.BlockDelay) * time.Second)
-			//}
-			// nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds)), 0)
+			base.NullRounds++
+
+			// Wait until the next epoch, plus the propagation delay, so a new tipset
+			// has enough time to form.
+			//
+			// See:  https://github.com/filecoin-project/lotus/issues/1845
+			nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds))+int64(build.PropagationDelay), 0)
 
 			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
-
 			select {
 			case <-time.After(time.Until(nextRound)):
 			case <-m.stop:
@@ -303,7 +282,6 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
-		base.NullRounds++
 		return nil, nil
 	}
 
@@ -311,12 +289,8 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 
 	beaconPrev := mbi.PrevBeaconEntry
 
-	bvals, err := beacon.BeaconEntriesForBlock(ctx, m.beacon, round, beaconPrev)
-	if err != nil {
-		return nil, xerrors.Errorf("get beacon entries failed: %w", err)
-	}
-
 	tDrand := time.Now()
+	bvals := mbi.BeaconEntries
 
 	hasPower, err := m.hasPower(ctx, m.address, base.TipSet)
 	if err != nil {
@@ -324,7 +298,6 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 	}
 	if !hasPower {
 		// slashed or just have no power yet
-		base.NullRounds++
 		return nil, nil
 	}
 
@@ -349,7 +322,6 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 
 	if winner == nil {
 		log.Info("Not Win")
-		base.NullRounds++
 		return nil, nil
 	}
 
@@ -531,7 +503,7 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 		vmstart := time.Now()
 
 		minGas := vm.PricelistByEpoch(ts.Height()).OnChainMessage(msg.ChainLength()) // TODO: really should be doing just msg.ChainLength() but the sync side of this code doesnt seem to have access to that
-		if err := msg.VMMessage().ValidForBlockInclusion(minGas); err != nil {
+		if err := msg.VMMessage().ValidForBlockInclusion(minGas.Total()); err != nil {
 			log.Infof("invalid message in message pool: %s", err)
 			mpool.Remove(ctx, msg)
 			continue

@@ -13,7 +13,6 @@ import (
 	"github.com/filecoin-project/sector-storage/stores"
 	"github.com/filecoin-project/sector-storage/storiface"
 	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
 
 	"github.com/filecoin-project/lotus/chain/types"
 )
@@ -54,10 +53,12 @@ type StorageMiner interface {
 	MarketImportDealData(ctx context.Context, propcid cid.Cid, path string) error
 	MarketListDeals(ctx context.Context) ([]storagemarket.StorageDeal, error)
 	MarketListIncompleteDeals(ctx context.Context) ([]storagemarket.MinerDeal, error)
-	MarketSetPrice(context.Context, types.BigInt) error
+	MarketSetAsk(ctx context.Context, price types.BigInt, duration abi.ChainEpoch, minPieceSize abi.PaddedPieceSize, maxPieceSize abi.PaddedPieceSize) error
+	MarketGetAsk(ctx context.Context) (*storagemarket.SignedStorageAsk, error)
 
 	DealsImportData(ctx context.Context, dealPropCid cid.Cid, file string) error
 	DealsList(ctx context.Context) ([]storagemarket.StorageDeal, error)
+	DealsSetAcceptingStorageDeals(context.Context, bool) error
 
 	StorageAddLocal(ctx context.Context, path string) error
 
@@ -65,11 +66,6 @@ type StorageMiner interface {
 	RunPledgeSector(context.Context) error
 	StatusPledgeSector(context.Context) (int, error)
 	StopPledgeSector(context.Context) error
-
-	// Message communication
-	MpoolPushMessage(context.Context, *types.Message) (*types.SignedMessage, error) // get nonce, sign, push
-	StateWaitMsg(context.Context, cid.Cid) (*MsgLookup, error)
-	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
 
 	SectorsListAll(context.Context) ([]SectorInfo, error)
 	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)

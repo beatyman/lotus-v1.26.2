@@ -17,7 +17,7 @@ MODULES:=
 CLEAN:=
 BINS:=
 
-ldflags=-X=github.com/filecoin-project/lotus/build.CurrentCommit='+git$(subst -,.,$(shell git describe --always --match=NeVeRmAtCh --dirty 2>/dev/null || git rev-parse --short HEAD 2>/dev/null))'
+ldflags=-X=github.com/filecoin-project/lotus/build.CurrentCommit=+git.$(subst -,.,$(shell git describe --always --match=NeVeRmAtCh --dirty 2>/dev/null || git rev-parse --short HEAD 2>/dev/null))
 ifneq ($(strip $(LDFLAGS)),)
 	ldflags+=-extldflags=$(LDFLAGS)
 endif
@@ -59,6 +59,9 @@ deps: $(BUILD_DEPS)
 
 debug: GOFLAGS+=-tags=debug
 debug: lotus lotus-storage-miner lotus-seal-worker chain-watch lotus-seed
+
+hlm: GOFLAGS+=-tags=hlm
+hlm: lotus lotus-storage-miner lotus-seal-worker chain-watch lotus-seed
 
 2k: GOFLAGS+=-tags=2k
 2k: lotus lotus-storage-miner lotus-seal-worker chain-watch lotus-seed
@@ -114,6 +117,19 @@ install:
 	install -C ./lotus-storage-miner /usr/local/bin/lotus-storage-miner
 	install -C ./lotus-seal-worker /usr/local/bin/lotus-seal-worker
 
+install-services: install
+	mkdir -p /usr/local/lib/systemd/system
+	install -C -m 0644 ./scripts/lotus-daemon.service /usr/local/lib/systemd/system/lotus-daemon.service
+	install -C -m 0644 ./scripts/lotus-miner.service /usr/local/lib/systemd/system/lotus-miner.service
+	systemctl daemon-reload
+	@echo
+	@echo "lotus and lotus-miner services installed. Don't forget to 'systemctl enable lotus|lotus-miner' for it to be enabled on startup."
+
+clean-services:
+	rm -f /usr/local/lib/systemd/system/lotus-daemon.service
+	rm -f /usr/local/lib/systemd/system/lotus-miner.service
+	systemctl daemon-reload
+
 # TOOLS
 
 lotus-seed: $(BUILD_DEPS)
@@ -130,7 +146,7 @@ benchmarks:
 	@curl -X POST 'http://benchmark.kittyhawk.wtf/benchmark' -d '@bench.json' -u "${benchmark_http_cred}"
 .PHONY: benchmarks
 
-pond: build
+pond: 2k
 	go build -o pond ./lotuspond
 	(cd lotuspond/front && npm i && CI=false npm run build)
 .PHONY: pond

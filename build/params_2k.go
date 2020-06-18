@@ -12,13 +12,16 @@ import (
 
 func init() {
 	power.ConsensusMinerMinPower = big.NewInt(2048)
-	miner.SupportedProofTypes = map[abi.RegisteredProof]struct{}{
-		abi.RegisteredProof_StackedDRG2KiBSeal:   {},
-		abi.RegisteredProof_StackedDRG512MiBSeal: {},
-		abi.RegisteredProof_StackedDRG32GiBSeal:  {},
-		abi.RegisteredProof_StackedDRG64GiBSeal:  {},
+	miner.SupportedProofTypes = map[abi.RegisteredSealProof]struct{}{
+		abi.RegisteredSealProof_StackedDrg2KiBV1:   {},
+		abi.RegisteredSealProof_StackedDrg8MiBV1:   {},
+		abi.RegisteredSealProof_StackedDrg512MiBV1: {},
+		abi.RegisteredSealProof_StackedDrg32GiBV1:  {},
+		abi.RegisteredSealProof_StackedDrg64GiBV1:  {},
 	}
 	verifreg.MinVerifiedDealSize = big.NewInt(256)
+
+	BuildType |= Build2k
 }
 
 var SectorSizes = []abi.SectorSize{
