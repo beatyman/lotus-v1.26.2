@@ -474,10 +474,11 @@ func action(c *cli.Context, i int) string {
 			}
 			if !c.Bool("skip-commit2") {
 				output.WriteString(fmt.Sprintf("generate candidates: %s (%s)\n", bo.PostGenerateCandidates, bps(bo.SectorSize*abi.SectorSize(len(bo.SealingResults)), bo.PostGenerateCandidates)))
-				output.WriteString(fmt.Sprintf("compute winnnig post proof (cold): %s\n", bo.PostWinningProofCold))
-				output.WriteString(fmt.Sprintf("compute winnnig post proof (hot): %s\n", bo.PostWinningProofHot))
-				output.WriteString(fmt.Sprintf("verify winnnig post proof (cold): %s\n", bo.VerifyWinningPostCold))
-				output.WriteString(fmt.Sprintf("verify winnnig post proof (hot): %s\n\n", bo.VerifyWinningPostHot))
+				output.WriteString(fmt.Sprintf("compute winning post proof (cold): %s\n", bo.PostWinningProofCold))
+				output.WriteString(fmt.Sprintf("compute winning post proof (hot): %s\n", bo.PostWinningProofHot))
+				output.WriteString(fmt.Sprintf("verify winning post proof (cold): %s\n", bo.VerifyWinningPostCold))
+				output.WriteString(fmt.Sprintf("verify winning post proof (hot): %s\n\n", bo.VerifyWinningPostHot))
+
 				output.WriteString(fmt.Sprintf("compute window post proof (cold): %s\n", bo.PostWindowProofCold))
 				output.WriteString(fmt.Sprintf("compute window post proof (hot): %s\n", bo.PostWindowProofHot))
 				output.WriteString(fmt.Sprintf("verify window post proof (cold): %s\n", bo.VerifyWindowPostCold))
