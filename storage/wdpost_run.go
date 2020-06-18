@@ -135,10 +135,6 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check *abi.BitFi
 
 	log.Warnw("Checked sectors", "checked", len(tocheck), "good", len(sectors))
 
-	if len(sectors) == 0 { // nothing to recover
-		return abi.NewBitField(), nil
-	}
-
 	sbf := bitfield.New()
 	for s := range sectors {
 		(&sbf).Set(uint64(s.Number))
