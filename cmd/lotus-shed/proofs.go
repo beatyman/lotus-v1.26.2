@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"gopkg.in/urfave/cli.v2"
+	"github.com/urfave/cli/v2"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
@@ -87,15 +87,10 @@ var verifySealProofCmd = &cli.Command{
 				Miner:  abi.ActorID(mid),
 				Number: snum,
 			},
-			OnChain: abi.OnChainSealVerifyInfo{
-				SealedCID:        commr,
-				InteractiveEpoch: 0,
-				RegisteredProof:  abi.RegisteredProof(cctx.Int64("proof-type")),
-				Proof:            proof,
-				DealIDs:          nil,
-				SectorNumber:     snum,
-				SealRandEpoch:    0,
-			},
+			SealedCID:             commr,
+			SealProof:             abi.RegisteredSealProof(cctx.Int64("proof-type")),
+			Proof:                 proof,
+			DealIDs:               nil,
 			Randomness:            abi.SealRandomness(ticket),
 			InteractiveRandomness: abi.InteractiveSealRandomness(proofRand),
 			UnsealedCID:           commd,

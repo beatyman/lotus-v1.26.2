@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	logging "github.com/ipfs/go-log/v2"
-	"gopkg.in/urfave/cli.v2"
+	"github.com/urfave/cli/v2"
 
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
@@ -26,7 +26,7 @@ func main() {
 	app := &cli.App{
 		Name:    "lotus-chainwatch",
 		Usage:   "Devnet token distribution utility",
-		Version: build.UserVersion,
+		Version: build.UserVersion(),
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "repo",

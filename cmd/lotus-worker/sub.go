@@ -153,6 +153,23 @@ func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]ab
 	return g.PledgeSector(ctx)
 }
 
+func (w *worker) removeCache(ctx context.Context, sid string) error {
+	if filepath.Base(w.repo) == ".lotusstorage" {
+		return nil
+	}
+
+	if err := os.RemoveAll(filepath.Join(w.repo, "sealed", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
+	if err := os.RemoveAll(filepath.Join(w.repo, "cache", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
+	if err := os.RemoveAll(filepath.Join(w.repo, "unsealed", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
+	return nil
+}
+
 func (w *worker) cleanCache(ctx context.Context) error {
 	if filepath.Base(w.repo) == ".lotusstorage" {
 		return nil
@@ -307,8 +324,8 @@ repush:
 			time.Sleep(60e9)
 			goto repush
 		}
-		if err := w.cleanCache(ctx); err != nil {
-			return errors.As(err)
+		if err := w.removeCache(ctx, task.GetSectorID()); err != nil {
+			log.Warn(errors.As(err))
 		}
 	}
 	return nil
@@ -368,13 +385,12 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		ReleaseNodeApi(false)
 		return errRes(errors.As(err, w.workerCfg), task)
 	}
+	// keep cache clean, the task will lock the cache.
+	if err := w.cleanCache(ctx); err != nil {
+		return errRes(errors.As(err, w.workerCfg), task)
+	}
 	// checking is the cache in a different storage server, do fetch when it is.
-	if len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID {
-		// keep cache clean, the task will lock the cache.
-		if err := w.cleanCache(ctx); err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
-
+	if task.Type < ffiwrapper.WorkerCommit2 && len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID {
 		// lock bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
 			ReleaseNodeApi(false)
@@ -391,16 +407,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			task.SectorStorage.SectorInfo.ID,
 			task.Type,
 		); err != nil {
-			//if errors.ErrNoData.Equal(err) {
-			//	// release bandwidth
-			//	if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
-			//		ReleaseNodeApi(false)
-			//		return errRes(errors.As(err, w.workerCfg), task)
-			//	}
-			//
-			//	// return the err task not found and drop it.
-			//	return errRes(ffiwrapper.ErrTaskNotFound.As(err, task), task)
-			//}
 			log.Warnf("fileserver error, retry 10s later:%+s", err.Error())
 			time.Sleep(10e9)
 			goto retryFetch
@@ -411,9 +417,9 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 		// release the storage cache
-		log.Infof("fetch %s done, try delete.", task.Key())
-		if err := deleteCache(
-			task.SectorStorage.WorkerInfo.SvcUri,
+		log.Infof("fetch %s done, try delete remote files.", task.Key())
+		if err := w.deleteCache(
+			uri,
 			task.SectorStorage.SectorInfo.ID,
 		); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
@@ -427,11 +433,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	unlockWorker := false
 	switch task.Type {
 	case ffiwrapper.WorkerAddPiece:
-		// keep cache clean, the task will lock the cache.
-		if err := w.cleanCache(ctx); err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
-
 		rsp, err := w.addPiece(ctx, task)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
@@ -483,12 +484,20 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// checking is the next step interrupted
 		unlockWorker = w.workerCfg.NoCommit2
 	case ffiwrapper.WorkerCommit2:
+		// clean unsealed
+		if err := os.RemoveAll(filepath.Join(w.repo, "unsealed", task.GetSectorID())); err != nil {
+			log.Error(errors.As(err, task.GetSectorID()))
+		}
+
 		out, err := w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 		res.Commit2Out = out
-	case ffiwrapper.WorkerFinalize:
+		// SPEC: cancel deal with worker finalize, because it will post failed when commit2 is online and finalize is interrupt.
+		// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
+		// TODO: when testing stable finalize retrying and reopen it.
+		// case ffiwrapper.WorkerFinalize:
 		if err := w.sb.FinalizeSector(ctx, task.SectorID); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}

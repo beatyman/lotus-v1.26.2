@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
@@ -17,10 +19,22 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-func deleteCache(uri, sid string) error {
-	resp, err := http.PostForm(fmt.Sprintf("%s/storage/delete", uri), url.Values{"sid": []string{sid}})
+func (w *worker) deleteCache(uri, sid string) error {
+	data := url.Values{}
+	data.Set("sid", sid)
+	data.Set("type", "all")
+	url := fmt.Sprintf("%s/file/storage/delete", uri)
+	//log.Info("url:", url)
+	req, err := http.NewRequest("POST", url, strings.NewReader(data.Encode()))
 	if err != nil {
-		return errors.As(err, uri, sid)
+		return errors.As(err, ":request")
+	}
+	req.Header = w.auth
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("Content-Length", strconv.Itoa(len(data.Encode())))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return errors.As(err, url)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
@@ -29,7 +43,7 @@ func deleteCache(uri, sid string) error {
 	return nil
 }
 
-func fetchFile(uri, to string) error {
+func (w *worker) fetchFile(uri, to string) error {
 	log.Infof("fetch file from %s to %s", uri, to)
 	file, err := os.OpenFile(to, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -44,6 +58,7 @@ func fetchFile(uri, to string) error {
 	if err != nil {
 		return errors.As(err, uri, to)
 	}
+	req.Header = w.auth
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-", stat.Size()))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -70,7 +85,7 @@ func (w *worker) fetch(serverUri string, sectorID string, typ ffiwrapper.WorkerT
 	for i := 0; i < 3; i++ {
 		err = w.tryFetch(serverUri, sectorID, typ)
 		if err != nil {
-			log.Warn(errors.As(err, serverUri, sectorID, typ))
+			log.Warn(errors.As(err, i, serverUri, sectorID, typ))
 			continue
 		}
 		return nil
@@ -83,53 +98,62 @@ func (w *worker) tryFetch(serverUri string, sectorID string, typ ffiwrapper.Work
 	if filepath.Base(w.repo) == ".lotusstorage" {
 		return nil
 	}
+	switch typ {
+	case ffiwrapper.WorkerPreCommit1:
+		// fetch unsealed
+		if err := w.fetchFile(
+			fmt.Sprintf("%s/file/storage/unsealed/%s", serverUri, sectorID),
+			filepath.Join(w.repo, "unsealed", sectorID),
+		); err != nil {
+			return errors.As(err, typ)
+		}
 
-	if typ > ffiwrapper.WorkerPreCommit1 {
+	default:
 		// fetch cache
-		cacheResp, err := http.Get(fmt.Sprintf("%s/storage/cache/%s/", serverUri, sectorID))
+
+		url := fmt.Sprintf("%s/file/storage/cache/%s/", serverUri, sectorID)
+		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
-			return errors.As(err)
+			return errors.As(err, url)
+		}
+		req.Header = w.auth
+		cacheResp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return errors.As(err, serverUri, sectorID, typ)
 		}
 		defer cacheResp.Body.Close()
 		if cacheResp.StatusCode != 200 {
-			return errors.New(cacheResp.Status).As(serverUri, sectorID)
+			return errors.New(cacheResp.Status).As(serverUri, sectorID, typ)
 		}
 		cacheRespData, err := ioutil.ReadAll(cacheResp.Body)
 		if err != nil {
-			return errors.As(err)
+			return errors.As(err, serverUri, sectorID, typ)
 		}
 		cacheDir := &fileserver.StorageDirectoryResp{}
 		if err := xml.Unmarshal(cacheRespData, cacheDir); err != nil {
-			return errors.As(err)
+			return errors.As(err, serverUri, sectorID, typ)
 		}
 		if err := os.MkdirAll(filepath.Join(w.repo, "cache", sectorID), 0755); err != nil {
-			return errors.As(err)
+			return errors.As(err, serverUri, sectorID, typ)
 		}
 		for _, file := range cacheDir.Files {
-			if err := fetchFile(
-				fmt.Sprintf("%s/storage/cache/%s/%s", serverUri, sectorID, file.Value),
+			if err := w.fetchFile(
+				fmt.Sprintf("%s/file/storage/cache/%s/%s", serverUri, sectorID, file.Value),
 				filepath.Join(w.repo, "cache", sectorID, file.Value),
 			); err != nil {
-				return errors.As(err)
+				return errors.As(err, serverUri, sectorID, typ)
 			}
+		}
+
+		// fetch sealed
+		if err := w.fetchFile(
+			fmt.Sprintf("%s/file/storage/sealed/%s", serverUri, sectorID),
+			filepath.Join(w.repo, "sealed", sectorID),
+		); err != nil {
+			return errors.As(err, serverUri, sectorID, typ)
 		}
 	}
 
-	// fetch sealed
-	if err := fetchFile(
-		fmt.Sprintf("%s/storage/sealed/%s", serverUri, sectorID),
-		filepath.Join(w.repo, "sealed", sectorID),
-	); err != nil {
-		return errors.As(err)
-	}
-
-	// fetch unsealed
-	if err := fetchFile(
-		fmt.Sprintf("%s/storage/unsealed/%s", serverUri, sectorID),
-		filepath.Join(w.repo, "unsealed", sectorID),
-	); err != nil {
-		return errors.As(err)
-	}
 	return nil
 }
 

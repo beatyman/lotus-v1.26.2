@@ -106,7 +106,6 @@ const (
 	HandleIncomingBlocksKey
 	HandleIncomingMessagesKey
 
-	RunDealClientKey
 	RegisterClientValidatorKey
 
 	// storage miner
@@ -150,6 +149,7 @@ func defaults() []Option {
 		Override(new(helpers.MetricsCtx), context.Background),
 		Override(new(record.Validator), modules.RecordValidator),
 		Override(new(dtypes.Bootstrapper), dtypes.Bootstrapper(false)),
+		Override(new(dtypes.ShutdownChan), make(chan struct{})),
 
 		// Filecoin modules
 
@@ -169,7 +169,7 @@ func libp2p() Option {
 		Override(DiscoveryHandlerKey, lp2p.DiscoveryHandler),
 		Override(AddrsFactoryKey, lp2p.AddrsFactory(nil, nil)),
 		Override(SmuxTransportKey, lp2p.SmuxTransport(true)),
-		Override(RelayKey, lp2p.Relay(true, false)),
+		Override(RelayKey, lp2p.NoRelay()),
 		Override(SecurityKey, lp2p.Security(true, true)),
 
 		Override(BaseRoutingKey, lp2p.BaseRouting),
@@ -177,9 +177,10 @@ func libp2p() Option {
 
 		Override(NatPortMapKey, lp2p.NatPortMap),
 
-		Override(ConnectionManagerKey, lp2p.ConnectionManager(3, 10, 20*time.Second, nil)),
+		Override(ConnectionManagerKey, lp2p.ConnectionManager(15, 50, 20*time.Second, nil)),
 		Override(AutoNATSvcKey, lp2p.AutoNATService),
 
+		Override(new(*dtypes.ScoreKeeper), lp2p.ScoreKeeper),
 		Override(new(*pubsub.PubSub), lp2p.GossipSub),
 		Override(new(*config.Pubsub), func(bs dtypes.Bootstrapper) *config.Pubsub {
 			return &config.Pubsub{
@@ -216,6 +217,7 @@ func Online() Option {
 			// TODO: Fix offline mode
 
 			Override(new(dtypes.BootstrapPeers), modules.BuiltinBootstrap),
+			Override(new(dtypes.DrandBootstrap), modules.DrandBootstrap),
 
 			Override(HandleIncomingMessagesKey, modules.HandleIncomingMessages),
 
@@ -263,7 +265,6 @@ func Online() Option {
 			Override(new(storagemarket.StorageClient), modules.StorageClient),
 			Override(new(storagemarket.StorageClientNode), storageadapter.NewClientNodeAdapter),
 			Override(RegisterClientValidatorKey, modules.RegisterClientValidator),
-			Override(RunDealClientKey, modules.RunDealClient),
 			Override(new(beacon.RandomBeacon), modules.RandomBeacon),
 
 			Override(new(*paychmgr.Store), paychmgr.NewStore),
@@ -292,7 +293,6 @@ func Online() Option {
 			Override(new(*sectorblocks.SectorBlocks), sectorblocks.NewSectorBlocks),
 			Override(new(*storage.Miner), modules.StorageMiner),
 			Override(new(dtypes.NetworkName), modules.StorageNetworkName),
-			Override(new(beacon.RandomBeacon), modules.MinerRandomBeacon),
 
 			Override(new(dtypes.StagingBlockstore), modules.StagingBlockstore),
 			Override(new(dtypes.StagingDAG), modules.StagingDAG),
@@ -311,6 +311,9 @@ func Online() Option {
 			Override(HandleDealsKey, modules.HandleDeals),
 			Override(new(gen.WinningPoStProver), storage.NewWinningPoStProver),
 			Override(new(*miner.Miner), modules.SetupBlockProducer),
+
+			Override(new(dtypes.AcceptingStorageDealsConfigFunc), modules.NewAcceptingStorageDealsConfigFunc),
+			Override(new(dtypes.SetAcceptingStorageDealsConfigFunc), modules.NewSetAcceptingStorageDealsConfigFunc),
 		),
 	)
 }
@@ -369,6 +372,9 @@ func ConfigCommon(cfg *config.Common) Option {
 				Override(new(dtypes.BootstrapPeers), modules.ConfigBootstrap(cfg.Libp2p.BootstrapPeers)),
 			),
 		),
+		Override(AddrsFactoryKey, lp2p.AddrsFactory(
+			cfg.Libp2p.AnnounceAddresses,
+			cfg.Libp2p.NoAnnounceAddresses)),
 	)
 }
 
@@ -378,12 +384,13 @@ func ConfigFullNode(c interface{}) Option {
 		return Error(xerrors.Errorf("invalid config from repo, got: %T", c))
 	}
 
+	ipfsMaddr := cfg.Client.IpfsMAddr
+	useForRetrieval := cfg.Client.IpfsUseForRetrieval
 	return Options(
 		ConfigCommon(&cfg.Common),
 		If(cfg.Client.UseIpfs,
-			Override(new(dtypes.ClientBlockstore), modules.IpfsClientBlockstore),
+			Override(new(dtypes.ClientBlockstore), modules.IpfsClientBlockstore(ipfsMaddr, useForRetrieval)),
 		),
-
 		If(cfg.Metrics.HeadNotifs,
 			Override(HeadMetricsKey, metrics.SendHeadNotifs(cfg.Metrics.Nickname)),
 		),

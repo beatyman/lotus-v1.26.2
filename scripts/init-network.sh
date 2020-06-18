@@ -1,11 +1,49 @@
 #!/usr/bin/env bash
 export IPFS_GATEWAY="https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs/"
 
+# Note that FIL_PROOFS_USE_GPU_TREE_BUILDER=1 is for tree_r_last building and FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1 is for tree_c.  
+# So be sure to use both if you want both built on the GPU
+export FIL_PROOFS_USE_GPU_COLUMN_BUILDER=0
+export FIL_PROOFS_USE_GPU_TREE_BUILDER=0
+export FIL_PROOFS_MAXIMIZE_CACHING=0  # open cache for 32GB or 64GB
+
+# checking gpu
+gpu=""
+type nvidia-smi
+if [ $? -eq 0 ]; then
+    gpu=$(nvidia-smi -L|grep "GeForce")
+fi
+if [ ! -z "$gpu" ]; then
+    FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1
+    FIL_PROOFS_USE_GPU_TREE_BUILDER=1
+fi
+
 set -xeo
 
 NUM_SECTORS=2
+
 SECTOR_SIZE=2048
 #SECTOR_SIZE=536870912
+#SECTOR_SIZE=34359738368
+car_name="devnet.car"
+build_mode="debug"
+echo $1
+case $1 in
+    "hlm")
+        SECTOR_SIZE=34359738368
+        #SECTOR_SIZE=536870912
+        car_name="hlmnet.car"
+        build_mode="hlm"
+        FIL_PROOFS_MAXIMIZE_CACHING=1  # open cache for 32GB or 64GB
+    ;;
+
+    *)
+        SECTOR_SIZE=2048
+        car_name="devnet.car"
+        build_mode="debug"
+    ;;
+esac
+echo "SECTOR_SIZE:"$SECTOR_SIZE" mode:"$build_mode
 
 
 sdt0111=/data/lotus/dev/.sdt0111 # $(mktemp -d)
@@ -14,7 +52,7 @@ staging=/data/lotus/dev/.staging # $(mktemp -d)
 mkdir -p $sdt0111
 mkdir -p $staging
 
-make debug
+make $build_mode
 make lotus-shed
 make fountain
  if [[  "`ls -A ${sdt0111}`" = ""  &&  "`ls -A ${staging}`" = ""  ]];
@@ -44,9 +82,9 @@ kill "$lpid"
 wait
 
 cp "${staging}/devnet.car" build/genesis/devnet.car
-cp "${staging}/devnet.car" scripts/devnet.car
+cp "${staging}/devnet.car" scripts/$car_name
 
-make debug
+make $build_mode
 git checkout build
 
 ./lotus --repo="${ldt0111}" daemon --api "3000$i" --bootstrap=false &

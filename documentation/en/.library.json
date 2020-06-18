@@ -57,6 +57,12 @@
           "value": null
         },
         {
+          "title": "Use Lotus with systemd",
+          "slug": "en+install-systemd-services",
+          "github": "en/install-systemd-services.md",
+          "value": null
+        },
+        {
           "title": "Setup Troubleshooting",
           "slug": "en+setup-troubleshooting",
           "github": "en/setup-troubleshooting.md",
@@ -65,6 +71,12 @@
       ]
     },
     {
+      "title": "Architecture",
+      "slug": "en+arch",
+      "github": "en/architecture.md",
+      "value": null,
+      "posts": []
+    },    {
       "title": "Storage Mining",
       "slug": "en+mining",
       "github": "en/mining.md",
