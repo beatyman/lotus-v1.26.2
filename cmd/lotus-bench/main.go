@@ -327,7 +327,7 @@ func action(c *cli.Context, i int) string {
 			log.Info("generating winning post candidates")
 			wipt, err := spt.RegisteredWinningPoStProof()
 			if err != nil {
-				return err
+				return err.Error()
 			}
 
 			fcandidates, err := ffiwrapper.ProofVerifier.GenerateWinningPoStSectorChallenge(context.TODO(), wipt, mid, challenge[:], uint64(len(sealedSectors)))
