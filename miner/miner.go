@@ -199,6 +199,22 @@ func (m *Miner) mine(ctx context.Context) {
 			nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds))+int64(build.PropagationDelay), 0)
 
 			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
+
+			// clean pending message when waiting
+			if nextRound.Before(time.Now()) {
+				// make auto clean for pending messages every round.
+				pending, err := m.api.MpoolPending(context.TODO(), base.TipSet.Key())
+				if err != nil {
+					log.Warn(xerrors.Errorf("failed to get pending messages: %w", err))
+				} else {
+					log.Infof("all pending msgs len in clean:%d", len(pending))
+					pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
+					if err != nil {
+						log.Warn(xerrors.Errorf("message filtering failed: %w", err))
+					}
+				}
+			}
+
 			select {
 			case <-time.After(time.Until(nextRound)):
 			case <-m.stop:
