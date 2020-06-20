@@ -112,12 +112,15 @@ func (m *Miner) niceSleep(d time.Duration) bool {
 		return false
 	}
 }
-
+func nextRoundTime(base *MiningBase) time.Time {
+	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelay*(base.NullRounds+1)), 0)
+}
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
 	defer span.End()
 
 	var lastBase MiningBase
+	var nextRound time.Time
 
 	for {
 		select {
@@ -138,33 +141,77 @@ func (m *Miner) mine(ctx context.Context) {
 			continue
 		}
 
-		// Wait until propagation delay period after block we plan to mine on
-		onDone, err := m.waitFunc(ctx, prebase.TipSet.MinTimestamp())
-		if err != nil {
-			log.Error(err)
-			return
-		}
+		//// Wait until propagation delay period after block we plan to mine on
+		//onDone, err := m.waitFunc(ctx, prebase.TipSet.MinTimestamp())
+		//if err != nil {
+		//	log.Error(err)
+		//	return
+		//}
 
-		base, err := m.GetBestMiningCandidate(ctx)
-		if err != nil {
-			log.Errorf("failed to get best mining candidate: %s", err)
-			continue
-		}
-		if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
-			log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
-			m.niceSleep(build.BlockDelay * time.Second)
-			continue
-		}
+		//base, err := m.GetBestMiningCandidate(ctx)
+		//if err != nil {
+		//	log.Errorf("failed to get best mining candidate: %s", err)
+		//	continue
+		//}
+		//if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
+		//	log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
+		//	m.niceSleep(build.BlockDelay * time.Second)
+		//	continue
+		//}
 
-		b, err := m.mineOne(ctx, base)
+		var pending = []*types.SignedMessage{}
+		if !prebase.TipSet.Equals(lastBase.TipSet) {
+			base := prebase
+			// make auto clean for pending messages every round.
+			pending, err = m.api.MpoolPending(context.TODO(), base.TipSet.Key())
+			if err != nil {
+				log.Warn(xerrors.Errorf("failed to get pending messages: %w", err))
+				continue
+			}
+			log.Infof("all pending msgs len:%d", len(pending))
+			pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
+			if err != nil {
+				log.Warn(xerrors.Errorf("message filtering failed: %w", err))
+				continue
+			}
+			if len(pending) > build.BlockMessageLimit {
+				log.Error("SelectMessages returned too many messages: ", len(pending))
+				pending = pending[:build.BlockMessageLimit]
+			}
+			now := time.Now()
+			// cause net delay, skip for in a late time.
+			if int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay > now.Unix() {
+				delay := int64(prebase.TipSet.MinTimestamp()) + build.PropagationDelay - now.Unix()
+				log.Infof("Syncing heaviest tipset for delay:%d", delay)
+				time.Sleep(time.Duration(delay) * time.Second)
+			}
+			base, err = m.GetBestMiningCandidate(ctx)
+			if err != nil {
+				log.Errorf("failed to get best mining candidate: %s", err)
+				continue
+			}
+			nextRound = nextRoundTime(base)
+			lastBase = *base
+		} else {
+			now := time.Now()
+			// if the base was dead, make the nullRound++ step by round actually change.
+			if lastBase.TipSet == nil || (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
+				time.Sleep(1e9)
+				continue
+			}
+			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
+			lastBase.NullRounds++
+			nextRound = nextRoundTime(&lastBase)
+		}
+		b, err := m.mineOne(ctx, &lastBase, pending)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
 			m.niceSleep(time.Second)
 			continue
 		}
-		lastBase = *base
+		//lastBase = *base
 
-		onDone(b != nil)
+		//onDone(b != nil)
 
 		if b != nil {
 			btime := time.Unix(int64(b.Header.Timestamp), 0)
@@ -190,30 +237,13 @@ func (m *Miner) mine(ctx context.Context) {
 				log.Errorf("failed to submit newly mined block: %s", err)
 			}
 		} else {
-			base.NullRounds++
-
 			// Wait until the next epoch, plus the propagation delay, so a new tipset
 			// has enough time to form.
 			//
 			// See:  https://github.com/filecoin-project/lotus/issues/1845
-			nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds))+int64(build.PropagationDelay), 0)
+			//nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds))+int64(build.PropagationDelay), 0)
 
 			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
-
-			// clean pending message when waiting
-			if nextRound.Before(time.Now()) {
-				// make auto clean for pending messages every round.
-				pending, err := m.api.MpoolPending(context.TODO(), base.TipSet.Key())
-				if err != nil {
-					log.Warn(xerrors.Errorf("failed to get pending messages: %w", err))
-				} else {
-					log.Infof("all pending msgs len in clean:%d", len(pending))
-					pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
-					if err != nil {
-						log.Warn(xerrors.Errorf("message filtering failed: %w", err))
-					}
-				}
-			}
 
 			select {
 			case <-time.After(time.Until(nextRound)):
@@ -271,24 +301,24 @@ func (m *Miner) hasPower(ctx context.Context, addr address.Address, ts *types.Ti
 	return mpower.MinerPower.QualityAdjPower.GreaterThanEqual(power.ConsensusMinerMinPower), nil
 }
 
-func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg, error) {
+func (m *Miner) mineOne(ctx context.Context, base *MiningBase, pending []*types.SignedMessage) (*types.BlockMsg, error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := time.Now()
 
 	// make auto clean for pending messages every round.
-	pending, err := m.api.MpoolPending(context.TODO(), base.TipSet.Key())
-	if err != nil {
-		return nil, xerrors.Errorf("failed to get pending messages: %w", err)
-	}
-	log.Infof("all pending msgs len:%d", len(pending))
-	pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
-	if err != nil {
-		return nil, xerrors.Errorf("message filtering failed: %w", err)
-	}
-	if len(pending) > build.BlockMessageLimit {
-		log.Error("SelectMessages returned too many messages: ", len(pending))
-		pending = pending[:build.BlockMessageLimit]
-	}
+	//pending, err := m.api.MpoolPending(context.TODO(), base.TipSet.Key())
+	//if err != nil {
+	//	return nil, xerrors.Errorf("failed to get pending messages: %w", err)
+	//}
+	//log.Infof("all pending msgs len:%d", len(pending))
+	//pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
+	//if err != nil {
+	//	return nil, xerrors.Errorf("message filtering failed: %w", err)
+	//}
+	//if len(pending) > build.BlockMessageLimit {
+	//	log.Error("SelectMessages returned too many messages: ", len(pending))
+	//	pending = pending[:build.BlockMessageLimit]
+	//}
 	tPending := time.Now()
 
 	round := base.TipSet.Height() + base.NullRounds + 1
@@ -298,6 +328,7 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
+		base.NullRounds++
 		return nil, nil
 	}
 
@@ -314,6 +345,7 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 	}
 	if !hasPower {
 		// slashed or just have no power yet
+		base.NullRounds++
 		return nil, nil
 	}
 
@@ -338,6 +370,7 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 
 	if winner == nil {
 		log.Info("Not Win")
+		base.NullRounds++
 		return nil, nil
 	}
 
@@ -359,6 +392,7 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 
 	postProof, err := m.epp.ComputeProof(ctx, mbi.Sectors, prand)
 	if err != nil {
+		log.Warn(errors.As(err, mbi.Sectors, prand))
 		return nil, xerrors.Errorf("failed to compute winning post proof: %w", err)
 	}
 
@@ -491,9 +525,9 @@ type MsgPool struct {
 
 func (p *MsgPool) Remove(ctx context.Context, msg *types.SignedMessage) {
 	// TODO: remove fault message
-	if err := p.FromApi.MpoolRemove(ctx, msg.Message.From, msg.Message.Nonce); err != nil {
-		log.Warn(errors.As(err))
-	}
+	//if err := p.FromApi.MpoolRemove(ctx, msg.Message.From, msg.Message.Nonce); err != nil {
+	//	log.Warn(errors.As(err))
+	//}
 }
 
 func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool *MsgPool) ([]*types.SignedMessage, error) {
