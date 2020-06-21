@@ -203,7 +203,7 @@ func (m *Miner) mine(ctx context.Context) {
 			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
 		}
-		b, err := m.mineOne(ctx, &lastBase, pending)
+		b, err := m.mineOne(ctx, prebase, &lastBase, pending)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
 			m.niceSleep(time.Second)
@@ -301,7 +301,7 @@ func (m *Miner) hasPower(ctx context.Context, addr address.Address, ts *types.Ti
 	return mpower.MinerPower.QualityAdjPower.GreaterThanEqual(power.ConsensusMinerMinPower), nil
 }
 
-func (m *Miner) mineOne(ctx context.Context, base *MiningBase, pending []*types.SignedMessage) (*types.BlockMsg, error) {
+func (m *Miner) mineOne(ctx context.Context, prebase, base *MiningBase, pending []*types.SignedMessage) (*types.BlockMsg, error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := time.Now()
 
@@ -351,7 +351,7 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase, pending []*types.
 
 	tPowercheck := time.Now()
 
-	log.Infof("Time delta between now and our mining base(%d): %ds (nulls: %d)", base.TipSet.Height(), uint64(time.Now().Unix())-base.TipSet.MinTimestamp(), base.NullRounds)
+	log.Infof("Time delta between now and our mining prebase(%d), base(%d): %ds (nulls: %d)", prebase.TipSet.Height(), base.TipSet.Height(), uint64(time.Now().Unix())-base.TipSet.MinTimestamp(), base.NullRounds)
 
 	rbase := beaconPrev
 	if len(bvals) > 0 {
