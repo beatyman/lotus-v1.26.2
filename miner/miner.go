@@ -182,7 +182,7 @@ func (m *Miner) mine(ctx context.Context) {
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			if int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay > now.Unix() {
 				delay := int64(prebase.TipSet.MinTimestamp()) + build.PropagationDelay - now.Unix()
-				log.Infof("Syncing heaviest tipset in PropagationDelay time:%d(s)", delay)
+				log.Infof("Syncing heaviest tipset with PropagationDelay time:%d(s)", delay)
 				time.Sleep(time.Duration(delay) * time.Second)
 			}
 			base, err = m.GetBestMiningCandidate(ctx)
