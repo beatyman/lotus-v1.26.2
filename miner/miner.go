@@ -352,7 +352,11 @@ func (m *Miner) mineOne(ctx context.Context, prebase, base *MiningBase, pending 
 
 	tPowercheck := time.Now()
 
-	log.Infof("Time delta between now and our mining prebase(%d), base(%d): %ds (nulls: %d)", prebase.TipSet.Height(), base.TipSet.Height(), uint64(time.Now().Unix())-base.TipSet.MinTimestamp(), base.NullRounds)
+	log.Infof(
+		"Time delta between now and our mining, miner_power(%s), network_power(%s), prebase(%d), base(%d):%ds (nulls: %d)",
+		mbi.MinerPower, mbi.NetworkPower,
+		prebase.TipSet.Height(), base.TipSet.Height(),
+		uint64(time.Now().Unix())-base.TipSet.MinTimestamp(), base.NullRounds)
 
 	rbase := beaconPrev
 	if len(bvals) > 0 {
