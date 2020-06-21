@@ -179,10 +179,10 @@ func (m *Miner) mine(ctx context.Context) {
 				pending = pending[:build.BlockMessageLimit]
 			}
 			now := time.Now()
-			// cause net delay, skip for in a late time.
+			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			if int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay > now.Unix() {
 				delay := int64(prebase.TipSet.MinTimestamp()) + build.PropagationDelay - now.Unix()
-				log.Infof("Syncing heaviest tipset for delay:%d", delay)
+				log.Infof("Syncing heaviest tipset in PropagationDelay time:%d(s)", delay)
 				time.Sleep(time.Duration(delay) * time.Second)
 			}
 			base, err = m.GetBestMiningCandidate(ctx)
@@ -195,6 +195,7 @@ func (m *Miner) mine(ctx context.Context) {
 		} else {
 			now := time.Now()
 			// if the base was dead, make the nullRound++ step by round actually change.
+			// and in current round, checking the base by every 1 second until pass or round out.
 			if lastBase.TipSet == nil || (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
 				time.Sleep(1e9)
 				continue
