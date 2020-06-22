@@ -134,6 +134,7 @@ func (m *Miner) mine(ctx context.Context) {
 		default:
 		}
 
+		oldbase := lastBase
 		prebase, err := m.GetBestMiningCandidate(ctx)
 		if err != nil {
 			log.Errorf("failed to get best mining candidate: %s", err)
@@ -181,9 +182,9 @@ func (m *Miner) mine(ctx context.Context) {
 			now := time.Now()
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			if int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay > now.Unix() {
-				delay := int64(prebase.TipSet.MinTimestamp()) + build.PropagationDelay - now.Unix()
-				log.Infof("Syncing heaviest tipset with PropagationDelay time:%d(s)", delay)
-				time.Sleep(time.Duration(delay) * time.Second)
+				delay := time.Unix(int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay, 0).Sub(now)
+				log.Infof("Syncing heaviest tipset with PropagationDelay time:%s", delay)
+				time.Sleep(delay)
 			}
 			base, err = m.GetBestMiningCandidate(ctx)
 			if err != nil {
@@ -204,7 +205,7 @@ func (m *Miner) mine(ctx context.Context) {
 			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
 		}
-		b, err := m.mineOne(ctx, prebase, &lastBase, pending)
+		b, err := m.mineOne(ctx, &oldbase, &lastBase, pending)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
 			m.niceSleep(time.Second)
@@ -302,7 +303,7 @@ func (m *Miner) hasPower(ctx context.Context, addr address.Address, ts *types.Ti
 	return mpower.MinerPower.QualityAdjPower.GreaterThanEqual(power.ConsensusMinerMinPower), nil
 }
 
-func (m *Miner) mineOne(ctx context.Context, prebase, base *MiningBase, pending []*types.SignedMessage) (*types.BlockMsg, error) {
+func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, pending []*types.SignedMessage) (*types.BlockMsg, error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := time.Now()
 
@@ -352,11 +353,16 @@ func (m *Miner) mineOne(ctx context.Context, prebase, base *MiningBase, pending 
 
 	tPowercheck := time.Now()
 
+	preHeight := abi.ChainEpoch(0)
+	if oldbase.TipSet != nil {
+		preHeight = oldbase.TipSet.Height()
+	}
 	log.Infof(
-		"Time delta between now and our mining, miner_power(%s), network_power(%s), prebase(%d), base(%d):%ds (nulls: %d)",
+		"Time delta between now and our mining, base(%d|%d):%ds (nulls: %d), power(%s/%s)",
+		preHeight, base.TipSet.Height(),
+		uint64(time.Now().Unix())-base.TipSet.MinTimestamp(), base.NullRounds,
 		mbi.MinerPower, mbi.NetworkPower,
-		prebase.TipSet.Height(), base.TipSet.Height(),
-		uint64(time.Now().Unix())-base.TipSet.MinTimestamp(), base.NullRounds)
+	)
 
 	rbase := beaconPrev
 	if len(bvals) > 0 {

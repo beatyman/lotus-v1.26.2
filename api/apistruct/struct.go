@@ -251,6 +251,7 @@ type StorageMinerStruct struct {
 		WorkerPreConn      func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
 		WorkerMinerConn    func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
+		Testing           func(ctx context.Context, fnName string, args []string) error     `perm:"admin"`
 		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error       `perm:"write"`
 		DisableHLMStorage func(ctx context.Context, id int64) error                         `perm:"write"`
 		MountHLMStorage   func(ctx context.Context, id int64) error                         `perm:"write"`
@@ -1016,6 +1017,9 @@ func (c *StorageMinerStruct) WorkerMinerConn(ctx context.Context) (int, error) {
 	return c.Internal.WorkerMinerConn(ctx)
 }
 
+func (c *StorageMinerStruct) Testing(ctx context.Context, fnName string, args []string) error {
+	return c.Internal.Testing(ctx, fnName, args)
+}
 func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
 	return c.Internal.AddHLMStorage(ctx, sInfo)
 }
