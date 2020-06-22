@@ -38,6 +38,7 @@ func main() {
 		hlmStorageCmd,
 		hlmWorkerCmd,
 		hlmFaucetCmd,
+		testingCmd,
 	}
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {

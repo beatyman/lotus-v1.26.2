@@ -149,7 +149,7 @@ func StorageMiner(mctx helpers.MetricsCtx, lc fx.Lifecycle, api lapi.FullNode, h
 		return nil, err
 	}
 
-	sm, err := storage.NewMiner(api, maddr, worker, h, ds, sealer, sc, verif)
+	sm, err := storage.NewMiner(api, maddr, worker, h, ds, sealer, sc, verif, fps)
 	if err != nil {
 		return nil, err
 	}
