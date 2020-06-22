@@ -63,6 +63,7 @@ type StorageMiner interface {
 	StorageAddLocal(ctx context.Context, path string) error
 
 	// implements by hlm
+	Testing(ctx context.Context, fnName string, args []string) error
 	RunPledgeSector(context.Context) error
 	StatusPledgeSector(context.Context) (int, error)
 	StopPledgeSector(context.Context) error

@@ -42,6 +42,9 @@ type Miner struct {
 	worker address.Address
 
 	sealing *sealing.Sealing
+
+	// implement by hlm
+	fps *WindowPoStScheduler // SPEC: only for testing
 }
 
 type storageMinerApi interface {
@@ -77,7 +80,7 @@ type storageMinerApi interface {
 	WalletHas(context.Context, address.Address) (bool, error)
 }
 
-func NewMiner(api storageMinerApi, maddr, worker address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier) (*Miner, error) {
+func NewMiner(api storageMinerApi, maddr, worker address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, fps *WindowPoStScheduler) (*Miner, error) {
 	m := &Miner{
 		api:    api,
 		h:      h,
@@ -88,6 +91,8 @@ func NewMiner(api storageMinerApi, maddr, worker address.Address, h host.Host, d
 
 		maddr:  maddr,
 		worker: worker,
+
+		fps: fps,
 	}
 
 	return m, nil
