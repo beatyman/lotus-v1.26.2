@@ -14,8 +14,8 @@ ssh "$host" 'systemctl stop lotus-storage-miner' &
 
 wait
 
-ssh "$host" 'rm -rf .lotus' &
-ssh "$host" 'rm -rf .lotusstorage' &
+ssh "$host" 'rm -rf .lotus & mkdir -p .lotus' &
+ssh "$host" 'rm -rf .lotusstorage & mkdir -p .lotusstorage' &
 
 scp -C lotus "${host}":/usr/local/bin/lotus &
 scp -C lotus-storage-miner "${host}":/usr/local/bin/lotus-storage-miner &
