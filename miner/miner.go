@@ -184,7 +184,7 @@ func (m *Miner) mine(ctx context.Context) {
 			if int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay > now.Unix() {
 				// make 1 second more then delay for does not appear to be best tipset.
 				delay := time.Unix(int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay+1, 0).Sub(now)
-				log.Infof("Syncing heaviest tipset with PropagationDelay time:%s", delay)
+				log.Infof("Waiting PropagationDelay time: %s", delay)
 				time.Sleep(delay)
 			}
 			base, err = m.GetBestMiningCandidate(ctx)
