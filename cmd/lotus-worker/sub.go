@@ -498,7 +498,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
 		// TODO: when testing stable finalize retrying and reopen it.
 		// case ffiwrapper.WorkerFinalize:
-		if err := w.sb.FinalizeSector(ctx, task.SectorID); err != nil {
+		if err := w.sb.FinalizeSector(ctx, task.SectorID, nil); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 

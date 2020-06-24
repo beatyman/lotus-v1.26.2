@@ -40,6 +40,10 @@ func (m *Miner) ForceSectorState(ctx context.Context, id abi.SectorNumber, state
 	return m.sealing.ForceSectorState(ctx, id, state)
 }
 
+func (m *Miner) RemoveSector(ctx context.Context, id abi.SectorNumber) error {
+	return m.sealing.Remove(ctx, id)
+}
+
 // implements by hlm start
 func (m *Miner) RunPledgeSector() error {
 	return m.sealing.RunPledgeSector()
