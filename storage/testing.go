@@ -51,9 +51,11 @@ func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context, index uint64,
 	case nil:
 		// no commit
 		log.Infof("submit window post:%t", submit)
-		if err := s.submitPost(ctx, proof); err != nil {
-			log.Errorf("submitPost failed: %+v", err)
-			return
+		if submit {
+			if err := s.submitPost(ctx, proof); err != nil {
+				log.Errorf("submitPost failed: %+v", err)
+				return
+			}
 		}
 
 		return
