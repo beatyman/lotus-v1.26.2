@@ -26,6 +26,15 @@ func (m *Miner) Testing(ctx context.Context, fnName string, args []string) error
 
 func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context, height abi.ChainEpoch, submit bool) {
 	log.Info("DEBUG:checkWindowPoStPost")
+
+	// TODO:make lock for noSubmit
+	bakSubmit := s.noSubmit
+	s.noSubmit = !submit
+	defer func() {
+		// rollback
+		s.noSubmit = bakSubmit
+	}()
+
 	var new *types.TipSet
 	if height > 0 {
 		ts, err := s.api.ChainGetTipSetByHeight(ctx, height, types.EmptyTSK)

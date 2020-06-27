@@ -160,6 +160,10 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, deadline 
 	if aerr != nil {
 		return xerrors.Errorf("could not serialize declare recoveries parameters: %w", aerr)
 	}
+	if s.noSubmit {
+		log.Info("noSubmit for DeclareFaultsRecovered")
+		return nil
+	}
 
 	msg := &types.Message{
 		To:       s.actor,
@@ -239,6 +243,10 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, deadline uint
 	enc, aerr := actors.SerializeParams(params)
 	if aerr != nil {
 		return xerrors.Errorf("could not serialize declare faults parameters: %w", aerr)
+	}
+	if s.noSubmit {
+		log.Info("noSubmit for DeclareFaults")
+		return nil
 	}
 
 	msg := &types.Message{
@@ -484,6 +492,11 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	enc, aerr := actors.SerializeParams(proof)
 	if aerr != nil {
 		return xerrors.Errorf("could not serialize submit post parameters: %w", aerr)
+	}
+
+	if s.noSubmit {
+		log.Info("noSubmit for SubmitWindowedPoSt")
+		return nil
 	}
 
 	msg := &types.Message{

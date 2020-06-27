@@ -36,6 +36,7 @@ type WindowPoStScheduler struct {
 	// if a post is in progress, this indicates for which ElectionPeriodStart
 	activeDeadline *miner.DeadlineInfo
 	abort          context.CancelFunc
+	noSubmit       bool
 
 	//failed abi.ChainEpoch // eps
 	//failLk sync.Mutex
