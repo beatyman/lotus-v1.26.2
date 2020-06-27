@@ -8,9 +8,7 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/docker/go-units"
@@ -143,43 +141,14 @@ var sealBenchCmd = &cli.Command{
 		},
 		&cli.IntFlag{
 			Name:  "parallel",
-			Usage: "nums of parallel task",
 			Value: 1,
 		},
 	},
 	Action: func(c *cli.Context) error {
-		parallel := c.Int("parallel")
-		result := make(chan string, parallel)
-		for i := 0; i < parallel; i++ {
-			log.Infof("run parallel index:%d", i)
-			go func(c *cli.Context, i int) {
-				result <- action(c, i)
-			}(c, i)
-		}
-		fmt.Printf("run parallel in:%d, [ctrl+c to exit]\n", parallel)
-		end := make(chan os.Signal, 2)
-		signal.Notify(end, os.Interrupt, os.Kill)
-		for i := 0; i < parallel; i++ {
-			select {
-			case b := <-result:
-				fmt.Printf("result of parallel %d: \n", i)
-				fmt.Print(b)
-			case <-end:
-				return nil
-			}
-		}
-		return nil
-	},
-}
-
-func action(c *cli.Context, i int) string {
-	// make this func format just cause to making easy compare to origin source, compare example
-	// vimdiff main.go ../../../lotus.bak/cmd/lotus-bench/main.go
-	return func() string {
 		if c.Bool("no-gpu") {
 			err := os.Setenv("BELLMAN_NO_GPU", "1")
 			if err != nil {
-				return xerrors.Errorf("setting no-gpu flag: %w", err).Error()
+				return xerrors.Errorf("setting no-gpu flag: %w", err)
 			}
 		}
 
@@ -190,18 +159,17 @@ func action(c *cli.Context, i int) string {
 		if robench == "" {
 			sdir, err := homedir.Expand(c.String("storage-dir"))
 			if err != nil {
-				return err.Error()
+				return err
 			}
-			sdir = filepath.Join(sdir, fmt.Sprint(i))
 
 			err = os.MkdirAll(sdir, 0775) //nolint:gosec
 			if err != nil {
-				return xerrors.Errorf("creating sectorbuilder dir: %w", err).Error()
+				return xerrors.Errorf("creating sectorbuilder dir: %w", err)
 			}
 
 			tsdir, err := ioutil.TempDir(sdir, "bench")
 			if err != nil {
-				return err.Error()
+				return err
 			}
 			defer func() {
 				if err := os.RemoveAll(tsdir); err != nil {
@@ -211,39 +179,39 @@ func action(c *cli.Context, i int) string {
 
 			// TODO: pretty sure this isnt even needed?
 			if err := os.MkdirAll(tsdir, 0775); err != nil {
-				return err.Error()
+				return err
 			}
 
 			sbdir = tsdir
 		} else {
 			exp, err := homedir.Expand(robench)
 			if err != nil {
-				return err.Error()
+				return err
 			}
-			sbdir = filepath.Join(exp, fmt.Sprint(i))
+			sbdir = exp
 		}
 
 		// miner address
 		maddr, err := address.NewFromString(c.String("miner-addr"))
 		if err != nil {
-			return err.Error()
+			return err
 		}
 		amid, err := address.IDFromAddress(maddr)
 		if err != nil {
-			return err.Error()
+			return err
 		}
 		mid := abi.ActorID(amid)
 
 		// sector size
 		sectorSizeInt, err := units.RAMInBytes(c.String("sector-size"))
 		if err != nil {
-			return err.Error()
+			return err
 		}
 		sectorSize := abi.SectorSize(sectorSizeInt)
 
 		spt, err := ffiwrapper.SealProofTypeFromSectorSize(sectorSize)
 		if err != nil {
-			return err.Error()
+			return err
 		}
 
 		cfg := &ffiwrapper.Config{
@@ -253,7 +221,7 @@ func action(c *cli.Context, i int) string {
 		// Only fetch parameters if actually needed
 		if !c.Bool("skip-commit2") {
 			if err := paramfetch.GetParams(lcli.ReqContext(c), build.ParametersJSON(), uint64(sectorSize)); err != nil {
-				return xerrors.Errorf("getting params: %w", err).Error()
+				return xerrors.Errorf("getting params: %w", err)
 			}
 		}
 
@@ -263,7 +231,7 @@ func action(c *cli.Context, i int) string {
 
 		sb, err := ffiwrapper.New(false, sbfs, cfg)
 		if err != nil {
-			return err.Error()
+			return err
 		}
 
 		var sealTimings []SealingResult
@@ -278,7 +246,7 @@ func action(c *cli.Context, i int) string {
 			}
 			sealTimings, sealedSectors, err = runSeals(sb, sbfs, c.Int("num-sectors"), parCfg, mid, sectorSize, []byte(c.String("ticket-preimage")), c.String("save-commit2-input"), c.Bool("skip-commit2"), c.Bool("skip-unseal"))
 			if err != nil {
-				return xerrors.Errorf("failed to run seals: %w", err).Error()
+				return xerrors.Errorf("failed to run seals: %w", err)
 			}
 		}
 
@@ -296,17 +264,17 @@ func action(c *cli.Context, i int) string {
 
 			fdata, err := ioutil.ReadFile(filepath.Join(sbdir, "pre-seal-"+maddr.String()+".json"))
 			if err != nil {
-				return err.Error()
+				return err
 			}
 
 			var genmm map[string]genesis.Miner
 			if err := json.Unmarshal(fdata, &genmm); err != nil {
-				return err.Error()
+				return err
 			}
 
 			genm, ok := genmm[maddr.String()]
 			if !ok {
-				return xerrors.Errorf("preseal file didnt have expected miner in it").Error()
+				return xerrors.Errorf("preseal file didnt have expected miner in it")
 			}
 
 			for _, s := range genm.Sectors {
@@ -327,12 +295,12 @@ func action(c *cli.Context, i int) string {
 			log.Info("generating winning post candidates")
 			wipt, err := spt.RegisteredWinningPoStProof()
 			if err != nil {
-				return err.Error()
+				return err
 			}
 
 			fcandidates, err := ffiwrapper.ProofVerifier.GenerateWinningPoStSectorChallenge(context.TODO(), wipt, mid, challenge[:], uint64(len(sealedSectors)))
 			if err != nil {
-				return err.Error()
+				return err
 			}
 
 			candidates := make([]abi.SectorInfo, len(fcandidates))
@@ -345,7 +313,7 @@ func action(c *cli.Context, i int) string {
 			log.Info("computing winning post snark (cold)")
 			proof1, err := sb.GenerateWinningPoSt(context.TODO(), mid, candidates, challenge[:])
 			if err != nil {
-				return err.Error()
+				return err
 			}
 
 			winningpost1 := time.Now()
@@ -353,7 +321,7 @@ func action(c *cli.Context, i int) string {
 			log.Info("computing winning post snark (hot)")
 			proof2, err := sb.GenerateWinningPoSt(context.TODO(), mid, candidates, challenge[:])
 			if err != nil {
-				return err.Error()
+				return err
 			}
 
 			winnningpost2 := time.Now()
@@ -366,7 +334,7 @@ func action(c *cli.Context, i int) string {
 			}
 			ok, err := ffiwrapper.ProofVerifier.VerifyWinningPoSt(context.TODO(), pvi1)
 			if err != nil {
-				return err.Error()
+				return err
 			}
 			if !ok {
 				log.Error("post verification failed")
@@ -383,7 +351,7 @@ func action(c *cli.Context, i int) string {
 
 			ok, err = ffiwrapper.ProofVerifier.VerifyWinningPoSt(context.TODO(), pvi2)
 			if err != nil {
-				return err.Error()
+				return err
 			}
 			if !ok {
 				log.Error("post verification failed")
@@ -393,7 +361,7 @@ func action(c *cli.Context, i int) string {
 			log.Info("computing window post snark (cold)")
 			wproof1, _, err := sb.GenerateWindowPoSt(context.TODO(), mid, sealedSectors, challenge[:])
 			if err != nil {
-				return err.Error()
+				return err
 			}
 
 			windowpost1 := time.Now()
@@ -401,7 +369,7 @@ func action(c *cli.Context, i int) string {
 			log.Info("computing window post snark (hot)")
 			wproof2, _, err := sb.GenerateWindowPoSt(context.TODO(), mid, sealedSectors, challenge[:])
 			if err != nil {
-				return err.Error()
+				return err
 			}
 
 			windowpost2 := time.Now()
@@ -414,7 +382,7 @@ func action(c *cli.Context, i int) string {
 			}
 			ok, err = ffiwrapper.ProofVerifier.VerifyWindowPoSt(context.TODO(), wpvi1)
 			if err != nil {
-				return err.Error()
+				return err
 			}
 			if !ok {
 				log.Error("post verification failed")
@@ -430,7 +398,7 @@ func action(c *cli.Context, i int) string {
 			}
 			ok, err = ffiwrapper.ProofVerifier.VerifyWindowPoSt(context.TODO(), wpvi2)
 			if err != nil {
-				return err.Error()
+				return err
 			}
 			if !ok {
 				log.Error("post verification failed")
@@ -450,43 +418,42 @@ func action(c *cli.Context, i int) string {
 			bo.VerifyWindowPostHot = verifyWindowpost2.Sub(verifyWindowpost1)
 		}
 
-		output := strings.Builder{}
 		if c.Bool("json-out") {
 			data, err := json.MarshalIndent(bo, "", "  ")
 			if err != nil {
-				return err.Error()
+				return err
 			}
 
-			output.WriteString(fmt.Sprintln(string(data)))
+			fmt.Println(string(data))
 		} else {
-			output.WriteString(fmt.Sprintf("----\nresults (v27) (%d)\n", sectorSize))
+			fmt.Printf("----\nresults (v27) (%d)\n", sectorSize)
 			if robench == "" {
-				output.WriteString(fmt.Sprintf("seal: addPiece: %s (%s)\n", bo.SealingResults[0].AddPiece, bps(bo.SectorSize, bo.SealingResults[0].AddPiece))) // TODO: average across multiple sealings
-				output.WriteString(fmt.Sprintf("seal: preCommit phase 1: %s (%s)\n", bo.SealingResults[0].PreCommit1, bps(bo.SectorSize, bo.SealingResults[0].PreCommit1)))
-				output.WriteString(fmt.Sprintf("seal: preCommit phase 2: %s (%s)\n", bo.SealingResults[0].PreCommit2, bps(bo.SectorSize, bo.SealingResults[0].PreCommit2)))
-				output.WriteString(fmt.Sprintf("seal: commit phase 1: %s (%s)\n", bo.SealingResults[0].Commit1, bps(bo.SectorSize, bo.SealingResults[0].Commit1)))
-				output.WriteString(fmt.Sprintf("seal: commit phase 2: %s (%s)\n", bo.SealingResults[0].Commit2, bps(bo.SectorSize, bo.SealingResults[0].Commit2)))
-				output.WriteString(fmt.Sprintf("seal: verify: %s\n", bo.SealingResults[0].Verify))
+				fmt.Printf("seal: addPiece: %s (%s)\n", bo.SealingResults[0].AddPiece, bps(bo.SectorSize, bo.SealingResults[0].AddPiece)) // TODO: average across multiple sealings
+				fmt.Printf("seal: preCommit phase 1: %s (%s)\n", bo.SealingResults[0].PreCommit1, bps(bo.SectorSize, bo.SealingResults[0].PreCommit1))
+				fmt.Printf("seal: preCommit phase 2: %s (%s)\n", bo.SealingResults[0].PreCommit2, bps(bo.SectorSize, bo.SealingResults[0].PreCommit2))
+				fmt.Printf("seal: commit phase 1: %s (%s)\n", bo.SealingResults[0].Commit1, bps(bo.SectorSize, bo.SealingResults[0].Commit1))
+				fmt.Printf("seal: commit phase 2: %s (%s)\n", bo.SealingResults[0].Commit2, bps(bo.SectorSize, bo.SealingResults[0].Commit2))
+				fmt.Printf("seal: verify: %s\n", bo.SealingResults[0].Verify)
 				if !c.Bool("skip-unseal") {
-					output.WriteString(fmt.Sprintf("unseal: %s  (%s)\n", bo.SealingResults[0].Unseal, bps(bo.SectorSize, bo.SealingResults[0].Unseal)))
+					fmt.Printf("unseal: %s  (%s)\n", bo.SealingResults[0].Unseal, bps(bo.SectorSize, bo.SealingResults[0].Unseal))
 				}
-				output.WriteString(fmt.Sprintln(""))
+				fmt.Println("")
 			}
 			if !c.Bool("skip-commit2") {
-				output.WriteString(fmt.Sprintf("generate candidates: %s (%s)\n", bo.PostGenerateCandidates, bps(bo.SectorSize*abi.SectorSize(len(bo.SealingResults)), bo.PostGenerateCandidates)))
-				output.WriteString(fmt.Sprintf("compute winning post proof (cold): %s\n", bo.PostWinningProofCold))
-				output.WriteString(fmt.Sprintf("compute winning post proof (hot): %s\n", bo.PostWinningProofHot))
-				output.WriteString(fmt.Sprintf("verify winning post proof (cold): %s\n", bo.VerifyWinningPostCold))
-				output.WriteString(fmt.Sprintf("verify winning post proof (hot): %s\n\n", bo.VerifyWinningPostHot))
+				fmt.Printf("generate candidates: %s (%s)\n", bo.PostGenerateCandidates, bps(bo.SectorSize*abi.SectorSize(len(bo.SealingResults)), bo.PostGenerateCandidates))
+				fmt.Printf("compute winning post proof (cold): %s\n", bo.PostWinningProofCold)
+				fmt.Printf("compute winning post proof (hot): %s\n", bo.PostWinningProofHot)
+				fmt.Printf("verify winning post proof (cold): %s\n", bo.VerifyWinningPostCold)
+				fmt.Printf("verify winning post proof (hot): %s\n\n", bo.VerifyWinningPostHot)
 
-				output.WriteString(fmt.Sprintf("compute window post proof (cold): %s\n", bo.PostWindowProofCold))
-				output.WriteString(fmt.Sprintf("compute window post proof (hot): %s\n", bo.PostWindowProofHot))
-				output.WriteString(fmt.Sprintf("verify window post proof (cold): %s\n", bo.VerifyWindowPostCold))
-				output.WriteString(fmt.Sprintf("verify window post proof (hot): %s\n", bo.VerifyWindowPostHot))
+				fmt.Printf("compute window post proof (cold): %s\n", bo.PostWindowProofCold)
+				fmt.Printf("compute window post proof (hot): %s\n", bo.PostWindowProofHot)
+				fmt.Printf("verify window post proof (cold): %s\n", bo.VerifyWindowPostCold)
+				fmt.Printf("verify window post proof (hot): %s\n", bo.VerifyWindowPostHot)
 			}
 		}
-		return output.String()
-	}()
+		return nil
+	},
 }
 
 type ParCfg struct {
