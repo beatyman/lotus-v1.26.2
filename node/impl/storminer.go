@@ -43,7 +43,9 @@ type StorageMinerAPI struct {
 	StorageMgr      *sectorstorage.Manager `optional:"true"`
 	*stores.Index
 
-	SetAcceptingStorageDealsConfigFunc dtypes.SetAcceptingStorageDealsConfigFunc
+	SetAcceptingStorageDealsConfigFunc        dtypes.SetAcceptingStorageDealsConfigFunc
+	StorageDealPieceCidBlocklistConfigFunc    dtypes.StorageDealPieceCidBlocklistConfigFunc
+	SetStorageDealPieceCidBlocklistConfigFunc dtypes.SetStorageDealPieceCidBlocklistConfigFunc
 }
 
 func (sm *StorageMinerAPI) ServeRemote(w http.ResponseWriter, r *http.Request) {
@@ -172,6 +174,10 @@ func (sm *StorageMinerAPI) SectorsUpdate(ctx context.Context, id abi.SectorNumbe
 	return sm.Miner.ForceSectorState(ctx, id, sealing.SectorState(state))
 }
 
+func (sm *StorageMinerAPI) SectorRemove(ctx context.Context, id abi.SectorNumber) error {
+	return sm.Miner.RemoveSector(ctx, id)
+}
+
 func (sm *StorageMinerAPI) WorkerConnect(ctx context.Context, url string) error {
 	w, err := connectRemoteWorker(ctx, sm, url)
 	if err != nil {
@@ -230,6 +236,14 @@ func (sm *StorageMinerAPI) DealsImportData(ctx context.Context, deal cid.Cid, fn
 	defer fi.Close() //nolint:errcheck
 
 	return sm.StorageProvider.ImportDataForDeal(ctx, deal, fi)
+}
+
+func (sm *StorageMinerAPI) DealsPieceCidBlocklist(ctx context.Context) ([]cid.Cid, error) {
+	return sm.StorageDealPieceCidBlocklistConfigFunc()
+}
+
+func (sm *StorageMinerAPI) DealsSetPieceCidBlocklist(ctx context.Context, cids []cid.Cid) error {
+	return sm.SetStorageDealPieceCidBlocklistConfigFunc(cids)
 }
 
 func (sm *StorageMinerAPI) StorageAddLocal(ctx context.Context, path string) error {

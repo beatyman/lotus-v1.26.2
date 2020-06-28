@@ -28,6 +28,7 @@ cd "$HOME/lotus-stage/"
 cp -f lotus lotus-storage-miner /usr/local/bin
 cp -f lotus-daemon.service /etc/systemd/system/lotus-daemon.service
 cp -f lotus-miner.service /etc/systemd/system/lotus-storage-miner.service
+mkdir -p /var/log/lotus
 
 systemctl daemon-reload
 systemctl restart lotus-daemon

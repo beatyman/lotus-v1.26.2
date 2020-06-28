@@ -210,6 +210,7 @@ type StorageMinerStruct struct {
 		SectorsList   func(context.Context) ([]abi.SectorNumber, error)               `perm:"read"`
 		SectorsRefs   func(context.Context) (map[string][]api.SealedRef, error)       `perm:"read"`
 		SectorsUpdate func(context.Context, abi.SectorNumber, api.SectorState) error  `perm:"write"`
+		SectorRemove  func(context.Context, abi.SectorNumber) error                   `perm:"admin"`
 
 		WorkerConnect func(context.Context, string) error                             `perm:"admin"` // TODO: worker perm
 		WorkerStats   func(context.Context) (map[uint64]storiface.WorkerStats, error) `perm:"admin"`
@@ -230,6 +231,8 @@ type StorageMinerStruct struct {
 		DealsImportData               func(ctx context.Context, dealPropCid cid.Cid, file string) error `perm:"write"`
 		DealsList                     func(ctx context.Context) ([]storagemarket.StorageDeal, error)    `perm:"read"`
 		DealsSetAcceptingStorageDeals func(context.Context, bool) error                                 `perm:"admin"`
+		DealsPieceCidBlocklist        func(context.Context) ([]cid.Cid, error)                          `perm:"admin"`
+		DealsSetPieceCidBlocklist     func(context.Context, []cid.Cid) error                            `perm:"read"`
 
 		StorageAddLocal func(ctx context.Context, path string) error `perm:"admin"`
 
@@ -271,12 +274,14 @@ type WorkerStruct struct {
 		Paths     func(context.Context) ([]stores.StoragePath, error)            `perm:"admin"`
 		Info      func(context.Context) (storiface.WorkerInfo, error)            `perm:"admin"`
 
-		SealPreCommit1 func(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (storage.PreCommit1Out, error)                                                           `perm:"admin"`
-		SealPreCommit2 func(context.Context, abi.SectorID, storage.PreCommit1Out) (cids storage.SectorCids, err error)                                                                                            `perm:"admin"`
-		SealCommit1    func(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) `perm:"admin"`
-		SealCommit2    func(context.Context, abi.SectorID, storage.Commit1Out) (storage.Proof, error)                                                                                                             `perm:"admin"`
-		FinalizeSector func(context.Context, abi.SectorID) error                                                                                                                                                  `perm:"admin"`
-		MoveStorage    func(ctx context.Context, sector abi.SectorID) error                                                                                                                                       `perm:"admin"`
+		SealPreCommit1  func(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (storage.PreCommit1Out, error)                                                           `perm:"admin"`
+		SealPreCommit2  func(context.Context, abi.SectorID, storage.PreCommit1Out) (cids storage.SectorCids, err error)                                                                                            `perm:"admin"`
+		SealCommit1     func(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) `perm:"admin"`
+		SealCommit2     func(context.Context, abi.SectorID, storage.Commit1Out) (storage.Proof, error)                                                                                                             `perm:"admin"`
+		FinalizeSector  func(context.Context, abi.SectorID, []storage.Range) error                                                                                                                                 `perm:"admin"`
+		ReleaseUnsealed func(ctx context.Context, sector abi.SectorID, safeToFree []storage.Range) error                                                                                                           `perm:"admin"`
+		Remove          func(ctx context.Context, sector abi.SectorID) error                                                                                                                                       `perm:"admin"`
+		MoveStorage     func(ctx context.Context, sector abi.SectorID) error                                                                                                                                       `perm:"admin"`
 
 		UnsealPiece func(context.Context, abi.SectorID, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) error `perm:"admin"`
 		ReadPiece   func(context.Context, io.Writer, abi.SectorID, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize) error                   `perm:"admin"`
@@ -816,6 +821,10 @@ func (c *StorageMinerStruct) SectorsUpdate(ctx context.Context, id abi.SectorNum
 	return c.Internal.SectorsUpdate(ctx, id, state)
 }
 
+func (c *StorageMinerStruct) SectorRemove(ctx context.Context, number abi.SectorNumber) error {
+	return c.Internal.SectorRemove(ctx, number)
+}
+
 func (c *StorageMinerStruct) WorkerConnect(ctx context.Context, url string) error {
 	return c.Internal.WorkerConnect(ctx, url)
 }
@@ -904,6 +913,14 @@ func (c *StorageMinerStruct) DealsSetAcceptingStorageDeals(ctx context.Context, 
 	return c.Internal.DealsSetAcceptingStorageDeals(ctx, b)
 }
 
+func (c *StorageMinerStruct) DealsPieceCidBlocklist(ctx context.Context) ([]cid.Cid, error) {
+	return c.Internal.DealsPieceCidBlocklist(ctx)
+}
+
+func (c *StorageMinerStruct) DealsSetPieceCidBlocklist(ctx context.Context, cids []cid.Cid) error {
+	return c.Internal.DealsSetPieceCidBlocklist(ctx, cids)
+}
+
 func (c *StorageMinerStruct) StorageAddLocal(ctx context.Context, path string) error {
 	return c.Internal.StorageAddLocal(ctx, path)
 }
@@ -942,8 +959,16 @@ func (w *WorkerStruct) SealCommit2(ctx context.Context, sector abi.SectorID, c1o
 	return w.Internal.SealCommit2(ctx, sector, c1o)
 }
 
-func (w *WorkerStruct) FinalizeSector(ctx context.Context, sector abi.SectorID) error {
-	return w.Internal.FinalizeSector(ctx, sector)
+func (w *WorkerStruct) FinalizeSector(ctx context.Context, sector abi.SectorID, keepUnsealed []storage.Range) error {
+	return w.Internal.FinalizeSector(ctx, sector, keepUnsealed)
+}
+
+func (w *WorkerStruct) ReleaseUnsealed(ctx context.Context, sector abi.SectorID, safeToFree []storage.Range) error {
+	return w.Internal.ReleaseUnsealed(ctx, sector, safeToFree)
+}
+
+func (w *WorkerStruct) Remove(ctx context.Context, sector abi.SectorID) error {
+	return w.Internal.Remove(ctx, sector)
 }
 
 func (w *WorkerStruct) MoveStorage(ctx context.Context, sector abi.SectorID) error {

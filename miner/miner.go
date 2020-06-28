@@ -182,8 +182,9 @@ func (m *Miner) mine(ctx context.Context) {
 			now := time.Now()
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			if int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay > now.Unix() {
-				delay := time.Unix(int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay, 0).Sub(now)
-				log.Infof("Syncing heaviest tipset with PropagationDelay time:%s", delay)
+				// make 1 second more then delay for does not appear to be best tipset.
+				delay := time.Unix(int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay+1, 0).Sub(now)
+				log.Infof("Waiting PropagationDelay time: %s", delay)
 				time.Sleep(delay)
 			}
 			base, err = m.GetBestMiningCandidate(ctx)
@@ -303,6 +304,12 @@ func (m *Miner) hasPower(ctx context.Context, addr address.Address, ts *types.Ti
 	return mpower.MinerPower.QualityAdjPower.GreaterThanEqual(power.ConsensusMinerMinPower), nil
 }
 
+// mineOne mines a single block, and does so synchronously, if and only if we
+// have won the current round.
+//
+// {hint/landmark}: This method coordinates all the steps involved in mining a
+// block, including the condition of whether mine or not at all depending on
+// whether we win the round or not.
 func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, pending []*types.SignedMessage) (*types.BlockMsg, error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := time.Now()
