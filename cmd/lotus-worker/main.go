@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -34,11 +35,6 @@ import (
 )
 
 var log = logging.Logger("main")
-
-const (
-	workers   = 1 // TODO: Configurability
-	transfers = 1
-)
 
 var (
 	nodeApi    api.StorageMiner
@@ -83,13 +79,13 @@ func GetNodeApi() (api.StorageMiner, error) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
 
+	if nodeApi != nil {
+		return nodeApi, nil
+	}
+
 	ctx := lcli.ReqContext(nodeCCtx)
 	if nodeCCtx == nil {
 		panic("need init node cctx")
-	}
-
-	if nodeApi != nil {
-		return nodeApi, nil
 	}
 
 	nApi, closer, err := lcli.GetStorageMinerAPI(nodeCCtx)
@@ -111,6 +107,14 @@ func GetNodeApi() (api.StorageMiner, error) {
 	}
 
 	return nodeApi, nil
+}
+
+func AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
+	nApi, err := GetNodeApi()
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	return nApi.AuthVerify(ctx, token)
 }
 
 func main() {
@@ -288,7 +292,7 @@ var runCmd = &cli.Command{
 		log.Info("repo:", r)
 		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: r}).FileHttpServer)
 		ah := &auth.Handler{
-			Verify: nodeApi.AuthVerify,
+			Verify: AuthVerify,
 			Next:   mux.ServeHTTP,
 		}
 		srv := &http.Server{Handler: ah}
@@ -337,6 +341,7 @@ var runCmd = &cli.Command{
 				time.Sleep(3 * 1e9) // wait 3 seconds to reconnect.
 			}
 		}
+
 		return nil
 	},
 }

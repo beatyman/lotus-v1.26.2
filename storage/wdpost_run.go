@@ -160,6 +160,10 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, deadline 
 	if aerr != nil {
 		return xerrors.Errorf("could not serialize declare recoveries parameters: %w", aerr)
 	}
+	if s.noSubmit {
+		log.Info("noSubmit for DeclareFaultsRecovered")
+		return nil
+	}
 
 	msg := &types.Message{
 		To:       s.actor,
@@ -186,6 +190,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, deadline 
 	if rec.Receipt.ExitCode != 0 {
 		return xerrors.Errorf("declare faults recovered wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
+	log.Infow("declare faults recovered done", "cid", sm.Cid())
 
 	return nil
 }
@@ -238,6 +243,10 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, deadline uint
 	enc, aerr := actors.SerializeParams(params)
 	if aerr != nil {
 		return xerrors.Errorf("could not serialize declare faults parameters: %w", aerr)
+	}
+	if s.noSubmit {
+		log.Info("noSubmit for DeclareFaults")
+		return nil
 	}
 
 	msg := &types.Message{
@@ -385,17 +394,14 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		return nil, xerrors.Errorf("get need prove sectors: %w", err)
 	}
 
-	var skipped *abi.BitField
-	{
-		good, err := s.checkSectors(ctx, nps)
-		if err != nil {
-			return nil, xerrors.Errorf("checking sectors to skip: %w", err)
-		}
+	good, err := s.checkSectors(ctx, nps)
+	if err != nil {
+		return nil, xerrors.Errorf("checking sectors to skip: %w", err)
+	}
 
-		skipped, err = bitfield.SubtractBitField(nps, good)
-		if err != nil {
-			return nil, xerrors.Errorf("nps - good: %w", err)
-		}
+	skipped, err := bitfield.SubtractBitField(nps, good)
+	if err != nil {
+		return nil, xerrors.Errorf("nps - good: %w", err)
 	}
 
 	skipCount, err := skipped.Count()
@@ -403,7 +409,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		return nil, xerrors.Errorf("getting skipped sector count: %w", err)
 	}
 
-	ssi, err := s.sortedSectorInfo(ctx, nps, ts)
+	ssi, err := s.sortedSectorInfo(ctx, good, ts)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sorted sector info: %w", err)
 	}
@@ -486,6 +492,11 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	enc, aerr := actors.SerializeParams(proof)
 	if aerr != nil {
 		return xerrors.Errorf("could not serialize submit post parameters: %w", aerr)
+	}
+
+	if s.noSubmit {
+		log.Info("noSubmit for SubmitWindowedPoSt")
+		return nil
 	}
 
 	msg := &types.Message{
