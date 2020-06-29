@@ -190,7 +190,7 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 	head := cs.GetHeaviestTipSet()
 	cs.pubLk.Unlock()
 
-	out := make(chan []*api.HeadChange, 16)
+	out := make(chan []*api.HeadChange, 1600)
 	out <- []*api.HeadChange{{
 		Type: HCCurrent,
 		Val:  head,
