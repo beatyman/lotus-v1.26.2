@@ -572,7 +572,7 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 
 		minGas := vm.PricelistByEpoch(ts.Height()).OnChainMessage(msg.ChainLength()) // TODO: really should be doing just msg.ChainLength() but the sync side of this code doesnt seem to have access to that
 		if err := msg.VMMessage().ValidForBlockInclusion(minGas.Total()); err != nil {
-			log.Infof("invalid message in message pool: %s", err)
+			//log.Infof("invalid message in message pool: %s", err)
 			mpool.Remove(ctx, msg)
 			continue
 		}
@@ -581,13 +581,13 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 
 		// TODO: this should be in some more general 'validate message' call
 		if msg.Message.GasLimit > build.BlockGasLimit {
-			log.Warnf("message in mempool had too high of a gas limit (%d)", msg.Message.GasLimit)
+			//log.Warnf("message in mempool had too high of a gas limit (%d)", msg.Message.GasLimit)
 			mpool.Remove(ctx, msg)
 			continue
 		}
 
 		if msg.Message.To == address.Undef {
-			log.Warnf("message in mempool had bad 'To' address")
+			//log.Warnf("message in mempool had bad 'To' address")
 			mpool.Remove(ctx, msg)
 			continue
 		}
@@ -598,7 +598,7 @@ func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool
 		if _, ok := inclNonces[from]; !ok {
 			act, err := al(ctx, from, ts.Key())
 			if err != nil {
-				log.Warnf("failed to check message sender balance, skipping message: %+v", err)
+				//log.Warnf("failed to check message sender balance, skipping message: %+v", err)
 				mpool.Remove(ctx, msg)
 				continue
 			}
