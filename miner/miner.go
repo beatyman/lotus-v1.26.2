@@ -279,12 +279,12 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 
 		btsw, err := m.api.ChainTipSetWeight(ctx, bts.Key())
 		if err != nil {
-			m.lastWorker = nil
+			m.lastWork = nil
 			return nil, err
 		}
 		ltsw, err := m.api.ChainTipSetWeight(ctx, m.lastWork.TipSet.Key())
 		if err != nil {
-			m.lastWorker = nil
+			m.lastWork = nil
 			return nil, err
 		}
 
