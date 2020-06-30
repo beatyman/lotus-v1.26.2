@@ -138,7 +138,7 @@ func (m *Miner) mine(ctx context.Context) {
 		prebase, err := m.GetBestMiningCandidate(ctx)
 		if err != nil {
 			log.Errorf("failed to get best mining candidate: %s", err)
-			m.niceSleep(time.Second * 5)
+			m.niceSleep(time.Second * 1)
 			continue
 		}
 
@@ -183,7 +183,7 @@ func (m *Miner) mine(ctx context.Context) {
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			if int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay > now.Unix() {
 				// make 1 second more then delay for does not appear to be best tipset.
-				delay := time.Unix(int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay+1, 0).Sub(now)
+				delay := time.Unix(int64(prebase.TipSet.MinTimestamp())+build.PropagationDelay+4, 0).Sub(now)
 				log.Infof("Waiting PropagationDelay time: %s", delay)
 				time.Sleep(delay)
 			}
