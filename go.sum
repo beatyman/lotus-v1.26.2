@@ -48,12 +48,16 @@ git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200624112328-e147
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200624112328-e147c9e05ae7/go.mod h1:pGB4OweagMZWyfDfDtq/0TooKfg1wKXNoZGQCNz+0YY=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200701033530-24cba5bf4deb h1:imMgBQcwZpmDykwYbKjnmL+jb1ACioOsV7qdFlhQXY8=
 git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200701033530-24cba5bf4deb/go.mod h1:pGB4OweagMZWyfDfDtq/0TooKfg1wKXNoZGQCNz+0YY=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200701080037-acd36dd7dcf5 h1:Kff12eR+qJEVzBkyS/mlk5DcqD3tWJSraMOVCfpCjb8=
+git.grandhelmsman.com/filecoin-project/sector-storage v0.0.0-20200701080037-acd36dd7dcf5/go.mod h1:Zk1rU57sEmh1sYPMKs7XBvRhbKzEroS23m0sM22D0Bs=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200616003620-c170ea5b3c13 h1:3DQuy6JB27rv9TQkEBYMQzqaKyh/4Yda2MbZ1s/Yb4s=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200616003620-c170ea5b3c13/go.mod h1:ptcB/v0brXDvCykWlHI9ylBKhMYvs+m9D28Y+ezh4dw=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200618150924-710aeebed86c h1:KkqVJvshmmeIYeWE5OX9YfLvYmElT5BwkW/X6bOt/KA=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200618150924-710aeebed86c/go.mod h1:WbMcVl2E1DE63kbdGUsQZRArLVT2E5Zv4QlTRnCWJs8=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200624112847-339c84ad6134 h1:GgD8f5El/rAw57fU+DDDBQx/opUQOKmMLvFjX29EWWM=
 git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200624112847-339c84ad6134/go.mod h1:mIInKt2Q3EXNXE0HVWQAQ+xNclGLXJgsn2ZCHhIyWUo=
+git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200701074740-5642b8a40860 h1:sHrkRY6ekqz0CPIRP5K8COoWsjTbN01goRQVsaKS94U=
+git.grandhelmsman.com/filecoin-project/storage-fsm v0.0.0-20200701074740-5642b8a40860/go.mod h1:kJ/lY9Uzqg/5VuUrlI/qVWvYNxternA47djy6kcHqxU=
 github.com/AndreasBriese/bbloom v0.0.0-20180913140656-343706a395b7/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
 github.com/AndreasBriese/bbloom v0.0.0-20190306092124-e2d15f34fcf9/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
@@ -280,6 +284,7 @@ github.com/filecoin-project/sector-storage v0.0.0-20200626110003-76ce3b9d9496/go
 github.com/filecoin-project/specs-actors v0.0.0-20200210130641-2d1fbd8672cf/go.mod h1:xtDZUB6pe4Pksa/bAJbJ693OilaC5Wbot9jMhLm3cZA=
 github.com/filecoin-project/specs-actors v0.3.0/go.mod h1:nQYnFbQ7Y0bHZyq6HDEuVlCPR+U3z5Q3wMOQ+2aiV+Y=
 github.com/filecoin-project/specs-actors v0.6.0/go.mod h1:dRdy3cURykh2R8O/DKqy8olScl70rmIS7GrB4hB1IDY=
+github.com/filecoin-project/specs-actors v0.6.1/go.mod h1:dRdy3cURykh2R8O/DKqy8olScl70rmIS7GrB4hB1IDY=
 github.com/filecoin-project/specs-actors v0.7.0 h1:tldjW8pFiJcMtyGPsXmPoFdbN/18mKW3BpEMlO4NJAc=
 github.com/filecoin-project/specs-actors v0.7.0/go.mod h1:+z0htZu/wLBDbOLcQTKKUEC2rkUTFzL2KJ/bRAVWkws=
 github.com/filecoin-project/specs-actors v0.7.1-0.20200629045128-8b4965e097bb h1:09FJswK8kHQSJtVD49ZjwePjoS4wGrqR/Y+tl7TN10w=
