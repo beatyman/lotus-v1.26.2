@@ -190,7 +190,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, deadline 
 	if rec.Receipt.ExitCode != 0 {
 		return xerrors.Errorf("declare faults recovered wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
-	log.Infow("declare faults recovered done", "cid", sm.Cid())
+	log.Infow("declare faults recovered exit 0", "cid", sm.Cid())
 
 	return nil
 }
@@ -274,7 +274,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, deadline uint
 	if rec.Receipt.ExitCode != 0 {
 		return xerrors.Errorf("declare faults wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
-	log.Info("declare faults recovered exit 0")
+	log.Infow("declare faults recovered exit 0","cid",sm.Cid())
 
 	return nil
 }
@@ -443,9 +443,6 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	postOut, postSkipped, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), ssi, abi.PoStRandomness(rand))
 	if err != nil {
 		return nil, xerrors.Errorf("running post failed: %w", err)
-	}
-	if len(postSkipped) > 0 {
-		log.Warn("skip sectors:", postSkipped)
 	}
 
 	if len(postOut) == 0 {

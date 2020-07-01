@@ -11,6 +11,7 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
+	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -32,10 +33,10 @@ var log = logging.Logger("miner")
 type waitFunc func(ctx context.Context, baseTime uint64) (func(bool), error)
 
 func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address) *Miner {
-	//arc, err := lru.NewARC(10000)
-	//if err != nil {
-	//	panic(err)
-	//}
+	arc, err := lru.NewARC(10000)
+	if err != nil {
+		panic(err)
+	}
 
 	return &Miner{
 		api:     api,
@@ -48,7 +49,7 @@ func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address)
 
 			return func(bool) {}, nil
 		},
-		//minedBlockHeights: arc,
+		minedBlockHeights: arc,
 	}
 }
 
@@ -66,7 +67,7 @@ type Miner struct {
 
 	lastWork *MiningBase
 
-	//minedBlockHeights *lru.ARCCache
+	minedBlockHeights *lru.ARCCache
 }
 
 func (m *Miner) Address() address.Address {
@@ -170,18 +171,17 @@ func (m *Miner) mine(ctx context.Context) {
 
 			// pre pending
 			log.Infof("prepending all msgs len:%d", len(pending))
-			if _, err := SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending}); err != nil{
+			if _, err := SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending}); err != nil {
 				log.Warn(xerrors.Errorf("message filtering failed: %w", err))
 				continue
 			}
 
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			now := time.Now()
-			delay := now.Sub(nextRound)
-			if delay>(build.PropagationDelay*time.Second) {
-				// make 1 second more then delay for does not appear to be best tipset.
-				log.Infof("Waiting PropagationDelay time: %s", delay)
-				time.Sleep(delay)
+			delay := (build.PropagationDelay * time.Second) - now.Sub(nextRound)
+			log.Infof("Waiting PropagationDelay time: %s", delay)
+			if delay > 0 && now.Sub(nextRound) > 0 {
+				time.Sleep(delay + time.Second)
 			}
 			base, err = m.GetBestMiningCandidate(ctx)
 			if err != nil {
@@ -224,16 +224,16 @@ func (m *Miner) mine(ctx context.Context) {
 					"time", time.Now(), "duration", time.Since(btime))
 			}
 
-			//// TODO: should do better 'anti slash' protection here
-			//blkKey := fmt.Sprintf("%d", b.Header.Height)
-			//if _, ok := m.minedBlockHeights.Get(blkKey); ok {
-			//	log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
-                        //
-			//	// in case for nullRound, it will happend the same block.
-			//	//continue
-			//}
-                        //
-			//m.minedBlockHeights.Add(blkKey, true)
+			// TODO: should do better 'anti slash' protection here
+			blkKey := fmt.Sprintf("%d", b.Header.Height)
+			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
+				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
+
+				// in case for nullRound, it will happend the same block.
+				//continue
+			}
+
+			m.minedBlockHeights.Add(blkKey, true)
 			if err := m.api.SyncSubmitBlock(ctx, b); err != nil {
 				log.Errorf("failed to submit newly mined block: %s", err)
 			}
