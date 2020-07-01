@@ -16,7 +16,6 @@ import (
 	"sync"
 
 	cborutil "github.com/filecoin-project/go-cbor-util"
-	"github.com/filecoin-project/go-padreader"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	sealing "github.com/filecoin-project/storage-fsm"
 
@@ -101,24 +100,18 @@ func (st *SectorBlocks) writeRef(dealID abi.DealID, sectorID abi.SectorNumber, o
 	return st.keys.Put(DealIDToDsKey(dealID), newRef) // TODO: batch somehow
 }
 
-func (st *SectorBlocks) AddPiece(ctx context.Context, size abi.UnpaddedPieceSize, r io.Reader, d sealing.DealInfo) (sectorID abi.SectorNumber, err error) {
-	sectorID, pieceOffset, err := st.Miner.AllocatePiece(padreader.PaddedSize(uint64(size)))
+func (st *SectorBlocks) AddPiece(ctx context.Context, size abi.UnpaddedPieceSize, r io.Reader, d sealing.DealInfo) (abi.SectorNumber, error) {
+	sn, offset, err := st.Miner.AddPieceToAnySector(ctx, size, r, d)
 	if err != nil {
 		return 0, err
 	}
 
-	err = st.writeRef(d.DealID, sectorID, pieceOffset, size)
+	err = st.writeRef(d.DealID, sn, offset, size)
 	if err != nil {
-		return 0, err
+		return 0, xerrors.Errorf("writeRef: %w", err)
 	}
-	if err = st.Miner.SealPiece(ctx, size, r, sectorID, d); err == nil {
-		manager := st.Miner.Sealer()
-		taskey := fmt.Sprintf("s-%s-%s_-1", st.Miner.Maddr(), sectorID.String())
-		if err = manager.Prover.(*ffiwrapper.Sealer).LockWorker(ctx, "miner", taskey, "task in", -1); err != nil {
-			log.Warn("LockWorker failure,taskey:", taskey)
-		}
-	}
-	return sectorID, err
+
+	return sn, nil
 }
 
 func (st *SectorBlocks) List() (map[uint64][]api.SealedRef, error) {

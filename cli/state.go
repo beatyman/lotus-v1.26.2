@@ -286,7 +286,7 @@ var stateSectorsCmd = &cli.Command{
 		}
 
 		for _, s := range sectors {
-			fmt.Printf("%d: %x\n", s.Info.Info.SectorNumber, s.Info.Info.SealedCID)
+			fmt.Printf("%d: %x\n", s.Info.SectorNumber, s.Info.SealedCID)
 		}
 
 		return nil
@@ -326,7 +326,7 @@ var stateProvingSetCmd = &cli.Command{
 		}
 
 		for _, s := range sectors {
-			fmt.Printf("%d: %x\n", s.Info.Info.SectorNumber, s.Info.Info.SealedCID)
+			fmt.Printf("%d: %x\n", s.Info.SectorNumber, s.Info.SealedCID)
 		}
 
 		return nil
@@ -742,12 +742,7 @@ var stateReadStateCmd = &cli.Command{
 			return err
 		}
 
-		act, err := api.StateGetActor(ctx, addr, ts.Key())
-		if err != nil {
-			return err
-		}
-
-		as, err := api.StateReadState(ctx, act, ts.Key())
+		as, err := api.StateReadState(ctx, addr, ts.Key())
 		if err != nil {
 			return err
 		}

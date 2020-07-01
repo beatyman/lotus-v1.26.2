@@ -38,6 +38,9 @@ type StorageMiner interface {
 
 	SectorsRefs(context.Context) (map[string][]SealedRef, error)
 
+	// SectorStartSealing can be called on sectors in Empty on WaitDeals states
+	// to trigger sealing early
+	SectorStartSealing(context.Context, abi.SectorNumber) error
 	SectorsUpdate(context.Context, abi.SectorNumber, SectorState) error
 	SectorRemove(context.Context, abi.SectorNumber) error
 
@@ -60,6 +63,7 @@ type StorageMiner interface {
 	DealsImportData(ctx context.Context, dealPropCid cid.Cid, file string) error
 	DealsList(ctx context.Context) ([]storagemarket.StorageDeal, error)
 	DealsSetAcceptingStorageDeals(context.Context, bool) error
+	DealsSetAcceptingRetrievalDeals(context.Context, bool) error
 	DealsPieceCidBlocklist(context.Context) ([]cid.Cid, error)
 	DealsSetPieceCidBlocklist(context.Context, []cid.Cid) error
 
