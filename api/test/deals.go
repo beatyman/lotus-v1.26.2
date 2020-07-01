@@ -8,11 +8,13 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/ipfs/go-cid"
+	"github.com/stretchr/testify/require"
 
+	"github.com/ipfs/go-cid"
 	files "github.com/ipfs/go-ipfs-files"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipld/go-car"
@@ -20,6 +22,7 @@ import (
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	sealing "github.com/filecoin-project/storage-fsm"
 	dag "github.com/ipfs/go-merkledag"
 	dstest "github.com/ipfs/go-merkledag/test"
 	unixfile "github.com/ipfs/go-unixfs/file"
@@ -52,11 +55,11 @@ func TestDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration, carExport
 	}
 	time.Sleep(time.Second)
 
-	mine := true
+	mine := int64(1)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		for mine {
+		for atomic.LoadInt64(&mine) == 1 {
 			time.Sleep(blocktime)
 			if err := sn[0].MineOne(ctx, func(bool) {}); err != nil {
 				t.Error(err)
@@ -66,7 +69,7 @@ func TestDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration, carExport
 
 	makeDeal(t, ctx, 6, client, miner, carExport)
 
-	mine = false
+	atomic.AddInt64(&mine, -1)
 	fmt.Println("shutting down mining")
 	<-done
 }
@@ -89,12 +92,12 @@ func TestDoubleDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration) {
 	}
 	time.Sleep(time.Second)
 
-	mine := true
+	mine := int64(1)
 	done := make(chan struct{})
 
 	go func() {
 		defer close(done)
-		for mine {
+		for atomic.LoadInt64(&mine) == 1 {
 			time.Sleep(blocktime)
 			if err := sn[0].MineOne(ctx, func(bool) {}); err != nil {
 				t.Error(err)
@@ -105,7 +108,7 @@ func TestDoubleDealFlow(t *testing.T, b APIBuilder, blocktime time.Duration) {
 	makeDeal(t, ctx, 6, client, miner, false)
 	makeDeal(t, ctx, 7, client, miner, false)
 
-	mine = false
+	atomic.AddInt64(&mine, -1)
 	fmt.Println("shutting down mining")
 	<-done
 }
@@ -126,7 +129,7 @@ func makeDeal(t *testing.T, ctx context.Context, rseed int, client *impl.FullNod
 
 	// TODO: this sleep is only necessary because deals don't immediately get logged in the dealstore, we should fix this
 	time.Sleep(time.Second)
-	waitDealSealed(t, ctx, client, deal)
+	waitDealSealed(t, ctx, miner, client, deal)
 
 	// Retrieval
 
@@ -156,7 +159,7 @@ func startDeal(t *testing.T, ctx context.Context, miner TestStorageNode, client 
 	return deal
 }
 
-func waitDealSealed(t *testing.T, ctx context.Context, client *impl.FullNodeAPI, deal *cid.Cid) {
+func waitDealSealed(t *testing.T, ctx context.Context, miner TestStorageNode, client *impl.FullNodeAPI, deal *cid.Cid) {
 loop:
 	for {
 		di, err := client.ClientGetDealInfo(ctx, *deal)
@@ -164,6 +167,8 @@ loop:
 			t.Fatal(err)
 		}
 		switch di.State {
+		case storagemarket.StorageDealSealing:
+			startSealingWaiting(t, ctx, miner)
 		case storagemarket.StorageDealProposalRejected:
 			t.Fatal("deal rejected")
 		case storagemarket.StorageDealFailing:
@@ -176,6 +181,20 @@ loop:
 		}
 		fmt.Println("Deal state: ", storagemarket.DealStates[di.State])
 		time.Sleep(time.Second / 2)
+	}
+}
+
+func startSealingWaiting(t *testing.T, ctx context.Context, miner TestStorageNode) {
+	snums, err := miner.SectorsList(ctx)
+	require.NoError(t, err)
+
+	for _, snum := range snums {
+		si, err := miner.SectorsStatus(ctx, snum)
+		require.NoError(t, err)
+
+		if si.State == api.SectorState(sealing.WaitDeals) {
+			require.NoError(t, miner.SectorStartSealing(ctx, snum))
+		}
 	}
 }
 

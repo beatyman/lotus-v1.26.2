@@ -126,6 +126,7 @@ func TestDealMining(t *testing.T, b APIBuilder, blocktime time.Duration, carExpo
 	minedTwo := make(chan struct{})
 
 	go func() {
+		doneMinedTwo := false
 		defer close(done)
 
 		prevExpect := 0
@@ -153,6 +154,10 @@ func TestDealMining(t *testing.T, b APIBuilder, blocktime time.Duration, carExpo
 			expect += <-wait
 
 			time.Sleep(blocktime)
+			if expect == 0 {
+				// null block
+				continue
+			}
 
 			for {
 				n := 0
@@ -175,9 +180,9 @@ func TestDealMining(t *testing.T, b APIBuilder, blocktime time.Duration, carExpo
 				time.Sleep(blocktime)
 			}
 
-			if prevExpect == 2 && expect == 2 && minedTwo != nil {
+			if prevExpect == 2 && expect == 2 && !doneMinedTwo {
 				close(minedTwo)
-				minedTwo = nil
+				doneMinedTwo = true
 			}
 
 			prevExpect = expect
@@ -189,7 +194,7 @@ func TestDealMining(t *testing.T, b APIBuilder, blocktime time.Duration, carExpo
 	// TODO: this sleep is only necessary because deals don't immediately get logged in the dealstore, we should fix this
 	time.Sleep(time.Second)
 
-	waitDealSealed(t, ctx, client, deal)
+	waitDealSealed(t, ctx, provider, client, deal)
 
 	<-minedTwo
 

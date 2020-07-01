@@ -32,41 +32,6 @@ func (s *WindowPoStScheduler) failPost(deadline *miner.DeadlineInfo) {
 	s.failLk.Unlock()*/
 }
 
-func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context) {
-	log.Info("DEBUG:checkWindowPoStPost")
-	new, err := s.api.ChainHead(ctx)
-	if err != nil {
-		panic(err)
-	}
-
-	//new, err := s.api.ChainGetTipSetByHeight(ctx, 51840, types.EmptyTSK)
-	//if err != nil {
-	//	panic(err)
-	//}
-	deadline, err := s.api.StateMinerProvingDeadline(ctx, s.actor, new.Key())
-	if err != nil {
-		panic(err)
-	}
-	ts := new
-
-	log.Infof("DEBUG:tipset:%d,%d,%+v", new.Height(), ts.Height(), deadline)
-	deadline.Index = 0
-
-	_, err = s.runPost(ctx, *deadline, ts)
-	switch err {
-	case errNoPartitions:
-		log.Info("NoPartitions")
-		return
-	case nil:
-		// no commit
-		log.Info("checking windowpost done")
-		return
-	default:
-		log.Errorf("runPost failed: %+v", err)
-		return
-	}
-}
-
 func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *miner.DeadlineInfo, ts *types.TipSet) {
 	ctx, abort := context.WithCancel(ctx)
 
@@ -135,10 +100,6 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check *abi.BitFi
 
 	log.Warnw("Checked sectors", "checked", len(tocheck), "good", len(sectors))
 
-	if len(sectors) == 0 { // nothing to recover
-		return abi.NewBitField(), nil
-	}
-
 	sbf := bitfield.New()
 	for s := range sectors {
 		(&sbf).Set(uint64(s.Number))
@@ -199,6 +160,10 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, deadline 
 	if aerr != nil {
 		return xerrors.Errorf("could not serialize declare recoveries parameters: %w", aerr)
 	}
+	if s.noSubmit {
+		log.Info("noSubmit for DeclareFaultsRecovered")
+		return nil
+	}
 
 	msg := &types.Message{
 		To:       s.actor,
@@ -225,6 +190,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, deadline 
 	if rec.Receipt.ExitCode != 0 {
 		return xerrors.Errorf("declare faults recovered wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
+	log.Infow("declare faults recovered exit 0", "cid", sm.Cid())
 
 	return nil
 }
@@ -278,6 +244,10 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, deadline uint
 	if aerr != nil {
 		return xerrors.Errorf("could not serialize declare faults parameters: %w", aerr)
 	}
+	if s.noSubmit {
+		log.Info("noSubmit for DeclareFaults")
+		return nil
+	}
 
 	msg := &types.Message{
 		To:       s.actor,
@@ -304,7 +274,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, deadline uint
 	if rec.Receipt.ExitCode != 0 {
 		return xerrors.Errorf("declare faults wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
-	log.Info("declare faults recovered exit 0")
+	log.Infow("declare faults recovered exit 0","cid",sm.Cid())
 
 	return nil
 }
@@ -424,17 +394,14 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		return nil, xerrors.Errorf("get need prove sectors: %w", err)
 	}
 
-	var skipped *abi.BitField
-	{
-		good, err := s.checkSectors(ctx, nps)
-		if err != nil {
-			return nil, xerrors.Errorf("checking sectors to skip: %w", err)
-		}
+	good, err := s.checkSectors(ctx, nps)
+	if err != nil {
+		return nil, xerrors.Errorf("checking sectors to skip: %w", err)
+	}
 
-		skipped, err = bitfield.SubtractBitField(nps, good)
-		if err != nil {
-			return nil, xerrors.Errorf("nps - good: %w", err)
-		}
+	skipped, err := bitfield.SubtractBitField(nps, good)
+	if err != nil {
+		return nil, xerrors.Errorf("nps - good: %w", err)
 	}
 
 	skipCount, err := skipped.Count()
@@ -442,7 +409,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		return nil, xerrors.Errorf("getting skipped sector count: %w", err)
 	}
 
-	ssi, err := s.sortedSectorInfo(ctx, nps, ts)
+	ssi, err := s.sortedSectorInfo(ctx, good, ts)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sorted sector info: %w", err)
 	}
@@ -477,9 +444,6 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	if err != nil {
 		return nil, xerrors.Errorf("running post failed: %w", err)
 	}
-	if len(postSkipped) > 0 {
-		log.Warn("skip sectors:", postSkipped)
-	}
 
 	if len(postOut) == 0 {
 		return nil, xerrors.Errorf("received proofs back from generate window post")
@@ -510,8 +474,8 @@ func (s *WindowPoStScheduler) sortedSectorInfo(ctx context.Context, deadlineSect
 	for k, sector := range sset {
 		sbsi[k] = abi.SectorInfo{
 			SectorNumber: sector.ID,
-			SealedCID:    sector.Info.Info.SealedCID,
-			SealProof:    sector.Info.Info.SealProof,
+			SealedCID:    sector.Info.SealedCID,
+			SealProof:    sector.Info.SealProof,
 		}
 	}
 
@@ -525,6 +489,11 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	enc, aerr := actors.SerializeParams(proof)
 	if aerr != nil {
 		return xerrors.Errorf("could not serialize submit post parameters: %w", aerr)
+	}
+
+	if s.noSubmit {
+		log.Info("noSubmit for SubmitWindowedPoSt")
+		return nil
 	}
 
 	msg := &types.Message{

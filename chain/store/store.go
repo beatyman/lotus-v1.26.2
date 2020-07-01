@@ -48,10 +48,20 @@ import (
 var log = logging.Logger("chainstore")
 
 var chainHeadKey = dstore.NewKey("head")
+var blockValidationCacheKeyPrefix = dstore.NewKey("blockValidation")
 
 // ReorgNotifee represents a callback that gets called upon reorgs.
 type ReorgNotifee func(rev, app []*types.TipSet) error
 
+// ChainStore is the main point of access to chain data.
+//
+// Raw chain data is stored in the Blockstore, with relevant markers (genesis,
+// latest head tipset references) being tracked in the Datastore (key-value
+// store).
+//
+// To alleviate disk access, the ChainStore has two ARC caches:
+//   1. a tipset cache
+//   2. a block => messages references cache.
 type ChainStore struct {
 	bs bstore.Blockstore
 	ds dstore.Datastore
@@ -180,7 +190,7 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 	head := cs.GetHeaviestTipSet()
 	cs.pubLk.Unlock()
 
-	out := make(chan []*api.HeadChange, 16)
+	out := make(chan []*api.HeadChange, 1600)
 	out <- []*api.HeadChange{{
 		Type: HCCurrent,
 		Val:  head,
@@ -217,6 +227,22 @@ func (cs *ChainStore) SubscribeHeadChanges(f ReorgNotifee) {
 	cs.reorgNotifeeCh <- f
 }
 
+func (cs *ChainStore) IsBlockValidated(ctx context.Context, blkid cid.Cid) (bool, error) {
+	key := blockValidationCacheKeyPrefix.Instance(blkid.String())
+
+	return cs.ds.Has(key)
+}
+
+func (cs *ChainStore) MarkBlockAsValidated(ctx context.Context, blkid cid.Cid) error {
+	key := blockValidationCacheKeyPrefix.Instance(blkid.String())
+
+	if err := cs.ds.Put(key, []byte{0}); err != nil {
+		return xerrors.Errorf("cache block validation: %w", err)
+	}
+
+	return nil
+}
+
 func (cs *ChainStore) SetGenesis(b *types.BlockHeader) error {
 	ts, err := types.NewTipSet([]*types.BlockHeader{b})
 	if err != nil {
@@ -249,6 +275,9 @@ func (cs *ChainStore) PutTipSet(ctx context.Context, ts *types.TipSet) error {
 	return nil
 }
 
+// MaybeTakeHeavierTipSet evaluates the incoming tipset and locks it in our
+// internal state as our new head, if and only if it is heavier than the current
+// head.
 func (cs *ChainStore) MaybeTakeHeavierTipSet(ctx context.Context, ts *types.TipSet) error {
 	cs.heaviestLk.Lock()
 	defer cs.heaviestLk.Unlock()
@@ -314,6 +343,9 @@ func (cs *ChainStore) reorgWorker(ctx context.Context, initialNotifees []ReorgNo
 	return out
 }
 
+// takeHeaviestTipSet actually sets the incoming tipset as our head both in
+// memory and in the ChainStore. It also sends a notification to deliver to
+// ReorgNotifees.
 func (cs *ChainStore) takeHeaviestTipSet(ctx context.Context, ts *types.TipSet) error {
 	_, span := trace.StartSpan(ctx, "takeHeaviestTipSet")
 	defer span.End()
@@ -358,6 +390,7 @@ func (cs *ChainStore) SetHead(ts *types.TipSet) error {
 	return cs.takeHeaviestTipSet(context.TODO(), ts)
 }
 
+// Contains returns whether our BlockStore has all blocks in the supplied TipSet.
 func (cs *ChainStore) Contains(ts *types.TipSet) (bool, error) {
 	for _, c := range ts.Cids() {
 		has, err := cs.bs.Has(c)
@@ -372,6 +405,8 @@ func (cs *ChainStore) Contains(ts *types.TipSet) (bool, error) {
 	return true, nil
 }
 
+// GetBlock fetches a BlockHeader with the supplied CID. It returns
+// blockstore.ErrNotFound if the block was not found in the BlockStore.
 func (cs *ChainStore) GetBlock(c cid.Cid) (*types.BlockHeader, error) {
 	sb, err := cs.bs.Get(c)
 	if err != nil {
@@ -464,6 +499,7 @@ func (cs *ChainStore) ReorgOps(a, b *types.TipSet) ([]*types.TipSet, []*types.Ti
 	return leftChain, rightChain, nil
 }
 
+// GetHeaviestTipSet returns the current heaviest tipset known (i.e. our head).
 func (cs *ChainStore) GetHeaviestTipSet() *types.TipSet {
 	cs.heaviestLk.Lock()
 	defer cs.heaviestLk.Unlock()

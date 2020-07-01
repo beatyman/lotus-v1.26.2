@@ -45,6 +45,10 @@ var log = logging.Logger("gen")
 
 const msgsPerBlock = 20
 
+var ValidWpostForTesting = []abi.PoStProof{{
+	ProofBytes: []byte("valid proof"),
+}}
+
 type ChainGen struct {
 	msgsPerBlock int
 
@@ -173,12 +177,12 @@ func NewGeneratorWithSectors(numSectors int) (*ChainGen, error) {
 		Accounts: []genesis.Actor{
 			{
 				Type:    genesis.TAccount,
-				Balance: types.FromFil(40000),
+				Balance: types.FromFil(40_000_000),
 				Meta:    (&genesis.AccountMeta{Owner: mk1}).ActorMeta(),
 			},
 			{
 				Type:    genesis.TAccount,
-				Balance: types.FromFil(40000),
+				Balance: types.FromFil(40_000_000),
 				Meta:    (&genesis.AccountMeta{Owner: mk2}).ActorMeta(),
 			},
 			{
@@ -533,9 +537,7 @@ func (wpp *wppProvider) GenerateCandidates(ctx context.Context, _ abi.PoStRandom
 }
 
 func (wpp *wppProvider) ComputeProof(context.Context, []abi.SectorInfo, abi.PoStRandomness) ([]abi.PoStProof, error) {
-	return []abi.PoStProof{{
-		ProofBytes: []byte("valid proof"),
-	}}, nil
+	return ValidWpostForTesting, nil
 }
 
 func IsRoundWinner(ctx context.Context, ts *types.TipSet, round abi.ChainEpoch,
@@ -556,12 +558,14 @@ func IsRoundWinner(ctx context.Context, ts *types.TipSet, round abi.ChainEpoch,
 		return nil, xerrors.Errorf("failed to compute VRF: %w", err)
 	}
 
-	// TODO: wire in real power
-	if !types.IsTicketWinner(vrfout, mbi.MinerPower, mbi.NetworkPower) {
+	ep := &types.ElectionProof{VRFProof: vrfout}
+	j := ep.ComputeWinCount(mbi.MinerPower, mbi.NetworkPower)
+	ep.WinCount = j
+	if j < 1 {
 		return nil, nil
 	}
 
-	return &types.ElectionProof{VRFProof: vrfout}, nil
+	return ep, nil
 }
 
 type SignFunc func(context.Context, address.Address, []byte) (*crypto.Signature, error)

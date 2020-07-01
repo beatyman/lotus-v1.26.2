@@ -11,6 +11,10 @@ import (
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 )
 
+func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
+	return sm.Miner.Testing(ctx, fnName, args)
+}
+
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
 	return sm.Miner.RunPledgeSector()
 }
