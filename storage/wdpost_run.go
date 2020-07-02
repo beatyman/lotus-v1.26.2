@@ -161,7 +161,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, deadline 
 		return xerrors.Errorf("could not serialize declare recoveries parameters: %w", aerr)
 	}
 	if s.noSubmit {
-		log.Info("noSubmit for DeclareFaultsRecovered")
+		log.Infow("noSubmit for DeclareFaultsRecovered", "deadline", deadline)
 		return nil
 	}
 
@@ -180,7 +180,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, deadline 
 		return xerrors.Errorf("pushing message to mpool: %w", err)
 	}
 
-	log.Warnw("declare faults recovered Message CID", "cid", sm.Cid())
+	log.Warnw("declare faults recovered Message CID", "deadline", deadline, "cid", sm.Cid())
 
 	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
 	if err != nil {
@@ -190,7 +190,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, deadline 
 	if rec.Receipt.ExitCode != 0 {
 		return xerrors.Errorf("declare faults recovered wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
-	log.Infow("declare faults recovered exit 0", "cid", sm.Cid())
+	log.Infow("declare faults recovered exit 0", "deadline", deadline, "cid", sm.Cid())
 
 	return nil
 }
@@ -229,7 +229,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, deadline uint
 		return nil
 	}
 
-	log.Errorw("DETECTED FAULTY SECTORS, declaring faults", "count", c)
+	log.Errorw("DETECTED FAULTY SECTORS, declaring faults", "count", c, "deadline", deadline)
 
 	params := &miner.DeclareFaultsParams{
 		Faults: []miner.FaultDeclaration{
@@ -245,7 +245,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, deadline uint
 		return xerrors.Errorf("could not serialize declare faults parameters: %w", aerr)
 	}
 	if s.noSubmit {
-		log.Info("noSubmit for DeclareFaults")
+		log.Infow("noSubmit for DeclareFaults", "deadline", deadline)
 		return nil
 	}
 
@@ -264,7 +264,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, deadline uint
 		return xerrors.Errorf("pushing message to mpool: %w", err)
 	}
 
-	log.Warnw("declare faults Message CID", "cid", sm.Cid())
+	log.Warnw("declare faults Message CID", "deadline", deadline, "cid", sm.Cid())
 
 	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
 	if err != nil {
@@ -274,7 +274,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, deadline uint
 	if rec.Receipt.ExitCode != 0 {
 		return xerrors.Errorf("declare faults wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
-	log.Infow("declare faults recovered exit 0","cid",sm.Cid())
+	log.Infow("declare faults recovered exit 0", "deadline", deadline, "cid", sm.Cid())
 
 	return nil
 }
@@ -454,7 +454,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	}
 
 	elapsed := time.Since(tsStart)
-	log.Infow("submitting window PoSt", "elapsed", elapsed)
+	log.Infow("submitting window PoSt", "deadline", di.Index, "elapsed", elapsed)
 
 	return &miner.SubmitWindowedPoStParams{
 		Deadline:   di.Index,
