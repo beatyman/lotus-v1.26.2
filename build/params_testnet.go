@@ -1,6 +1,7 @@
 // +build !debug
 // +build !2k
 // +build !hlm
+// +build !testground
 
 package build
 
@@ -20,7 +21,6 @@ func init() {
 	}
 }
 
-// Seconds
-const BlockDelay = builtin.EpochDurationSeconds
+const BlockDelaySecs = uint64(builtin.EpochDurationSeconds)
 
-const PropagationDelay = 6
+const PropagationDelaySecs = uint64(6)
