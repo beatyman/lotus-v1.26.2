@@ -99,8 +99,7 @@ loop:
 		case task := <-tasks:
 			if task.SectorID.Miner == 0 {
 				// connection is down.
-				ReleaseNodeApi(false)
-				return errors.New("Error miner id").As(task)
+				return errors.New("server shutdown").As(task)
 			}
 
 			log.Infof("New task: %s, sector %s, action: %d", task.Key(), task.GetSectorID(), task.Type)

@@ -80,6 +80,7 @@ func nextRoundTime(ts *types.TipSet) time.Time {
 }
 
 func (s *WindowPoStScheduler) Run(ctx context.Context) {
+	defer s.abortActivePoSt()
 	var lastTs types.TipSet
 	for {
 		bts, err := s.api.ChainHead(ctx)

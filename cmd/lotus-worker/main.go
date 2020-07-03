@@ -227,7 +227,9 @@ var runCmd = &cli.Command{
 			return err
 		}
 
-		ctx := lcli.ReqContext(nodeCCtx)
+		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
+		defer cancel()
+
 		act, err := nodeApi.ActorAddress(ctx)
 		if err != nil {
 			return err
@@ -337,6 +339,10 @@ var runCmd = &cli.Command{
 				} else {
 					ReleaseNodeApi(false)
 					log.Warn(err)
+
+					// reset ctx
+					cancel()
+					ctx, cancel = context.WithCancel(lcli.ReqContext(nodeCCtx))
 				}
 				time.Sleep(3 * 1e9) // wait 3 seconds to reconnect.
 			}
