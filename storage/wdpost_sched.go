@@ -38,7 +38,8 @@ type WindowPoStScheduler struct {
 	// if a post is in progress, this indicates for which ElectionPeriodStart
 	activeDeadline *miner.DeadlineInfo
 	abort          context.CancelFunc
-	noSubmit       bool
+
+	noSubmit bool
 
 	//failed abi.ChainEpoch // eps
 	//failLk sync.Mutex
@@ -81,7 +82,7 @@ func nextRoundTime(ts *types.TipSet) time.Time {
 
 func (s *WindowPoStScheduler) Run(ctx context.Context) {
 	defer s.abortActivePoSt()
-	var lastTs types.TipSet
+	var lastTsHeight abi.ChainEpoch
 	for {
 		bts, err := s.api.ChainHead(ctx)
 		if err != nil {
@@ -89,8 +90,9 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 			time.Sleep(time.Second)
 			continue
 		}
-		if !bts.Equals(&lastTs) {
-			lastTs = *bts
+		if bts.Height() != lastTsHeight {
+			log.Infof("Checking window post at:%d", bts.Height())
+			lastTsHeight = bts.Height()
 			if err := s.update(ctx, bts); err != nil {
 				log.Error(errors.As(err))
 			}
@@ -204,24 +206,10 @@ func (s *WindowPoStScheduler) revert(ctx context.Context, newLowest *types.TipSe
 	return nil
 }
 
-var (
-	doPoStSync = sync.Mutex{}
-	doPoStDone = false
-)
-
 func (s *WindowPoStScheduler) update(ctx context.Context, new *types.TipSet) error {
 	if new == nil {
 		return xerrors.Errorf("no new tipset in WindowPoStScheduler.update")
 	}
-
-	// TODO: remove this when offical fixed.
-	//doPoStSync.Lock()
-	//if !doPoStDone {
-	//	doPoStDone = true
-	//	doPoStSync.Unlock()
-	//
-	//	s.checkWindowPoSt(ctx)
-	//}
 
 	di, err := s.api.StateMinerProvingDeadline(ctx, s.actor, new.Key())
 	if err != nil {
@@ -235,6 +223,7 @@ func (s *WindowPoStScheduler) update(ctx context.Context, new *types.TipSet) err
 	if !di.PeriodStarted() {
 		return nil // not proving anything yet
 	}
+	// TODO: confirm that has proven
 
 	s.abortActivePoSt()
 
