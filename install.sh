@@ -4,6 +4,7 @@ install_path=$HOME/hlm-miner/apps/lotus;
 if [ ! -z "$FILECOIN_BIN"]; then
     install_path=$FILECOIN_BIN
 fi
+mkdir -p $install_path
 
 echo "make "$1
 case $1 in
