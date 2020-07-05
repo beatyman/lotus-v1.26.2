@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"go.opencensus.io/trace"
