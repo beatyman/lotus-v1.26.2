@@ -38,6 +38,10 @@ https://github.com/filecoin-project/research/issues?q=snark
 zcash
 https://z.cash/technology/jubjub/
 
+NSE(缺算法详情)
+https://github.com/filecoin-project/rust-fil-nse-gpu
+https://github.com/filecoin-project/rust-fil-proofs/tree/feat/nse-2
+
 
 Filecoin算法源码实际入口
 https://github.com/filecoin-project/rust-fil-proofs
