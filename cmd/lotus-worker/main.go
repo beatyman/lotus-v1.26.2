@@ -341,8 +341,9 @@ var runCmd = &cli.Command{
 					log.Warn(err)
 
 					// reset ctx
-					cancel()
-					ctx, cancel = context.WithCancel(lcli.ReqContext(nodeCCtx))
+					//cancel()
+					//ctx, cancel = context.WithCancel(lcli.ReqContext(nodeCCtx))
+					os.Exit(1) // here have a bug that it can't cancel the task by ctx.
 				}
 				time.Sleep(3 * 1e9) // wait 3 seconds to reconnect.
 			}

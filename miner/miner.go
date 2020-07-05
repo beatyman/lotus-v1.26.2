@@ -188,6 +188,7 @@ func (m *Miner) mine(ctx context.Context) {
 				log.Errorf("failed to get best mining candidate: %s", err)
 				continue
 			}
+			log.Infof("Update base to:%d", base.TipSet.Height())
 			nextRound = nextRoundTime(base)
 			lastBase = *base
 		} else {
