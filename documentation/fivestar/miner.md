@@ -2,7 +2,7 @@
 
 ## 目录规范
 
-项目涉及到的所有目录，以下这些目录在单机部署上需要全部建立
+项目涉及到的所有目录，以下这些目录将在单机部署上建立
 ```
 /data -- 项目数据目录
 
@@ -10,7 +10,7 @@
 /data/cache -- 缓存盘，必要时此盘数据会被清除，存放的数据要求是可损坏的，可单独挂载盘，建议挂载1T ssd盘
 /data/cache/filecoin-proof-parameters -- filecoin本地启动参数版本管理目录文件，此文件数据需要65G左右的空间
 /data/cache/filecoin-proof-parameters/v20 -- filecoin本地启动参数目录实际目文件
-/data/cache/.lotusworker -- lotus-seal-worker计算缓存目录，计算结束后会自动清除，需要700G左右空间(可运行两个任务)
+/data/cache/.lotusworker -- lotus-seal-worker计算缓存目录，计算结束后会自动清除，需要1T左右空间
 /data/cache/.lotusworker/push -- 计算结果推送目录，会自动单独挂载盘，可选
 /data/cache/tmp -- 程序$TMPDIR设定的目录
 
@@ -34,7 +34,7 @@
 ```
 
 
-### 存存节点目录要求
+### 存储节点目
 
 ```
 /data/zfs的目录自行挂载需要的盘
@@ -46,7 +46,7 @@
 /data/zfs/ *(rw,sync,insecure,no_root_squash)
 ```
 
-### 矿工节点目录要求
+### 矿工节点目录
 
 在miner节点中，会用到三种级别的目录
 
@@ -67,7 +67,7 @@
 /data/nfs/3
 ```
 
-### 计算节点(worker)工作目录要求
+### 计算节点(worker)工作目录
 
 在worker中，需要用到三个目录
 
@@ -188,52 +188,27 @@ ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
 
 shell 1, 运行链
 ```
-export PATH=$PATH:$FILECOIN_BIN
-lotus daemon
+cd ../../scripts/fivestar
+./daemon.sh
 ```
 
 shell 2, 创建私网矿工, 首次运行时需要构建, 或通过浏览器来创建
 ```
-#!/bin/sh
-
-#host="http://120.77.213.165:7776"
-host="http://127.0.0.1:7777"
-size=2048
-#size=536870912 # 512MB
-#size=34359738368 # 32G
-
-walletAddr=$(./lotus.sh wallet new bls)
-echo $walletAddr
-mkresp=$(curl -s $host"/mkminer?sectorSize=$size&address="$walletAddr)
-
-echo $mkresp
-f=$(echo $mkresp|awk -F 'a href="/wait.html\\?f=' '{print $2}'|awk -F '&amp;m=' '{print $1}')
-if [ -z "$f" ]; then
-    echo "f not found"
-    exit
-fi
-
-curl -s $host"/msgwait?cid="$f
-minerAddrJs=$(curl -s $host"/msgwaitaddr?cid="$f)
-minerAddr=$(echo $minerAddrJs|awk -F '"addr": "' '{print $2}'|awk -F '"}' '{print $1}')
-
-./lotus.sh wallet export $walletAddr>$minerAddr-$walletAddr.dat
-echo lotus-storage-miner init --actor=$minerAddr --owner=$walletAddr
+cd ../../scripts/fivestar
+./init-miner-dev.sh
 ```
 
 shell 3, 运行矿工
 ```
-export PATH=$PATH:$FILECOIN_BIN
 # 首次运行矿工需要lotus-storage-miner init ...
-RUST_LOG=info RUST_BACKTRACE=1 ./lotus-storage-miner run --nosync=true
+cd ../../scripts/fivestar
+./miner.sh
 ```
 
 shell 4, 运行worker
 ```
-export PATH=$PATH:$FILECOIN_BIN
-
-netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.") # only support one eth card.
-RUST_LOG=info RUST_BACKTRACE=1 NETIP=$netip ./lotus-seal-worker --cache-sectors=2 run 
+cd ../../scripts/fivestar
+./worker.sh
 ```
 
 shell 5，操作miner
