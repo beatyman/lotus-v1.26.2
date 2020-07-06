@@ -40,8 +40,6 @@ type WindowPoStScheduler struct {
 	abort          context.CancelFunc
 	noSubmit       bool
 
-	noSubmit bool
-
 	//failed abi.ChainEpoch // eps
 	//failLk sync.Mutex
 }
