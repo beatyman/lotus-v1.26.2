@@ -44,7 +44,7 @@ func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address)
 		address: addr,
 		waitFunc: func(ctx context.Context, baseTime uint64) (func(bool), error) {
 			// Wait around for half the block time in case other parents come in
-			deadline := baseTime + build.PropagationDelay
+			deadline := baseTime + build.PropagationDelaySecs
 			time.Sleep(time.Until(time.Unix(int64(deadline), 0)))
 
 			return func(bool) {}, nil
@@ -175,7 +175,6 @@ func (m *Miner) mine(ctx context.Context) {
 				log.Warn(xerrors.Errorf("message filtering failed: %w", err))
 				continue
 			}
-
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			now := time.Now()
 			delay := (build.PropagationDelay * time.Second) - now.Sub(nextRound)
@@ -307,13 +306,17 @@ func (m *Miner) hasPower(ctx context.Context, addr address.Address, ts *types.Ti
 	return mpower.MinerPower.QualityAdjPower.GreaterThanEqual(power.ConsensusMinerMinPower), nil
 }
 
-// mineOne mines a single block, and does so synchronously, if and only if we
-// have won the current round.
+// mineOne attempts to mine a single block, and does so synchronously, if and
+// only if we are eligible to mine.
 //
 // {hint/landmark}: This method coordinates all the steps involved in mining a
 // block, including the condition of whether mine or not at all depending on
 // whether we win the round or not.
 func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.BlockMsg, error) {
+//
+// This method does the following:
+//
+//  1.
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := time.Now()
 
@@ -324,7 +327,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
-		base.NullRounds++
+        base.NullRounds++
 		return nil, nil
 	}
 
