@@ -1,5 +1,141 @@
 # 安装说明
 
+## 开发环境安装
+```shell
+# 安装依赖(需要ubuntu 18.04)
+apt-get update
+apt-get install aptitude
+aptitude install chrony nfs-common gcc git bzr jq pkg-config mesa-opencl-icd ocl-icd-opencl-dev 
+```
+
+## 国内安装技巧: 
+参考: https://docs.lotu.sh/en+install-lotus-ubuntu
+
+### 1), 安装go
+```shell
+sudo su -
+cd /usr/local/
+wget https://studygolang.com/dl/golang/go1.14.4.linux-amd64.tar.gz # 其他版本请参考https://studygolang.com/dl
+tar -xzf go1.14.4.linux-amd64.tar.gz
+### 配置/etc/profile环境变量(需要重新登录生效或source /etc/profile)
+export GOROOT=/usr/local/go
+export GOPROXY="https://goproxy.io,direct"
+export GOPRIVATE="github.com/filecoin-fivestar"
+export GIT_TERMINAL_PROMPT=1
+export PATH=$GOROOT/bin:$PATH:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+exit # 退出sudo su -
+```
+
+### 2)，安装rust
+```shell
+mkdir ~/.cargo
+
+### 设置国内镜像代理(或设置到~/.profile中, 需要重新登录生效或source ~/.profile))
+export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
+export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
+
+cat > ~/.cargo/config <<EOF
+[source.crates-io]
+registry = "https://github.com/rust-lang/crates.io-index"
+# 指定镜像
+replace-with = 'sjtu'
+
+# 清华大学
+[source.tuna]
+registry = "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"
+
+# 中国科学技术大学
+[source.ustc]
+registry = "git://mirrors.ustc.edu.cn/crates.io-index"
+
+# 上海交通大学
+[source.sjtu]
+registry = "https://mirrors.sjtug.sjtu.edu.cn/git/crates.io-index"
+
+# rustcc社区
+[source.rustcc]
+registry = "https://code.aliyun.com/rustcc/crates.io-index.git"
+EOF
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+# 安装nfs环境
+```shell
+aptitude install nfs-server
+mkdir -p /data/nfs
+mkdir -p /data/zfs
+mkdir -p /data/zfs/cache
+mkdir -p /data/zfs/sealed
+chattr -V +a /data/zfs
+chattr -V +a /data/zfs/cache
+chattr -V +a /data/zfs/sealed
+
+echo "/data/zfs/ *(rw,sync,insecure,no_root_squash)" >>/etc/exports
+systemctl reload nfs-server
+```
+
+# 下载lotus源代码
+```shell
+mkdir -p $HOME/go/src/github.com/filecoin-project
+cd $HOME/go/src/github.com/filecoin-project
+git clone https://github.com/filecoin-fivestar/lotus.git lotus
+cd lotus
+```
+
+## 搭建私网创世节点
+```shell
+./clean-bootstrap.sh
+./init-bootstrap.sh
+tail -f boostrap.log # 直到Heaviest tipset 有10来个高度左右, ctrl+c 退出
+ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
+./deploy-boostrap.sh # 部署水龙头及对外提供的初始节点
+```
+
+## 编译lotus接入前面的私网
+```shell
+./install.sh debug # 若是使用正式，执行./install.sh进行编译, 编译完成后自动放在$FILECOIN_BIN下
+```
+
+shell 1, 运行链
+```
+cd ../../scripts/fivestar
+./daemon.sh
+```
+
+shell 2, 创建私网矿工, 首次运行时需要构建, 或通过浏览器来创建
+```
+cd ../../scripts/fivestar
+./init-miner-dev.sh
+```
+
+shell 3, 运行矿工
+```
+# 首次运行矿工需要lotus-storage-miner init ...
+cd ../../scripts/fivestar
+./miner.sh
+```
+
+shell 4, 运行worker
+```
+cd ../../scripts/fivestar
+./worker.sh
+```
+
+shell 5，操作miner
+```
+cd ../../scripts/fivestar
+
+# 添加存储节点
+./init-storage-dev.sh
+
+# 运行刷量
+../../lotus-storage-miner pledge-sector start
+
+# miner的其他指令，参阅
+../../lotus-storage-miner --help
+```
+
 ## 目录规范
 
 项目涉及到的所有目录，以下这些目录将在单机部署上建立
@@ -88,141 +224,4 @@
 worker程序会根据miner分发的存储节点配置自动挂载
 ```
 
-
-## 开发环境安装
-```shell
-# 安装依赖(需要ubuntu 18.04)
-apt-get update
-apt-get install aptitude
-aptitude install chrony nfs-common gcc git bzr jq pkg-config mesa-opencl-icd ocl-icd-opencl-dev 
-```
-
-## 国内安装技巧: 
-参考: https://docs.lotu.sh/en+install-lotus-ubuntu
-
-### 1), 安装go
-```shell
-sudo su -
-cd /usr/local/
-wget https://studygolang.com/dl/golang/go1.14.4.linux-amd64.tar.gz # 其他版本请参考https://studygolang.com/dl
-tar -xzf go1.14.4.linux-amd64.tar.gz
-### 配置/etc/profile环境变量(需要重新登录生效或source /etc/profile)
-export GOROOT=/usr/local/go
-export GOPROXY="https://goproxy.io,direct"
-export GOPRIVATE="github.com/filecoin-fivestar"
-export GIT_TERMINAL_PROMPT=1
-export PATH=$GOROOT/bin:$PATH:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
-exit # 退出sudo su -
-```
-
-### 2)，安装rust
-```shell
-mkdir ~/.cargo
-
-### 设置国内镜像代理(或设置到~/.profile中, 需要重新登录生效或source ~/.profile))
-export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
-export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
-
-cat > ~/.cargo/config <<EOF
-[source.crates-io]
-registry = "https://github.com/rust-lang/crates.io-index"
-# 指定镜像
-replace-with = 'sjtu'
-
-# 清华大学
-[source.tuna]
-registry = "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"
-
-# 中国科学技术大学
-[source.ustc]
-registry = "git://mirrors.ustc.edu.cn/crates.io-index"
-
-# 上海交通大学
-[source.sjtu]
-registry = "https://mirrors.sjtug.sjtu.edu.cn/git/crates.io-index"
-
-# rustcc社区
-[source.rustcc]
-registry = "https://code.aliyun.com/rustcc/crates.io-index.git"
-EOF
-
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-# 安装nfs环境
-```shell
-aptitude install nfs-server
-mkdir -p /data/nfs
-mkdir -p /data/zfs
-mkdir -p /data/zfs/cache
-mkdir -p /data/zfs/sealed
-chattr -V +a /data/zfs
-chattr -V +a /data/zfs/cache
-chattr -V +a /data/zfs/sealed
-
-echo "/data/zfs/ *(rw,async,insecure,no_root_squash)" >>/etc/exports
-systemctl reload nfs-server
-```
-
-# 下载lotus源代码
-```shell
-mkdir -p $HOME/go/src/github.com/filecoin-project
-cd $HOME/go/src/github.com/filecoin-project
-git clone https://github.com/filecoin-fivestar/lotus.git lotus
-cd lotus
-```
-
-## 搭建创世节点
-```shell
-./clean-bootstrap.sh
-nohup ./scripts/init-network.sh >>boostrap.log 2>&1 &
-tail -f boostrap.log # 直到Heaviest tipset 有10来个高度左右, ctrl+c 退出
-ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
-./deploy-boostrap.sh # 部署水龙头及对外提供的初始节点
-```
-
-## 编译lotus私网接入的用户节点
-```shell
-./install.sh debug # 若是使用正式，执行./install.sh进行编译, 编译完成后自动放在$FILECOIN_BIN下
-```
-
-shell 1, 运行链
-```
-cd ../../scripts/fivestar
-./daemon.sh
-```
-
-shell 2, 创建私网矿工, 首次运行时需要构建, 或通过浏览器来创建
-```
-cd ../../scripts/fivestar
-./init-miner-dev.sh
-```
-
-shell 3, 运行矿工
-```
-# 首次运行矿工需要lotus-storage-miner init ...
-cd ../../scripts/fivestar
-./miner.sh
-```
-
-shell 4, 运行worker
-```
-cd ../../scripts/fivestar
-./worker.sh
-```
-
-shell 5，操作miner
-```
-export PATH=$PATH:$FILECOIN_BIN
-
-# 添加存储节点
-netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.") # only support one eth card.
-lotus-stoarge-miner hlm-storage add --mount-type="nfs" --mount-uri="$netip:/data/zfs" --mount-dir="/data/nfs" --max-size=1099511627776 --max-work=100
-
-# 运行刷量
-lotus-storage-miner pledge-sector start
-
-# miner的其他指令，参阅
-lotus-storage-miner --help
-```
 
