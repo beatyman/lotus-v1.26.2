@@ -1,0 +1,17 @@
+# Default config:
+[API]
+ListenAddress = "/ip4/127.0.0.1/tcp/11345/http"
+#  Timeout = "30s"
+#
+[Libp2p]
+#  ListenAddresses = ["/ip4/0.0.0.0/tcp/0", "/ip6/::/tcp/0"]
+#  ConnMgrLow = 150
+#  ConnMgrHigh = 180
+#  ConnMgrGrace = "20s"
+#
+[Storage]
+#  AllowPreCommit1 = true
+#  AllowPreCommit2 = true
+#  AllowCommit = true
+RemoteMode = true
+#
