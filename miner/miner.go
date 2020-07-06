@@ -189,6 +189,7 @@ func (m *Miner) mine(ctx context.Context) {
 				continue
 			}
 			log.Infof("Update base to:%d", base.TipSet.Height())
+      
 			nextRound = nextRoundTime(base)
 			lastBase = *base
 		} else {

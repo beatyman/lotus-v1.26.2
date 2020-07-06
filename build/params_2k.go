@@ -30,6 +30,7 @@ var SectorSizes = []abi.SectorSize{
 	32 << 30,
 }
 
+
 const BlockDelaySecs = uint64(10)
 
 const PropagationDelaySecs = uint64(3)
