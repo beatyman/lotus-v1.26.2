@@ -10,7 +10,7 @@
 
 # for local, 1TB limit, when need to scale, see ./miner.sh hlm-storage scale --help
 netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.") # only support one eth card.
-../../miner.sh hlm-storage add --mount-type="nfs" --mount-uri="$netip:/data/zfs" --mount-dir="/data/nfs" --max-size=1099511627776 --max-work=100
+./mshell.sh hlm-storage add --mount-type="nfs" --mount-uri="$netip:/data/zfs" --mount-dir="/data/nfs" --max-size=1099511627776 --max-work=100
 
 ## for testing in machine room
 ## set hlm-storage with 1TB for testing scale.

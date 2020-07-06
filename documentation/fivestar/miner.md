@@ -111,7 +111,6 @@ cd ../../scripts/fivestar
 
 shell 3, 运行矿工
 ```
-# 首次运行矿工需要lotus-storage-miner init ...
 cd ../../scripts/fivestar
 ./miner.sh
 ```
@@ -130,10 +129,10 @@ cd ../../scripts/fivestar
 ./init-storage-dev.sh
 
 # 运行刷量
-../../lotus-storage-miner pledge-sector start
+./mshell.sh pledge-sector start
 
 # miner的其他指令，参阅
-../../lotus-storage-miner --help
+./mshell.sh --help
 ```
 
 ## 目录规范

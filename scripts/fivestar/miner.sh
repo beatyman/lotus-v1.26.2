@@ -14,7 +14,7 @@ fi
 mkdir -p $repodir
 mkdir -p $storagerepodir
 
-RUST_LOG=info RUST_BACKTRACE=1 ./lotus-storage-miner --repo=$repodir --storagerepo=$storagerepodir run --nosync=true &
+RUST_LOG=info RUST_BACKTRACE=1 ../../lotus-storage-miner --repo=$repodir --storagerepo=$storagerepodir run --nosync=true &
 pid=$!
 
 # set ulimit for process

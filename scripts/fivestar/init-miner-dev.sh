@@ -6,7 +6,19 @@ size=2048
 #size=536870912 # 512MB
 #size=34359738368 # 32G
 
-walletAddr=$(./lotus.sh wallet new bls)
+repodir=$1
+if [ -z "$repodir" ]; then
+    repodir=/data/sdb/lotus-user-1/.lotus
+fi
+storagerepodir=$2
+if [ -z "$storagerepodir" ]; then
+    storagerepodir=/data/sdb/lotus-user-1/.lotusstorage
+fi
+
+mkdir -p $repodir
+mkdir -p $storagerepodir
+
+walletAddr=$(../../lotus --repo=$repodir wallet new bls)
 echo $walletAddr
 mkresp=$(curl -s $host"/mkminer?sectorSize=$size&address="$walletAddr)
 
@@ -21,5 +33,11 @@ curl -s $host"/msgwait?cid="$f
 minerAddrJs=$(curl -s $host"/msgwaitaddr?cid="$f)
 minerAddr=$(echo $minerAddrJs|awk -F '"addr": "' '{print $2}'|awk -F '"}' '{print $1}')
 
-../../lotus.sh wallet export $walletAddr>$minerAddr-$walletAddr.dat
 echo lotus-storage-miner init --actor=$minerAddr --owner=$walletAddr
+../../lotus-storage-miner --repo=$repodir --storagerepo=$storagerepodir init --actor=$minerAddr --owner=$walletAddr
+
+cp ./config-miner.toml $storagerepodir/config.toml
+netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.") # only support one eth card.
+echo "Set $netip to config.toml"
+sed -i "s/127.0.0.1/$netip/g" $storagerepodir/config.toml
+
