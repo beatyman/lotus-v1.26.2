@@ -130,7 +130,7 @@ var genesisAddMinerCmd = &cli.Command{
 			}
 			template.Accounts = append(template.Accounts, genesis.Actor{
 				Type:    genesis.TAccount,
-				Balance: initBalance,
+                Balance: initBalance,
 				Meta:    (&genesis.AccountMeta{Owner: miner.Owner}).ActorMeta(),
 			})
 		}

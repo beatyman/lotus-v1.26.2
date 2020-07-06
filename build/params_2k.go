@@ -32,8 +32,9 @@ var SectorSizes = []abi.SectorSize{
 
 // Seconds
 const BlockDelay = 10
+const BlockDelaySecs = uint64(2)
 
-const PropagationDelay = 3
+const PropagationDelaySecs = uint64(3)
 
 // SlashablePowerDelay is the number of epochs after ElectionPeriodStart, after
 // which the miner is slashed
