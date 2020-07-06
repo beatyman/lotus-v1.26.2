@@ -113,7 +113,7 @@ func (m *Miner) niceSleep(d time.Duration) bool {
 	}
 }
 func nextRoundTime(base *MiningBase) time.Time {
-	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelay*(base.NullRounds+1)), 0)
+	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelaySecs)*int64((base.NullRounds+1)), 0)
 }
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
@@ -175,9 +175,10 @@ func (m *Miner) mine(ctx context.Context) {
 				log.Warn(xerrors.Errorf("message filtering failed: %w", err))
 				continue
 			}
+
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			now := time.Now()
-			delay := (build.PropagationDelay * time.Second) - now.Sub(nextRound)
+			delay := (time.Duration(build.PropagationDelaySecs) * time.Second) - now.Sub(nextRound)
 			log.Infof("Waiting PropagationDelay time: %s", delay)
 			if delay > 0 && now.Sub(nextRound) > 0 {
 				time.Sleep(delay + time.Second)
@@ -187,13 +188,15 @@ func (m *Miner) mine(ctx context.Context) {
 				log.Errorf("failed to get best mining candidate: %s", err)
 				continue
 			}
+			log.Infof("Update base to:%d", base.TipSet.Height())
+      
 			nextRound = nextRoundTime(base)
 			lastBase = *base
 		} else {
 			now := time.Now()
 			// if the base was dead, make the nullRound++ step by round actually change.
 			// and in current round, checking the base by every 1 second until pass or round out.
-			if lastBase.TipSet == nil || (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
+			if lastBase.TipSet == nil || (now.Unix()-nextRound.Unix())/int64(build.BlockDelaySecs) == 0 {
 				time.Sleep(1e9)
 				continue
 			}
@@ -241,7 +244,7 @@ func (m *Miner) mine(ctx context.Context) {
 			// has enough time to form.
 			//
 			// See:  https://github.com/filecoin-project/lotus/issues/1845
-			//nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds))+int64(build.PropagationDelay), 0)
+			//nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+build.BlockDelaySecs*uint64(base.NullRounds))+int64(build.PropagationDelaySecs), 0)
 
 			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
 
@@ -313,10 +316,6 @@ func (m *Miner) hasPower(ctx context.Context, addr address.Address, ts *types.Ti
 // block, including the condition of whether mine or not at all depending on
 // whether we win the round or not.
 func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.BlockMsg, error) {
-//
-// This method does the following:
-//
-//  1.
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := time.Now()
 
@@ -327,7 +326,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
-        base.NullRounds++
+		base.NullRounds++
 		return nil, nil
 	}
 
@@ -433,8 +432,8 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		"weight", b.Header.ParentWeight,
 		"rounds", base.NullRounds,
 		"took", dur,
-		"submit", time.Unix(int64(base.TipSet.MinTimestamp()+(uint64(base.NullRounds)+1)*build.BlockDelay), 0).Format(time.RFC3339))
-	if dur > time.Second*build.BlockDelay {
+		"submit", time.Unix(int64(base.TipSet.MinTimestamp()+(uint64(base.NullRounds)+1)*build.BlockDelaySecs), 0).Format(time.RFC3339))
+	if dur > time.Second*time.Duration(build.BlockDelaySecs) {
 		log.Warn("CAUTION: block production took longer than the block delay. Your computer may not be fast enough to keep up")
 
 		log.Warnw("tMinerBaseInfo ", "duration", tMBI.Sub(start))
@@ -485,7 +484,7 @@ func (m *Miner) computeTicket(ctx context.Context, brand *types.BeaconEntry, bas
 
 func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket,
 	eproof *types.ElectionProof, bvals []types.BeaconEntry, wpostProof []abi.PoStProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
-	uts := base.TipSet.MinTimestamp() + uint64(build.BlockDelay*(base.NullRounds+1))
+	uts := base.TipSet.MinTimestamp() + build.BlockDelaySecs*(uint64(base.NullRounds)+1)
 	nheight := base.TipSet.Height() + base.NullRounds + 1
 
 	// why even return this? that api call could just submit it for us

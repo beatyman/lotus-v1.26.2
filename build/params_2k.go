@@ -30,9 +30,8 @@ var SectorSizes = []abi.SectorSize{
 	32 << 30,
 }
 
-// Seconds
-const BlockDelay = 10
-const BlockDelaySecs = uint64(2)
+
+const BlockDelaySecs = uint64(10)
 
 const PropagationDelaySecs = uint64(3)
 
