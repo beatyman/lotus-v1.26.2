@@ -153,31 +153,44 @@ func main() {
 				Value: true,
 			},
 			&cli.UintFlag{
-				Name:  "cache-sectors",
+				Name:  "max-tasks",
 				Value: 1,
 			},
-			&cli.BoolFlag{
-				Name: "no-addpiece",
+			&cli.UintFlag{
+				Name:  "parallel-addpiece",
+				Value: 1,
+			},
+			&cli.UintFlag{
+				Name:  "parallel-precommit1",
+				Value: 1,
+			},
+			&cli.UintFlag{
+				Name:  "parallel-precommit2",
+				Value: 1,
+			},
+			&cli.UintFlag{
+				Name:  "parallel-commit1",
+				Value: 1,
+			},
+			&cli.UintFlag{
+				Name:  "parallel-commit2",
+				Value: 1,
+			},
+			&cli.UintFlag{
+				Name:  "parallel-wdpost",
+				Value: 0,
+			},
+			&cli.UintFlag{
+				Name:  "parallel-winpost",
+				Value: 0,
 			},
 			&cli.BoolFlag{
-				Name: "no-precommit1",
-			},
-			&cli.BoolFlag{
-				Name: "no-precommit2",
-			},
-			&cli.BoolFlag{
-				Name: "no-commit1",
-			},
-			&cli.BoolFlag{
-				Name: "no-commit2",
-			},
-			&cli.BoolFlag{
-				Name:  "no-wpost",
+				Name:  "transfer-cache",
 				Value: true,
 			},
 			&cli.BoolFlag{
-				Name:  "no-post",
-				Value: true,
+				Name:  "gpu-srv",
+				Value: false,
 			},
 		},
 
@@ -331,9 +344,12 @@ var runCmd = &cli.Command{
 					"http://"+storageAddr, ainfo.AuthHeader(),
 					"http://"+fileServer,
 					r, sealedRepo,
-					cctx.Uint("cache-sectors"),
-					cctx.Bool("no-addpiece"), cctx.Bool("no-precommit1"), cctx.Bool("no-precommit2"), cctx.Bool("no-commit1"), cctx.Bool("no-commit2"),
-					cctx.Bool("no-wpost"), cctx.Bool("no-post"),
+					cctx.Uint("max-tasks"),
+					cctx.Uint("parallel-addpiece"),
+					cctx.Uint("parallel-precommit1"), cctx.Uint("parallel-precommit2"),
+					cctx.Uint("parallel-commit1"), cctx.Uint("parallel-commit2"),
+					cctx.Uint("parallel-wdpost"), cctx.Uint("parallel-winpost"),
+					cctx.Bool("transfer-cache"), cctx.Bool("gpu-srv"),
 				); err == nil {
 					break
 				} else {

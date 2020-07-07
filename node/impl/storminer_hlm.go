@@ -66,8 +66,8 @@ func (sm *StorageMinerAPI) WorkerWorking(ctx context.Context, workerId string) (
 func (sm *StorageMinerAPI) WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).LockWorker(ctx, workerId, taskKey, memo, status)
 }
-func (sm *StorageMinerAPI) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockWorker(ctx, workerId, taskKey, memo)
+func (sm *StorageMinerAPI) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, status int) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockWorker(ctx, workerId, taskKey, memo, status)
 }
 func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskDone(ctx, res)
@@ -103,4 +103,13 @@ func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error
 }
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
+}
+func (sm *StorageMinerAPI) PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PreStorageNode(sectorId, clientIp)
+}
+func (sm *StorageMinerAPI) CommitStorageNode(ctx context.Context, sectorId string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CommitStorageNode(sectorId)
+}
+func (sm *StorageMinerAPI) CancelStorageNode(ctx context.Context, sectorId string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CancelStorageNode(sectorId)
 }

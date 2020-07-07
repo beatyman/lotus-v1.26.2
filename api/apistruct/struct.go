@@ -254,20 +254,23 @@ type StorageMinerStruct struct {
 		WorkerQueue        func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
 		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
 		WorkerLock         func(ctx context.Context, workerId, taskKey, memo string, status int) error               `perm:"write"`
-		WorkerUnlock       func(ctx context.Context, workerId, taskKey, memo string) error                           `perm:"write"`
+		WorkerUnlock       func(ctx context.Context, workerId, taskKey, memo string, status int) error               `perm:"write"`
 		WorkerDone         func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
 		WorkerDisable      func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
 		WorkerAddConn      func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
 		WorkerPreConn      func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
 		WorkerMinerConn    func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
-		Testing           func(ctx context.Context, fnName string, args []string) error     `perm:"admin"`
-		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error       `perm:"write"`
-		DisableHLMStorage func(ctx context.Context, id int64) error                         `perm:"write"`
-		MountHLMStorage   func(ctx context.Context, id int64) error                         `perm:"write"`
-		UMountHLMStorage  func(ctx context.Context, id int64) error                         `perm:"write"`
-		RelinkHLMStorage  func(ctx context.Context, id int64) error                         `perm:"write"`
-		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error `perm:"write"`
+		Testing           func(ctx context.Context, fnName string, args []string) error                       `perm:"admin"`
+		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error                         `perm:"write"`
+		DisableHLMStorage func(ctx context.Context, id int64) error                                           `perm:"write"`
+		MountHLMStorage   func(ctx context.Context, id int64) error                                           `perm:"write"`
+		UMountHLMStorage  func(ctx context.Context, id int64) error                                           `perm:"write"`
+		RelinkHLMStorage  func(ctx context.Context, id int64) error                                           `perm:"write"`
+		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error                   `perm:"write"`
+		PreStorageNode    func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) `perm:"write"`
+		CommitStorageNode func(ctx context.Context, sectorId string) error                                    `perm:"write"`
+		CancelStorageNode func(ctx context.Context, sectorId string) error                                    `perm:"write"`
 	}
 }
 
@@ -1058,8 +1061,8 @@ func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string)
 func (c *StorageMinerStruct) WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error {
 	return c.Internal.WorkerLock(ctx, workerId, taskKey, memo, status)
 }
-func (c *StorageMinerStruct) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string) error {
-	return c.Internal.WorkerUnlock(ctx, workerId, taskKey, memo)
+func (c *StorageMinerStruct) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, status int) error {
+	return c.Internal.WorkerUnlock(ctx, workerId, taskKey, memo, status)
 }
 func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return c.Internal.WorkerDone(ctx, res)
@@ -1098,6 +1101,18 @@ func (c *StorageMinerStruct) RelinkHLMStorage(ctx context.Context, id int64) err
 
 func (c *StorageMinerStruct) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return c.Internal.ScaleHLMStorage(ctx, id, size, work)
+}
+
+func (c *StorageMinerStruct) PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) {
+	return c.Internal.PreStorageNode(ctx, sectorId, clientIp)
+}
+
+func (c *StorageMinerStruct) CommitStorageNode(ctx context.Context, sectorId string) error {
+	return c.Internal.CommitStorageNode(ctx, sectorId)
+}
+
+func (c *StorageMinerStruct) CancelStorageNode(ctx context.Context, sectorId string) error {
+	return c.Internal.CancelStorageNode(ctx, sectorId)
 }
 
 // implements by hlm end

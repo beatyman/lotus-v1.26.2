@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,24 +41,30 @@ func acceptJobs(ctx context.Context,
 	endpoint string, auth http.Header,
 	fileServer string,
 	repo, sealedRepo string,
-	cacheSectors uint,
-	noAddPiece, noPrecommit1, noPrecommit2, noCommit1, noCommit2, noWPoSt, noPoSt bool,
+	maxTasks,
+	pAddPiece,
+	pPrecommit1, pPrecommit2,
+	pCommit1, pCommit2,
+	pWdPoSt, pWinPoSt uint,
+	transferCache, gpuSrv bool,
 ) error {
 	workerId := GetWorkerID(repo)
 	netIp := os.Getenv("NETIP")
 
 	workerCfg := ffiwrapper.WorkerCfg{
-		ID:           workerId,
-		IP:           netIp,
-		SvcUri:       fileServer,
-		MaxCacheNum:  cacheSectors,
-		NoAddPiece:   noAddPiece,
-		NoPrecommit1: noPrecommit1,
-		NoPrecommit2: noPrecommit2,
-		NoCommit1:    noCommit1,
-		NoCommit2:    noCommit2,
-		NoWPoSt:      noWPoSt,
-		NoPoSt:       noPoSt,
+		ID:                 workerId,
+		IP:                 netIp,
+		SvcUri:             fileServer,
+		MaxTaskNum:         int(maxTasks),
+		ParallelAddPiece:   int(pAddPiece),
+		ParallelPrecommit1: int(pPrecommit1),
+		ParallelPrecommit2: int(pPrecommit2),
+		ParallelCommit1:    int(pCommit1),
+		ParallelCommit2:    int(pCommit2),
+		ParallelWdPoSt:     int(pWdPoSt),
+		ParallelWinPoSt:    int(pWinPoSt),
+		TransferCache:      transferCache,
+		GPUSrv:             gpuSrv,
 	}
 
 	api, err := GetNodeApi()
@@ -255,15 +262,29 @@ func (w *worker) cleanCache(ctx context.Context) error {
 }
 
 func (w *worker) pushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
-	log.Infof("pushCache:%+v", task.GetSectorID())
-	defer log.Infof("pushCache done:%+v", task.GetSectorID())
-	ss := task.SectorStorage
+	sid := task.GetSectorID()
+	log.Infof("pushCache:%+v", sid)
+	defer log.Infof("pushCache done:%+v", sid)
+	api, err := GetNodeApi()
+	if err != nil {
+		return errors.As(err)
+	}
+	storage, err := api.PreStorageNode(ctx, sid, w.workerCfg.IP)
+	if err != nil {
+		return errors.As(err)
+	}
+	mountUri := storage.MountTransfUri
+	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
+		// fix to 127.0.0.1 if it has the same ip.
+		strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
+	}
+
 	// a fix point, link or mount to the targe file.
 	if err := database.MountStorage(
-		ss.StorageInfo.MountType,
-		ss.StorageInfo.MountUri,
+		storage.MountType,
+		mountUri,
 		w.sealedRepo,
-		ss.StorageInfo.MountOpt,
+		storage.MountOpt,
 	); err != nil {
 		return errors.As(err)
 	}
@@ -272,13 +293,13 @@ func (w *worker) pushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		return errors.As(err)
 	}
 	// "sealed" is created during previous step
-	if err := w.push(ctx, "sealed", ffiwrapper.SectorName(task.SectorID)); err != nil {
+	if err := w.push(ctx, "sealed", sid); err != nil {
 		return errors.As(err)
 	}
 	if err := os.MkdirAll(filepath.Join(w.sealedRepo, "cache"), 0755); err != nil {
 		return errors.As(err)
 	}
-	if err := w.push(ctx, "cache", ffiwrapper.SectorName(task.SectorID)); err != nil {
+	if err := w.push(ctx, "cache", sid); err != nil {
 		return errors.As(err)
 	}
 	// if err := os.MkdirAll(filepath.Join(w.sealedRepo, "unsealed"), 0755); err != nil {
@@ -288,6 +309,9 @@ func (w *worker) pushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	// 	return errors.As(err)
 	// }
 	if err := database.Umount(w.sealedRepo); err != nil {
+		return errors.As(err)
+	}
+	if err := api.CommitStorageNode(ctx, sid); err != nil {
 		return errors.As(err)
 	}
 	return nil
@@ -306,7 +330,7 @@ repush:
 			goto repush
 		}
 		// release the worker when pushing happened
-		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "pushing commit"); err != nil {
+		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "pushing commit", database.SECTOR_STATE_PUSH); err != nil {
 			log.Warn(errors.As(err))
 
 			if errors.ErrNoData.Equal(err) {
@@ -439,7 +463,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		res.Pieces = rsp
 
 		// checking is the next step interrupted
-		unlockWorker = w.workerCfg.NoPrecommit1
+		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
 	case ffiwrapper.WorkerPreCommit1:
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
@@ -453,7 +477,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		res.PreCommit1Out = rspco
 
 		// checking is the next step interrupted
-		unlockWorker = w.workerCfg.NoPrecommit2
+		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 	case ffiwrapper.WorkerPreCommit2:
 		out, err := w.sb.SealPreCommit2(ctx, task.SectorID, task.PreCommit1Out)
 		if err != nil {
@@ -465,7 +489,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 
 		// checking is the next step interrupted
-		unlockWorker = w.workerCfg.NoCommit1
+		unlockWorker = (w.workerCfg.ParallelCommit1 == 0)
 	case ffiwrapper.WorkerCommit1:
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
@@ -481,7 +505,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 		res.Commit1Out = out
 		// checking is the next step interrupted
-		unlockWorker = w.workerCfg.NoCommit2
+		unlockWorker = (w.workerCfg.ParallelCommit2 == 0)
 	case ffiwrapper.WorkerCommit2:
 		// clean unsealed
 		if err := os.RemoveAll(filepath.Join(w.repo, "unsealed", task.GetSectorID())); err != nil {
@@ -509,7 +533,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	// release the worker when stage is interrupted
 	if unlockWorker {
 		log.Info("Release Worker by:", task)
-		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker"); err != nil {
+		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker", database.SECTOR_STATE_MOVE); err != nil {
 			log.Warn(errors.As(err))
 			ReleaseNodeApi(false)
 			return errRes(errors.As(err, w.workerCfg), task)

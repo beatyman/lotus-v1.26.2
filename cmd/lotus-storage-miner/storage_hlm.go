@@ -99,14 +99,15 @@ var addHLMStorageCmd = &cli.Command{
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 		return nodeApi.AddHLMStorage(ctx, database.StorageInfo{
-			MountType:  mountType,
-			MountUri:   mountUri,
-			MountDir:   mountDir,
-			MountOpt:   mountOpt,
-			MaxSize:    maxSize,
-			KeepSize:   keepSize,
-			SectorSize: sectorSize,
-			MaxWork:    maxWork,
+			MountType:      mountType,
+			MountSignalUri: mountUri,
+			MountTransfUri: mountUri,
+			MountDir:       mountDir,
+			MountOpt:       mountOpt,
+			MaxSize:        maxSize,
+			KeepSize:       keepSize,
+			SectorSize:     sectorSize,
+			MaxWork:        maxWork,
 		})
 	},
 }
