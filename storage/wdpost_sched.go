@@ -15,8 +15,10 @@ import (
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/gwaylib/errors"
 )
 
 const StartConfidence = 4 // TODO: config
@@ -73,7 +75,41 @@ func deadlineEquals(a, b *miner.DeadlineInfo) bool {
 	return a.PeriodStart == b.PeriodStart && a.Index == b.Index && a.Challenge == b.Challenge
 }
 
+func nextRoundTime(ts *types.TipSet) time.Time {
+	return time.Unix(int64(ts.MinTimestamp())+int64(build.BlockDelaySecs), 0)
+}
+
 func (s *WindowPoStScheduler) Run(ctx context.Context) {
+	defer s.abortActivePoSt()
+	var lastTsHeight abi.ChainEpoch
+	for {
+		bts, err := s.api.ChainHead(ctx)
+		if err != nil {
+			log.Error(errors.As(err))
+			time.Sleep(time.Second)
+			continue
+		}
+		if bts.Height() != lastTsHeight {
+			log.Infof("Checking window post at:%d", bts.Height())
+			lastTsHeight = bts.Height()
+			if err := s.update(ctx, bts); err != nil {
+				log.Error(errors.As(err))
+			}
+		} else {
+			time.Sleep(time.Second)
+			continue
+		}
+		select {
+		case <-time.After(time.Until(nextRoundTime(bts))):
+			continue
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	// close this function and use the timer from mining
+	return
+
 	defer s.abortActivePoSt()
 
 	var notifs <-chan []*api.HeadChange
@@ -200,6 +236,7 @@ func (s *WindowPoStScheduler) update(ctx context.Context, new *types.TipSet) err
 	if !di.PeriodStarted() {
 		return nil // not proving anything yet
 	}
+	// TODO: confirm that has proven
 
 	s.abortActivePoSt()
 

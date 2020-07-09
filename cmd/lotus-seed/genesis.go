@@ -131,7 +131,8 @@ var genesisAddMinerCmd = &cli.Command{
 			template.Accounts = append(template.Accounts, genesis.Actor{
 				Type:    genesis.TAccount,
 				Balance: big.Mul(big.NewInt(50_000_000), big.NewInt(int64(build.FilecoinPrecision))),
-				Meta:    (&genesis.AccountMeta{Owner: miner.Owner}).ActorMeta(),
+				//Balance: initBalance,
+				Meta: (&genesis.AccountMeta{Owner: miner.Owner}).ActorMeta(),
 			})
 		}
 

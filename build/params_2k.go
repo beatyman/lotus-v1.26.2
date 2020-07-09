@@ -25,7 +25,7 @@ func init() {
 }
 
 // Seconds
-const BlockDelaySecs = uint64(2)
+const BlockDelaySecs = uint64(10)
 
 const PropagationDelaySecs = uint64(3)
 
