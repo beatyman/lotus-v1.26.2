@@ -41,3 +41,4 @@ bin/tmp/*
 /*.log
 .DS_Store
 */.DS_Store
+scratchpad

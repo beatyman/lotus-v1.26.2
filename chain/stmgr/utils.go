@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"reflect"
 
 	cid "github.com/ipfs/go-cid"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
@@ -13,14 +14,21 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	amt "github.com/filecoin-project/go-amt-ipld/v2"
+	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
+	"github.com/filecoin-project/specs-actors/actors/builtin/account"
+	"github.com/filecoin-project/specs-actors/actors/builtin/cron"
 	init_ "github.com/filecoin-project/specs-actors/actors/builtin/init"
 	"github.com/filecoin-project/specs-actors/actors/builtin/market"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
+	"github.com/filecoin-project/specs-actors/actors/builtin/multisig"
+	"github.com/filecoin-project/specs-actors/actors/builtin/paych"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
+	"github.com/filecoin-project/specs-actors/actors/builtin/reward"
+	"github.com/filecoin-project/specs-actors/actors/builtin/verifreg"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"github.com/filecoin-project/specs-actors/actors/util/adt"
 
@@ -38,7 +46,7 @@ func GetNetworkName(ctx context.Context, sm *StateManager, st cid.Cid) (dtypes.N
 	var state init_.State
 	_, err := sm.LoadActorStateRaw(ctx, builtin.InitActorAddr, &state, st)
 	if err != nil {
-		return "", xerrors.Errorf("(get sset) failed to load miner actor state: %w", err)
+		return "", xerrors.Errorf("(get sset) failed to load init actor state: %w", err)
 	}
 
 	return dtypes.NetworkName(state.NetworkName), nil
@@ -57,7 +65,12 @@ func GetMinerWorkerRaw(ctx context.Context, sm *StateManager, st cid.Cid, maddr 
 		return address.Undef, xerrors.Errorf("load state tree: %w", err)
 	}
 
-	return vm.ResolveToKeyAddr(state, cst, mas.Info.Worker)
+	info, err := mas.GetInfo(sm.cs.Store(ctx))
+	if err != nil {
+		return address.Address{}, err
+	}
+
+	return vm.ResolveToKeyAddr(state, cst, info.Worker)
 }
 
 func GetPower(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) (power.Claim, power.Claim, error) {
@@ -174,17 +187,43 @@ func GetSectorsForWinningPoSt(ctx context.Context, pv ffiwrapper.Verifier, sm *S
 		return nil, xerrors.Errorf("(get sectors) failed to load miner actor state: %w", err)
 	}
 
-	// TODO: Optimization: we could avoid loaditg the whole proving set here if we had AMT.GetNth with bitfield filtering
-	sectorSet, err := GetProvingSetRaw(ctx, sm, mas)
-	if err != nil {
-		return nil, xerrors.Errorf("getting proving set: %w", err)
+	cst := cbor.NewCborStore(sm.cs.Blockstore())
+	var deadlines miner.Deadlines
+	if err := cst.Get(ctx, mas.Deadlines, &deadlines); err != nil {
+		return nil, xerrors.Errorf("failed to load deadlines: %w", err)
 	}
 
-	if len(sectorSet) == 0 {
+	notProving, err := abi.BitFieldUnion(mas.Faults, mas.Recoveries)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to union faults and recoveries: %w", err)
+	}
+
+	allSectors, err := bitfield.MultiMerge(append(deadlines.Due[:], mas.NewSectors)...)
+	if err != nil {
+		return nil, xerrors.Errorf("merging deadline bitfields failed: %w", err)
+	}
+
+	provingSectors, err := bitfield.SubtractBitField(allSectors, notProving)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to subtract non-proving sectors from set: %w", err)
+	}
+
+	numProvSect, err := provingSectors.Count()
+	if err != nil {
+		return nil, xerrors.Errorf("failed to count bits: %w", err)
+	}
+
+	// TODO(review): is this right? feels fishy to me
+	if numProvSect == 0 {
 		return nil, nil
 	}
 
-	spt, err := ffiwrapper.SealProofTypeFromSectorSize(mas.Info.SectorSize)
+	info, err := mas.GetInfo(sm.cs.Store(ctx))
+	if err != nil {
+		return nil, err
+	}
+
+	spt, err := ffiwrapper.SealProofTypeFromSectorSize(info.SectorSize)
 	if err != nil {
 		return nil, xerrors.Errorf("getting seal proof type: %w", err)
 	}
@@ -199,31 +238,48 @@ func GetSectorsForWinningPoSt(ctx context.Context, pv ffiwrapper.Verifier, sm *S
 		return nil, xerrors.Errorf("getting miner ID: %w", err)
 	}
 
-	ids, err := pv.GenerateWinningPoStSectorChallenge(ctx, wpt, abi.ActorID(mid), rand, uint64(len(sectorSet)))
+	ids, err := pv.GenerateWinningPoStSectorChallenge(ctx, wpt, abi.ActorID(mid), rand, numProvSect)
 	if err != nil {
 		return nil, xerrors.Errorf("generating winning post challenges: %w", err)
 	}
 
+	sectors, err := provingSectors.All(miner.SectorsMax)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to enumerate all sector IDs: %w", err)
+	}
+
+	sectorAmt, err := amt.LoadAMT(ctx, cst, mas.Sectors)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load sectors amt: %w", err)
+	}
+
 	out := make([]abi.SectorInfo, len(ids))
 	for i, n := range ids {
+		sid := sectors[n]
+
+		var sinfo miner.SectorOnChainInfo
+		if err := sectorAmt.Get(ctx, sid, &sinfo); err != nil {
+			return nil, xerrors.Errorf("failed to get sector %d: %w", sid, err)
+		}
+
 		out[i] = abi.SectorInfo{
 			SealProof:    spt,
-			SectorNumber: sectorSet[n].ID,
-			SealedCID:    sectorSet[n].Info.SealedCID,
+			SectorNumber: sinfo.SectorNumber,
+			SealedCID:    sinfo.SealedCID,
 		}
 	}
 
 	return out, nil
 }
 
-func StateMinerInfo(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) (miner.MinerInfo, error) {
+func StateMinerInfo(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) (*miner.MinerInfo, error) {
 	var mas miner.State
 	_, err := sm.LoadActorStateRaw(ctx, maddr, &mas, ts.ParentState())
 	if err != nil {
-		return miner.MinerInfo{}, xerrors.Errorf("(get ssize) failed to load miner actor state: %w", err)
+		return nil, xerrors.Errorf("(get ssize) failed to load miner actor state: %w", err)
 	}
 
-	return mas.Info, nil
+	return mas.GetInfo(sm.cs.Store(ctx))
 }
 
 func GetMinerSlashed(ctx context.Context, sm *StateManager, ts *types.TipSet, maddr address.Address) (bool, error) {
@@ -525,7 +581,12 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcn beacon.RandomBe
 		return nil, xerrors.Errorf("failed to get power: %w", err)
 	}
 
-	worker, err := sm.ResolveToKeyAddress(ctx, mas.GetWorker(), ts)
+	info, err := mas.GetInfo(sm.cs.Store(ctx))
+	if err != nil {
+		return nil, err
+	}
+
+	worker, err := sm.ResolveToKeyAddress(ctx, info.Worker, ts)
 	if err != nil {
 		return nil, xerrors.Errorf("resolving worker address: %w", err)
 	}
@@ -535,7 +596,7 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcn beacon.RandomBe
 		NetworkPower:    tpow.QualityAdjPower,
 		Sectors:         sectors,
 		WorkerKey:       worker,
-		SectorSize:      mas.Info.SectorSize,
+		SectorSize:      info.SectorSize,
 		PrevBeaconEntry: *prev,
 		BeaconEntries:   entries,
 	}, nil
@@ -564,4 +625,61 @@ func (sm *StateManager) CirculatingSupply(ctx context.Context, ts *types.TipSet)
 	}, builtin.SystemActorAddr, 0, 0, 0)
 
 	return rt.TotalFilCircSupply(), nil
+}
+
+type methodMeta struct {
+	Name string
+
+	Params reflect.Type
+	Ret    reflect.Type
+}
+
+var MethodsMap = map[cid.Cid][]methodMeta{}
+
+func init() {
+	cidToMethods := map[cid.Cid][2]interface{}{
+		// builtin.SystemActorCodeID:        {builtin.MethodsSystem, system.Actor{} }- apparently it doesn't have methods
+		builtin.InitActorCodeID:             {builtin.MethodsInit, init_.Actor{}},
+		builtin.CronActorCodeID:             {builtin.MethodsCron, cron.Actor{}},
+		builtin.AccountActorCodeID:          {builtin.MethodsAccount, account.Actor{}},
+		builtin.StoragePowerActorCodeID:     {builtin.MethodsPower, power.Actor{}},
+		builtin.StorageMinerActorCodeID:     {builtin.MethodsMiner, miner.Actor{}},
+		builtin.StorageMarketActorCodeID:    {builtin.MethodsMarket, market.Actor{}},
+		builtin.PaymentChannelActorCodeID:   {builtin.MethodsPaych, paych.Actor{}},
+		builtin.MultisigActorCodeID:         {builtin.MethodsMultisig, multisig.Actor{}},
+		builtin.RewardActorCodeID:           {builtin.MethodsReward, reward.Actor{}},
+		builtin.VerifiedRegistryActorCodeID: {builtin.MethodsVerifiedRegistry, verifreg.Actor{}},
+	}
+
+	for c, m := range cidToMethods {
+		rt := reflect.TypeOf(m[0])
+		nf := rt.NumField()
+
+		MethodsMap[c] = append(MethodsMap[c], methodMeta{
+			Name:   "Send",
+			Params: reflect.TypeOf(new(adt.EmptyValue)),
+			Ret:    reflect.TypeOf(new(adt.EmptyValue)),
+		})
+
+		exports := m[1].(abi.Invokee).Exports()
+		for i := 0; i < nf; i++ {
+			export := reflect.TypeOf(exports[i+1])
+
+			MethodsMap[c] = append(MethodsMap[c], methodMeta{
+				Name:   rt.Field(i).Name,
+				Params: export.In(1),
+				Ret:    export.Out(0),
+			})
+		}
+	}
+}
+
+func GetReturnType(ctx context.Context, sm *StateManager, to address.Address, method abi.MethodNum, ts *types.TipSet) (cbg.CBORUnmarshaler, error) {
+	act, err := sm.GetActor(to, ts)
+	if err != nil {
+		return nil, err
+	}
+
+	m := MethodsMap[act.Code][method]
+	return reflect.New(m.Ret.Elem()).Interface().(cbg.CBORUnmarshaler), nil
 }

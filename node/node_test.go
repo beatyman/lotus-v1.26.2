@@ -116,7 +116,7 @@ func testStorageNode(ctx context.Context, t *testing.T, waddr address.Address, a
 	// start node
 	var minerapi api.StorageMiner
 
-	mineBlock := make(chan func(bool))
+	mineBlock := make(chan func(bool, error))
 	// TODO: use stop
 	_, err = node.New(ctx,
 		node.StorageMiner(&minerapi),
@@ -141,7 +141,7 @@ func testStorageNode(ctx context.Context, t *testing.T, waddr address.Address, a
 
 	err = minerapi.NetConnect(ctx, remoteAddrs)
 	require.NoError(t, err)*/
-	mineOne := func(ctx context.Context, cb func(bool)) error {
+	mineOne := func(ctx context.Context, cb func(bool, error)) error {
 		select {
 		case mineBlock <- cb:
 			return nil
@@ -189,7 +189,7 @@ func builder(t *testing.T, nFull int, storage []test.StorageMiner) ([]test.TestN
 		if err != nil {
 			t.Fatal(err)
 		}
-		genm, k, err := seed.PreSeal(maddr, abi.RegisteredSealProof_StackedDrg2KiBV1, 0, test.GenesisPreseals, tdir, []byte("make genesis mem random"), nil)
+		genm, k, err := seed.PreSeal(maddr, abi.RegisteredSealProof_StackedDrg2KiBV1, 0, test.GenesisPreseals, tdir, []byte("make genesis mem random"), nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -349,7 +349,7 @@ func mockSbBuilder(t *testing.T, nFull int, storage []test.StorageMiner) ([]test
 	templ := &genesis.Template{
 		Accounts:  genaccs,
 		Miners:    genms,
-		Timestamp: uint64(time.Now().Unix() - (build.BlockDelay * 20000)),
+		Timestamp: uint64(time.Now().Unix()) - (build.BlockDelaySecs * 20000),
 	}
 
 	// END PRESEAL SECTION
@@ -459,10 +459,10 @@ func TestAPIDealFlow(t *testing.T) {
 	logging.SetLogLevel("storageminer", "ERROR")
 
 	t.Run("TestDealFlow", func(t *testing.T) {
-		test.TestDealFlow(t, mockSbBuilder, 10*time.Millisecond, false)
+		test.TestDealFlow(t, mockSbBuilder, 10*time.Millisecond, false, false)
 	})
 	t.Run("WithExportedCAR", func(t *testing.T) {
-		test.TestDealFlow(t, mockSbBuilder, 10*time.Millisecond, true)
+		test.TestDealFlow(t, mockSbBuilder, 10*time.Millisecond, true, false)
 	})
 	t.Run("TestDoubleDealFlow", func(t *testing.T) {
 		test.TestDoubleDealFlow(t, mockSbBuilder, 10*time.Millisecond)
@@ -480,7 +480,13 @@ func TestAPIDealFlowReal(t *testing.T) {
 	logging.SetLogLevel("sub", "ERROR")
 	logging.SetLogLevel("storageminer", "ERROR")
 
-	test.TestDealFlow(t, builder, time.Second, false)
+	t.Run("basic", func(t *testing.T) {
+		test.TestDealFlow(t, builder, time.Second, false, false)
+	})
+
+	t.Run("fast-retrieval", func(t *testing.T) {
+		test.TestDealFlow(t, builder, time.Second, false, true)
+	})
 }
 
 func TestDealMining(t *testing.T) {
@@ -529,4 +535,14 @@ func TestWindowedPost(t *testing.T) {
 	logging.SetLogLevel("storageminer", "ERROR")
 
 	test.TestWindowPost(t, mockSbBuilder, 5*time.Millisecond, 10)
+}
+
+func TestCCUpgrade(t *testing.T) {
+	logging.SetLogLevel("miner", "ERROR")
+	logging.SetLogLevel("chainstore", "ERROR")
+	logging.SetLogLevel("chain", "ERROR")
+	logging.SetLogLevel("sub", "ERROR")
+	logging.SetLogLevel("storageminer", "ERROR")
+
+	test.TestCCUpgrade(t, mockSbBuilder, 5*time.Millisecond)
 }

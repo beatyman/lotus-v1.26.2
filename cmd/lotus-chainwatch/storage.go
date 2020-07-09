@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"sync"
 	"time"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/ipfs/go-cid"
 	_ "github.com/lib/pq"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/events/state"
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
@@ -18,6 +22,8 @@ type storage struct {
 	db *sql.DB
 
 	headerLk sync.Mutex
+
+	genesisTs *types.TipSet
 }
 
 func openStorage(dbSource string) (*storage, error) {
@@ -252,31 +258,69 @@ create table if not exists receipts
 
 create index if not exists receipts_msg_state_index
 	on receipts (msg, state);
-/*
-create table if not exists miner_heads
+	
+create table if not exists miner_sectors
 (
-	head text not null,
-	addr text not null,
-	stateroot text not null,
-	sectorset text not null,
-	setsize decimal not null,
-	provingset text not null,
-	provingsize decimal not null,
-	owner text not null,
-	worker text not null,
-	peerid text not null,
-	sectorsize bigint not null,
-	power decimal not null,
-	active bool,
-	ppe bigint not null,
-	slashed_at bigint not null,
-	constraint miner_heads_pk
-		primary key (head, addr)
+	miner_id text not null,
+	sector_id bigint not null,
+	
+	activation_epoch bigint not null,
+	expiration_epoch bigint not null,
+	termination_epoch bigint,
+	
+	deal_weight text not null,
+	verified_deal_weight text not null,
+	seal_cid text not null,
+	seal_rand_epoch bigint not null,
+	constraint miner_sectors_pk
+		primary key (miner_id, sector_id)
 );
 
-create index if not exists miner_heads_stateroot_index
-	on miner_heads (stateroot);
+create index if not exists miner_sectors_miner_sectorid_index
+	on miner_sectors (miner_id, sector_id);
 
+create table if not exists miner_info
+(
+	miner_id text not null,
+	owner_addr text not null,
+	worker_addr text not null,
+	peer_id text,
+	sector_size text not null,
+	
+	precommit_deposits text not null,
+	locked_funds text not null,
+	next_deadline_process_faults bigint not null,
+	constraint miner_info_pk
+		primary key (miner_id)
+);
+
+/* used to tell when a miners sectors (proven-not-yet-expired) changed if the miner_sectors_cid's are different a new sector was added or removed (terminated/expired) */
+create table if not exists miner_sectors_heads
+(
+	miner_id text not null,
+	miner_sectors_cid text not null,
+	
+	state_root text not null,	
+	
+	constraint miner_sectors_heads_pk
+		primary key (miner_id,miner_sectors_cid)
+    
+);
+
+create type miner_sector_event_type as enum ('ADDED', 'EXTENDED', 'EXPIRED', 'TERMINATED');
+
+create table if not exists miner_sector_events
+(
+    miner_id text not null,
+    sector_id bigint not null,
+    state_root text not null,
+    event miner_sector_event_type not null,
+    
+	constraint miner_sector_events_pk
+		primary key (sector_id, event, miner_id, state_root)
+)
+
+/*
 create or replace function miner_tips(epoch bigint)
     returns table (head text,
                    addr text,
@@ -456,54 +500,296 @@ func (st *storage) storeActors(actors map[address.Address]map[types.Actor]actorI
 	return nil
 }
 
-func (st *storage) storeMiners(miners map[minerKey]*minerInfo) error {
-	/*tx, err := st.db.Begin()
-		if err != nil {
-			return err
+type storeSectorsAPI interface {
+	StateMinerSectors(context.Context, address.Address, *abi.BitField, bool, types.TipSetKey) ([]*api.ChainSectorInfo, error)
+}
+
+func (st *storage) storeSectors(minerTips map[types.TipSetKey][]*minerStateInfo, sectorApi storeSectorsAPI) error {
+	tx, err := st.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`create temp table ms (like miner_sectors excluding constraints) on commit drop;`); err != nil {
+		return xerrors.Errorf("prep temp: %w", err)
+	}
+
+	stmt, err := tx.Prepare(`copy ms (miner_id, sector_id, activation_epoch, expiration_epoch, deal_weight, verified_deal_weight, seal_cid, seal_rand_epoch) from STDIN`)
+	if err != nil {
+		return err
+	}
+
+	for tipset, miners := range minerTips {
+		for _, miner := range miners {
+			sectors, err := sectorApi.StateMinerSectors(context.TODO(), miner.addr, nil, true, tipset)
+			if err != nil {
+				log.Debugw("Failed to load sectors", "tipset", tipset.String(), "miner", miner.addr.String(), "error", err)
+			}
+
+			for _, sector := range sectors {
+				if _, err := stmt.Exec(
+					miner.addr.String(),
+					uint64(sector.ID),
+					int64(sector.Info.Activation),
+					int64(sector.Info.Expiration),
+					sector.Info.DealWeight.String(),
+					sector.Info.VerifiedDealWeight.String(),
+					sector.Info.SealedCID.String(),
+					0, // TODO: Not there now?
+				); err != nil {
+					return err
+				}
+			}
 		}
+	}
 
-		if _, err := tx.Exec(`
+	if err := stmt.Close(); err != nil {
+		return err
+	}
 
-	create temp table mh (like miner_heads excluding constraints) on commit drop;
+	if _, err := tx.Exec(`insert into miner_sectors select * from ms on conflict do nothing `); err != nil {
+		return xerrors.Errorf("actor put: %w", err)
+	}
 
+	return tx.Commit()
+}
 
-	`); err != nil {
-			return xerrors.Errorf("prep temp: %w", err)
-		}
+func (st *storage) storeMiners(minerTips map[types.TipSetKey][]*minerStateInfo) error {
+	tx, err := st.db.Begin()
+	if err != nil {
+		return err
+	}
 
-		stmt, err := tx.Prepare(`copy mh (head, addr, stateroot, sectorset, setsize, provingset, provingsize, owner, worker, peerid, sectorsize, power, ppe) from STDIN`)
-		if err != nil {
-			return err
-		}
-		for k, i := range miners {
+	if _, err := tx.Exec(`create temp table mi (like miner_info excluding constraints) on commit drop;`); err != nil {
+		return xerrors.Errorf("prep temp: %w", err)
+	}
+
+	stmt, err := tx.Prepare(`copy mi (miner_id, owner_addr, worker_addr, peer_id, sector_size, precommit_deposits, locked_funds, next_deadline_process_faults) from STDIN`)
+	if err != nil {
+		return err
+	}
+	for ts, miners := range minerTips {
+		for _, miner := range miners {
+			var pid string
+			if len(miner.info.PeerId) != 0 {
+				peerid, err := peer.IDFromBytes(miner.info.PeerId)
+				if err != nil {
+					// this should "never happen", but if it does we should still store info about the miner.
+					log.Warnw("failed to decode peerID", "peerID (bytes)", miner.info.PeerId, "miner", miner.addr, "tipset", ts.String())
+				} else {
+					pid = peerid.String()
+				}
+			}
 			if _, err := stmt.Exec(
-				k.act.Head.String(),
-				k.addr.String(),
-				k.stateroot.String(),
-				i.state.Sectors.String(),
-				fmt.Sprint(i.ssize),
-				i.state.ProvingSet.String(),
-				fmt.Sprint(i.psize),
-				i.info.Owner.String(),
-				i.info.Worker.String(),
-				i.info.PeerId.String(),
-				i.info.SectorSize,
-				i.power.String(), // TODO: SPA
-				i.state.PoStState.ProvingPeriodStart,
+				miner.addr.String(),
+				miner.info.Owner.String(),
+				miner.info.Worker.String(),
+				pid,
+				miner.info.SectorSize.ShortString(),
+				miner.state.PreCommitDeposits.String(),
+				miner.state.LockedFunds.String(),
+				miner.state.NextDeadlineToProcessFaults,
 			); err != nil {
+				log.Errorw("failed to store miner state", "state", miner.state, "info", miner.info, "error", err)
+				return err
+			}
+
+		}
+	}
+	if err := stmt.Close(); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`insert into miner_info select * from mi on conflict do nothing `); err != nil {
+		return xerrors.Errorf("actor put: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+func (st *storage) storeMinerSectorsHeads(minerTips map[types.TipSetKey][]*minerStateInfo, api api.FullNode) error {
+	tx, err := st.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`create temp table msh (like miner_sectors_heads excluding constraints) on commit drop;`); err != nil {
+		return xerrors.Errorf("prep temp: %w", err)
+	}
+
+	stmt, err := tx.Prepare(`copy msh (miner_id, miner_sectors_cid, state_root) from STDIN`)
+	if err != nil {
+		return err
+	}
+
+	for _, miners := range minerTips {
+		for _, miner := range miners {
+			if _, err := stmt.Exec(
+				miner.addr.String(),
+				miner.state.Sectors.String(),
+				miner.stateroot.String(),
+			); err != nil {
+				log.Errorw("failed to store miners sectors head", "state", miner.state, "info", miner.info, "error", err)
+				return err
+			}
+
+		}
+	}
+	if err := stmt.Close(); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`insert into miner_sectors_heads select * from msh on conflict do nothing `); err != nil {
+		return xerrors.Errorf("actor put: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+type sectorUpdate struct {
+	terminationEpoch abi.ChainEpoch
+	terminated       bool
+
+	expirationEpoch abi.ChainEpoch
+
+	sectorID abi.SectorNumber
+	minerID  address.Address
+}
+
+func (st *storage) updateMinerSectors(minerTips map[types.TipSetKey][]*minerStateInfo, api api.FullNode) error {
+	log.Debugw("updating miners constant sector table", "#tipsets", len(minerTips))
+	pred := state.NewStatePredicates(api)
+
+	eventTx, err := st.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	if _, err := eventTx.Exec(`create temp table mse (like miner_sector_events excluding constraints) on commit drop;`); err != nil {
+		return xerrors.Errorf("prep temp: %w", err)
+	}
+
+	eventStmt, err := eventTx.Prepare(`copy mse (sector_id, event, miner_id, state_root) from STDIN `)
+	if err != nil {
+		return err
+	}
+
+	var sectorUpdates []sectorUpdate
+	// TODO consider performing the miner sector diffing in parallel and performing the database update after.
+	for _, miners := range minerTips {
+		for _, miner := range miners {
+			// special case genesis miners
+			if miner.tsKey == st.genesisTs.Key() {
+				sectors, err := api.StateMinerSectors(context.TODO(), miner.addr, nil, true, miner.tsKey)
+				if err != nil {
+					log.Debugw("failed to get miner info for genesis", "miner", miner.addr.String())
+					continue
+				}
+
+				for _, sector := range sectors {
+					if _, err := eventStmt.Exec(sector.Info.SectorNumber, "ADDED", miner.addr.String(), miner.stateroot.String()); err != nil {
+						return err
+					}
+				}
+			} else {
+				sectorDiffFn := pred.OnMinerActorChange(miner.addr, pred.OnMinerSectorChange())
+				changed, val, err := sectorDiffFn(context.TODO(), miner.parentTsKey, miner.tsKey)
+				if err != nil {
+					log.Debugw("error getting miner sector diff", "miner", miner.addr, "error", err)
+					continue
+				}
+				if !changed {
+					continue
+				}
+				changes := val.(*state.MinerSectorChanges)
+				log.Debugw("sector changes for miner", "miner", miner.addr.String(), "Added", len(changes.Added), "Extended", len(changes.Extended), "Removed", len(changes.Removed), "oldState", miner.parentTsKey, "newState", miner.tsKey)
+
+				for _, extended := range changes.Extended {
+					if _, err := eventStmt.Exec(extended.To.SectorNumber, "EXTENDED", miner.addr.String(), miner.stateroot.String()); err != nil {
+						return err
+					}
+					sectorUpdates = append(sectorUpdates, sectorUpdate{
+						terminationEpoch: 0,
+						terminated:       false,
+						expirationEpoch:  extended.To.Expiration,
+						sectorID:         extended.To.SectorNumber,
+						minerID:          miner.addr,
+					})
+					log.Debugw("sector extended", "miner", miner.addr.String(), "sector", extended.To.SectorNumber, "old", extended.To.Expiration, "new", extended.From.Expiration)
+				}
+				curTs, err := api.ChainGetTipSet(context.TODO(), miner.tsKey)
+				if err != nil {
+					return err
+				}
+
+				for _, removed := range changes.Removed {
+					// decide if they were terminated or extended
+					if removed.Expiration > curTs.Height() {
+						if _, err := eventStmt.Exec(removed.SectorNumber, "TERMINATED", miner.addr.String(), miner.stateroot.String()); err != nil {
+							return err
+						}
+						log.Debugw("sector terminated", "miner", miner.addr.String(), "sector", removed.SectorNumber, "old", "sectorExpiration", removed.Expiration, "terminationEpoch", curTs.Height())
+						sectorUpdates = append(sectorUpdates, sectorUpdate{
+							terminationEpoch: curTs.Height(),
+							terminated:       true,
+							expirationEpoch:  removed.Expiration,
+							sectorID:         removed.SectorNumber,
+							minerID:          miner.addr,
+						})
+					}
+					if _, err := eventStmt.Exec(removed.SectorNumber, "EXPIRED", miner.addr.String(), miner.stateroot.String()); err != nil {
+						return err
+					}
+					log.Debugw("sector removed", "miner", miner.addr.String(), "sector", removed.SectorNumber, "old", "sectorExpiration", removed.Expiration, "currEpoch", curTs.Height())
+				}
+
+				for _, added := range changes.Added {
+					if _, err := eventStmt.Exec(miner.addr.String(), added.SectorNumber, miner.stateroot.String(), "ADDED"); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	if err := eventStmt.Close(); err != nil {
+		return err
+	}
+
+	if _, err := eventTx.Exec(`insert into miner_sector_events select * from mse on conflict do nothing `); err != nil {
+		return xerrors.Errorf("actor put: %w", err)
+	}
+
+	if err := eventTx.Commit(); err != nil {
+		return err
+	}
+
+	updateTx, err := st.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	updateStmt, err := updateTx.Prepare(`UPDATE miner_sectors SET termination_epoch=$1, expiration_epoch=$2 WHERE miner_id=$3 AND sector_id=$4`)
+	if err != nil {
+		return err
+	}
+
+	for _, update := range sectorUpdates {
+		if update.terminated {
+			if _, err := updateStmt.Exec(update.terminationEpoch, update.expirationEpoch, update.minerID.String(), update.sectorID); err != nil {
+				return err
+			}
+		} else {
+			if _, err := updateStmt.Exec(nil, update.expirationEpoch, update.minerID.String(), update.sectorID); err != nil {
 				return err
 			}
 		}
-		if err := stmt.Close(); err != nil {
-			return err
-		}
+	}
 
-		if _, err := tx.Exec(`insert into miner_heads select * from mh on conflict do nothing `); err != nil {
-			return xerrors.Errorf("actor put: %w", err)
-		}
+	if err := updateStmt.Close(); err != nil {
+		return err
+	}
 
-		return tx.Commit()*/
-	return nil
+	return updateTx.Commit()
 }
 
 func (st *storage) storeHeaders(bhs map[cid.Cid]*types.BlockHeader, sync bool) error {

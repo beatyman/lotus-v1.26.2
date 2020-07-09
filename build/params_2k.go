@@ -24,16 +24,10 @@ func init() {
 	BuildType |= Build2k
 }
 
-var SectorSizes = []abi.SectorSize{
-	2048,
-	512 << 20,
-	32 << 30,
-}
-
 // Seconds
-const BlockDelay = 10
+const BlockDelaySecs = uint64(2)
 
-const PropagationDelay = 3
+const PropagationDelaySecs = uint64(3)
 
 // SlashablePowerDelay is the number of epochs after ElectionPeriodStart, after
 // which the miner is slashed

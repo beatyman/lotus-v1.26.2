@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/filecoin-project/lotus/lib/adtutil"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"github.com/minio/blake2b-simd"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/vm"
+	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/metrics"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/trace"
@@ -323,6 +325,14 @@ func (cs *ChainStore) reorgWorker(ctx context.Context, initialNotifees []ReorgNo
 					log.Error("computing reorg ops failed: ", err)
 					continue
 				}
+
+				journal.Add("sync", map[string]interface{}{
+					"op":    "headChange",
+					"from":  r.old.Key(),
+					"to":    r.new.Key(),
+					"rev":   len(revert),
+					"apply": len(apply),
+				})
 
 				// reverse the apply array
 				for i := len(apply)/2 - 1; i >= 0; i-- {
@@ -892,27 +902,7 @@ func (cs *ChainStore) Blockstore() bstore.Blockstore {
 }
 
 func ActorStore(ctx context.Context, bs blockstore.Blockstore) adt.Store {
-	return &astore{
-		cst: cbor.NewCborStore(bs),
-		ctx: ctx,
-	}
-}
-
-type astore struct {
-	cst cbor.IpldStore
-	ctx context.Context
-}
-
-func (a *astore) Context() context.Context {
-	return a.ctx
-}
-
-func (a *astore) Get(ctx context.Context, c cid.Cid, out interface{}) error {
-	return a.cst.Get(ctx, c, out)
-}
-
-func (a *astore) Put(ctx context.Context, v interface{}) (cid.Cid, error) {
-	return a.cst.Put(ctx, v)
+	return adtutil.NewStore(ctx, cbor.NewCborStore(bs))
 }
 
 func (cs *ChainStore) Store(ctx context.Context) adt.Store {

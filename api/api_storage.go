@@ -3,13 +3,16 @@ package api
 import (
 	"bytes"
 	"context"
+	"time"
 
 	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
+	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/sector-storage/fsutil"
 	"github.com/filecoin-project/sector-storage/stores"
 	"github.com/filecoin-project/sector-storage/storiface"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -38,15 +41,22 @@ type StorageMiner interface {
 
 	SectorsRefs(context.Context) (map[string][]SealedRef, error)
 
-	// SectorStartSealing can be called on sectors in Empty on WaitDeals states
+	// SectorStartSealing can be called on sectors in Empty or WaitDeals states
 	// to trigger sealing early
 	SectorStartSealing(context.Context, abi.SectorNumber) error
+	// SectorSetSealDelay sets the time that a newly-created sector
+	// waits for more deals before it starts sealing
+	SectorSetSealDelay(context.Context, time.Duration) error
+	// SectorGetSealDelay gets the time that a newly-created sector
+	// waits for more deals before it starts sealing
+	SectorGetSealDelay(context.Context) (time.Duration, error)
 	SectorsUpdate(context.Context, abi.SectorNumber, SectorState) error
 	SectorRemove(context.Context, abi.SectorNumber) error
+	SectorMarkForUpgrade(ctx context.Context, id abi.SectorNumber) error
 
 	StorageList(ctx context.Context) (map[stores.ID][]stores.Decl, error)
 	StorageLocal(ctx context.Context) (map[stores.ID]string, error)
-	StorageStat(ctx context.Context, id stores.ID) (stores.FsStat, error)
+	StorageStat(ctx context.Context, id stores.ID) (fsutil.FsStat, error)
 
 	// WorkerConnect tells the node to connect to workers RPC
 	WorkerConnect(context.Context, string) error
@@ -62,10 +72,16 @@ type StorageMiner interface {
 
 	DealsImportData(ctx context.Context, dealPropCid cid.Cid, file string) error
 	DealsList(ctx context.Context) ([]storagemarket.StorageDeal, error)
-	DealsSetAcceptingStorageDeals(context.Context, bool) error
-	DealsSetAcceptingRetrievalDeals(context.Context, bool) error
+	DealsConsiderOnlineStorageDeals(context.Context) (bool, error)
+	DealsSetConsiderOnlineStorageDeals(context.Context, bool) error
+	DealsConsiderOnlineRetrievalDeals(context.Context) (bool, error)
+	DealsSetConsiderOnlineRetrievalDeals(context.Context, bool) error
 	DealsPieceCidBlocklist(context.Context) ([]cid.Cid, error)
 	DealsSetPieceCidBlocklist(context.Context, []cid.Cid) error
+	DealsConsiderOfflineStorageDeals(context.Context) (bool, error)
+	DealsSetConsiderOfflineStorageDeals(context.Context, bool) error
+	DealsConsiderOfflineRetrievalDeals(context.Context) (bool, error)
+	DealsSetConsiderOfflineRetrievalDeals(context.Context, bool) error
 
 	StorageAddLocal(ctx context.Context, path string) error
 
