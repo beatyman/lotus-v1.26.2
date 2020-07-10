@@ -80,7 +80,7 @@ var addHLMStorageCmd = &cli.Command{
 		}
 		mountTransfUri := cctx.String("mount-transf-uri")
 		if len(mountTransfUri) == 0 {
-			return errors.New("need mount-transf-uri")
+			mountTransfUri = mountSignalUri
 		}
 		mountDir := cctx.String("mount-dir")
 		if len(mountDir) == 0 {
