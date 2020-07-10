@@ -49,6 +49,10 @@ import (
 	"github.com/filecoin-project/lotus/metrics"
 )
 
+// Blocks that are more than MaxHeightDrift epochs above
+//the theoretical max height based on systime are quickly rejected
+const MaxHeightDrift = 5
+
 var log = logging.Logger("chain")
 
 var LocalIncoming = "incoming"
@@ -154,6 +158,11 @@ func (syncer *Syncer) InformNewHead(from peer.ID, fts *store.FullTipSet) bool {
 	ctx := context.Background()
 	if fts == nil {
 		log.Errorf("got nil tipset in InformNewHead")
+		return false
+	}
+
+	if syncer.IsEpochBeyondCurrMax(fts.TipSet().Height()) {
+		log.Errorf("Received block with impossibly large height %d", fts.TipSet().Height())
 		return false
 	}
 
@@ -529,7 +538,7 @@ func (syncer *Syncer) ValidateTipSet(ctx context.Context, fts *store.FullTipSet)
 		futures = append(futures, async.Err(func() error {
 			if err := syncer.ValidateBlock(ctx, b); err != nil {
 				if isPermanent(err) {
-					syncer.bad.Add(b.Cid(), err.Error())
+					syncer.bad.Add(b.Cid(), NewBadBlockReason([]cid.Cid{b.Cid()}, err.Error()))
 				}
 				return xerrors.Errorf("validating block %s: %w", b.Cid(), err)
 			}
@@ -659,18 +668,18 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	// fast checks first
 
 	now := uint64(time.Now().Unix())
-	if h.Timestamp > now+build.AllowableClockDrift {
+	if h.Timestamp > now+build.AllowableClockDriftSecs {
 		return xerrors.Errorf("block was from the future (now=%d, blk=%d): %w", now, h.Timestamp, ErrTemporal)
 	}
 	if h.Timestamp > now {
 		log.Warn("Got block from the future, but within threshold", h.Timestamp, time.Now().Unix())
 	}
 
-	if h.Timestamp < baseTs.MinTimestamp()+(build.BlockDelay*uint64(h.Height-baseTs.Height())) {
+	if h.Timestamp < baseTs.MinTimestamp()+(build.BlockDelaySecs*uint64(h.Height-baseTs.Height())) {
 		log.Warn("timestamp funtimes: ", h.Timestamp, baseTs.MinTimestamp(), h.Height, baseTs.Height())
-		diff := (baseTs.MinTimestamp() + (build.BlockDelay * uint64(h.Height-baseTs.Height()))) - h.Timestamp
+		diff := (baseTs.MinTimestamp() + (build.BlockDelaySecs * uint64(h.Height-baseTs.Height()))) - h.Timestamp
 
-		return xerrors.Errorf("block was generated too soon (h.ts:%d < base.mints:%d + BLOCK_DELAY:%d * deltaH:%d; diff %d)", h.Timestamp, baseTs.MinTimestamp(), build.BlockDelay, h.Height-baseTs.Height(), diff)
+		return xerrors.Errorf("block was generated too soon (h.ts:%d < base.mints:%d + BLOCK_DELAY:%d * deltaH:%d; diff %d)", h.Timestamp, baseTs.MinTimestamp(), build.BlockDelaySecs, h.Height-baseTs.Height(), diff)
 	}
 
 	msgsCheck := async.Err(func() error {
@@ -1107,17 +1116,14 @@ func (syncer *Syncer) collectHeaders(ctx context.Context, from *types.TipSet, to
 		trace.Int64Attribute("toHeight", int64(to.Height())),
 	)
 
-	markBad := func(fmts string, args ...interface{}) {
-		for _, b := range from.Cids() {
-			syncer.bad.Add(b, fmt.Sprintf(fmts, args...))
-		}
-	}
-
 	// Check if the parents of the from block are in the denylist.
 	// i.e. if a fork of the chain has been requested that we know to be bad.
 	for _, pcid := range from.Parents().Cids() {
 		if reason, ok := syncer.bad.Has(pcid); ok {
-			markBad("linked to %s", pcid)
+			newReason := reason.Linked("linked to %s", pcid)
+			for _, b := range from.Cids() {
+				syncer.bad.Add(b, newReason)
+			}
 			return nil, xerrors.Errorf("chain linked to block marked previously as bad (%s, %s) (reason: %s)", from.Cids(), pcid, reason)
 		}
 	}
@@ -1129,7 +1135,7 @@ func (syncer *Syncer) collectHeaders(ctx context.Context, from *types.TipSet, to
 			return targetBE[i].Round < targetBE[j].Round
 		})
 		if !sorted {
-			syncer.bad.Add(from.Cids()[0], "wrong order of beacon entires")
+			syncer.bad.Add(from.Cids()[0], NewBadBlockReason(from.Cids(), "wrong order of beacon entires"))
 			return nil, xerrors.Errorf("wrong order of beacon entires")
 		}
 
@@ -1163,8 +1169,9 @@ loop:
 	for blockSet[len(blockSet)-1].Height() > untilHeight {
 		for _, bc := range at.Cids() {
 			if reason, ok := syncer.bad.Has(bc); ok {
+				newReason := reason.Linked("change contained %s", bc)
 				for _, b := range acceptedBlocks {
-					syncer.bad.Add(b, fmt.Sprintf("chain contained %s", bc))
+					syncer.bad.Add(b, newReason)
 				}
 
 				return nil, xerrors.Errorf("chain contained block marked previously as bad (%s, %s) (reason: %s)", from.Cids(), bc, reason)
@@ -1211,8 +1218,9 @@ loop:
 			}
 			for _, bc := range b.Cids() {
 				if reason, ok := syncer.bad.Has(bc); ok {
+					newReason := reason.Linked("change contained %s", bc)
 					for _, b := range acceptedBlocks {
-						syncer.bad.Add(b, fmt.Sprintf("chain contained %s", bc))
+						syncer.bad.Add(b, newReason)
 					}
 
 					return nil, xerrors.Errorf("chain contained block marked previously as bad (%s, %s) (reason: %s)", from.Cids(), bc, reason)
@@ -1255,7 +1263,7 @@ loop:
 				// TODO: we're marking this block bad in the same way that we mark invalid blocks bad. Maybe distinguish?
 				log.Warn("adding forked chain to our bad tipset cache")
 				for _, b := range from.Blocks() {
-					syncer.bad.Add(b.Cid(), "fork past finality")
+					syncer.bad.Add(b.Cid(), NewBadBlockReason(from.Cids(), "fork past finality"))
 				}
 			}
 			return nil, xerrors.Errorf("failed to sync fork: %w", err)
@@ -1508,12 +1516,14 @@ func (syncer *Syncer) State() []SyncerState {
 
 // MarkBad manually adds a block to the "bad blocks" cache.
 func (syncer *Syncer) MarkBad(blk cid.Cid) {
-	syncer.bad.Add(blk, "manually marked bad")
+	syncer.bad.Add(blk, NewBadBlockReason([]cid.Cid{blk}, "manually marked bad"))
 }
 
 func (syncer *Syncer) CheckBadBlockCache(blk cid.Cid) (string, bool) {
-	return syncer.bad.Has(blk)
+	bbr, ok := syncer.bad.Has(blk)
+	return bbr.String(), ok
 }
+
 func (syncer *Syncer) getLatestBeaconEntry(_ context.Context, ts *types.TipSet) (*types.BeaconEntry, error) {
 	cur := ts
 	for i := 0; i < 20; i++ {
@@ -1534,4 +1544,14 @@ func (syncer *Syncer) getLatestBeaconEntry(_ context.Context, ts *types.TipSet) 
 	}
 
 	return nil, xerrors.Errorf("found NO beacon entries in the 20 blocks prior to given tipset")
+}
+
+func (syncer *Syncer) IsEpochBeyondCurrMax(epoch abi.ChainEpoch) bool {
+	g, err := syncer.store.GetGenesis()
+	if err != nil {
+		return false
+	}
+
+	now := uint64(time.Now().Unix())
+	return epoch > (abi.ChainEpoch((now-g.Timestamp)/build.BlockDelaySecs) + MaxHeightDrift)
 }

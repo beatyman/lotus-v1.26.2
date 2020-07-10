@@ -443,8 +443,8 @@ func (we *watcherEvents) StateChanged(check CheckFunc, scHnd StateChangeHandler,
 	}
 
 	we.lk.Lock()
-	we.matchers[id] = mf
 	defer we.lk.Unlock()
+	we.matchers[id] = mf
 
 	return nil
 }
@@ -476,21 +476,24 @@ func (me *messageEvents) checkNewCalls(ts *types.TipSet) (map[triggerID]eventDat
 		return nil, err
 	}
 
+	me.lk.RLock()
+	defer me.lk.RUnlock()
+
 	res := make(map[triggerID]eventData)
 	me.messagesForTs(pts, func(msg *types.Message) {
-		me.lk.RLock()
-		defer me.lk.RUnlock()
 		// TODO: provide receipts
 
 		for tid, matchFns := range me.matchers {
 			var matched bool
+			var once bool
 			for _, matchFn := range matchFns {
-				ok, err := matchFn(msg)
+				matchOne, ok, err := matchFn(msg)
 				if err != nil {
 					log.Errorf("event matcher failed: %s", err)
 					continue
 				}
 				matched = ok
+				once = matchOne
 
 				if matched {
 					break
@@ -499,7 +502,9 @@ func (me *messageEvents) checkNewCalls(ts *types.TipSet) (map[triggerID]eventDat
 
 			if matched {
 				res[tid] = msg
-				break
+				if once {
+					break
+				}
 			}
 		}
 	})
@@ -547,7 +552,7 @@ func (me *messageEvents) messagesForTs(ts *types.TipSet, consume func(*types.Mes
 // `curH`-`ts.Height` = `confidence`
 type MsgHandler func(msg *types.Message, rec *types.MessageReceipt, ts *types.TipSet, curH abi.ChainEpoch) (more bool, err error)
 
-type MsgMatchFunc func(msg *types.Message) (bool, error)
+type MsgMatchFunc func(msg *types.Message) (matchOnce bool, matched bool, err error)
 
 // Called registers a callback which is triggered when a specified method is
 //  called on an actor, or a timeout is reached.

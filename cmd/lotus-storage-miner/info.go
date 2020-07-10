@@ -44,7 +44,7 @@ var infoCmd = &cli.Command{
 
 		ctx := lcli.ReqContext(cctx)
 
-		maddr, err := nodeApi.ActorAddress(ctx)
+		maddr, err := getActorAddress(ctx, nodeApi, cctx.String("actor"))
 		if err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ var infoCmd = &cli.Command{
 				if expWinChance > 1 {
 					expWinChance = 1
 				}
-				winRate := time.Duration(float64(time.Second*build.BlockDelay) / expWinChance)
+				winRate := time.Duration(float64(time.Second*time.Duration(build.BlockDelaySecs)) / expWinChance)
 				winPerDay := float64(time.Hour*24) / float64(winRate)
 
 				fmt.Print("Expected block win rate: ")

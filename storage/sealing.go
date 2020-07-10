@@ -44,6 +44,10 @@ func (m *Miner) RemoveSector(ctx context.Context, id abi.SectorNumber) error {
 	return m.sealing.Remove(ctx, id)
 }
 
+func (m *Miner) MarkForUpgrade(id abi.SectorNumber) error {
+	return m.sealing.MarkForUpgrade(id)
+}
+
 // implements by hlm start
 func (m *Miner) RunPledgeSector() error {
 	return m.sealing.RunPledgeSector()
