@@ -58,5 +58,6 @@ TODO:
 	WorkerCommit2Done                   = 41
 	WorkerFinalize                      = 50
 4, 缓存管理变更 
+5, 存储节点分配变更为后置分配，并支持优化本机传输。
 
 ```
