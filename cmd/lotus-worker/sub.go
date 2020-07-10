@@ -41,32 +41,8 @@ func acceptJobs(ctx context.Context,
 	endpoint string, auth http.Header,
 	fileServer string,
 	repo, sealedRepo string,
-	maxTasks,
-	pAddPiece,
-	pPrecommit1, pPrecommit2,
-	pCommit1, pCommit2,
-	pWdPoSt, pWinPoSt uint,
-	transferCache, gpuSrv bool,
+	workerCfg ffiwrapper.WorkerCfg,
 ) error {
-	workerId := GetWorkerID(repo)
-	netIp := os.Getenv("NETIP")
-
-	workerCfg := ffiwrapper.WorkerCfg{
-		ID:                 workerId,
-		IP:                 netIp,
-		SvcUri:             fileServer,
-		MaxTaskNum:         int(maxTasks),
-		ParallelAddPiece:   int(pAddPiece),
-		ParallelPrecommit1: int(pPrecommit1),
-		ParallelPrecommit2: int(pPrecommit2),
-		ParallelCommit1:    int(pCommit1),
-		ParallelCommit2:    int(pCommit2),
-		ParallelWdPoSt:     int(pWdPoSt),
-		ParallelWinPoSt:    int(pWinPoSt),
-		TransferCache:      transferCache,
-		GPUSrv:             gpuSrv,
-	}
-
 	api, err := GetNodeApi()
 	if err != nil {
 		return errors.As(err)
@@ -89,7 +65,7 @@ func acceptJobs(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	log.Infof("Worker(%s) started", workerId)
+	log.Infof("Worker(%s) started", workerCfg.ID)
 
 loop:
 	for {

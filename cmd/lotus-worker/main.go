@@ -147,50 +147,60 @@ func main() {
 				Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
 			},
 
-			&cli.BoolFlag{
-				Name:  "enable-gpu-proving",
-				Usage: "enable use of GPU for mining operations",
-				Value: true,
-			},
 			&cli.UintFlag{
 				Name:  "max-tasks",
 				Value: 1,
+				Usage: "max tasks for memory.",
+			},
+			&cli.UintFlag{
+				Name:  "transfer-buffer",
+				Value: 1,
+				Usage: "buffer for transfer when task done",
+			},
+			&cli.UintFlag{
+				Name:  "cache-mode",
+				Value: 0,
+				Usage: "cache mode.0, tranfer mode; 1, share mode",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-addpiece",
 				Value: 1,
+				Usage: "parallel of addpice, <= max-tasks",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-precommit1",
 				Value: 1,
+				Usage: "parallel of precommit1, <= max-tasks",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-precommit2",
 				Value: 1,
+				Usage: "parallel of precommit2, <= max-tasks",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-commit1",
 				Value: 1,
+				Usage: "parallel of commit1, <= max-tasks",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-commit2",
 				Value: 1,
+				Usage: "parallel of commit2, <= max-tasks",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-wdpost",
 				Value: 0,
+				Usage: "TODO",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-winpost",
 				Value: 0,
-			},
-			&cli.BoolFlag{
-				Name:  "transfer-cache",
-				Value: true,
+				Usage: "TODO",
 			},
 			&cli.BoolFlag{
 				Name:  "gpu-srv",
 				Value: false,
+				Usage: "TODO",
 			},
 		},
 
@@ -209,9 +219,6 @@ var runCmd = &cli.Command{
 	Name:  "run",
 	Usage: "Start lotus worker",
 	Action: func(cctx *cli.Context) error {
-		if !cctx.Bool("enable-gpu-proving") {
-			os.Setenv("BELLMAN_NO_GPU", "true")
-		}
 		nodeCCtx = cctx
 
 		nodeApi, err := GetNodeApi()
@@ -332,6 +339,23 @@ var runCmd = &cli.Command{
 
 		}()
 
+		workerId := GetWorkerID(r)
+		netIp := os.Getenv("NETIP")
+
+		workerCfg := ffiwrapper.WorkerCfg{
+			ID:                 workerId,
+			IP:                 netIp,
+			SvcUri:             fileServer,
+			MaxTaskNum:         int(cctx.Uint("max-tasks")),
+			CacheMode:          int(cctx.Uint("cache-mode")),
+			TransferBuffer:     int(cctx.Uint("transfer-buffer")),
+			ParallelAddPiece:   int(cctx.Uint("parallel-addpiece")),
+			ParallelPrecommit1: int(cctx.Uint("parallel-precommit1")),
+			ParallelPrecommit2: int(cctx.Uint("parallel-precommit2")),
+			ParallelCommit1:    int(cctx.Uint("parallel-commit1")),
+			ParallelCommit2:    int(cctx.Uint("parallel-commit2")),
+			GPUSrv:             cctx.Bool("gpu-srv"),
+		}
 		for {
 
 			select {
@@ -344,12 +368,7 @@ var runCmd = &cli.Command{
 					"http://"+storageAddr, ainfo.AuthHeader(),
 					"http://"+fileServer,
 					r, sealedRepo,
-					cctx.Uint("max-tasks"),
-					cctx.Uint("parallel-addpiece"),
-					cctx.Uint("parallel-precommit1"), cctx.Uint("parallel-precommit2"),
-					cctx.Uint("parallel-commit1"), cctx.Uint("parallel-commit2"),
-					cctx.Uint("parallel-wdpost"), cctx.Uint("parallel-winpost"),
-					cctx.Bool("transfer-cache"), cctx.Bool("gpu-srv"),
+					workerCfg,
 				); err == nil {
 					break
 				} else {
