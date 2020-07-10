@@ -84,6 +84,7 @@ type StorageMiner interface {
 	WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error)
 	WorkerQueue(context.Context, ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error)
 	WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error)
+	WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error)
 	WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error
 	WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, status int) error
 	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error

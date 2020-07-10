@@ -63,6 +63,9 @@ func (sm *StorageMinerAPI) WorkerQueue(ctx context.Context, cfg ffiwrapper.Worke
 func (sm *StorageMinerAPI) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorking(workerId)
 }
+func (sm *StorageMinerAPI) WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorkingById(sid)
+}
 func (sm *StorageMinerAPI) WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).LockWorker(ctx, workerId, taskKey, memo, status)
 }

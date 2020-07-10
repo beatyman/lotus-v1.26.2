@@ -253,6 +253,7 @@ type StorageMinerStruct struct {
 		WorkerStatusAll    func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
 		WorkerQueue        func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
 		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
+		WorkerWorkingById  func(ctx context.Context, sid []string) (database.WorkingSectors, error)                  `perm:"read"`
 		WorkerLock         func(ctx context.Context, workerId, taskKey, memo string, status int) error               `perm:"write"`
 		WorkerUnlock       func(ctx context.Context, workerId, taskKey, memo string, status int) error               `perm:"write"`
 		WorkerDone         func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
@@ -1057,6 +1058,9 @@ func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.Wor
 }
 func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return c.Internal.WorkerWorking(ctx, workerId)
+}
+func (c *StorageMinerStruct) WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error) {
+	return c.Internal.WorkerWorkingById(ctx, sid)
 }
 func (c *StorageMinerStruct) WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error {
 	return c.Internal.WorkerLock(ctx, workerId, taskKey, memo, status)

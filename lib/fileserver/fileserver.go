@@ -121,20 +121,6 @@ func addConns(n int) {
 	_conns += n
 }
 
-func (s *StorageFileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// TODO: make auth
-	fmt.Printf("1:%+v\n", w.Header())
-	s.router.ServeHTTP(w, r)
-	fmt.Printf("2:%+v\n", w.Header())
-	//if len(w.Header()) > 0 {
-	//	return
-	//}
-
-	if s.next != nil {
-		s.next.ServeHTTP(w, r)
-	}
-}
-
 func (f *FileHandle) FileHttpServer(w http.ResponseWriter, r *http.Request) {
 	// auth
 	//fmt.Println("testing fileServer")

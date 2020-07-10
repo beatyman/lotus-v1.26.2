@@ -60,7 +60,6 @@ func acceptJobs(ctx context.Context,
 		workerCfg: workerCfg,
 		workOn:    map[string]ffiwrapper.WorkerTask{},
 	}
-
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
 		return err
@@ -135,7 +134,10 @@ func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]ab
 	return g.PledgeSector(ctx)
 }
 
-func (w *worker) removeCache(ctx context.Context, sid string) error {
+func (w *worker) RemoveCache(ctx context.Context, sid string) error {
+	w.workMu.Lock()
+	defer w.workMu.Unlock()
+
 	if filepath.Base(w.repo) == ".lotusstorage" {
 		return nil
 	}
@@ -152,92 +154,71 @@ func (w *worker) removeCache(ctx context.Context, sid string) error {
 	return nil
 }
 
-func (w *worker) cleanCache(ctx context.Context) error {
+func (w *worker) CleanCache(ctx context.Context) error {
+	w.workMu.Lock()
+	defer w.workMu.Unlock()
+
 	if filepath.Base(w.repo) == ".lotusstorage" {
 		return nil
-	}
-
-	api, err := GetNodeApi()
-	if err != nil {
-		return errors.As(err)
-	}
-	ws, err := api.WorkerWorking(ctx, w.workerCfg.ID)
-	if err != nil {
-		ReleaseNodeApi(false)
-		return errors.As(err, w.workerCfg.IP)
 	}
 
 	sealed := filepath.Join(w.repo, "sealed")
 	cache := filepath.Join(w.repo, "cache")
 	// staged := filepath.Join(w.repo, "staging")
 	unsealed := filepath.Join(w.repo, "unsealed")
+	if err := w.cleanCache(ctx, sealed); err != nil {
+		return errors.As(err)
+	}
+	if err := w.cleanCache(ctx, cache); err != nil {
+		return errors.As(err)
+	}
+	if err := w.cleanCache(ctx, unsealed); err != nil {
+		return errors.As(err)
+	}
+	return nil
+}
 
-	sealedFiles, err := ioutil.ReadDir(sealed)
+func (w *worker) cleanCache(ctx context.Context, path string) error {
+	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		log.Warn(errors.As(err))
 	} else {
+		fileNames := []string{}
+		for _, f := range files {
+			fileNames = append(fileNames, f.Name())
+		}
+		api, err := GetNodeApi()
+		if err != nil {
+			return errors.As(err)
+		}
+		ws, err := api.WorkerWorkingById(ctx, fileNames)
+		if err != nil {
+			ReleaseNodeApi(false)
+			return errors.As(err, fileNames)
+		}
 	sealedLoop:
-		for _, f := range sealedFiles {
+		for _, f := range files {
 			for _, s := range ws {
 				if s.ID == f.Name() {
 					continue sealedLoop
 				}
 			}
-			log.Infof("clean sealed:%s", filepath.Join(sealed, f.Name()))
-			if err := os.RemoveAll(filepath.Join(sealed, f.Name())); err != nil {
-				return errors.As(err, w.workerCfg.IP, filepath.Join(sealed, f.Name()))
+			log.Infof("clean %s", filepath.Join(path, f.Name()))
+			if err := os.RemoveAll(filepath.Join(path, f.Name())); err != nil {
+				return errors.As(err, w.workerCfg.IP, filepath.Join(path, f.Name()))
 			}
 		}
 	}
-
-	cacheFiles, err := ioutil.ReadDir(cache)
-	if err != nil {
-		log.Warn(errors.As(err))
-	} else {
-	cacheLoop:
-		for _, f := range cacheFiles {
-			for _, s := range ws {
-				if s.ID == f.Name() {
-					continue cacheLoop
-				}
-			}
-			log.Infof("clean cache:%s", filepath.Join(cache, f.Name()))
-			if err := os.RemoveAll(filepath.Join(cache, f.Name())); err != nil {
-				return errors.As(err, w.workerCfg.IP, filepath.Join(cache, f.Name()))
-			}
-		}
-	}
-	unsealedFiles, err := ioutil.ReadDir(unsealed)
-	if err != nil {
-		log.Warn(errors.As(err))
-	} else {
-	stagedLoop:
-		for _, f := range unsealedFiles {
-			for _, s := range ws {
-				if s.ID == f.Name() {
-					continue stagedLoop
-				}
-			}
-			log.Infof("clean unsealed:%s", filepath.Join(unsealed, f.Name()))
-			if err := os.RemoveAll(filepath.Join(unsealed, f.Name())); err != nil {
-				return errors.As(err, w.workerCfg.IP, filepath.Join(unsealed, f.Name()))
-			}
-		}
-	}
-
-	if err := os.MkdirAll(sealed, 0755); err != nil {
-		return errors.As(err, w.workerCfg.IP)
-	}
-	if err := os.MkdirAll(cache, 0755); err != nil {
-		return errors.As(err, w.workerCfg.IP)
-	}
-	if err := os.MkdirAll(unsealed, 0755); err != nil {
+	if err := os.MkdirAll(path, 0755); err != nil {
 		return errors.As(err, w.workerCfg.IP)
 	}
 	return nil
 }
 
-func (w *worker) pushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
+func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
+	w.workMu.Lock()
+	defer w.workMu.Unlock()
+
 	sid := task.GetSectorID()
 	log.Infof("pushCache:%+v", sid)
 	defer log.Infof("pushCache done:%+v", sid)
@@ -318,12 +299,12 @@ repush:
 			goto repush
 		}
 
-		if err := w.pushCache(ctx, task); err != nil {
+		if err := w.PushCache(ctx, task); err != nil {
 			log.Error(errors.As(err, task))
 			time.Sleep(60e9)
 			goto repush
 		}
-		if err := w.removeCache(ctx, task.GetSectorID()); err != nil {
+		if err := w.RemoveCache(ctx, task.GetSectorID()); err != nil {
 			log.Warn(errors.As(err))
 		}
 	}
@@ -384,12 +365,12 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		ReleaseNodeApi(false)
 		return errRes(errors.As(err, w.workerCfg), task)
 	}
-	// keep cache clean, the task will lock the cache.
-	if err := w.cleanCache(ctx); err != nil {
+	// clean cache before working.
+	if err := w.CleanCache(ctx); err != nil {
 		return errRes(errors.As(err, w.workerCfg), task)
 	}
 	// checking is the cache in a different storage server, do fetch when it is.
-	if task.Type < ffiwrapper.WorkerCommit2 && len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID {
+	if w.workerCfg.CacheMode == 0 && task.Type < ffiwrapper.WorkerCommit2 && len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID {
 		// lock bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
 			ReleaseNodeApi(false)
