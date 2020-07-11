@@ -32,6 +32,7 @@ type worker struct {
 	workerCfg ffiwrapper.WorkerCfg
 
 	workMu sync.Mutex
+	pushMu sync.Mutex
 	workOn map[string]ffiwrapper.WorkerTask // task key
 }
 
@@ -216,8 +217,8 @@ func (w *worker) cleanCache(ctx context.Context, path string) error {
 }
 
 func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
-	w.workMu.Lock()
-	defer w.workMu.Unlock()
+	w.pushMu.Lock()
+	defer w.pushMu.Unlock()
 
 	sid := task.GetSectorID()
 	log.Infof("pushCache:%+v", sid)
