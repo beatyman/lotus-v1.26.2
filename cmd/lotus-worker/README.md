@@ -43,9 +43,9 @@ TODO:
 
 变更列表:
 ```
-1, 从单任务变更为多任务并行
-2, 存储节点分离出信令ip与传输ip, 信令ip用于miner信令通信，传输ip用于worker数据传输
-3, 扇区状态变更：
+*, 从单任务变更为多任务并行
+*, 存储节点分离出信令ip与传输ip, 信令ip用于miner信令通信，传输ip用于worker数据传输
+*, 扇区状态变更：
    	WorkerAddPiece       WorkerTaskType = 0
 	WorkerAddPieceDone                  = 1
 	WorkerPreCommit1                    = 10
@@ -57,7 +57,9 @@ TODO:
 	WorkerCommit2                       = 40
 	WorkerCommit2Done                   = 41
 	WorkerFinalize                      = 50
-4, 缓存管理变更 
-5, 存储节点分配变更为后置分配，并支持优化本机传输。
+*, 存储节点分配变更为后置分配，并支持优化本机传输。
+*, 缓存管理变更，支持共享cache文件
+6, 考虑多worker共用一个cache的问题，sealedrepo需要人工管理，并增加id-file的人工指定workerid文件, 详见:
+   lotus-seal-worker --help
 
 ```
