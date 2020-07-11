@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -144,7 +143,12 @@ func main() {
 			&cli.StringFlag{
 				Name:    "sealedrepo",
 				EnvVars: []string{"WORKER_SEALED_PATH"},
-				Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
+				Value:   "~/.lotusworker/push", // TODO: Consider XDG_DATA_HOME
+			},
+			&cli.StringFlag{
+				Name:    "id-file",
+				EnvVars: []string{"WORKER_ID_PATH"},
+				Value:   "~/.lotusworker/worker.id", // TODO: Consider XDG_DATA_HOME
 			},
 
 			&cli.UintFlag{
@@ -235,7 +239,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Println(storageAddr)
 
 		r, err := homedir.Expand(cctx.String("repo"))
 		if err != nil {
@@ -243,6 +246,10 @@ var runCmd = &cli.Command{
 		}
 
 		sealedRepo, err := homedir.Expand(cctx.String("sealedrepo"))
+		if err != nil {
+			return err
+		}
+		workerIdFile, err := homedir.Expand(cctx.String("id-file"))
 		if err != nil {
 			return err
 		}
@@ -339,7 +346,7 @@ var runCmd = &cli.Command{
 
 		}()
 
-		workerId := GetWorkerID(r)
+		workerId := GetWorkerID(workerIdFile)
 		netIp := os.Getenv("NETIP")
 
 		workerCfg := ffiwrapper.WorkerCfg{

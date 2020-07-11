@@ -159,6 +159,7 @@ func (w *worker) CleanCache(ctx context.Context) error {
 	w.workMu.Lock()
 	defer w.workMu.Unlock()
 
+	// not do this on miner repo
 	if filepath.Base(w.repo) == ".lotusstorage" {
 		return nil
 	}
@@ -251,13 +252,13 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		return errors.As(err)
 	}
 	// "sealed" is created during previous step
-	if err := w.push(ctx, "sealed", sid); err != nil {
+	if err := w.pushRemote(ctx, "sealed", sid); err != nil {
 		return errors.As(err)
 	}
 	if err := os.MkdirAll(filepath.Join(w.sealedRepo, "cache"), 0755); err != nil {
 		return errors.As(err)
 	}
-	if err := w.push(ctx, "cache", sid); err != nil {
+	if err := w.pushRemote(ctx, "cache", sid); err != nil {
 		return errors.As(err)
 	}
 	// if err := os.MkdirAll(filepath.Join(w.sealedRepo, "unsealed"), 0755); err != nil {
@@ -383,7 +384,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if len(uri) == 0 {
 			uri = w.minerEndpoint
 		}
-		if err := w.fetch(
+		if err := w.fetchRemote(
 			uri,
 			task.SectorStorage.SectorInfo.ID,
 			task.Type,
@@ -399,7 +400,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 		// release the storage cache
 		log.Infof("fetch %s done, try delete remote files.", task.Key())
-		if err := w.deleteCache(
+		if err := w.deleteRemoteCache(
 			uri,
 			task.SectorStorage.SectorInfo.ID,
 		); err != nil {
