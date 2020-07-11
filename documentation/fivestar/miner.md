@@ -89,6 +89,7 @@ cd lotus
 ./init-bootstrap.sh
 tail -f boostrap.log # 直到Heaviest tipset 有10来个高度左右, ctrl+c 退出
 ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
+ssh-copy-id root@127.0.0.1 # 已有跳过
 ./deploy-boostrap.sh # 部署水龙头及对外提供的初始节点
 ```
 
