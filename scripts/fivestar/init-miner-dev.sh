@@ -37,7 +37,10 @@ echo lotus-storage-miner init --actor=$minerAddr --owner=$walletAddr
 ../../lotus-storage-miner --repo=$repodir --storagerepo=$storagerepodir init --actor=$minerAddr --owner=$walletAddr
 
 cp ./config-miner.toml $storagerepodir/config.toml
-netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.") # only support one eth card.
+netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.|192\.") # only support one eth card.
+if [ -z "$netip" ]; then
+    netip="127.0.0.1"
+fi
 echo "Set $netip to config.toml"
 sed -i "s/127.0.0.1/$netip/g" $storagerepodir/config.toml
 
