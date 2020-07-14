@@ -95,6 +95,7 @@ ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
 ## 编译lotus接入前面的私网
 ```shell
 ./install.sh debug # 若是使用正式，执行./install.sh进行编译, 编译完成后自动放在$FILECOIN_BIN下
+rm -rf /data/sdb/lotus-user-1/.lotus* # 注意!!!! 需要确认此库不是正式库，删掉需要重新同步数据，若创世节点一样，可不删除。
 ```
 
 shell 1, 运行链
