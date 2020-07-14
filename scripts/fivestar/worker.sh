@@ -75,7 +75,10 @@ else
     echo "/var/tmp/filecoin-proof-parameters already exist."
 fi
 
-netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.") # only support one eth card.
+netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.|192\.") # only support one eth card.
+if [ -z "$netip" ]; then
+    netip="127.0.0.1"
+fi
 
 RUST_LOG=info RUST_BACKTRACE=1 NETIP=$netip ../../lotus-seal-worker --repo=$repo --storagerepo=$storagerepo --sealedrepo=$sealedrepo --cache-sectors=2 run & pid=$!
 
@@ -92,4 +95,4 @@ else
 fi
 
 wait "$pid"
-
+kill $pid

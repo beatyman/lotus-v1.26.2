@@ -30,4 +30,5 @@ else
 fi
 
 wait "$pid"
+kill $pid
 
