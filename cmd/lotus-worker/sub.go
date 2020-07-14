@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 	sealing "github.com/filecoin-project/storage-fsm"
 
 	"github.com/gwaylib/errors"
@@ -470,10 +471,25 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err := os.RemoveAll(filepath.Join(w.repo, "unsealed", task.GetSectorID())); err != nil {
 			log.Error(errors.As(err, task.GetSectorID()))
 		}
-
-		out, err := w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
+		var out storage.Proof
+		var err error
+		// if local no gpu service, using remote if the remtoes have.
+		// TODO: Optimized waiting algorithm
+		if !w.workerCfg.GPUSrv {
+			for i := 0; i < 3; i++ {
+				out, err = w.sb.CallCommit2Service(ctx, task.SectorID, task.Commit1Out)
+				if err != nil {
+					log.Warn(errors.As(err))
+				}
+				time.Sleep(10e9)
+			}
+		}
+		// call gpu service failed, using local instead.
+		if len(out) == 0 {
+			out, err = w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
+			if err != nil {
+				return errRes(errors.As(err, w.workerCfg), task)
+			}
 		}
 		res.Commit2Out = out
 		// SPEC: cancel deal with worker finalize, because it will post failed when commit2 is online and finalize is interrupt.

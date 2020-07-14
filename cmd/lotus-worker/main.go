@@ -23,6 +23,7 @@ import (
 	manet "github.com/multiformats/go-multiaddr-net"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
@@ -307,18 +308,35 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err, sealedRepo)
 		}
+		workerId := GetWorkerID(workerIdFile)
+		netIp := os.Getenv("NETIP")
 		// make download server
 		fileServer := cctx.String("file-server")
 		if len(fileServer) == 0 {
-			netIp := os.Getenv("NETIP")
 			fileServer = netIp + ":1280"
 		}
+
+		workerCfg := ffiwrapper.WorkerCfg{
+			ID:                 workerId,
+			IP:                 netIp,
+			SvcUri:             fileServer,
+			MaxTaskNum:         int(cctx.Uint("max-tasks")),
+			CacheMode:          int(cctx.Uint("cache-mode")),
+			TransferBuffer:     int(cctx.Uint("transfer-buffer")),
+			ParallelAddPiece:   int(cctx.Uint("parallel-addpiece")),
+			ParallelPrecommit1: int(cctx.Uint("parallel-precommit1")),
+			ParallelPrecommit2: int(cctx.Uint("parallel-precommit2")),
+			ParallelCommit1:    int(cctx.Uint("parallel-commit1")),
+			ParallelCommit2:    int(cctx.Uint("parallel-commit2")),
+			GPUSrv:             cctx.Bool("gpu-srv"),
+		}
+		workerApi := &rpcServer{
+			sb: sb,
+		}
+
 		mux := mux.NewRouter()
-		//storagerepo,err := homedir.Expand(cctx.String("storagerepo"))
-		//if err != nil {
-		//	return err
-		//}
-		log.Info("repo:", r)
+		rpcServer := jsonrpc.NewServer()
+		rpcServer.Register("Filecoin", apistruct.PermissionedWorkerHlmAPI(workerApi))
 		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: r}).FileHttpServer)
 		ah := &auth.Handler{
 			Verify: AuthVerify,
@@ -345,24 +363,6 @@ var runCmd = &cli.Command{
 			}
 
 		}()
-
-		workerId := GetWorkerID(workerIdFile)
-		netIp := os.Getenv("NETIP")
-
-		workerCfg := ffiwrapper.WorkerCfg{
-			ID:                 workerId,
-			IP:                 netIp,
-			SvcUri:             fileServer,
-			MaxTaskNum:         int(cctx.Uint("max-tasks")),
-			CacheMode:          int(cctx.Uint("cache-mode")),
-			TransferBuffer:     int(cctx.Uint("transfer-buffer")),
-			ParallelAddPiece:   int(cctx.Uint("parallel-addpiece")),
-			ParallelPrecommit1: int(cctx.Uint("parallel-precommit1")),
-			ParallelPrecommit2: int(cctx.Uint("parallel-precommit2")),
-			ParallelCommit1:    int(cctx.Uint("parallel-commit1")),
-			ParallelCommit2:    int(cctx.Uint("parallel-commit2")),
-			GPUSrv:             cctx.Bool("gpu-srv"),
-		}
 		for {
 
 			select {
