@@ -8,6 +8,8 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
+	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
 
@@ -36,4 +38,25 @@ func ConnectHlmWorker(ctx context.Context, fa api.Common, url string) (*rpcClien
 	}
 
 	return &rpcClient{wapi, closer}, nil
+}
+
+func CallCommit2Service(ctx context.Context, sector abi.SectorID, commit1Out storage.Commit1Out) (storage.Proof, error) {
+	napi, err := GetNodeApi()
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	rCfg, err := napi.SelectCommit2Service(ctx, sector)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+
+	// connect to remote worker
+	rClient, err := ConnectHlmWorker(ctx, napi, rCfg.SvcUri)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	defer rClient.Close()
+
+	// do work
+	return rClient.SealCommit2(ctx, sector, commit1Out)
 }

@@ -475,13 +475,15 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		var err error
 		// if local no gpu service, using remote if the remtoes have.
 		// TODO: Optimized waiting algorithm
-		if !w.workerCfg.GPUSrv {
-			for i := 0; i < 3; i++ {
-				out, err = w.sb.CallCommit2Service(ctx, task.SectorID, task.Commit1Out)
+		if w.workerCfg.ParallelCommit2 == 0 {
+			for {
+				out, err = CallCommit2Service(ctx, task.SectorID, task.Commit1Out)
 				if err != nil {
 					log.Warn(errors.As(err))
+					time.Sleep(10e9)
+					continue
 				}
-				time.Sleep(10e9)
+				break
 			}
 		}
 		// call gpu service failed, using local instead.

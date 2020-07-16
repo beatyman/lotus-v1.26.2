@@ -170,42 +170,42 @@ func main() {
 			&cli.UintFlag{
 				Name:  "parallel-addpiece",
 				Value: 1,
-				Usage: "parallel of addpice, <= max-tasks",
+				Usage: "Parallel of addpice, <= max-tasks",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-precommit1",
 				Value: 1,
-				Usage: "parallel of precommit1, <= max-tasks",
+				Usage: "Parallel of precommit1, <= max-tasks",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-precommit2",
 				Value: 1,
-				Usage: "parallel of precommit2, <= max-tasks",
+				Usage: "Parallel of precommit2, <= max-tasks",
 			},
 			&cli.UintFlag{
-				Name:  "parallel-commit1",
+				Name:  "Parallel-commit1",
 				Value: 1,
-				Usage: "parallel of commit1, <= max-tasks",
+				Usage: "Parallel of commit1,0< parallel <= max-tasks, undefined for 0",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-commit2",
 				Value: 1,
-				Usage: "parallel of commit2, <= max-tasks",
-			},
-			&cli.UintFlag{
-				Name:  "parallel-wdpost",
-				Value: 0,
-				Usage: "TODO",
-			},
-			&cli.UintFlag{
-				Name:  "parallel-winpost",
-				Value: 0,
-				Usage: "TODO",
+				Usage: "Parallel of commit2, <= max-tasks. if parallel is 0, will select a commit2 service until success",
 			},
 			&cli.BoolFlag{
-				Name:  "gpu-srv",
+				Name:  "commit2-srv",
 				Value: false,
-				Usage: "TODO",
+				Usage: "Open commit2 service, need parallel-commit2 > 0",
+			},
+			&cli.BoolFlag{
+				Name:  "wdpost-srv",
+				Value: false,
+				Usage: "Open window PoSt service",
+			},
+			&cli.BoolFlag{
+				Name:  "wnpost-srv",
+				Value: false,
+				Usage: "Open wining PoSt service",
 			},
 		},
 
@@ -328,7 +328,9 @@ var runCmd = &cli.Command{
 			ParallelPrecommit2: int(cctx.Uint("parallel-precommit2")),
 			ParallelCommit1:    int(cctx.Uint("parallel-commit1")),
 			ParallelCommit2:    int(cctx.Uint("parallel-commit2")),
-			GPUSrv:             cctx.Bool("gpu-srv"),
+			Commit2Srv:         cctx.Bool("commit2-srv"),
+			WdPoStSrv:          cctx.Bool("wdpost-srv"),
+			WnPoStSrv:          cctx.Bool("wnpost-srv"),
 		}
 		workerApi := &rpcServer{
 			sb: sb,

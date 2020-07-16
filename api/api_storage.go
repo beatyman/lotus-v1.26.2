@@ -79,14 +79,15 @@ type StorageMiner interface {
 	StopPledgeSector(context.Context) error
 
 	SectorsListAll(context.Context) ([]SectorInfo, error)
+	SelectCommit2Service(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)
 	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 	WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error)
 	WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error)
 	WorkerQueue(context.Context, ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error)
 	WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error)
 	WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error)
-	WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error
-	WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, status int) error
+	WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
+	WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
 	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 	WorkerAddConn(ctx context.Context, wid string, num int) error

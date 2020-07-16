@@ -86,7 +86,7 @@ BINS+=lotus-storage-miner
 
 lotus-seal-worker: $(BUILD_DEPS)
 	rm -f lotus-seal-worker
-	go build $(GOFLAGS) -o lotus-seal-worker ./cmd/lotus-worker
+	go build $(GOFLAGS) -o lotus-seal-worker ./cmd/lotus-hlm-worker
 	go run github.com/GeertJohan/go.rice/rice append --exec lotus-seal-worker -i ./build
 .PHONY: lotus-seal-worker
 BINS+=lotus-seal-worker
