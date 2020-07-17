@@ -94,13 +94,15 @@ type StorageMiner interface {
 	StopPledgeSector(context.Context) error
 
 	SectorsListAll(context.Context) ([]SectorInfo, error)
+	SelectCommit2Service(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)
 	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 	WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error)
 	WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error)
 	WorkerQueue(context.Context, ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error)
 	WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error)
-	WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error
-	WorkerUnlock(ctx context.Context, workerId, taskKey, memo string) error
+	WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error)
+	WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
+	WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
 	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 	WorkerAddConn(ctx context.Context, wid string, num int) error
@@ -114,6 +116,9 @@ type StorageMiner interface {
 	UMountHLMStorage(ctx context.Context, id int64) error
 	RelinkHLMStorage(ctx context.Context, id int64) error
 	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
+	PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)
+	CommitStorageNode(ctx context.Context, sectorId string) error
+	CancelStorageNode(ctx context.Context, sectorId string) error
 }
 
 type SealRes struct {

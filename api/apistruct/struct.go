@@ -254,30 +254,35 @@ type StorageMinerStruct struct {
 		StorageAddLocal func(ctx context.Context, path string) error `perm:"admin"`
 
 		// implements by hlm
-		RunPledgeSector    func(context.Context) error                                                               `perm:"write"`
-		StatusPledgeSector func(context.Context) (int, error)                                                        `perm:"read"`
-		StopPledgeSector   func(context.Context) error                                                               `perm:"write"`
-		SectorsListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
-		WorkerAddress      func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
-		WorkerStatus       func(context.Context) (ffiwrapper.WorkerStats, error)                                     `perm:"read"`
-		WorkerStatusAll    func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
-		WorkerQueue        func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
-		WorkerWorking      func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
-		WorkerLock         func(ctx context.Context, workerId, taskKey, memo string, status int) error               `perm:"write"`
-		WorkerUnlock       func(ctx context.Context, workerId, taskKey, memo string) error                           `perm:"write"`
-		WorkerDone         func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
-		WorkerDisable      func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
-		WorkerAddConn      func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
-		WorkerPreConn      func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
-		WorkerMinerConn    func(ctx context.Context) (int, error)                                                    `perm:"read"`
+		RunPledgeSector      func(context.Context) error                                                               `perm:"write"`
+		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
+		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
+		SectorsListAll       func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
+		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
+		WorkerAddress        func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
+		WorkerStatus         func(context.Context) (ffiwrapper.WorkerStats, error)                                     `perm:"read"`
+		WorkerStatusAll      func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
+		WorkerQueue          func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
+		WorkerWorking        func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
+		WorkerWorkingById    func(ctx context.Context, sid []string) (database.WorkingSectors, error)                  `perm:"read"`
+		WorkerLock           func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
+		WorkerUnlock         func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
+		WorkerDone           func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
+		WorkerDisable        func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
+		WorkerAddConn        func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
+		WorkerPreConn        func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
+		WorkerMinerConn      func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
-		Testing           func(ctx context.Context, fnName string, args []string) error     `perm:"admin"`
-		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error       `perm:"write"`
-		DisableHLMStorage func(ctx context.Context, id int64) error                         `perm:"write"`
-		MountHLMStorage   func(ctx context.Context, id int64) error                         `perm:"write"`
-		UMountHLMStorage  func(ctx context.Context, id int64) error                         `perm:"write"`
-		RelinkHLMStorage  func(ctx context.Context, id int64) error                         `perm:"write"`
-		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error `perm:"write"`
+		Testing           func(ctx context.Context, fnName string, args []string) error                       `perm:"admin"`
+		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error                         `perm:"write"`
+		DisableHLMStorage func(ctx context.Context, id int64) error                                           `perm:"write"`
+		MountHLMStorage   func(ctx context.Context, id int64) error                                           `perm:"write"`
+		UMountHLMStorage  func(ctx context.Context, id int64) error                                           `perm:"write"`
+		RelinkHLMStorage  func(ctx context.Context, id int64) error                                           `perm:"write"`
+		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error                   `perm:"write"`
+		PreStorageNode    func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) `perm:"write"`
+		CommitStorageNode func(ctx context.Context, sectorId string) error                                    `perm:"write"`
+		CancelStorageNode func(ctx context.Context, sectorId string) error                                    `perm:"write"`
 	}
 }
 
@@ -1082,6 +1087,9 @@ func (c *StorageMinerStruct) StopPledgeSector(ctx context.Context) error {
 func (c *StorageMinerStruct) SectorsListAll(ctx context.Context) ([]api.SectorInfo, error) {
 	return c.Internal.SectorsListAll(ctx)
 }
+func (c *StorageMinerStruct) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {
+	return c.Internal.SelectCommit2Service(ctx, sector)
+}
 func (c *StorageMinerStruct) WorkerAddress(ctx context.Context, act address.Address, tsk types.TipSetKey) (address.Address, error) {
 	return c.Internal.WorkerAddress(ctx, act, tsk)
 }
@@ -1097,11 +1105,14 @@ func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.Wor
 func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return c.Internal.WorkerWorking(ctx, workerId)
 }
-func (c *StorageMinerStruct) WorkerLock(ctx context.Context, workerId, taskKey, memo string, status int) error {
-	return c.Internal.WorkerLock(ctx, workerId, taskKey, memo, status)
+func (c *StorageMinerStruct) WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error) {
+	return c.Internal.WorkerWorkingById(ctx, sid)
 }
-func (c *StorageMinerStruct) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string) error {
-	return c.Internal.WorkerUnlock(ctx, workerId, taskKey, memo)
+func (c *StorageMinerStruct) WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
+	return c.Internal.WorkerLock(ctx, workerId, taskKey, memo, sectorState)
+}
+func (c *StorageMinerStruct) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
+	return c.Internal.WorkerUnlock(ctx, workerId, taskKey, memo, sectorState)
 }
 func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return c.Internal.WorkerDone(ctx, res)
@@ -1137,9 +1148,20 @@ func (c *StorageMinerStruct) UMountHLMStorage(ctx context.Context, id int64) err
 func (c *StorageMinerStruct) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return c.Internal.RelinkHLMStorage(ctx, id)
 }
-
 func (c *StorageMinerStruct) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return c.Internal.ScaleHLMStorage(ctx, id, size, work)
+}
+
+func (c *StorageMinerStruct) PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) {
+	return c.Internal.PreStorageNode(ctx, sectorId, clientIp)
+}
+
+func (c *StorageMinerStruct) CommitStorageNode(ctx context.Context, sectorId string) error {
+	return c.Internal.CommitStorageNode(ctx, sectorId)
+}
+
+func (c *StorageMinerStruct) CancelStorageNode(ctx context.Context, sectorId string) error {
+	return c.Internal.CancelStorageNode(ctx, sectorId)
 }
 
 // implements by hlm end

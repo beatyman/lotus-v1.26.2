@@ -35,13 +35,13 @@ var addHLMStorageCmd = &cli.Command{
 			Value: "",
 		},
 		&cli.StringFlag{
-			Name:  "mount-uri",
-			Usage: "uri of mount, net uri or local uri",
+			Name:  "mount-signal-uri",
+			Usage: "uri for mount signal channel, net uri or local uri",
 			Value: "",
 		},
 		&cli.StringFlag{
-			Name:  "mount-dir",
-			Usage: "parent dir of mount point",
+			Name:  "mount-transf-uri",
+			Usage: "uri for mount transfer channel, net uri or local uri",
 			Value: "",
 		},
 		&cli.StringFlag{
@@ -74,9 +74,13 @@ var addHLMStorageCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		mountType := cctx.String("mount-type")
 		mountOpt := cctx.String("mount-opt")
-		mountUri := cctx.String("mount-uri")
-		if len(mountUri) == 0 {
-			return errors.New("need mount-uri")
+		mountSignalUri := cctx.String("mount-signal-uri")
+		if len(mountSignalUri) == 0 {
+			return errors.New("need mount-signal-uri")
+		}
+		mountTransfUri := cctx.String("mount-transf-uri")
+		if len(mountTransfUri) == 0 {
+			mountTransfUri = mountSignalUri
 		}
 		mountDir := cctx.String("mount-dir")
 		if len(mountDir) == 0 {
@@ -90,7 +94,7 @@ var addHLMStorageCmd = &cli.Command{
 		keepSize := cctx.Int64("keep-size")
 		sectorSize := cctx.Int64("sector-size")
 		maxWork := cctx.Int("max-work")
-		fmt.Println(mountType, mountUri, mountDir, maxSize, keepSize, sectorSize, maxWork)
+		fmt.Println(mountType, mountSignalUri, mountTransfUri, mountDir, maxSize, keepSize, sectorSize, maxWork)
 
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -99,14 +103,15 @@ var addHLMStorageCmd = &cli.Command{
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 		return nodeApi.AddHLMStorage(ctx, database.StorageInfo{
-			MountType:  mountType,
-			MountUri:   mountUri,
-			MountDir:   mountDir,
-			MountOpt:   mountOpt,
-			MaxSize:    maxSize,
-			KeepSize:   keepSize,
-			SectorSize: sectorSize,
-			MaxWork:    maxWork,
+			MountType:      mountType,
+			MountSignalUri: mountSignalUri,
+			MountTransfUri: mountTransfUri,
+			MountDir:       mountDir,
+			MountOpt:       mountOpt,
+			MaxSize:        maxSize,
+			KeepSize:       keepSize,
+			SectorSize:     sectorSize,
+			MaxWork:        maxWork,
 		})
 	},
 }

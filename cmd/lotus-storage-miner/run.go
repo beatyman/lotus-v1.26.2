@@ -106,13 +106,13 @@ var runCmd = &cli.Command{
 		}
 
 		// init storage database
-		database.InitDB(storageRepoPath)
+		database.InitDB(minerRepoPath)
 		// mount nfs storage node
 		if err := database.MountAllStorage(); err != nil {
 			return errors.As(err)
 		}
 		// checking sealed for proof
-		if err := ffiwrapper.CheckSealed(storageRepoPath); err != nil {
+		if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
 			return errors.As(err)
 		}
 
@@ -164,7 +164,7 @@ var runCmd = &cli.Command{
 
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)
-		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: storageRepoPath}).FileHttpServer)
+		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: minerRepoPath}).FileHttpServer)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
 		ah := &auth.Handler{

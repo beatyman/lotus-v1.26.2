@@ -59,3 +59,15 @@ func NewWorkerRPC(addr string, requestHeader http.Header) (api.WorkerAPI, jsonrp
 
 	return &res, closer, err
 }
+
+func NewWorkerHlmRPC(addr string, requestHeader http.Header) (api.WorkerHlmAPI, jsonrpc.ClientCloser, error) {
+	var res apistruct.WorkerHlmStruct
+	closer, err := jsonrpc.NewMergeClient(addr, "Filecoin",
+		[]interface{}{
+			&res.Internal,
+		},
+		requestHeader,
+	)
+
+	return &res, closer, err
+}
