@@ -103,18 +103,18 @@ func subMpool(ctx context.Context, api aapi.FullNode, ts *types.TipSet, blkCid c
 			log.Error(err)
 			continue
 		}
+		tsKey := rece.TipSet
 		receipt := MessageReceipt{}
 		if rece != nil {
-			receipt.Height = rece.TipSet.Height()
+			receipt.Height = rece.Height
 			receipt.ExitCode = rece.Receipt.ExitCode
 			receipt.Return = rece.Receipt.Return
 			receipt.GasUsed = rece.Receipt.GasUsed
 			receipt.BlockCid = blkCid.String()
 		}
 		log.Info("receipt done")
-		ts := rece.TipSet
 		// 获取帐户信息
-		toStateActor, err := api.StateGetActor(ctx, v.Message.To, ts.Key())
+		toStateActor, err := api.StateGetActor(ctx, v.Message.To, tsKey)
 		if err != nil {
 			log.Error(err)
 			continue
