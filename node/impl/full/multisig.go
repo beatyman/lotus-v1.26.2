@@ -26,7 +26,7 @@ type MsigAPI struct {
 	MpoolAPI  MpoolAPI
 }
 
-func (a *MsigAPI) MsigCreate(ctx context.Context, req uint64, addrs []address.Address, val types.BigInt, src address.Address, gp types.BigInt) (cid.Cid, error) {
+func (a *MsigAPI) MsigCreate(ctx context.Context, req uint64, addrs []address.Address, duration abi.ChainEpoch, val types.BigInt, src address.Address, gp types.BigInt) (cid.Cid, error) {
 
 	lenAddrs := uint64(len(addrs))
 
@@ -50,6 +50,7 @@ func (a *MsigAPI) MsigCreate(ctx context.Context, req uint64, addrs []address.Ad
 	msigParams := &samsig.ConstructorParams{
 		Signers:               addrs,
 		NumApprovalsThreshold: req,
+		UnlockDuration:        duration,
 	}
 
 	enc, actErr := actors.SerializeParams(msigParams)
@@ -75,7 +76,7 @@ func (a *MsigAPI) MsigCreate(ctx context.Context, req uint64, addrs []address.Ad
 		Method:   builtin.MethodsInit.Exec,
 		Params:   enc,
 		GasPrice: gp,
-		GasLimit: 1000000,
+		GasLimit: 100_000_000,
 		Value:    val,
 	}
 
@@ -122,7 +123,7 @@ func (a *MsigAPI) MsigPropose(ctx context.Context, msig address.Address, to addr
 		Value:    types.NewInt(0),
 		Method:   builtin.MethodsMultisig.Propose,
 		Params:   enc,
-		GasLimit: 100000,
+		GasLimit: 100_000_000,
 		GasPrice: types.NewInt(1),
 	}
 
@@ -138,8 +139,8 @@ func (a *MsigAPI) MsigApprove(ctx context.Context, msig address.Address, txID ui
 	return a.msigApproveOrCancel(ctx, api.MsigApprove, msig, txID, proposer, to, amt, src, method, params)
 }
 
-func (a *MsigAPI) MsigCancel(ctx context.Context, msig address.Address, txID uint64, proposer address.Address, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
-	return a.msigApproveOrCancel(ctx, api.MsigCancel, msig, txID, proposer, to, amt, src, method, params)
+func (a *MsigAPI) MsigCancel(ctx context.Context, msig address.Address, txID uint64, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
+	return a.msigApproveOrCancel(ctx, api.MsigCancel, msig, txID, src, to, amt, src, method, params)
 }
 
 func (a *MsigAPI) msigApproveOrCancel(ctx context.Context, operation api.MsigProposeResponse, msig address.Address, txID uint64, proposer address.Address, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
@@ -211,7 +212,7 @@ func (a *MsigAPI) msigApproveOrCancel(ctx context.Context, operation api.MsigPro
 		Value:    types.NewInt(0),
 		Method:   msigResponseMethod,
 		Params:   enc,
-		GasLimit: 100000,
+		GasLimit: 100_000_000,
 		GasPrice: types.NewInt(1),
 	}
 

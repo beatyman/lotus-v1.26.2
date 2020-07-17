@@ -91,6 +91,11 @@ var clientImportCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := ReqContext(cctx)
+
+		if cctx.NArg() != 1 {
+			return xerrors.New("expected input path as the only arg")
+		}
+
 		absPath, err := filepath.Abs(cctx.Args().First())
 		if err != nil {
 			return err
@@ -424,6 +429,12 @@ var clientFindCmd = &cli.Command{
 	Name:      "find",
 	Usage:     "find data in the network",
 	ArgsUsage: "[dataCid]",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "pieceCid",
+			Usage: "require data to be retrieved from a specific Piece CID",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		if !cctx.Args().Present() {
 			fmt.Println("Usage: find [CID]")
@@ -453,7 +464,16 @@ var clientFindCmd = &cli.Command{
 			fmt.Println("LOCAL")
 		}
 
-		offers, err := api.ClientFindData(ctx, file)
+		var pieceCid *cid.Cid
+		if cctx.String("pieceCid") != "" {
+			parsed, err := cid.Parse(cctx.String("pieceCid"))
+			if err != nil {
+				return err
+			}
+			pieceCid = &parsed
+		}
+
+		offers, err := api.ClientFindData(ctx, file, pieceCid)
 		if err != nil {
 			return err
 		}
@@ -469,6 +489,8 @@ var clientFindCmd = &cli.Command{
 		return nil
 	},
 }
+
+const DefaultMaxRetrievePrice = 1
 
 var clientRetrieveCmd = &cli.Command{
 	Name:      "retrieve",
@@ -486,6 +508,14 @@ var clientRetrieveCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "miner",
 			Usage: "miner address for retrieval, if not present it'll use local discovery",
+		},
+		&cli.StringFlag{
+			Name:  "maxPrice",
+			Usage: fmt.Sprintf("maximum price the client is willing to consider (default: %d FIL)", DefaultMaxRetrievePrice),
+		},
+		&cli.StringFlag{
+			Name:  "pieceCid",
+			Usage: "require data to be retrieved from a specific Piece CID",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -528,10 +558,24 @@ var clientRetrieveCmd = &cli.Command{
 			return nil
 		}*/ // TODO: fix
 
+		var pieceCid *cid.Cid
+		if cctx.String("pieceCid") != "" {
+			parsed, err := cid.Parse(cctx.String("pieceCid"))
+			if err != nil {
+				return err
+			}
+			pieceCid = &parsed
+		}
+
 		var offer api.QueryOffer
 		minerStrAddr := cctx.String("miner")
 		if minerStrAddr == "" { // Local discovery
-			offers, err := fapi.ClientFindData(ctx, file)
+			offers, err := fapi.ClientFindData(ctx, file, pieceCid)
+
+			// sort by price low to high
+			sort.Slice(offers, func(i, j int) bool {
+				return offers[i].MinPrice.LessThan(offers[j].MinPrice)
+			})
 			if err != nil {
 				return err
 			}
@@ -547,13 +591,28 @@ var clientRetrieveCmd = &cli.Command{
 			if err != nil {
 				return err
 			}
-			offer, err = fapi.ClientMinerQueryOffer(ctx, file, minerAddr)
+			offer, err = fapi.ClientMinerQueryOffer(ctx, minerAddr, file, pieceCid)
 			if err != nil {
 				return err
 			}
 		}
 		if offer.Err != "" {
 			return fmt.Errorf("The received offer errored: %s", offer.Err)
+		}
+
+		maxPrice := types.FromFil(DefaultMaxRetrievePrice)
+
+		if cctx.String("maxPrice") != "" {
+			maxPriceFil, err := types.ParseFIL(cctx.String("maxPrice"))
+			if err != nil {
+				return xerrors.Errorf("parsing maxPrice: %w", err)
+			}
+
+			maxPrice = types.BigInt(maxPriceFil)
+		}
+
+		if offer.MinPrice.GreaterThan(maxPrice) {
+			return xerrors.Errorf("failed to find offer satisfying maxPrice: %s", maxPrice)
 		}
 
 		ref := &lapi.FileRef{
