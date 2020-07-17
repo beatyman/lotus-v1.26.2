@@ -213,6 +213,10 @@ github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5Kwzbycv
 github.com/fatih/color v1.8.0 h1:5bzFgL+oy7JITMTxUPJ00n7VxmYd/PdMp5mHFX40/RY=
 github.com/fatih/color v1.8.0/go.mod h1:3l45GVGkyrnYNl9HoIjnp2NnNWvh6hLAqD8yTfGjnw8=
 github.com/fd/go-nat v1.0.0/go.mod h1:BTBu/CKvMmOMUPkKVef1pngt2WFH/lg7E6yQnulfp6E=
+github.com/filecoin-fivestar/sector-storage v0.0.0-20200717065001-2262790c21be h1:bg8/VUU9JffQ9P2rXRWajX9S2qVBON3zDCkJDahQ2js=
+github.com/filecoin-fivestar/sector-storage v0.0.0-20200717065001-2262790c21be/go.mod h1:VOG39MCUp4V9Pgadh8aklqE9qXNPNvVyb8dbRmLrmnI=
+github.com/filecoin-fivestar/storage-fsm v0.0.0-20200717092505-7c5eadeaf83e h1:lOy+KID9NwRAqH6rYtvo2DyjLb67UNnv0mrygtlpxL0=
+github.com/filecoin-fivestar/storage-fsm v0.0.0-20200717092505-7c5eadeaf83e/go.mod h1:PmSUDr7fTA+0u9LAPkZuWQa31UJ6GZmuKOwYDOSSx6s=
 github.com/filecoin-project/chain-validation v0.0.6-0.20200716223212-b3309d1a82f5 h1:C2OX+TDZ5rN5wvtRBW/oWz7gKhD75Z+WzLIzSJxgO80=
 github.com/filecoin-project/chain-validation v0.0.6-0.20200716223212-b3309d1a82f5/go.mod h1:4P0WlDnvDvrOsg2018Z8xISJUP3eBHXzHE+2Ks6EANo=
 github.com/filecoin-project/go-address v0.0.0-20200107215422-da8eea2842b5/go.mod h1:SAOwJoakQ8EPjwNIsiakIQKsoKdkcbx8U3IapgCg9R0=
