@@ -135,7 +135,7 @@ replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
-replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200717065001-2262790c21be
+replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200718103024-b9aff1f0ac70
 
 //replace github.com/filecoin-project/sector-storage => ../sector-storage
 
@@ -143,6 +143,8 @@ replace github.com/filecoin-project/storage-fsm => github.com/filecoin-fivestar/
 
 //replace github.com/filecoin-project/storage-fsm => ../storage-fsm
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/IPFS-grandhelmsman/go-jsonrpc v0.1.1-0.20200624120906-76f1becf5976
+replace github.com/filecoin-project/go-jsonrpc => github.com/IPFS-grandhelmsman/go-jsonrpc v0.1.1-0.20200718130336-1262ff2d56fb
+
+//replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
 
 replace github.com/dgraph-io/badger/v2 => github.com/dgraph-io/badger/v2 v2.0.1-rc1.0.20200716180832-3ab515320794

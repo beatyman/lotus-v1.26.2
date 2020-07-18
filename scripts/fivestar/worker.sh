@@ -77,7 +77,8 @@ fi
 
 netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.") # only support one eth card.
 
-RUST_LOG=info RUST_BACKTRACE=1 NETIP=$netip ../../lotus-seal-worker --repo=$repo --storagerepo=$storagerepo --sealedrepo=$sealedrepo --cache-sectors=2 run & pid=$!
+RUST_LOG=info RUST_BACKTRACE=1 NETIP=$netip ../../lotus-seal-worker --repo=$repo --storagerepo=$storagerepo --sealedrepo=$sealedrepo --cache-sectors=2 run &
+pid=$!
 
 # set ulimit for process
 nropen=$(cat /proc/sys/fs/nr_open)

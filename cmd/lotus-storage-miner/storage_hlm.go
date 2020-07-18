@@ -45,6 +45,11 @@ var addHLMStorageCmd = &cli.Command{
 			Value: "",
 		},
 		&cli.StringFlag{
+			Name:  "mount-dir",
+			Usage: "parent dir of mount point",
+			Value: "",
+		},
+		&cli.StringFlag{
 			Name:  "mount-opt",
 			Usage: "mount opt, format should be \"-o ...\"",
 			Value: "",

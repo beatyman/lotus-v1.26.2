@@ -7,6 +7,8 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
+
+	"github.com/gwaylib/errors"
 )
 
 // NewCommonRPC creates a new http jsonrpc client.
@@ -44,6 +46,9 @@ func NewStorageMinerRPC(addr string, requestHeader http.Header) (api.StorageMine
 		},
 		requestHeader,
 	)
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
 
 	return &res, closer, err
 }

@@ -95,6 +95,7 @@ type StorageMiner interface {
 
 	SectorsListAll(context.Context) ([]SectorInfo, error)
 	SelectCommit2Service(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)
+	UnlockGPUService(ctx context.Context, workerId, taskKey string) error
 	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 	WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error)
 	WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error)

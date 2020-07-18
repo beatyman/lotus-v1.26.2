@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -26,6 +25,8 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	sealing "github.com/filecoin-project/storage-fsm"
+
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("storageminer")
@@ -160,7 +161,7 @@ func NewWinningPoStProver(api api.FullNode, prover storage.Prover, verifier ffiw
 
 	mi, err := api.StateMinerInfo(context.TODO(), ma, types.EmptyTSK)
 	if err != nil {
-		return nil, xerrors.Errorf("getting sector size: %w", err)
+		return nil, errors.As(err, "getting sector size", ma)
 	}
 
 	spt, err := ffiwrapper.SealProofTypeFromSectorSize(mi.SectorSize)

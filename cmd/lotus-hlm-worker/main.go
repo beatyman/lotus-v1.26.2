@@ -133,16 +133,16 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "repo",
-				EnvVars: []string{"WORKER_PATH"},
+				EnvVars: []string{"LOTUS_WORKER_PATH", "WORKER_PATH"},
 				Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
 			},
 			&cli.StringFlag{
-				Name:    "storagerepo",
-				EnvVars: []string{"LOTUS_STORAGE_PATH"},
+				Name:    "miner-repo",
+				EnvVars: []string{"LOTUS_MINER_PATH", "LOTUS_STORAGE_PATH"},
 				Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
 			},
 			&cli.StringFlag{
-				Name:    "sealedrepo",
+				Name:    "storage-repo",
 				EnvVars: []string{"WORKER_SEALED_PATH"},
 				Value:   "~/.lotusworker/push", // TODO: Consider XDG_DATA_HOME
 			},
@@ -150,6 +150,11 @@ func main() {
 				Name:    "id-file",
 				EnvVars: []string{"WORKER_ID_PATH"},
 				Value:   "~/.lotusworker/worker.id", // TODO: Consider XDG_DATA_HOME
+			},
+			&cli.StringFlag{
+				Name:  "listen-addr",
+				Value: "",
+				Usage: "server address for listen",
 			},
 
 			&cli.UintFlag{
@@ -183,7 +188,7 @@ func main() {
 				Usage: "Parallel of precommit2, <= max-tasks",
 			},
 			&cli.UintFlag{
-				Name:  "Parallel-commit1",
+				Name:  "parallel-commit1",
 				Value: 1,
 				Usage: "Parallel of commit1,0< parallel <= max-tasks, undefined for 0",
 			},
@@ -246,7 +251,7 @@ var runCmd = &cli.Command{
 			return err
 		}
 
-		sealedRepo, err := homedir.Expand(cctx.String("sealedrepo"))
+		sealedRepo, err := homedir.Expand(cctx.String("storage-repo"))
 		if err != nil {
 			return err
 		}
@@ -310,8 +315,8 @@ var runCmd = &cli.Command{
 		}
 		workerId := GetWorkerID(workerIdFile)
 		netIp := os.Getenv("NETIP")
-		// make download server
-		fileServer := cctx.String("file-server")
+		// make serivce server
+		fileServer := cctx.String("listen-addr")
 		if len(fileServer) == 0 {
 			fileServer = netIp + ":1280"
 		}
@@ -339,60 +344,43 @@ var runCmd = &cli.Command{
 		mux := mux.NewRouter()
 		rpcServer := jsonrpc.NewServer()
 		rpcServer.Register("Filecoin", apistruct.PermissionedWorkerHlmAPI(workerApi))
+		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: r}).FileHttpServer)
+		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
+
 		ah := &auth.Handler{
 			Verify: AuthVerify,
 			Next:   mux.ServeHTTP,
 		}
-		srv := &http.Server{Handler: ah}
+		srv := &http.Server{
+			Handler: ah,
+			BaseContext: func(listener net.Listener) context.Context {
+				return ctx
+			},
+		}
 		nl, err := net.Listen("tcp", fileServer)
 		if err != nil {
 			return err
 		}
 
-		//	fileServerToken, err := ioutil.ReadFile(filepath.Join(cctx.String("storagerepo"), "token"))
-		//	if err != nil {
-		//		return errors.As(err)
-		//	}
-		//	fileHandle := fileserver.NewStorageFileServer(r, string(fileServerToken), nil)
 		go func() {
-			//		log.Info("File server listen at: " + fileServer)
-			//	if err := http.ListenAndServe(fileServer, fileHandle); err != nil {
-			//		panic(err)
-			//	}
 			if err := srv.Serve(nl); err != nil {
-				log.Warn(err)
+				log.Error(err)
+				os.Exit(1)
 			}
-
 		}()
-		for {
 
-			select {
-			case <-ctx.Done():
-				break
-			default:
-				if err := acceptJobs(ctx,
-					sb, sealedSB,
-					act, workerAddr,
-					"http://"+storageAddr, ainfo.AuthHeader(),
-					"http://"+fileServer,
-					r, sealedRepo,
-					workerCfg,
-				); err == nil {
-					break
-				} else {
-					ReleaseNodeApi(false)
-					log.Warn(err)
-
-					// reset ctx
-					//cancel()
-					//ctx, cancel = context.WithCancel(lcli.ReqContext(nodeCCtx))
-					os.Exit(1) // here have a bug that it can't cancel the task by ctx.
-				}
-				time.Sleep(3 * 1e9) // wait 3 seconds to reconnect.
-			}
+		if err := acceptJobs(ctx,
+			sb, sealedSB,
+			act, workerAddr,
+			"http://"+storageAddr, ainfo.AuthHeader(),
+			"http://"+fileServer,
+			r, sealedRepo,
+			workerCfg,
+		); err != nil {
+			log.Warn(err)
+			ReleaseNodeApi(false)
 		}
-
 		return nil
 	},
 }

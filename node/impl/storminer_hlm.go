@@ -48,6 +48,10 @@ func (sm *StorageMinerAPI) SelectCommit2Service(ctx context.Context, sector abi.
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).SelectCommit2Service(ctx, sector)
 }
 
+func (sm *StorageMinerAPI) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockGPUService(ctx, workerId, taskKey)
+}
+
 func (sm *StorageMinerAPI) WorkerAddress(ctx context.Context, act address.Address, task types.TipSetKey) (address.Address, error) {
 	mInfo, err := sm.Full.StateMinerInfo(ctx, act, task)
 	if err != nil {

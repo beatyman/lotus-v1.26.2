@@ -64,7 +64,7 @@ func acceptJobs(ctx context.Context,
 	}
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
-		return err
+		return errors.As(err)
 	}
 	log.Infof("Worker(%s) started", workerCfg.ID)
 
@@ -447,9 +447,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			Unsealed: out.Unsealed.String(),
 			Sealed:   out.Sealed.String(),
 		}
-
-		// checking is the next step interrupted
-		unlockWorker = (w.workerCfg.ParallelCommit1 == 0)
 	case ffiwrapper.WorkerCommit1:
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
@@ -464,8 +461,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 		res.Commit1Out = out
-		// checking is the next step interrupted
-		unlockWorker = (w.workerCfg.ParallelCommit2 == 0)
 	case ffiwrapper.WorkerCommit2:
 		// clean unsealed
 		if err := os.RemoveAll(filepath.Join(w.repo, "unsealed", task.GetSectorID())); err != nil {
@@ -477,7 +472,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// TODO: Optimized waiting algorithm
 		if w.workerCfg.ParallelCommit2 == 0 {
 			for {
-				out, err = CallCommit2Service(ctx, task.SectorID, task.Commit1Out)
+				out, err = CallCommit2Service(ctx, task)
 				if err != nil {
 					log.Warn(errors.As(err))
 					time.Sleep(10e9)
