@@ -2,29 +2,22 @@
 
 package build
 
-import (
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
-	"github.com/filecoin-project/specs-actors/actors/builtin"
-	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
-	"github.com/filecoin-project/specs-actors/actors/builtin/power"
-)
-
 func init() {
 	InsecurePoStValidation = true
 	BuildType |= BuildDebug
 }
 
 func init() {
-	power.ConsensusMinerMinPower = big.NewInt(1024 << 20)
-	miner.SupportedProofTypes = map[abi.RegisteredProof]struct{}{
-		abi.RegisteredProof_StackedDRG512MiBSeal: {},
-		abi.RegisteredProof_StackedDRG32GiBSeal:  {},
-		abi.RegisteredProof_StackedDRG64GiBSeal:  {},
+	power.ConsensusMinerMinPower = big.NewInt(1024 << 30)
+	miner.SupportedProofTypes = map[abi.RegisteredSealProof]struct{}{
+		abi.RegisteredSealProof_StackedDrg2KiBV1:   {},
+		abi.RegisteredSealProof_StackedDrg8MiBV1:   {},
+		abi.RegisteredSealProof_StackedDrg512MiBV1: {},
+		abi.RegisteredSealProof_StackedDrg32GiBV1:  {},
+		abi.RegisteredSealProof_StackedDrg64GiBV1:  {},
 	}
 }
 
-// Seconds
-const BlockDelay = builtin.EpochDurationSeconds
+const BlockDelaySecs = uint64(builtin.EpochDurationSeconds)
 
-const PropagationDelay = 6
+const PropagationDelaySecs = uint64(6)
