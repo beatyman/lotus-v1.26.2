@@ -122,17 +122,10 @@ var genesisAddMinerCmd = &cli.Command{
 
 			template.Miners = append(template.Miners, miner)
 			log.Infof("Giving %s some initial balance", miner.Owner)
-			//initBalanceStr := "1000000000000000000000000"
-			//initBalance, err := big.FromString(initBalanceStr)
-			//if err != nil {
-			//	return errors.As(err, initBalanceStr)
-			//}
-			//Balance: initBalance,
 			template.Accounts = append(template.Accounts, genesis.Actor{
 				Type:    genesis.TAccount,
 				Balance: big.Mul(big.NewInt(50_000_000), big.NewInt(int64(build.FilecoinPrecision))),
-				//Balance: initBalance,
-				Meta: (&genesis.AccountMeta{Owner: miner.Owner}).ActorMeta(),
+				Meta:    (&genesis.AccountMeta{Owner: miner.Owner}).ActorMeta(),
 			})
 		}
 
