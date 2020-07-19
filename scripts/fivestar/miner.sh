@@ -30,5 +30,7 @@ else
 fi
 
 wait "$pid"
-kill $pid
+if [ ! -z "$pid"]; then
+    kill $pid
+fi
 
