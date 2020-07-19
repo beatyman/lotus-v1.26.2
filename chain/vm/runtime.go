@@ -373,8 +373,7 @@ func (rt *Runtime) Send(to address.Address, method abi.MethodNum, m vmr.CBORMars
 }
 
 func (rt *Runtime) internalSend(from, to address.Address, method abi.MethodNum, value types.BigInt, params []byte) ([]byte, aerrors.ActorError) {
-
-	start := time.Now()
+	start := build.Clock.Now()
 	ctx, span := trace.StartSpan(rt.ctx, "vmc.Send")
 	defer span.End()
 	if span.IsRecordingEvents() {
@@ -528,7 +527,7 @@ func (rt *Runtime) chargeGasInternal(gas GasCharge, skip int) aerrors.ActorError
 	var callers [10]uintptr
 	cout := gruntime.Callers(2+skip, callers[:])
 
-	now := time.Now()
+	now := build.Clock.Now()
 	if rt.lastGasCharge != nil {
 		rt.lastGasCharge.TimeTaken = now.Sub(rt.lastGasChargeTime)
 	}
@@ -577,4 +576,17 @@ func (rt *Runtime) abortIfAlreadyValidated() {
 		rt.Abortf(exitcode.SysErrorIllegalActor, "Method must validate caller identity exactly once")
 	}
 	rt.callerValidated = true
+}
+
+func (rt *Runtime) Log(level vmr.LogLevel, msg string, args ...interface{}) {
+	switch level {
+	case vmr.DEBUG:
+		actorLog.Debugf(msg, args)
+	case vmr.INFO:
+		actorLog.Infof(msg, args)
+	case vmr.WARN:
+		actorLog.Warnf(msg, args)
+	case vmr.ERROR:
+		actorLog.Errorf(msg, args)
+	}
 }

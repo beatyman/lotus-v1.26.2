@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -9,26 +10,26 @@ import (
 	"github.com/google/uuid"
 )
 
-const worker_id_file = "worker.id"
-
 var (
 	workerid   = ""
 	workeridMu = sync.Mutex{}
 )
 
-func GetWorkerID(repo string) string {
+func GetWorkerID(file string) string {
 	workeridMu.Lock()
 	defer workeridMu.Unlock()
 
 	if len(workerid) > 0 {
 		return workerid
 	}
-	file := filepath.Join(repo, worker_id_file)
 	// checkfile
 	id, err := ioutil.ReadFile(file)
 	if err == nil {
 		workerid = strings.TrimSpace(string(id))
 		return workerid
+	}
+	if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
+		panic(err)
 	}
 	workerid = uuid.New().String()
 	if err := ioutil.WriteFile(file, []byte(workerid), 0666); err != nil {

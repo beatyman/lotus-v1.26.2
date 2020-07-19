@@ -123,7 +123,7 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 			if err != nil {
 				log.Errorf("ChainNotify error: %+v")
 
-				time.Sleep(10 * time.Second)
+				build.Clock.Sleep(10 * time.Second)
 				continue
 			}
 

@@ -7,6 +7,8 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
+
+	"github.com/gwaylib/errors"
 )
 
 // NewCommonRPC creates a new http jsonrpc client.
@@ -34,7 +36,7 @@ func NewFullNodeRPC(addr string, requestHeader http.Header) (api.FullNode, jsonr
 	return &res, closer, err
 }
 
-// NewStorageMinerRPC creates a new http jsonrpc client for storage miner
+// NewStorageMinerRPC creates a new http jsonrpc client for miner
 func NewStorageMinerRPC(addr string, requestHeader http.Header) (api.StorageMiner, jsonrpc.ClientCloser, error) {
 	var res apistruct.StorageMinerStruct
 	closer, err := jsonrpc.NewMergeClient(addr, "Filecoin",
@@ -44,12 +46,27 @@ func NewStorageMinerRPC(addr string, requestHeader http.Header) (api.StorageMine
 		},
 		requestHeader,
 	)
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
 
 	return &res, closer, err
 }
 
 func NewWorkerRPC(addr string, requestHeader http.Header) (api.WorkerAPI, jsonrpc.ClientCloser, error) {
 	var res apistruct.WorkerStruct
+	closer, err := jsonrpc.NewMergeClient(addr, "Filecoin",
+		[]interface{}{
+			&res.Internal,
+		},
+		requestHeader,
+	)
+
+	return &res, closer, err
+}
+
+func NewWorkerHlmRPC(addr string, requestHeader http.Header) (api.WorkerHlmAPI, jsonrpc.ClientCloser, error) {
+	var res apistruct.WorkerHlmStruct
 	closer, err := jsonrpc.NewMergeClient(addr, "Filecoin",
 		[]interface{}{
 			&res.Internal,

@@ -27,6 +27,6 @@ case $1 in
 esac
 
 cp -rf lotus $install_path
-cp -rf lotus-storage-miner $install_path
-cp -rf lotus-seal-worker $install_path
+cp -rf lotus-miner $install_path
+cp -rf lotus-worker $install_path
 cp -rf lotus-chain-watch $install_path

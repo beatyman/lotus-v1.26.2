@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -24,6 +23,7 @@ import (
 	manet "github.com/multiformats/go-multiaddr-net"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
@@ -133,51 +133,84 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "repo",
-				EnvVars: []string{"WORKER_PATH"},
+				EnvVars: []string{"LOTUS_WORKER_PATH", "WORKER_PATH"},
 				Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
 			},
 			&cli.StringFlag{
-				Name:    "storagerepo",
-				EnvVars: []string{"LOTUS_STORAGE_PATH"},
+				Name:    "miner-repo",
+				EnvVars: []string{"LOTUS_MINER_PATH", "LOTUS_STORAGE_PATH"},
 				Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
 			},
 			&cli.StringFlag{
-				Name:    "sealedrepo",
+				Name:    "storage-repo",
 				EnvVars: []string{"WORKER_SEALED_PATH"},
-				Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
+				Value:   "~/.lotusworker/push", // TODO: Consider XDG_DATA_HOME
+			},
+			&cli.StringFlag{
+				Name:    "id-file",
+				EnvVars: []string{"WORKER_ID_PATH"},
+				Value:   "~/.lotusworker/worker.id", // TODO: Consider XDG_DATA_HOME
+			},
+			&cli.StringFlag{
+				Name:  "listen-addr",
+				Value: "",
+				Usage: "server address for listen",
 			},
 
-			&cli.BoolFlag{
-				Name:  "enable-gpu-proving",
-				Usage: "enable use of GPU for mining operations",
-				Value: true,
+			&cli.UintFlag{
+				Name:  "max-tasks",
+				Value: 1,
+				Usage: "max tasks for memory.",
 			},
 			&cli.UintFlag{
-				Name:  "cache-sectors",
+				Name:  "transfer-buffer",
 				Value: 1,
+				Usage: "buffer for transfer when task done",
+			},
+			&cli.UintFlag{
+				Name:  "cache-mode",
+				Value: 0,
+				Usage: "cache mode.0, tranfer mode; 1, share mode",
+			},
+			&cli.UintFlag{
+				Name:  "parallel-addpiece",
+				Value: 1,
+				Usage: "Parallel of addpice, <= max-tasks",
+			},
+			&cli.UintFlag{
+				Name:  "parallel-precommit1",
+				Value: 1,
+				Usage: "Parallel of precommit1, <= max-tasks",
+			},
+			&cli.UintFlag{
+				Name:  "parallel-precommit2",
+				Value: 1,
+				Usage: "Parallel of precommit2, <= max-tasks",
+			},
+			&cli.UintFlag{
+				Name:  "parallel-commit1",
+				Value: 1,
+				Usage: "Parallel of commit1,0< parallel <= max-tasks, undefined for 0",
+			},
+			&cli.UintFlag{
+				Name:  "parallel-commit2",
+				Value: 1,
+				Usage: "Parallel of commit2, <= max-tasks. if parallel is 0, will select a commit2 service until success",
 			},
 			&cli.BoolFlag{
-				Name: "no-addpiece",
+				Name:  "commit2-srv",
+				Value: false,
+				Usage: "Open commit2 service, need parallel-commit2 > 0",
 			},
 			&cli.BoolFlag{
-				Name: "no-precommit1",
+				Name:  "wdpost-srv",
+				Value: false,
+				Usage: "Open window PoSt service",
 			},
 			&cli.BoolFlag{
-				Name: "no-precommit2",
-			},
-			&cli.BoolFlag{
-				Name: "no-commit1",
-			},
-			&cli.BoolFlag{
-				Name: "no-commit2",
-			},
-			&cli.BoolFlag{
-				Name:  "no-wpost",
-				Value: true,
-			},
-			&cli.BoolFlag{
-				Name:  "no-post",
-				Value: true,
+				Name:  "wnpost-srv",
+				Value: false,
+				Usage: "Open wining PoSt service",
 			},
 		},
 
@@ -196,9 +229,6 @@ var runCmd = &cli.Command{
 	Name:  "run",
 	Usage: "Start lotus worker",
 	Action: func(cctx *cli.Context) error {
-		if !cctx.Bool("enable-gpu-proving") {
-			os.Setenv("BELLMAN_NO_GPU", "true")
-		}
 		nodeCCtx = cctx
 
 		nodeApi, err := GetNodeApi()
@@ -215,14 +245,17 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Println(storageAddr)
 
 		r, err := homedir.Expand(cctx.String("repo"))
 		if err != nil {
 			return err
 		}
 
-		sealedRepo, err := homedir.Expand(cctx.String("sealedrepo"))
+		sealedRepo, err := homedir.Expand(cctx.String("storage-repo"))
+		if err != nil {
+			return err
+		}
+		workerIdFile, err := homedir.Expand(cctx.String("id-file"))
 		if err != nil {
 			return err
 		}
@@ -280,75 +313,74 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err, sealedRepo)
 		}
-		// make download server
-		fileServer := cctx.String("file-server")
+		workerId := GetWorkerID(workerIdFile)
+		netIp := os.Getenv("NETIP")
+		// make serivce server
+		fileServer := cctx.String("listen-addr")
 		if len(fileServer) == 0 {
-			netIp := os.Getenv("NETIP")
 			fileServer = netIp + ":1280"
 		}
+
+		workerCfg := ffiwrapper.WorkerCfg{
+			ID:                 workerId,
+			IP:                 netIp,
+			SvcUri:             fileServer,
+			MaxTaskNum:         int(cctx.Uint("max-tasks")),
+			CacheMode:          int(cctx.Uint("cache-mode")),
+			TransferBuffer:     int(cctx.Uint("transfer-buffer")),
+			ParallelAddPiece:   int(cctx.Uint("parallel-addpiece")),
+			ParallelPrecommit1: int(cctx.Uint("parallel-precommit1")),
+			ParallelPrecommit2: int(cctx.Uint("parallel-precommit2")),
+			ParallelCommit1:    int(cctx.Uint("parallel-commit1")),
+			ParallelCommit2:    int(cctx.Uint("parallel-commit2")),
+			Commit2Srv:         cctx.Bool("commit2-srv"),
+			WdPoStSrv:          cctx.Bool("wdpost-srv"),
+			WnPoStSrv:          cctx.Bool("wnpost-srv"),
+		}
+		workerApi := &rpcServer{
+			sb: sb,
+		}
+
 		mux := mux.NewRouter()
-		//storagerepo,err := homedir.Expand(cctx.String("storagerepo"))
-		//if err != nil {
-		//	return err
-		//}
-		log.Info("repo:", r)
+		rpcServer := jsonrpc.NewServer()
+		rpcServer.Register("Filecoin", apistruct.PermissionedWorkerHlmAPI(workerApi))
+		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: r}).FileHttpServer)
+		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
+
 		ah := &auth.Handler{
 			Verify: AuthVerify,
 			Next:   mux.ServeHTTP,
 		}
-		srv := &http.Server{Handler: ah}
+		srv := &http.Server{
+			Handler: ah,
+			BaseContext: func(listener net.Listener) context.Context {
+				return ctx
+			},
+		}
 		nl, err := net.Listen("tcp", fileServer)
 		if err != nil {
 			return err
 		}
 
-		//	fileServerToken, err := ioutil.ReadFile(filepath.Join(cctx.String("storagerepo"), "token"))
-		//	if err != nil {
-		//		return errors.As(err)
-		//	}
-		//	fileHandle := fileserver.NewStorageFileServer(r, string(fileServerToken), nil)
 		go func() {
-			//		log.Info("File server listen at: " + fileServer)
-			//	if err := http.ListenAndServe(fileServer, fileHandle); err != nil {
-			//		panic(err)
-			//	}
 			if err := srv.Serve(nl); err != nil {
-				log.Warn(err)
+				log.Error(err)
+				os.Exit(1)
 			}
-
 		}()
 
-		for {
-
-			select {
-			case <-ctx.Done():
-				break
-			default:
-				if err := acceptJobs(ctx,
-					sb, sealedSB,
-					act, workerAddr,
-					"http://"+storageAddr, ainfo.AuthHeader(),
-					"http://"+fileServer,
-					r, sealedRepo,
-					cctx.Uint("cache-sectors"),
-					cctx.Bool("no-addpiece"), cctx.Bool("no-precommit1"), cctx.Bool("no-precommit2"), cctx.Bool("no-commit1"), cctx.Bool("no-commit2"),
-					cctx.Bool("no-wpost"), cctx.Bool("no-post"),
-				); err == nil {
-					break
-				} else {
-					ReleaseNodeApi(false)
-					log.Warn(err)
-
-					// reset ctx
-					//cancel()
-					//ctx, cancel = context.WithCancel(lcli.ReqContext(nodeCCtx))
-					os.Exit(1) // here have a bug that it can't cancel the task by ctx.
-				}
-				time.Sleep(3 * 1e9) // wait 3 seconds to reconnect.
-			}
+		if err := acceptJobs(ctx,
+			sb, sealedSB,
+			act, workerAddr,
+			"http://"+storageAddr, ainfo.AuthHeader(),
+			"http://"+fileServer,
+			r, sealedRepo,
+			workerCfg,
+		); err != nil {
+			log.Warn(err)
+			ReleaseNodeApi(false)
 		}
-
 		return nil
 	},
 }

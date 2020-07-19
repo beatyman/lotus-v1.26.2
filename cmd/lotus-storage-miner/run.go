@@ -35,7 +35,7 @@ import (
 
 var runCmd = &cli.Command{
 	Name:  "run",
-	Usage: "Start a lotus storage miner process",
+	Usage: "Start a lotus miner process",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "api",
@@ -91,8 +91,8 @@ var runCmd = &cli.Command{
 			}
 		}
 
-		storageRepoPath := cctx.String(FlagStorageRepo)
-		r, err := repo.NewFS(storageRepoPath)
+		minerRepoPath := cctx.String(FlagMinerRepo)
+		r, err := repo.NewFS(minerRepoPath)
 		if err != nil {
 			return err
 		}
@@ -102,17 +102,17 @@ var runCmd = &cli.Command{
 			return err
 		}
 		if !ok {
-			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-storage-miner init' to set it up", storageRepoPath)
+			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-miner init' to set it up", minerRepoPath)
 		}
 
 		// init storage database
-		database.InitDB(storageRepoPath)
+		database.InitDB(minerRepoPath)
 		// mount nfs storage node
 		if err := database.MountAllStorage(); err != nil {
 			return errors.As(err)
 		}
 		// checking sealed for proof
-		if err := ffiwrapper.CheckSealed(storageRepoPath); err != nil {
+		if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
 			return errors.As(err)
 		}
 
@@ -164,7 +164,7 @@ var runCmd = &cli.Command{
 
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)
-		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: storageRepoPath}).FileHttpServer)
+		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: minerRepoPath}).FileHttpServer)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
 		ah := &auth.Handler{

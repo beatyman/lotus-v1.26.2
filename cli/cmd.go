@@ -21,6 +21,8 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
 	"github.com/filecoin-project/lotus/node/repo"
+
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("cli")
@@ -72,13 +74,25 @@ func flagForRepo(t repo.RepoType) string {
 	case repo.FullNode:
 		return "repo"
 	case repo.StorageMiner:
-		return "storagerepo"
+		return "miner-repo"
 	default:
 		panic(fmt.Sprintf("Unknown repo type: %v", t))
 	}
 }
 
 func envForRepo(t repo.RepoType) string {
+	switch t {
+	case repo.FullNode:
+		return "FULLNODE_API_INFO"
+	case repo.StorageMiner:
+		return "MINER_API_INFO"
+	default:
+		panic(fmt.Sprintf("Unknown repo type: %v", t))
+	}
+}
+
+// TODO remove after deprecation period
+func envForRepoDeprecation(t repo.RepoType) string {
 	switch t {
 	case repo.FullNode:
 		return "FULLNODE_API_INFO"
@@ -90,14 +104,24 @@ func envForRepo(t repo.RepoType) string {
 }
 
 func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
-	if env, ok := os.LookupEnv(envForRepo(t)); ok {
+	envKey := envForRepo(t)
+	env, ok := os.LookupEnv(envKey)
+	if !ok {
+		// TODO remove after deprecation period
+		envKey = envForRepoDeprecation(t)
+		env, ok = os.LookupEnv(envKey)
+		if ok {
+			log.Warnf("Use deprecation env(%s) value, please use env(%s) instead.", envKey, envForRepo(t))
+		}
+	}
+	if ok {
 		sp := strings.SplitN(env, ":", 2)
 		if len(sp) != 2 {
-			log.Warnf("invalid env(%s) value, missing token or address", envForRepo(t))
+			log.Warnf("invalid env(%s) value, missing token or address", envKey)
 		} else {
 			ma, err := multiaddr.NewMultiaddr(sp[1])
 			if err != nil {
-				return APIInfo{}, xerrors.Errorf("could not parse multiaddr from env(%s): %w", envForRepo(t), err)
+				return APIInfo{}, xerrors.Errorf("could not parse multiaddr from env(%s): %w", envKey, err)
 			}
 			return APIInfo{
 				Addr:  ma,
@@ -120,7 +144,7 @@ func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
 
 	ma, err := r.APIEndpoint()
 	if err != nil {
-		return APIInfo{}, xerrors.Errorf("could not get api endpoint: %w", err)
+		return APIInfo{}, xerrors.Errorf("could not get api endpoint: %s; %w", p, err)
 	}
 
 	token, err := r.APIToken()
@@ -179,7 +203,7 @@ func GetFullNodeAPI(ctx *cli.Context) (api.FullNode, jsonrpc.ClientCloser, error
 func GetStorageMinerAPI(ctx *cli.Context) (api.StorageMiner, jsonrpc.ClientCloser, error) {
 	addr, headers, err := GetRawAPI(ctx, repo.StorageMiner)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.As(err)
 	}
 
 	return client.NewStorageMinerRPC(addr, headers)

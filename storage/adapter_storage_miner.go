@@ -93,8 +93,8 @@ func (s SealingAPIAdapter) StateWaitMsg(ctx context.Context, mcid cid.Cid) (seal
 			Return:   wmsg.Receipt.Return,
 			GasUsed:  wmsg.Receipt.GasUsed,
 		},
-		TipSetTok: wmsg.TipSet.Key().Bytes(),
-		Height:    wmsg.TipSet.Height(),
+		TipSetTok: wmsg.TipSet.Bytes(),
+		Height:    wmsg.Height,
 	}, nil
 }
 
@@ -117,7 +117,7 @@ func (s SealingAPIAdapter) StateComputeDataCommitment(ctx context.Context, maddr
 		From:     maddr,
 		Value:    types.NewInt(0),
 		GasPrice: types.NewInt(0),
-		GasLimit: 9999999999,
+		GasLimit: 100_000_000,
 		Method:   builtin.MethodsMarket.ComputeDataCommitment,
 		Params:   ccparams,
 	}
