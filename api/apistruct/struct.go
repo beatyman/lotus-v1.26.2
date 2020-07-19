@@ -131,7 +131,7 @@ type FullNodeStruct struct {
 
 		StateNetworkName                  func(context.Context) (dtypes.NetworkName, error)                                                                   `perm:"read"`
 		StateMinerSectors                 func(context.Context, address.Address, *abi.BitField, bool, types.TipSetKey) ([]*api.ChainSectorInfo, error)        `perm:"read"`
-		StateMinerActiveSectors              func(context.Context, address.Address, types.TipSetKey) ([]*api.ChainSectorInfo, error)                             `perm:"read"`
+		StateMinerActiveSectors           func(context.Context, address.Address, types.TipSetKey) ([]*api.ChainSectorInfo, error)                             `perm:"read"`
 		StateMinerProvingDeadline         func(context.Context, address.Address, types.TipSetKey) (*miner.DeadlineInfo, error)                                `perm:"read"`
 		StateMinerPower                   func(context.Context, address.Address, types.TipSetKey) (*api.MinerPower, error)                                    `perm:"read"`
 		StateMinerInfo                    func(context.Context, address.Address, types.TipSetKey) (api.MinerInfo, error)                                      `perm:"read"`
@@ -290,6 +290,7 @@ type StorageMinerStruct struct {
 		PreStorageNode    func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) `perm:"write"`
 		CommitStorageNode func(ctx context.Context, sectorId string) error                                    `perm:"write"`
 		CancelStorageNode func(ctx context.Context, sectorId string) error                                    `perm:"write"`
+		ChecksumStorage   func(ctx context.Context, ver int64) (database.StorageList, error)                  `perm:"read"`
 	}
 }
 
@@ -1196,6 +1197,10 @@ func (c *StorageMinerStruct) CommitStorageNode(ctx context.Context, sectorId str
 
 func (c *StorageMinerStruct) CancelStorageNode(ctx context.Context, sectorId string) error {
 	return c.Internal.CancelStorageNode(ctx, sectorId)
+}
+
+func (c *StorageMinerStruct) ChecksumStorage(ctx context.Context, sumVer int64) (database.StorageList, error) {
+	return c.Internal.ChecksumStorage(ctx, sumVer)
 }
 
 // implements by hlm end

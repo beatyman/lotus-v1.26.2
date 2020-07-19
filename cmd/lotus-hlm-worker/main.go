@@ -298,7 +298,7 @@ var runCmd = &cli.Command{
 			SealProofType: spt,
 		}
 
-		sb, err := ffiwrapper.New(false, &basicfs.Provider{
+		sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: r,
 		}, cfg)
 		if err != nil {
@@ -307,7 +307,7 @@ var runCmd = &cli.Command{
 		if err := os.MkdirAll(sealedRepo, 0755); err != nil {
 			return errors.As(err, sealedRepo)
 		}
-		sealedSB, err := ffiwrapper.New(false, &basicfs.Provider{
+		sealedSB, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: sealedRepo,
 		}, cfg)
 		if err != nil {

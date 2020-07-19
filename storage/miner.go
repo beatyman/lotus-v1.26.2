@@ -193,10 +193,10 @@ func (wpp *StorageWpp) GenerateCandidates(ctx context.Context, randomness abi.Po
 }
 
 func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []abi.SectorInfo, rand abi.PoStRandomness) ([]abi.PoStProof, error) {
-	if build.InsecurePoStValidation {
-		log.Warn("[INSECURE-POST-VALIDATION] Generating fake PoSt proof! You should only see this while running tests!")
-		return []abi.PoStProof{{ProofBytes: []byte("valid proof")}}, nil
-	}
+	//if build.InsecurePoStValidation {
+	//	log.Warn("[INSECURE-POST-VALIDATION] Generating fake PoSt proof! You should only see this while running tests!")
+	//	return []abi.PoStProof{{ProofBytes: []byte("valid proof")}}, nil
+	//}
 
 	log.Infof("Computing WinningPoSt ;%+v; %v", ssi, rand)
 

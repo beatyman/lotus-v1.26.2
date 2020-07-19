@@ -120,6 +120,7 @@ type StorageMiner interface {
 	PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)
 	CommitStorageNode(ctx context.Context, sectorId string) error
 	CancelStorageNode(ctx context.Context, sectorId string) error
+	ChecksumStorage(ctx context.Context, ver int64) (database.StorageList, error)
 }
 
 type SealRes struct {
