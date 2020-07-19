@@ -100,6 +100,7 @@ github.com/bgentry/speakeasy v0.1.0/go.mod h1:+zsyZBPWlz7T6j88CTgSN5bM796AkVf0kB
 github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBTaaSFSlLx/70C2HPIMNZpVV8+vt/A+FMnYP11g=
 github.com/briandowns/spinner v1.11.1 h1:OixPqDEcX3juo5AjQZAnFPbeUA0jvkp2qzB5gOZJ/L0=
 github.com/briandowns/spinner v1.11.1/go.mod h1:QOuQk7x+EaDASo80FEXwlwiA+j/PPIcX3FScO+3/ZPQ=
+github.com/bsm/sarama-cluster v1.0.3 h1:EYUVzny7Ptwfci5V3zeKhhX0CruB5rkkI71lz70CXRM=
 github.com/bsm/sarama-cluster v2.1.15+incompatible h1:RkV6WiNRnqEEbp81druK8zYhmnIgdOjqSVi0+9Cnl2A=
 github.com/bsm/sarama-cluster v2.1.15+incompatible/go.mod h1:r7ao+4tTNXvWm+VRpRJchr2kQhqxgmAp2iEX5W96gMM=
 github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32/go.mod h1:DrZx5ec/dmnfpw9KyYoQyYo7d0KEvTkk/5M/vbZjAr8=
@@ -221,6 +222,8 @@ github.com/filecoin-fivestar/sector-storage v0.0.0-20200717065001-2262790c21be h
 github.com/filecoin-fivestar/sector-storage v0.0.0-20200717065001-2262790c21be/go.mod h1:VOG39MCUp4V9Pgadh8aklqE9qXNPNvVyb8dbRmLrmnI=
 github.com/filecoin-fivestar/sector-storage v0.0.0-20200718103024-b9aff1f0ac70 h1:gTInzcwSUW8if6i4cWX6dDV9SiUcP657IUFOMuopN2s=
 github.com/filecoin-fivestar/sector-storage v0.0.0-20200718103024-b9aff1f0ac70/go.mod h1:VOG39MCUp4V9Pgadh8aklqE9qXNPNvVyb8dbRmLrmnI=
+github.com/filecoin-fivestar/sector-storage v0.0.0-20200719092523-81f0917379e7 h1:aJQuyb8+eTl4lVbYUxjaw9/lj0+2KSrFDDSHaNeu7Xw=
+github.com/filecoin-fivestar/sector-storage v0.0.0-20200719092523-81f0917379e7/go.mod h1:VOG39MCUp4V9Pgadh8aklqE9qXNPNvVyb8dbRmLrmnI=
 github.com/filecoin-fivestar/storage-fsm v0.0.0-20200717092505-7c5eadeaf83e h1:lOy+KID9NwRAqH6rYtvo2DyjLb67UNnv0mrygtlpxL0=
 github.com/filecoin-fivestar/storage-fsm v0.0.0-20200717092505-7c5eadeaf83e/go.mod h1:PmSUDr7fTA+0u9LAPkZuWQa31UJ6GZmuKOwYDOSSx6s=
 github.com/filecoin-fivestar/storage-fsm v0.0.0-20200719085135-2b96c7c783d2 h1:f9JnMrN20MlZIvSQAjbo2wfZ9d4GXiTPVbSQmOA0exM=
