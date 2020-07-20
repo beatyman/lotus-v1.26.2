@@ -373,7 +373,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		return errRes(errors.As(err, w.workerCfg), task)
 	}
 	// checking is the cache in a different storage server, do fetch when it is.
-	if w.workerCfg.CacheMode == 0 && task.Type < ffiwrapper.WorkerCommit2 && len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID {
+	if w.workerCfg.CacheMode == 0 && task.Type < ffiwrapper.WorkerCommit2 && task.WorkerID != w.workerCfg.ID {
 		// lock bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
 			ReleaseNodeApi(false)
