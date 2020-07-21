@@ -222,6 +222,8 @@ github.com/filecoin-fivestar/sector-storage v0.0.0-20200720065745-1b0b52440b86 h
 github.com/filecoin-fivestar/sector-storage v0.0.0-20200720065745-1b0b52440b86/go.mod h1:VOG39MCUp4V9Pgadh8aklqE9qXNPNvVyb8dbRmLrmnI=
 github.com/filecoin-fivestar/storage-fsm v0.0.0-20200720114359-7a488a4372bb h1:hHLo+deSX2db5YwM4RWzT3dAfyrTC8FEx4JeAiaNwaU=
 github.com/filecoin-fivestar/storage-fsm v0.0.0-20200720114359-7a488a4372bb/go.mod h1:5zqlhHZMK01ZlUIjGj48RRxcpXytKh+Ue87dFwK89iU=
+github.com/filecoin-fivestar/storage-fsm v0.0.0-20200721013216-9bef8a9c0f96 h1:u1o5AEwB6D7Beh+EaUbdLJwef7wsUxJgqvbpBf9J+G8=
+github.com/filecoin-fivestar/storage-fsm v0.0.0-20200721013216-9bef8a9c0f96/go.mod h1:5zqlhHZMK01ZlUIjGj48RRxcpXytKh+Ue87dFwK89iU=
 github.com/filecoin-project/chain-validation v0.0.6-0.20200720093255-843129967fdf h1:7SkS/gSZv4ljQaQeDu4SfnF9CcvQuT9QCEf3+Hn1jp8=
 github.com/filecoin-project/chain-validation v0.0.6-0.20200720093255-843129967fdf/go.mod h1:9xZvimiD8wsZbTNTUoACMPzXj4/fpIxeZBV2YjQcLhI=
 github.com/filecoin-project/go-address v0.0.0-20200107215422-da8eea2842b5/go.mod h1:SAOwJoakQ8EPjwNIsiakIQKsoKdkcbx8U3IapgCg9R0=
