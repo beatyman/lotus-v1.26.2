@@ -165,3 +165,5 @@ func (m *Message) ValidForBlockInclusion(minGas int64) error {
 
 	return nil
 }
+
+const TestGasLimit = 100e6

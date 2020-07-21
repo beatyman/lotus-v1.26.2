@@ -85,19 +85,20 @@ type FullNodeStruct struct {
 		ChainGetPath           func(context.Context, types.TipSetKey, types.TipSetKey) ([]*api.HeadChange, error)                                 `perm:"read"`
 		ChainExport            func(context.Context, types.TipSetKey) (<-chan []byte, error)                                                      `perm:"read"`
 
+		GasEstimateGasPrice func(context.Context, uint64, address.Address, int64, types.TipSetKey) (types.BigInt, error) `perm:"read"`
+		GasEstimateGasLimit func(context.Context, *types.Message, types.TipSetKey) (int64, error)                        `perm:"read"`
+
 		SyncState          func(context.Context) (*api.SyncState, error)                `perm:"read"`
 		SyncSubmitBlock    func(ctx context.Context, blk *types.BlockMsg) error         `perm:"write"`
 		SyncIncomingBlocks func(ctx context.Context) (<-chan *types.BlockHeader, error) `perm:"read"`
 		SyncMarkBad        func(ctx context.Context, bcid cid.Cid) error                `perm:"admin"`
 		SyncCheckBad       func(ctx context.Context, bcid cid.Cid) (string, error)      `perm:"read"`
 
-		MpoolPending          func(context.Context, types.TipSetKey) ([]*types.SignedMessage, error)                       `perm:"read"`
-		MpoolPush             func(context.Context, *types.SignedMessage) (cid.Cid, error)                                 `perm:"write"`
-		MpoolPushMessage      func(context.Context, *types.Message) (*types.SignedMessage, error)                          `perm:"sign"`
-		MpoolGetNonce         func(context.Context, address.Address) (uint64, error)                                       `perm:"read"`
-		MpoolSub              func(context.Context) (<-chan api.MpoolUpdate, error)                                        `perm:"read"`
-		MpoolRemove           func(context.Context, address.Address, uint64) error                                         `perm:"write"`
-		MpoolEstimateGasPrice func(context.Context, uint64, address.Address, int64, types.TipSetKey) (types.BigInt, error) `perm:"read"`
+		MpoolPending     func(context.Context, types.TipSetKey) ([]*types.SignedMessage, error) `perm:"read"`
+		MpoolPush        func(context.Context, *types.SignedMessage) (cid.Cid, error)           `perm:"write"`
+		MpoolPushMessage func(context.Context, *types.Message) (*types.SignedMessage, error)    `perm:"sign"`
+		MpoolGetNonce    func(context.Context, address.Address) (uint64, error)                 `perm:"read"`
+		MpoolSub         func(context.Context) (<-chan api.MpoolUpdate, error)                  `perm:"read"`
 
 		MinerGetBaseInfo func(context.Context, address.Address, abi.ChainEpoch, types.TipSetKey) (*api.MiningBaseInfo, error) `perm:"read"`
 		MinerCreateBlock func(context.Context, *api.BlockTemplate) (*types.BlockMsg, error)                                   `perm:"write"`
@@ -260,6 +261,7 @@ type StorageMinerStruct struct {
 		StorageAddLocal func(ctx context.Context, path string) error `perm:"admin"`
 
 		// implements by hlm
+		MpoolRemove          func(context.Context, address.Address, uint64) error                                      `perm:"write"`
 		RunPledgeSector      func(context.Context) error                                                               `perm:"write"`
 		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
 		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
@@ -437,6 +439,16 @@ func (c *FullNodeStruct) ClientGenCar(ctx context.Context, ref api.FileRef, outp
 	return c.Internal.ClientGenCar(ctx, ref, outpath)
 }
 
+func (c *FullNodeStruct) GasEstimateGasPrice(ctx context.Context, nblocksincl uint64,
+	sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error) {
+	return c.Internal.GasEstimateGasPrice(ctx, nblocksincl, sender, gaslimit, tsk)
+}
+
+func (c *FullNodeStruct) GasEstimateGasLimit(ctx context.Context, msg *types.Message,
+	tsk types.TipSetKey) (int64, error) {
+	return c.Internal.GasEstimateGasLimit(ctx, msg, tsk)
+}
+
 func (c *FullNodeStruct) MpoolPending(ctx context.Context, tsk types.TipSetKey) ([]*types.SignedMessage, error) {
 	return c.Internal.MpoolPending(ctx, tsk)
 }
@@ -456,7 +468,7 @@ func (c *FullNodeStruct) MpoolRemove(ctx context.Context, from address.Address, 
 	return c.Internal.MpoolRemove(ctx, from, nonce)
 }
 func (c *FullNodeStruct) MpoolEstimateGasPrice(ctx context.Context, nblocksincl uint64, sender address.Address, limit int64, tsk types.TipSetKey) (types.BigInt, error) {
-	return c.Internal.MpoolEstimateGasPrice(ctx, nblocksincl, sender, limit, tsk)
+	return c.Internal.GasEstimateGasPrice(ctx, nblocksincl, sender, limit, tsk)
 }
 
 func (c *FullNodeStruct) MinerGetBaseInfo(ctx context.Context, maddr address.Address, epoch abi.ChainEpoch, tsk types.TipSetKey) (*api.MiningBaseInfo, error) {

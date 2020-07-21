@@ -666,7 +666,7 @@ func (cs *ChainStore) GetCMessage(c cid.Cid) (types.ChainMsg, error) {
 		return m, nil
 	}
 	if err != bstore.ErrNotFound {
-		log.Warn("GetCMessage: unexpected error getting unsigned message: %s", err)
+		log.Warnf("GetCMessage: unexpected error getting unsigned message: %s", err)
 	}
 
 	return cs.GetSignedMessage(c)
