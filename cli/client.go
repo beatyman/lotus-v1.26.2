@@ -140,14 +140,14 @@ var clientDropCmd = &cli.Command{
 		defer closer()
 		ctx := ReqContext(cctx)
 
-		var ids []int64
+		var ids []int
 		for i, s := range cctx.Args().Slice() {
-			id, err := strconv.ParseInt(s, 10, 64)
+			id, err := strconv.ParseInt(s, 10, 0)
 			if err != nil {
 				return xerrors.Errorf("parsing %d-th import ID: %w", i, err)
 			}
 
-			ids = append(ids, id)
+			ids = append(ids, int(id))
 		}
 
 		for _, id := range ids {
@@ -768,7 +768,8 @@ var clientListDeals = &cli.Command{
 				slashed = fmt.Sprintf("Y (epoch %d)", d.OnChainDealState.SlashEpoch)
 			}
 
-			fmt.Fprintf(w, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n", d.LocalDeal.ProposalCid, d.LocalDeal.DealID, d.LocalDeal.Provider, storagemarket.DealStates[d.LocalDeal.State], onChain, slashed, d.LocalDeal.PieceCID, types.SizeStr(types.NewInt(d.LocalDeal.Size)), d.LocalDeal.PricePerEpoch, d.LocalDeal.Duration, d.LocalDeal.Message)
+			price := types.FIL(types.BigMul(d.LocalDeal.PricePerEpoch, types.NewInt(d.LocalDeal.Duration)))
+			fmt.Fprintf(w, "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n", d.LocalDeal.ProposalCid, d.LocalDeal.DealID, d.LocalDeal.Provider, storagemarket.DealStates[d.LocalDeal.State], onChain, slashed, d.LocalDeal.PieceCID, types.SizeStr(types.NewInt(d.LocalDeal.Size)), price, d.LocalDeal.Duration, d.LocalDeal.Message)
 		}
 		return w.Flush()
 	},

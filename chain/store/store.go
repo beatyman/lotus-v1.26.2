@@ -192,7 +192,7 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 	head := cs.GetHeaviestTipSet()
 	cs.pubLk.Unlock()
 
-	out := make(chan []*api.HeadChange, 1600)
+	out := make(chan []*api.HeadChange, 16)
 	out <- []*api.HeadChange{{
 		Type: HCCurrent,
 		Val:  head,
@@ -202,7 +202,7 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 		defer close(out)
 		var unsubOnce sync.Once
 		defer unsubOnce.Do(func() {
-			go cs.bestTips.Unsub(subch)
+			cs.bestTips.Unsub(subch)
 		})
 		for {
 			select {
@@ -217,8 +217,10 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 				select {
 				case out <- val.([]*api.HeadChange):
 				case <-ctx.Done():
+					return
 				}
 			case <-ctx.Done():
+				return
 			}
 		}
 	}()
@@ -666,7 +668,7 @@ func (cs *ChainStore) GetCMessage(c cid.Cid) (types.ChainMsg, error) {
 		return m, nil
 	}
 	if err != bstore.ErrNotFound {
-		log.Warn("GetCMessage: unexpected error getting unsigned message: %s", err)
+		log.Warnf("GetCMessage: unexpected error getting unsigned message: %s", err)
 	}
 
 	return cs.GetSignedMessage(c)
@@ -1034,21 +1036,25 @@ func recurseLinks(bs blockstore.Blockstore, root cid.Cid, in []cid.Cid) ([]cid.C
 		return nil, xerrors.Errorf("recurse links get (%s) failed: %w", root, err)
 	}
 
-	top, err := cbg.ScanForLinks(bytes.NewReader(data.RawData()))
+	var rerr error
+	err = cbg.ScanForLinks(bytes.NewReader(data.RawData()), func(c cid.Cid) {
+		if rerr != nil {
+			// No error return on ScanForLinks :(
+			return
+		}
+
+		in = append(in, c)
+		var err error
+		in, err = recurseLinks(bs, c, in)
+		if err != nil {
+			rerr = err
+		}
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("scanning for links failed: %w", err)
 	}
 
-	in = append(in, top...)
-	for _, c := range top {
-		var err error
-		in, err = recurseLinks(bs, c, in)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return in, nil
+	return in, rerr
 }
 
 func (cs *ChainStore) Export(ctx context.Context, ts *types.TipSet, w io.Writer) error {

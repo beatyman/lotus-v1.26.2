@@ -125,3 +125,6 @@ func (sm *StorageMinerAPI) CommitStorageNode(ctx context.Context, sectorId strin
 func (sm *StorageMinerAPI) CancelStorageNode(ctx context.Context, sectorId string) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CancelStorageNode(sectorId)
 }
+func (sm *StorageMinerAPI) ChecksumStorage(ctx context.Context, ver int64) (database.StorageList, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ChecksumStorage(ver)
+}

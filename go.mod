@@ -17,7 +17,7 @@ require (
 	github.com/drand/drand v1.0.3-0.20200714175734-29705eaf09d4
 	github.com/drand/kyber v1.1.1
 	github.com/fatih/color v1.8.0
-	github.com/filecoin-project/chain-validation v0.0.6-0.20200716223212-b3309d1a82f5
+	github.com/filecoin-project/chain-validation v0.0.6-0.20200720093255-843129967fdf
 	github.com/filecoin-project/filecoin-ffi v0.30.4-0.20200716204036-cddc56607e1d
 	github.com/filecoin-project/go-address v0.0.2-0.20200504173055-8b6f2fb2b3ef
 	github.com/filecoin-project/go-amt-ipld/v2 v2.0.1-0.20200424220931-6263827e49f2
@@ -31,10 +31,10 @@ require (
 	github.com/filecoin-project/go-paramfetch v0.0.2-0.20200701152213-3e0f0afdc261
 	github.com/filecoin-project/go-statestore v0.1.0
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
-	github.com/filecoin-project/sector-storage v0.0.0-20200716210653-a846ac9b39ff
-	github.com/filecoin-project/specs-actors v0.7.2
+	github.com/filecoin-project/sector-storage v0.0.0-20200717213554-a109ef9cbeab
+	github.com/filecoin-project/specs-actors v0.8.1-0.20200720115956-cd051eabf328
 	github.com/filecoin-project/specs-storage v0.1.1-0.20200622113353-88a9704877ea
-	github.com/filecoin-project/storage-fsm v0.0.0-20200715191202-7e92e888bf41
+	github.com/filecoin-project/storage-fsm v0.0.0-20200720190000-2cfe2fe3c334
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
 	github.com/go-kit/kit v0.10.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
@@ -78,7 +78,7 @@ require (
 	github.com/ipld/go-car v0.1.1-0.20200526133713-1c7508d55aae
 	github.com/ipld/go-ipld-prime v0.0.2-0.20200428162820-8b59dc292b8e
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/lib/pq v1.2.0
+	github.com/lib/pq v1.7.0
 	github.com/libp2p/go-eventbus v0.2.1
 	github.com/libp2p/go-libp2p v0.10.0
 	github.com/libp2p/go-libp2p-connmgr v0.2.4
@@ -114,7 +114,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/urfave/cli/v2 v2.2.0
 	github.com/whyrusleeping/bencher v0.0.0-20190829221104-bb6607aa8bba
-	github.com/whyrusleeping/cbor-gen v0.0.0-20200504204219-64967432584d
+	github.com/whyrusleeping/cbor-gen v0.0.0-20200715143311-227fab5a2377
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7
 	github.com/whyrusleeping/pubsub v0.0.0-20131020042734-02de8aa2db3d
 	github.com/xorcare/golden v0.6.1-0.20191112154924-b87f686d7542
@@ -124,6 +124,7 @@ require (
 	go.uber.org/multierr v1.5.0
 	go.uber.org/zap v1.15.0
 	go4.org v0.0.0-20190313082347-94abd6928b1d // indirect
+	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	golang.org/x/sys v0.0.0-20200602225109-6fdc65e7d980
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
@@ -135,11 +136,12 @@ replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
-replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200720035834-d0c14494010c
+
+replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200721100959-81e649e0c7f0
 
 //replace github.com/filecoin-project/sector-storage => ../sector-storage
 
-replace github.com/filecoin-project/storage-fsm => github.com/filecoin-fivestar/storage-fsm v0.0.0-20200717092505-7c5eadeaf83e
+replace github.com/filecoin-project/storage-fsm => github.com/filecoin-fivestar/storage-fsm v0.0.0-20200721013216-9bef8a9c0f96
 
 //replace github.com/filecoin-project/storage-fsm => ../storage-fsm
 

@@ -293,12 +293,12 @@ func TestMinerSectorChange(t *testing.T) {
 	}
 
 	owner, worker := nextIDAddrF(), nextIDAddrF()
-	si0 := newSectorOnChainInfo(0, tutils.MakeCID("0"), big.NewInt(0), abi.ChainEpoch(0), abi.ChainEpoch(10))
-	si1 := newSectorOnChainInfo(1, tutils.MakeCID("1"), big.NewInt(1), abi.ChainEpoch(1), abi.ChainEpoch(11))
-	si2 := newSectorOnChainInfo(2, tutils.MakeCID("2"), big.NewInt(2), abi.ChainEpoch(2), abi.ChainEpoch(11))
+	si0 := newSectorOnChainInfo(0, tutils.MakeCID("0", &miner.SealedCIDPrefix), big.NewInt(0), abi.ChainEpoch(0), abi.ChainEpoch(10))
+	si1 := newSectorOnChainInfo(1, tutils.MakeCID("1", &miner.SealedCIDPrefix), big.NewInt(1), abi.ChainEpoch(1), abi.ChainEpoch(11))
+	si2 := newSectorOnChainInfo(2, tutils.MakeCID("2", &miner.SealedCIDPrefix), big.NewInt(2), abi.ChainEpoch(2), abi.ChainEpoch(11))
 	oldMinerC := createMinerState(ctx, t, store, owner, worker, []miner.SectorOnChainInfo{si0, si1, si2})
 
-	si3 := newSectorOnChainInfo(3, tutils.MakeCID("3"), big.NewInt(3), abi.ChainEpoch(3), abi.ChainEpoch(12))
+	si3 := newSectorOnChainInfo(3, tutils.MakeCID("3", &miner.SealedCIDPrefix), big.NewInt(3), abi.ChainEpoch(3), abi.ChainEpoch(12))
 	// 0 delete
 	// 1 extend
 	// 2 same
@@ -436,7 +436,16 @@ func createEmptyMinerState(ctx context.Context, t *testing.T, store *cbornode.Ba
 	emptyMap, err := store.Put(context.TODO(), hamt.NewNode(store, hamt.UseTreeBitWidth(5)))
 	require.NoError(t, err)
 
-	emptyDeadlines := miner.ConstructDeadlines()
+	emptyDeadline, err := store.Put(context.TODO(), &miner.Deadline{
+		Partitions:        emptyArrayCid,
+		ExpirationsEpochs: emptyArrayCid,
+		PostSubmissions:   abi.NewBitField(),
+		EarlyTerminations: abi.NewBitField(),
+		LiveSectors:       0,
+	})
+	require.NoError(t, err)
+
+	emptyDeadlines := miner.ConstructDeadlines(emptyDeadline)
 	emptyDeadlinesCid, err := store.Put(context.Background(), emptyDeadlines)
 	require.NoError(t, err)
 

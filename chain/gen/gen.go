@@ -176,12 +176,12 @@ func NewGeneratorWithSectors(numSectors int) (*ChainGen, error) {
 		Accounts: []genesis.Actor{
 			{
 				Type:    genesis.TAccount,
-				Balance: types.FromFil(40_000_000),
+				Balance: types.FromFil(20_000_000),
 				Meta:    (&genesis.AccountMeta{Owner: mk1}).ActorMeta(),
 			},
 			{
 				Type:    genesis.TAccount,
-				Balance: types.FromFil(40_000_000),
+				Balance: types.FromFil(20_000_000),
 				Meta:    (&genesis.AccountMeta{Owner: mk2}).ActorMeta(),
 			},
 			{
@@ -437,7 +437,8 @@ func (cg *ChainGen) makeBlock(parents *types.TipSet, m address.Address, vrfticke
 // ResyncBankerNonce is used for dealing with messages made when
 // simulating forks
 func (cg *ChainGen) ResyncBankerNonce(ts *types.TipSet) error {
-	act, err := cg.sm.GetActor(cg.banker, ts)
+	var act types.Actor
+	err := cg.sm.WithParentState(ts, cg.sm.WithActor(cg.banker, stmgr.GetActor(&act)))
 	if err != nil {
 		return err
 	}

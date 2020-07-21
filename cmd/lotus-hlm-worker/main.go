@@ -10,6 +10,7 @@ import (
 
 	"github.com/filecoin-project/go-jsonrpc"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
+	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/sector-storage/ffiwrapper/basicfs"
 	mux "github.com/gorilla/mux"
@@ -251,6 +252,11 @@ var runCmd = &cli.Command{
 			return err
 		}
 
+		minerRepo, err := homedir.Expand(cctx.String("miner-repo"))
+		if err != nil {
+			return err
+		}
+
 		sealedRepo, err := homedir.Expand(cctx.String("storage-repo"))
 		if err != nil {
 			return err
@@ -298,8 +304,14 @@ var runCmd = &cli.Command{
 			SealProofType: spt,
 		}
 
-		sb, err := ffiwrapper.New(false, &basicfs.Provider{
+		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: r,
+		}, cfg)
+		if err != nil {
+			return err
+		}
+		minerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
+			Root: minerRepo,
 		}, cfg)
 		if err != nil {
 			return err
@@ -307,7 +319,7 @@ var runCmd = &cli.Command{
 		if err := os.MkdirAll(sealedRepo, 0755); err != nil {
 			return errors.As(err, sealedRepo)
 		}
-		sealedSB, err := ffiwrapper.New(false, &basicfs.Provider{
+		sealedSB, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: sealedRepo,
 		}, cfg)
 		if err != nil {
@@ -338,7 +350,8 @@ var runCmd = &cli.Command{
 			WnPoStSrv:          cctx.Bool("wnpost-srv"),
 		}
 		workerApi := &rpcServer{
-			sb: sb,
+			sb:           minerSealer,
+			storageCache: map[int64]database.StorageInfo{},
 		}
 
 		mux := mux.NewRouter()
@@ -371,7 +384,8 @@ var runCmd = &cli.Command{
 		}()
 
 		if err := acceptJobs(ctx,
-			sb, sealedSB,
+			workerSealer, sealedSB,
+			workerApi,
 			act, workerAddr,
 			"http://"+storageAddr, ainfo.AuthHeader(),
 			"http://"+fileServer,

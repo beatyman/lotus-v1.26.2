@@ -165,7 +165,8 @@ func (mpp *mpoolProvider) PubSubPublish(k string, v []byte) error {
 }
 
 func (mpp *mpoolProvider) StateGetActor(addr address.Address, ts *types.TipSet) (*types.Actor, error) {
-	return mpp.sm.GetActor(addr, ts)
+	var act types.Actor
+	return &act, mpp.sm.WithParentState(ts, mpp.sm.WithActor(addr, stmgr.GetActor(&act)))
 }
 
 func (mpp *mpoolProvider) StateAccountKey(ctx context.Context, addr address.Address, ts *types.TipSet) (address.Address, error) {
@@ -451,6 +452,9 @@ func (mp *MessagePool) addLocked(m *types.SignedMessage) error {
 }
 
 func (mp *MessagePool) GetNonce(addr address.Address) (uint64, error) {
+	mp.curTsLk.Lock()
+	defer mp.curTsLk.Unlock()
+
 	mp.lk.Lock()
 	defer mp.lk.Unlock()
 
@@ -867,18 +871,4 @@ func (mp *MessagePool) loadLocal() error {
 	}
 
 	return nil
-}
-
-const MinGasPrice = 0
-
-func (mp *MessagePool) EstimateGasPrice(ctx context.Context, nblocksincl uint64, sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error) {
-	// TODO: something smarter obviously
-	switch nblocksincl {
-	case 0:
-		return types.NewInt(MinGasPrice + 2), nil
-	case 1:
-		return types.NewInt(MinGasPrice + 1), nil
-	default:
-		return types.NewInt(MinGasPrice), nil
-	}
 }

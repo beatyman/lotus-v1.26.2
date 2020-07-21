@@ -125,7 +125,9 @@ func DefaultStorageMiner() *StorageMiner {
 			AllowPreCommit2: true,
 			AllowCommit:     true,
 			AllowUnseal:     true,
-			RemoteMode:      false,
+			RemoteSeal:      false,
+			RemoteWnPoSt:    false,
+			RemoteWdPoSt:    false,
 		},
 
 		Dealmaking: DealmakingConfig{

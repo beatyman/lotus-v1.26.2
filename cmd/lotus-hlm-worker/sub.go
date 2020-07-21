@@ -30,6 +30,7 @@ type worker struct {
 
 	sb        *ffiwrapper.Sealer
 	sealedSB  *ffiwrapper.Sealer
+	rpcServer *rpcServer
 	workerCfg ffiwrapper.WorkerCfg
 
 	workMu sync.Mutex
@@ -39,6 +40,7 @@ type worker struct {
 
 func acceptJobs(ctx context.Context,
 	sb, sealedSB *ffiwrapper.Sealer,
+	rpcServer *rpcServer,
 	act, workerAddr address.Address,
 	endpoint string, auth http.Header,
 	fileServer string,
@@ -51,16 +53,17 @@ func acceptJobs(ctx context.Context,
 	}
 	w := &worker{
 		minerEndpoint: endpoint,
-		auth:          auth,
 		repo:          repo,
 		sealedRepo:    sealedRepo,
-
-		sb: sb,
+		auth:          auth,
 
 		actAddr:   act,
+		sb:        sb,
 		sealedSB:  sealedSB,
+		rpcServer: rpcServer,
 		workerCfg: workerCfg,
-		workOn:    map[string]ffiwrapper.WorkerTask{},
+
+		workOn: map[string]ffiwrapper.WorkerTask{},
 	}
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
@@ -360,6 +363,29 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerCommit1:
 	case ffiwrapper.WorkerCommit2:
 	case ffiwrapper.WorkerFinalize:
+	case ffiwrapper.WorkerWindowPoSt:
+		proofs, err := w.rpcServer.GenerateWindowPoSt(ctx,
+			task.SectorID.Miner,
+			task.SectorInfo,
+			task.Randomness,
+		)
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+		res.WindowPoStProofOut = proofs.Proofs
+		res.WindowPoStIgnSectors = proofs.Ignore
+		return res
+	case ffiwrapper.WorkerWinningPoSt:
+		proofs, err := w.rpcServer.GenerateWinningPoSt(ctx,
+			task.SectorID.Miner,
+			task.SectorInfo,
+			task.Randomness,
+		)
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), task)
+		}
+		res.WinningPoStProofOut = proofs
+		return res
 	default:
 		return errRes(errors.New("unknown task type").As(task.Type, w.workerCfg), task)
 	}
