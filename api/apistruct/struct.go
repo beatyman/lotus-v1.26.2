@@ -99,6 +99,7 @@ type FullNodeStruct struct {
 		MpoolPushMessage func(context.Context, *types.Message) (*types.SignedMessage, error)    `perm:"sign"`
 		MpoolGetNonce    func(context.Context, address.Address) (uint64, error)                 `perm:"read"`
 		MpoolSub         func(context.Context) (<-chan api.MpoolUpdate, error)                  `perm:"read"`
+		MpoolRemove      func(context.Context, address.Address, uint64) error                   `perm:"write"`
 
 		MinerGetBaseInfo func(context.Context, address.Address, abi.ChainEpoch, types.TipSetKey) (*api.MiningBaseInfo, error) `perm:"read"`
 		MinerCreateBlock func(context.Context, *api.BlockTemplate) (*types.BlockMsg, error)                                   `perm:"write"`
@@ -261,7 +262,6 @@ type StorageMinerStruct struct {
 		StorageAddLocal func(ctx context.Context, path string) error `perm:"admin"`
 
 		// implements by hlm
-		MpoolRemove          func(context.Context, address.Address, uint64) error                                      `perm:"write"`
 		RunPledgeSector      func(context.Context) error                                                               `perm:"write"`
 		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
 		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
@@ -464,9 +464,11 @@ func (c *FullNodeStruct) MpoolPushMessage(ctx context.Context, msg *types.Messag
 func (c *FullNodeStruct) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, error) {
 	return c.Internal.MpoolSub(ctx)
 }
+
 func (c *FullNodeStruct) MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error {
 	return c.Internal.MpoolRemove(ctx, from, nonce)
 }
+
 func (c *FullNodeStruct) MpoolEstimateGasPrice(ctx context.Context, nblocksincl uint64, sender address.Address, limit int64, tsk types.TipSetKey) (types.BigInt, error) {
 	return c.Internal.GasEstimateGasPrice(ctx, nblocksincl, sender, limit, tsk)
 }
