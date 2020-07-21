@@ -281,7 +281,7 @@ var runCmd = &cli.Command{
 		// Create / expose the worker
 
 		workerApi := &worker{
-			LocalWorker: sectorstorage.NewLocalWorker(false, sectorstorage.WorkerConfig{
+			LocalWorker: sectorstorage.NewLocalWorker(ffiwrapper.RemoteCfg{}, sectorstorage.WorkerConfig{
 				SealProof: spt,
 				TaskTypes: taskTypes,
 			}, remote, localStore, nodeApi),

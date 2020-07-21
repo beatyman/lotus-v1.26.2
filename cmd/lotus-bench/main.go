@@ -261,7 +261,7 @@ func action(c *cli.Context, i int) string {
 			Root: sbdir,
 		}
 
-		sb, err := ffiwrapper.New(false, sbfs, cfg)
+		sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, sbfs, cfg)
 		if err != nil {
 			return err.Error()
 		}
@@ -748,7 +748,7 @@ var proveCmd = &cli.Command{
 			SealProofType: spt,
 		}
 
-		sb, err := ffiwrapper.New(false, nil, cfg)
+		sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, nil, cfg)
 		if err != nil {
 			return err
 		}

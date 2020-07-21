@@ -192,7 +192,7 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 	head := cs.GetHeaviestTipSet()
 	cs.pubLk.Unlock()
 
-	out := make(chan []*api.HeadChange, 1600)
+	out := make(chan []*api.HeadChange, 16)
 	out <- []*api.HeadChange{{
 		Type: HCCurrent,
 		Val:  head,
@@ -202,7 +202,7 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 		defer close(out)
 		var unsubOnce sync.Once
 		defer unsubOnce.Do(func() {
-			go cs.bestTips.Unsub(subch)
+			cs.bestTips.Unsub(subch)
 		})
 		for {
 			select {
@@ -217,8 +217,10 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 				select {
 				case out <- val.([]*api.HeadChange):
 				case <-ctx.Done():
+					return
 				}
 			case <-ctx.Done():
+				return
 			}
 		}
 	}()
