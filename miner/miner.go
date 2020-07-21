@@ -555,10 +555,10 @@ type MsgPool struct {
 }
 
 func (p *MsgPool) Remove(ctx context.Context, msg *types.SignedMessage) {
-	// TODO: remove fault message
-	//if err := p.FromApi.MpoolRemove(ctx, msg.Message.From, msg.Message.Nonce); err != nil {
-	//	log.Warn(errors.As(err))
-	//}
+	// remove fault message
+	if err := p.FromApi.MpoolRemove(ctx, msg.Message.From, msg.Message.Nonce); err != nil {
+		log.Warn(errors.As(err))
+	}
 }
 
 func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool *MsgPool) ([]*types.SignedMessage, error) {
