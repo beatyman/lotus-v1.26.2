@@ -34,8 +34,10 @@ type worker struct {
 	workerCfg ffiwrapper.WorkerCfg
 
 	workMu sync.Mutex
-	pushMu sync.Mutex
 	workOn map[string]ffiwrapper.WorkerTask // task key
+
+	pushMu       sync.Mutex
+	pushUriCache map[string]int
 }
 
 func acceptJobs(ctx context.Context,
@@ -64,6 +66,8 @@ func acceptJobs(ctx context.Context,
 		workerCfg: workerCfg,
 
 		workOn: map[string]ffiwrapper.WorkerTask{},
+
+		pushUriCache: map[string]int{},
 	}
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
@@ -222,12 +226,10 @@ func (w *worker) cleanCache(ctx context.Context, path string) error {
 }
 
 func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
-	w.pushMu.Lock()
-	defer w.pushMu.Unlock()
-
 	sid := task.GetSectorID()
 	log.Infof("pushCache:%+v", sid)
 	defer log.Infof("pushCache done:%+v", sid)
+
 	api, err := GetNodeApi()
 	if err != nil {
 		return errors.As(err)
@@ -242,15 +244,41 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
 	}
 
-	// a fix point, link or mount to the targe file.
-	if err := database.MountStorage(
-		storage.MountType,
-		mountUri,
-		w.sealedRepo,
-		storage.MountOpt,
-	); err != nil {
-		return errors.As(err)
+	// support for multiple push
+	w.pushMu.Lock()
+	mountRefer, ok := w.pushUriCache[mountUri]
+	if !ok {
+		// a fix point, link or mount to the targe file.
+		if err := database.MountStorage(
+			storage.MountType,
+			mountUri,
+			w.sealedRepo,
+			storage.MountOpt,
+		); err != nil {
+			w.pushMu.Unlock()
+			return errors.As(err)
+		}
 	}
+	mountRefer++
+	w.pushUriCache[mountUri] = mountRefer
+	w.pushMu.Unlock()
+
+	defer func() {
+		w.pushMu.Lock()
+		mountRefer, ok := w.pushUriCache[mountUri]
+		if ok {
+			mountRefer--
+			if mountRefer <= 0 {
+				delete(w.pushUriCache, mountUri)
+			} else {
+				w.pushUriCache[mountUri] = mountRefer
+			}
+		}
+		if err := database.Umount(w.sealedRepo); err != nil {
+			log.Error(errors.As(err))
+		}
+		w.pushMu.Unlock()
+	}()
 
 	if err := os.MkdirAll(filepath.Join(w.sealedRepo, "sealed"), 0755); err != nil {
 		return errors.As(err)
@@ -271,9 +299,6 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	// if err := w.push(ctx, "unsealed", ffiwrapper.SectorName(task.SectorID)); err != nil {
 	// 	return errors.As(err)
 	// }
-	if err := database.Umount(w.sealedRepo); err != nil {
-		return errors.As(err)
-	}
 	if err := api.CommitStorageNode(ctx, sid); err != nil {
 		return errors.As(err)
 	}

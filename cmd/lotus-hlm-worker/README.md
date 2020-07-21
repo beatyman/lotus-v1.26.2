@@ -82,6 +82,6 @@ RUST_LOG=info RUST_BACKTRACE=1 NETIP=$netip ./lotus-seal-worker --repo=$repo --s
 
 TODO:
 ```
-*, 修正transfer-buffer设置大于1时会不起效的问题，用于解决万兆口会多个并行传输出多个存储节点的问题。
+暂无
 ```
 

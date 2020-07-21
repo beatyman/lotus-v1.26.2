@@ -60,7 +60,7 @@ EOF
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-# 安装nfs环境
+## 安装nfs环境
 ```shell
 aptitude install nfs-server
 mkdir -p /data/nfs
@@ -75,7 +75,7 @@ echo "/data/zfs/ *(rw,sync,insecure,no_root_squash)" >>/etc/exports
 systemctl reload nfs-server
 ```
 
-# 下载lotus源代码
+## 下载lotus源代码
 ```shell
 mkdir -p $HOME/go/src/github.com/filecoin-project
 cd $HOME/go/src/github.com/filecoin-project
@@ -83,19 +83,71 @@ git clone https://github.com/filecoin-fivestar/lotus.git lotus
 cd lotus
 ```
 
+## RUST开发编译(不调试RUST不涉及)
+```shell
+mkdir -p $HOME/go/src/github.com/filecoin-project
+cd $HOME/go/src/github.com/filecoin-project
+git clone https://github.com/filecoin-fivestar/lotus.git lotus
+git clone https://github.com/filecoin-project/rust-fil-proofs.git
+git clone https://https://github.com/filecoin-project/rust-filecoin-proofs-api.git
+```
+### 在rust-fil-proofs下测试
+``` 
+cd $HOME/go/src/github.com/filecoin-project/rust-fil-proofs
+RUST_BACKTRACE=1 RUST_LOG=info FIL_PROOFS_USE_GPU_TREE_BUILDER=1 FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1 cargo run --release --bin benchy -- stacked --size 2
+```
+### 在lotus下测试
+1, 修改lotus/extern/filecoin-ffi/rust/Cargo.toml指向
+```
+[dependencies.filecoin-proofs-api]
+package = "filecoin-proofs-api"
+#version = "4.0.2"
+path = "../../../rust-filecoin-proofs-api"
+```
+
+2, 切换rust-filecoin-proofs-api版本与指向
+```shell
+cd $HOME/go/src/github.com/filecoin-project/rust-filecoin-proofs-api
+git checkout v4.0.2 # 需要与lotus使用的同一版本
+```
+修改rust-filecoin-proofs-api/Cargo.toml指向
+```
+[dependencies]
+anyhow = "1.0.26"
+serde = "1.0.104"
+paired = "0.20.0"
+#filecoin-proofs-v1 = { package = "filecoin-proofs", version = "4.0.2" }
+filecoin-proofs-v1 = { package = "filecoin-proofs", path = "../rust-fil-proofs/filecoin-proofs" }
+```
+
+3, 切换rust-fil-proofs版本与指向
+```shell
+cd $HOME/go/src/github.com/filecoin-project/rust-filecoin-proofs-api
+git checkout releases/v4.0.2 # 需要与rust-filecoin-proofs-api使用的同一版本
+```
+
+4, 编译lotus基测程序
+```shell
+cd $HOME/go/src/github.com/filecoin-project/lotus
+make clean
+env RUSTFLAGS="-C target-cpu=native -g" FFI_BUILD_FROM_SOURCE=1 make bench
+./bensh.sh
+```
+
 ## 搭建私网创世节点
 ```shell
 ./clean-bootstrap.sh
+ps axu|grep lotus # 确认所有相关进程已关闭
 ./init-bootstrap.sh
 tail -f boostrap.log # 直到Heaviest tipset 有10来个高度左右, ctrl+c 退出
 ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
-ssh-copy-id root@127.0.0.1 # 已有跳过
 ./deploy-boostrap.sh # 部署水龙头及对外提供的初始节点
 ```
 
 ## 编译lotus接入前面的私网
 ```shell
 ./install.sh debug # 若是使用正式，执行./install.sh进行编译, 编译完成后自动放在$FILECOIN_BIN下
+rm -rf /data/sdb/lotus-user-1/.lotus* # 注意!!!! 需要确认此库不是正式库，删掉需要重新同步数据与创建矿工，若创世节点一样，可不删除。
 ```
 
 shell 1, 运行链
