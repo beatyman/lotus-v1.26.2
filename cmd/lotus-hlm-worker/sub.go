@@ -542,10 +542,10 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			}
 		}
 		res.Commit2Out = out
-		// SPEC: cancel deal with worker finalize, because it will post failed when commit2 is online and finalize is interrupt.
-		// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
-		// TODO: when testing stable finalize retrying and reopen it.
-		// case ffiwrapper.WorkerFinalize:
+	// SPEC: cancel deal with worker finalize, because it will post failed when commit2 is online and finalize is interrupt.
+	// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
+	// TODO: when testing stable finalize retrying and reopen it.
+	case ffiwrapper.WorkerFinalize:
 		if err := w.sb.FinalizeSector(ctx, task.SectorID, nil); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
