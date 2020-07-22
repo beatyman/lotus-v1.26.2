@@ -422,6 +422,7 @@ type DealInfo struct {
 	Message     string // more information about deal state, particularly errors
 	Provider    address.Address
 
+	DataRef  *storagemarket.DataRef
 	PieceCID cid.Cid
 	Size     uint64
 
