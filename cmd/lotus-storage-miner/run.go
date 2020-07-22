@@ -108,7 +108,7 @@ var runCmd = &cli.Command{
 		// init storage database
 		database.InitDB(minerRepoPath)
 		// mount nfs storage node
-		if err := database.MountAllStorage(); err != nil {
+		if err := database.MountAllStorage(false); err != nil {
 			return errors.As(err)
 		}
 		// checking sealed for proof
