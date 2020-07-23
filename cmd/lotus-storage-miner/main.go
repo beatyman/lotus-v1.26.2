@@ -45,6 +45,7 @@ func main() {
 
 		// implement by hlm
 		lcli.WithCategory("hlm", pledgeSectorCmd),
+		lcli.WithCategory("hlm", hlmSectorCmd),
 		lcli.WithCategory("hlm", hlmStorageCmd),
 		lcli.WithCategory("hlm", hlmWorkerCmd),
 		lcli.WithCategory("hlm", hlmFaucetCmd),

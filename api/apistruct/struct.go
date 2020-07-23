@@ -267,7 +267,8 @@ type StorageMinerStruct struct {
 		RunPledgeSector      func(context.Context) error                                                               `perm:"write"`
 		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
 		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
-		SectorsListAll       func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
+		HlmSectorSetState    func(ctx context.Context, sid, memo string, state int) error                              `perm:"write"`
+		HlmSectorListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
 		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
 		UnlockGPUService     func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
 		WorkerAddress        func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
@@ -1139,9 +1140,11 @@ func (c *StorageMinerStruct) StatusPledgeSector(ctx context.Context) (int, error
 func (c *StorageMinerStruct) StopPledgeSector(ctx context.Context) error {
 	return c.Internal.StopPledgeSector(ctx)
 }
-
-func (c *StorageMinerStruct) SectorsListAll(ctx context.Context) ([]api.SectorInfo, error) {
-	return c.Internal.SectorsListAll(ctx)
+func (c *StorageMinerStruct) HlmSectorSetState(ctx context.Context, sid, memo string, state int) error {
+	return c.Internal.HlmSectorSetState(ctx, sid, memo, state)
+}
+func (c *StorageMinerStruct) HlmSectorListAll(ctx context.Context) ([]api.SectorInfo, error) {
+	return c.Internal.HlmSectorListAll(ctx)
 }
 func (c *StorageMinerStruct) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {
 	return c.Internal.SelectCommit2Service(ctx, sector)
