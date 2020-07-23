@@ -30,25 +30,25 @@ func main() {
 	lotuslog.SetupLogLevels()
 
 	local := []*cli.Command{
-		actorCmd,
-		storageDealsCmd,
-		retrievalDealsCmd,
-		infoCmd,
 		initCmd,
-		rewardsCmd,
 		runCmd,
 		stopCmd,
-		sectorsCmd,
-		storageCmd,
-		workersCmd,
-		provingCmd,
+		lcli.WithCategory("chain", actorCmd),
+		lcli.WithCategory("chain", rewardsCmd),
+		lcli.WithCategory("chain", infoCmd),
+		lcli.WithCategory("market", storageDealsCmd),
+		lcli.WithCategory("market", retrievalDealsCmd),
+		lcli.WithCategory("storage", sectorsCmd),
+		lcli.WithCategory("storage", provingCmd),
+		lcli.WithCategory("storage", storageCmd),
+		lcli.WithCategory("storage", sealingCmd),
 
 		// implement by hlm
-		pledgeSectorCmd,
-		hlmStorageCmd,
-		hlmWorkerCmd,
-		hlmFaucetCmd,
-		testingCmd,
+		lcli.WithCategory("hlm", pledgeSectorCmd),
+		lcli.WithCategory("hlm", hlmStorageCmd),
+		lcli.WithCategory("hlm", hlmWorkerCmd),
+		lcli.WithCategory("hlm", hlmFaucetCmd),
+		lcli.WithCategory("hlm", testingCmd),
 	}
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {

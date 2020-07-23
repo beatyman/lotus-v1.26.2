@@ -32,6 +32,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/vm"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/peermgr"
+	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
@@ -75,6 +76,11 @@ var DaemonCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "api",
 			Value: "1234",
+		},
+		&cli.StringFlag{
+			Name:  "report-url",
+			Value: "",
+			Usage: "report url for state",
 		},
 		&cli.StringFlag{
 			Name:   makeGenFlag,
@@ -268,6 +274,10 @@ var DaemonCmd = &cli.Command{
 		endpoint, err := r.APIEndpoint()
 		if err != nil {
 			return xerrors.Errorf("getting api endpoint: %w", err)
+		}
+
+		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
+			report.SetReportUrl(reportUrl)
 		}
 
 		// TODO: properly parse api endpoint (or make it a URL)

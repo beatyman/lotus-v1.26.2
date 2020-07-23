@@ -30,6 +30,7 @@ import (
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/lib/lotuslog"
+	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/gwaylib/errors"
@@ -151,6 +152,11 @@ func main() {
 				Name:    "id-file",
 				EnvVars: []string{"WORKER_ID_PATH"},
 				Value:   "~/.lotusworker/worker.id", // TODO: Consider XDG_DATA_HOME
+			},
+			&cli.StringFlag{
+				Name:  "report-url",
+				Value: "",
+				Usage: "report url for state",
 			},
 			&cli.StringFlag{
 				Name:  "listen-addr",
@@ -382,6 +388,10 @@ var runCmd = &cli.Command{
 				os.Exit(1)
 			}
 		}()
+
+		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
+			report.SetReportUrl(reportUrl)
+		}
 
 		if err := acceptJobs(ctx,
 			workerSealer, sealedSB,
