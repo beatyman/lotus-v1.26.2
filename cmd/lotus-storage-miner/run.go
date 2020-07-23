@@ -21,6 +21,7 @@ import (
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
@@ -40,6 +41,11 @@ var runCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "api",
 			Usage: "2345",
+		},
+		&cli.StringFlag{
+			Name:  "report-url",
+			Value: "",
+			Usage: "report url for state",
 		},
 		&cli.BoolFlag{
 			Name:  "enable-gpu-proving",
@@ -192,6 +198,9 @@ var runCmd = &cli.Command{
 		}()
 		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
+		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
+			report.SetReportUrl(reportUrl)
+		}
 		return srv.Serve(manet.NetListener(lst))
 	},
 }
