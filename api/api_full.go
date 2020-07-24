@@ -508,6 +508,7 @@ type QueryOffer struct {
 
 	Size                    uint64
 	MinPrice                types.BigInt
+	UnsealPrice             types.BigInt
 	PaymentInterval         uint64
 	PaymentIntervalIncrease uint64
 	Miner                   address.Address
@@ -520,6 +521,7 @@ func (o *QueryOffer) Order(client address.Address) RetrievalOrder {
 		Piece:                   o.Piece,
 		Size:                    o.Size,
 		Total:                   o.MinPrice,
+		UnsealPrice:             o.UnsealPrice,
 		PaymentInterval:         o.PaymentInterval,
 		PaymentIntervalIncrease: o.PaymentIntervalIncrease,
 		Client:                  client,
@@ -546,6 +548,7 @@ type RetrievalOrder struct {
 	Size  uint64
 	// TODO: support offset
 	Total                   types.BigInt
+	UnsealPrice             types.BigInt
 	PaymentInterval         uint64
 	PaymentIntervalIncrease uint64
 	Client                  address.Address
