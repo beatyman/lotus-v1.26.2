@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -36,8 +37,9 @@ type worker struct {
 	workMu sync.Mutex
 	workOn map[string]ffiwrapper.WorkerTask // task key
 
-	pushMu       sync.Mutex
-	pushUriCache map[string]int
+	pushMu            sync.Mutex
+	sealedMounted     map[string]string
+	sealedMountedFile string
 }
 
 func acceptJobs(ctx context.Context,
@@ -46,7 +48,7 @@ func acceptJobs(ctx context.Context,
 	act, workerAddr address.Address,
 	endpoint string, auth http.Header,
 	fileServer string,
-	repo, sealedRepo string,
+	repo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
 	api, err := GetNodeApi()
@@ -67,7 +69,8 @@ func acceptJobs(ctx context.Context,
 
 		workOn: map[string]ffiwrapper.WorkerTask{},
 
-		pushUriCache: map[string]int{},
+		sealedMounted:     map[string]string{},
+		sealedMountedFile: mountedFile,
 	}
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
@@ -244,56 +247,64 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
 	}
 
-	// support for multiple push
-	w.pushMu.Lock()
-	mountRefer, ok := w.pushUriCache[mountUri]
-	if !ok {
-		// a fix point, link or mount to the targe file.
-		if err := database.MountStorage(
-			storage.MountType,
-			mountUri,
-			w.sealedRepo,
-			storage.MountOpt,
-		); err != nil {
-			w.pushMu.Unlock()
-			return errors.As(err)
-		}
+	// manage mount point
+	mountDir := filepath.Join(w.sealedRepo, sid)
+	if err := os.MkdirAll(mountDir, 0755); err != nil {
+		return errors.As(err, mountDir)
 	}
-	mountRefer++
-	w.pushUriCache[mountUri] = mountRefer
-	w.pushMu.Unlock()
-
+	// a fix point, link or mount to the targe file.
+	if err := database.MountStorage(
+		storage.MountType,
+		mountUri,
+		mountDir,
+		storage.MountOpt,
+	); err != nil {
+		return errors.As(err)
+	}
 	defer func() {
-		w.pushMu.Lock()
-		mountRefer, ok := w.pushUriCache[mountUri]
-		if ok {
-			mountRefer--
-			if mountRefer <= 0 {
-				delete(w.pushUriCache, mountUri)
-			} else {
-				w.pushUriCache[mountUri] = mountRefer
-			}
-		}
-		if err := database.Umount(w.sealedRepo); err != nil {
+		if err := database.Umount(mountUri); err != nil {
 			log.Error(errors.As(err))
+		}
+		if err := os.RemoveAll(mountDir); err != nil {
+			log.Error(errors.As(err))
+		}
+		w.pushMu.Lock()
+		delete(w.sealedMounted, sid)
+		mountedData, err := json.Marshal(w.sealedMounted)
+		if err != nil {
+			panic(err)
+		}
+		if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
+			panic(err)
 		}
 		w.pushMu.Unlock()
 	}()
+	w.pushMu.Lock()
+	w.sealedMounted[sid] = mountDir
+	mountedData, err := json.Marshal(w.sealedMounted)
+	if err != nil {
+		panic(err)
+	}
+	if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
+		panic(err)
+	}
+	w.pushMu.Unlock()
+	// manage mount point end
 
-	if err := os.MkdirAll(filepath.Join(w.sealedRepo, "sealed"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(mountDir, "sealed"), 0755); err != nil {
 		return errors.As(err)
 	}
 	// "sealed" is created during previous step
 	if err := w.pushRemote(ctx, "sealed", sid); err != nil {
 		return errors.As(err)
 	}
-	if err := os.MkdirAll(filepath.Join(w.sealedRepo, "cache"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(mountDir, "cache"), 0755); err != nil {
 		return errors.As(err)
 	}
 	if err := w.pushRemote(ctx, "cache", sid); err != nil {
 		return errors.As(err)
 	}
-	// if err := os.MkdirAll(filepath.Join(w.sealedRepo, "unsealed"), 0755); err != nil {
+	// if err := os.MkdirAll(filepath.Join(mountDir, "unsealed"), 0755); err != nil {
 	// 	return errors.As(err)
 	// }
 	// if err := w.push(ctx, "unsealed", ffiwrapper.SectorName(task.SectorID)); err != nil {
