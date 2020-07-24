@@ -117,6 +117,9 @@ func (sm *StorageMinerAPI) UMountHLMStorage(ctx context.Context, id int64) error
 func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id)
 }
+func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ReplaceStorage(ctx, id, signalUri, transfUri, mountType, mountOpt)
+}
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
 }

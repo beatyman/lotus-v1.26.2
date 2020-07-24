@@ -376,6 +376,11 @@ var runCmd = &cli.Command{
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}
+		if workerCfg.WdPoStSrv || workerCfg.WdPoStSrv {
+			if err := workerApi.loadMinerStorage(ctx); err != nil {
+				return errors.As(err)
+			}
+		}
 
 		mux := mux.NewRouter()
 		rpcServer := jsonrpc.NewServer()

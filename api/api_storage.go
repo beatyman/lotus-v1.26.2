@@ -118,6 +118,7 @@ type StorageMiner interface {
 	MountHLMStorage(ctx context.Context, id int64) error
 	UMountHLMStorage(ctx context.Context, id int64) error
 	RelinkHLMStorage(ctx context.Context, id int64) error
+	ReplaceHLMStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error
 	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
 	PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)
 	CommitStorageNode(ctx context.Context, sectorId string) error

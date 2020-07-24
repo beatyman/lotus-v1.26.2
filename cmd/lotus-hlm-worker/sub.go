@@ -253,7 +253,7 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		return errors.As(err, mountDir)
 	}
 	// a fix point, link or mount to the targe file.
-	if err := database.MountStorage(
+	if err := database.Mount(
 		storage.MountType,
 		mountUri,
 		mountDir,

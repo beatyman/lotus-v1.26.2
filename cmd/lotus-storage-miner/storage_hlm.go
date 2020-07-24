@@ -232,6 +232,61 @@ var relinkHLMStorageCmd = &cli.Command{
 	},
 }
 
+var replaceHLMStorageCmd = &cli.Command{
+	Name:  "replace",
+	Usage: "Replace the storage node",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:  "storage-id",
+			Usage: "id of storage",
+		},
+		&cli.StringFlag{
+			Name:  "mount-signal-uri",
+			Usage: "uri for mount signal channel, net uri or local uri who can mount",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "mount-transf-uri",
+			Usage: "uri for mount signal channel, net uri or local uri who can mount, empty should same as mount-signal-uri",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "mount-type",
+			Usage: "mount type, like nfs, empty to keep the origin value",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "mount-opt",
+			Usage: "mount opt, format should be \"-o ...\", empty to keep the origin value",
+			Value: "",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		storageId := cctx.Int64("storage-id")
+		if storageId <= 0 {
+			return errors.New("need input storage-id>0")
+		}
+		mountSignalUri := cctx.String("mount-signal-uri")
+		if len(mountSignalUri) == 0 {
+			return errors.New("need mount-signal-uri")
+		}
+		mountTransfUri := cctx.String("mount-transf-uri")
+		if len(mountTransfUri) == 0 {
+			mountTransfUri = mountSignalUri
+		}
+		mountType := cctx.String("mount-type")
+		mountOpt := cctx.String("mount-opt")
+
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		return nodeApi.ReplaceHLMStorage(ctx, storageId, mountSignalUri, mountTransfUri, mountType, mountOpt)
+	},
+}
+
 var scaleHLMStorageCmd = &cli.Command{
 	Name:  "scale",
 	Usage: "scale storage maxSize OR maxWork by node id ",
