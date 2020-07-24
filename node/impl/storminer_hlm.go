@@ -26,8 +26,12 @@ func (sm *StorageMinerAPI) StopPledgeSector(ctx context.Context) error {
 	return sm.Miner.ExitPledgeSector()
 }
 
+func (sm *StorageMinerAPI) HlmSectorSetState(ctx context.Context, sid, memo string, state int) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, state)
+}
+
 // Message communication
-func (sm *StorageMinerAPI) SectorsListAll(ctx context.Context) ([]api.SectorInfo, error) {
+func (sm *StorageMinerAPI) HlmSectorListAll(ctx context.Context) ([]api.SectorInfo, error) {
 	sectors, err := sm.Miner.ListSectors()
 	if err != nil {
 		return nil, err

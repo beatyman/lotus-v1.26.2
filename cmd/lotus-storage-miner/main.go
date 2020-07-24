@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
@@ -45,6 +44,7 @@ func main() {
 
 		// implement by hlm
 		lcli.WithCategory("hlm", pledgeSectorCmd),
+		lcli.WithCategory("hlm", hlmSectorCmd),
 		lcli.WithCategory("hlm", hlmStorageCmd),
 		lcli.WithCategory("hlm", hlmWorkerCmd),
 		lcli.WithCategory("hlm", hlmFaucetCmd),
@@ -103,10 +103,7 @@ func main() {
 	app.Setup()
 	app.Metadata["repoType"] = repo.StorageMiner
 
-	if err := app.Run(os.Args); err != nil {
-		log.Warnf("%+v", err)
-		os.Exit(1)
-	}
+	lcli.RunApp(app)
 }
 
 func getActorAddress(ctx context.Context, nodeAPI api.StorageMiner, overrideMaddr string) (maddr address.Address, err error) {
