@@ -9,6 +9,10 @@ export FIL_PROOFS_MAXIMIZE_CACHING=0  # open cache for 32GB or 64GB
 export RUST_LOG=info
 export RUST_BACKTRACE=1
 
+# make build from source
+export RUSTFLAGS="-C target-cpu=native -g" 
+export FFI_BUILD_FROM_SOURCE=1
+
 # checking gpu
 gpu=""
 type nvidia-smi
