@@ -139,7 +139,7 @@ replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivest
 
 //replace github.com/filecoin-project/sector-storage => ../sector-storage
 
-replace github.com/filecoin-project/storage-fsm => github.com/filecoin-fivestar/storage-fsm v0.0.0-20200723055403-8be90dd33ed7
+replace github.com/filecoin-project/storage-fsm => github.com/filecoin-fivestar/storage-fsm v0.0.0-20200725191919-4e383246b55c
 
 //replace github.com/filecoin-project/storage-fsm => ../storage-fsm
 
