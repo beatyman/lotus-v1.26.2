@@ -252,6 +252,11 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	if err := os.MkdirAll(mountDir, 0755); err != nil {
 		return errors.As(err, mountDir)
 	}
+	defer func() {
+		if err := os.RemoveAll(mountDir); err != nil {
+			log.Error(errors.As(err))
+		}
+	}()
 	// a fix point, link or mount to the targe file.
 	if err := database.Mount(
 		storage.MountType,
@@ -263,9 +268,6 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	}
 	defer func() {
 		if err := database.Umount(mountUri); err != nil {
-			log.Error(errors.As(err))
-		}
-		if err := os.RemoveAll(mountDir); err != nil {
 			log.Error(errors.As(err))
 		}
 		w.pushMu.Lock()
