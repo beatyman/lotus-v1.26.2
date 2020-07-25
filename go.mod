@@ -135,7 +135,7 @@ replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
-replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200725090106-700a1a85f6e8
+replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200725101828-3e99aa7708b7
 
 //replace github.com/filecoin-project/sector-storage => ../sector-storage
 
@@ -143,7 +143,7 @@ replace github.com/filecoin-project/storage-fsm => github.com/filecoin-fivestar/
 
 //replace github.com/filecoin-project/storage-fsm => ../storage-fsm
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/IPFS-grandhelmsman/go-jsonrpc v0.1.1-0.20200718130336-1262ff2d56fb
+replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200725101155-dfb4f419f085
 
 //replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
 

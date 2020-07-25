@@ -218,6 +218,8 @@ github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5Kwzbycv
 github.com/fatih/color v1.8.0 h1:5bzFgL+oy7JITMTxUPJ00n7VxmYd/PdMp5mHFX40/RY=
 github.com/fatih/color v1.8.0/go.mod h1:3l45GVGkyrnYNl9HoIjnp2NnNWvh6hLAqD8yTfGjnw8=
 github.com/fd/go-nat v1.0.0/go.mod h1:BTBu/CKvMmOMUPkKVef1pngt2WFH/lg7E6yQnulfp6E=
+github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200725101155-dfb4f419f085 h1:q+k+C1M2CGNPkbKzyIqSHUzepvoZs2KI5d7HicCP+Zw=
+github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200725101155-dfb4f419f085/go.mod h1:j6zV//WXIIY5kky873Q3iIKt/ViOE8rcijovmpxrXzM=
 github.com/filecoin-fivestar/sector-storage v0.0.0-20200723113336-d5aa44f9dd75 h1:lTKcLo13akjI9qrnQzWrAeT4U2nGF6R8dWv5ztX/9Rc=
 github.com/filecoin-fivestar/sector-storage v0.0.0-20200723113336-d5aa44f9dd75/go.mod h1:VOG39MCUp4V9Pgadh8aklqE9qXNPNvVyb8dbRmLrmnI=
 github.com/filecoin-fivestar/sector-storage v0.0.0-20200724174303-c31224564550 h1:P743in8J/DvVjMBO0cB36Ru5SZ+Cf1qyce7659mYWl4=
@@ -234,6 +236,8 @@ github.com/filecoin-fivestar/sector-storage v0.0.0-20200725053813-67df8632cc17 h
 github.com/filecoin-fivestar/sector-storage v0.0.0-20200725053813-67df8632cc17/go.mod h1:VOG39MCUp4V9Pgadh8aklqE9qXNPNvVyb8dbRmLrmnI=
 github.com/filecoin-fivestar/sector-storage v0.0.0-20200725090106-700a1a85f6e8 h1:+BiBpoKdMs8ho0kxB3pKKRnNJq1Ir3OO416lp5KNL6w=
 github.com/filecoin-fivestar/sector-storage v0.0.0-20200725090106-700a1a85f6e8/go.mod h1:VOG39MCUp4V9Pgadh8aklqE9qXNPNvVyb8dbRmLrmnI=
+github.com/filecoin-fivestar/sector-storage v0.0.0-20200725101828-3e99aa7708b7 h1:GHKN4S5W5sEXdMllHeU2lHZ2CbRj9ftaVohbhw5lU9Q=
+github.com/filecoin-fivestar/sector-storage v0.0.0-20200725101828-3e99aa7708b7/go.mod h1:VOG39MCUp4V9Pgadh8aklqE9qXNPNvVyb8dbRmLrmnI=
 github.com/filecoin-fivestar/storage-fsm v0.0.0-20200723055403-8be90dd33ed7 h1:ZWDX0Px3JmNF5LdLF/zUGWOIAzBb953Zia8CX9IYxOs=
 github.com/filecoin-fivestar/storage-fsm v0.0.0-20200723055403-8be90dd33ed7/go.mod h1:5zqlhHZMK01ZlUIjGj48RRxcpXytKh+Ue87dFwK89iU=
 github.com/filecoin-project/chain-validation v0.0.6-0.20200723211224-ffdcb7a20fe8 h1:WA2KU3u/FELAMVElQgiwEKTQe/QLUUsT52AnW4YjPjs=
