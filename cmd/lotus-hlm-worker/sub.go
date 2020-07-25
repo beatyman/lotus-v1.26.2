@@ -29,8 +29,7 @@ type worker struct {
 
 	actAddr address.Address
 
-	sb        *ffiwrapper.Sealer
-	sealedSB  *ffiwrapper.Sealer
+	workerSB  *ffiwrapper.Sealer
 	rpcServer *rpcServer
 	workerCfg ffiwrapper.WorkerCfg
 
@@ -43,7 +42,7 @@ type worker struct {
 }
 
 func acceptJobs(ctx context.Context,
-	sb, sealedSB *ffiwrapper.Sealer,
+	workerSB, sealedSB *ffiwrapper.Sealer,
 	rpcServer *rpcServer,
 	act, workerAddr address.Address,
 	endpoint string, auth http.Header,
@@ -62,8 +61,7 @@ func acceptJobs(ctx context.Context,
 		auth:          auth,
 
 		actAddr:   act,
-		sb:        sb,
-		sealedSB:  sealedSB,
+		workerSB:  workerSB,
 		rpcServer: rpcServer,
 		workerCfg: workerCfg,
 
@@ -135,11 +133,11 @@ loop:
 func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]abi.PieceInfo, error) {
 	sizes := task.PieceSizes
 
-	s := sealing.NewSealPiece(w.actAddr, w.sb)
+	s := sealing.NewSealPiece(w.actAddr, w.workerSB)
 	g := &sealing.Pledge{
 		SectorID:      task.SectorID,
 		Sealing:       s,
-		SectorBuilder: w.sb,
+		SectorBuilder: w.workerSB,
 		ActAddr:       w.actAddr,
 		Sizes:         sizes,
 	}
@@ -154,6 +152,7 @@ func (w *worker) RemoveCache(ctx context.Context, sid string) error {
 		return nil
 	}
 
+	log.Infof("Remove cache:%s,%s", w.repo, sid)
 	if err := os.RemoveAll(filepath.Join(w.repo, "sealed", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
@@ -216,7 +215,7 @@ func (w *worker) cleanCache(ctx context.Context, path string) error {
 					continue sealedLoop
 				}
 			}
-			log.Infof("clean %s", filepath.Join(path, f.Name()))
+			log.Infof("Remove %s", filepath.Join(path, f.Name()))
 			if err := os.RemoveAll(filepath.Join(path, f.Name())); err != nil {
 				return errors.As(err, w.workerCfg.IP, filepath.Join(path, f.Name()))
 			}
@@ -243,8 +242,9 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	}
 	mountUri := storage.MountTransfUri
 	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
+		log.Infof("found local storage, chagne %s to mount local", mountUri)
 		// fix to 127.0.0.1 if it has the same ip.
-		strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
+		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
 	}
 
 	// manage mount point
@@ -253,6 +253,7 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		return errors.As(err, mountDir)
 	}
 	defer func() {
+		log.Infof("Remove:%s", mountDir)
 		if err := os.RemoveAll(mountDir); err != nil {
 			log.Error(errors.As(err))
 		}
@@ -267,7 +268,7 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		return errors.As(err)
 	}
 	defer func() {
-		if err := database.Umount(mountUri); err != nil {
+		if err := database.Umount(mountDir); err != nil {
 			log.Error(errors.As(err))
 		}
 		w.pushMu.Lock()
@@ -293,25 +294,21 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	w.pushMu.Unlock()
 	// manage mount point end
 
-	if err := os.MkdirAll(filepath.Join(mountDir, "sealed"), 0755); err != nil {
+	sealedPath := filepath.Join(mountDir, "sealed")
+	if err := os.MkdirAll(sealedPath, 0755); err != nil {
 		return errors.As(err)
 	}
 	// "sealed" is created during previous step
-	if err := w.pushRemote(ctx, "sealed", sid); err != nil {
+	if err := w.pushRemote(ctx, "sealed", sid, filepath.Join(sealedPath, sid)); err != nil {
 		return errors.As(err)
 	}
-	if err := os.MkdirAll(filepath.Join(mountDir, "cache"), 0755); err != nil {
+	cachePath := filepath.Join(mountDir, "cache", sid)
+	if err := os.MkdirAll(cachePath, 0755); err != nil {
 		return errors.As(err)
 	}
-	if err := w.pushRemote(ctx, "cache", sid); err != nil {
+	if err := w.pushRemote(ctx, "cache", sid, cachePath); err != nil {
 		return errors.As(err)
 	}
-	// if err := os.MkdirAll(filepath.Join(mountDir, "unsealed"), 0755); err != nil {
-	// 	return errors.As(err)
-	// }
-	// if err := w.push(ctx, "unsealed", ffiwrapper.SectorName(task.SectorID)); err != nil {
-	// 	return errors.As(err)
-	// }
 	if err := api.CommitStorageNode(ctx, sid); err != nil {
 		return errors.As(err)
 	}
@@ -496,7 +493,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
-		rspco, err := w.sb.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
+		rspco, err := w.workerSB.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
@@ -505,7 +502,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 	case ffiwrapper.WorkerPreCommit2:
-		out, err := w.sb.SealPreCommit2(ctx, task.SectorID, task.PreCommit1Out)
+		out, err := w.workerSB.SealPreCommit2(ctx, task.SectorID, task.PreCommit1Out)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
@@ -522,13 +519,14 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
-		out, err := w.sb.SealCommit1(ctx, task.SectorID, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+		out, err := w.workerSB.SealCommit1(ctx, task.SectorID, task.SealTicket, task.SealSeed, pieceInfo, *cids)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 		res.Commit1Out = out
 	case ffiwrapper.WorkerCommit2:
 		// clean unsealed
+		log.Infof("Remove:%s", filepath.Join(w.repo, "unsealed", task.GetSectorID()))
 		if err := os.RemoveAll(filepath.Join(w.repo, "unsealed", task.GetSectorID())); err != nil {
 			log.Error(errors.As(err, task.GetSectorID()))
 		}
@@ -549,7 +547,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 		// call gpu service failed, using local instead.
 		if len(out) == 0 {
-			out, err = w.sb.SealCommit2(ctx, task.SectorID, task.Commit1Out)
+			out, err = w.workerSB.SealCommit2(ctx, task.SectorID, task.Commit1Out)
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), task)
 			}
@@ -559,7 +557,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
-		if err := w.sb.FinalizeSector(ctx, task.SectorID, nil); err != nil {
+		if err := w.workerSB.FinalizeSector(ctx, task.SectorID, nil); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
 

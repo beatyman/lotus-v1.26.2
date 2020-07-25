@@ -157,22 +157,20 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 	return nil
 }
 
-func (w *worker) pushRemote(ctx context.Context, typ string, sectorID string) error {
+func (w *worker) pushRemote(ctx context.Context, typ string, sectorID, toPath string) error {
 	// Close the fetch in the miner storage directory.
 	// TODO: fix to env
 	if filepath.Base(w.repo) == ".lotusstorage" {
 		return nil
 	}
 
-	fromPath := w.sb.SectorPath(typ, sectorID)
+	fromPath := w.workerSB.SectorPath(typ, sectorID)
 	stat, err := os.Stat(string(fromPath))
 	if err != nil {
 		return err
 	}
 
-	// save to target storage
-	toPath := w.sealedSB.SectorPath(typ, sectorID)
-
+	log.Infof("pushRemote, from: %s, to: %s", fromPath, toPath)
 	if stat.IsDir() {
 		if err := CopyFile(ctx, string(fromPath)+"/", string(toPath)+"/"); err != nil {
 			return err
@@ -186,7 +184,7 @@ func (w *worker) pushRemote(ctx context.Context, typ string, sectorID string) er
 }
 
 func (w *worker) remove(typ string, sectorID abi.SectorID) error {
-	filename := filepath.Join(w.repo, typ, w.sb.SectorName(sectorID))
+	filename := filepath.Join(w.repo, typ, w.workerSB.SectorName(sectorID))
 	log.Infof("Remove file: %s", filename)
 	return os.RemoveAll(filename)
 }
