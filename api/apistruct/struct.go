@@ -268,6 +268,7 @@ type StorageMinerStruct struct {
 		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
 		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
 		HlmSectorSetState    func(ctx context.Context, sid, memo string, state int) error                              `perm:"write"`
+		HlmSectorFinalize    func(ctx context.Context, sid string) error                                               `perm:"write"`
 		HlmSectorListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
 		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
 		UnlockGPUService     func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
@@ -1143,6 +1144,9 @@ func (c *StorageMinerStruct) StopPledgeSector(ctx context.Context) error {
 }
 func (c *StorageMinerStruct) HlmSectorSetState(ctx context.Context, sid, memo string, state int) error {
 	return c.Internal.HlmSectorSetState(ctx, sid, memo, state)
+}
+func (c *StorageMinerStruct) HlmSectorFinalize(ctx context.Context, sid string) error {
+	return c.Internal.HlmSectorFinalize(ctx, sid)
 }
 func (c *StorageMinerStruct) HlmSectorListAll(ctx context.Context) ([]api.SectorInfo, error) {
 	return c.Internal.HlmSectorListAll(ctx)
