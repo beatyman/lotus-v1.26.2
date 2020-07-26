@@ -103,7 +103,7 @@ lotus-shed: $(BUILD_DEPS)
 .PHONY: lotus-shed
 BINS+=lotus-shed
 
-build: lotus lotus-miner lotus-worker chain-watch
+build: lotus lotus-miner lotus-worker chain-watch lotus-bench
 	@[[ $$(type -P "lotus") ]] && echo "Caution: you have \
 an existing lotus binary in your PATH. This may cause problems if you don't run 'sudo make install'" || true
 
