@@ -31,4 +31,6 @@ cp -rf lotus $install_path
 cp -rf lotus-miner $install_path
 cp -rf lotus-worker $install_path
 cp -rf lotus-chain-watch $install_path
-cp -rf lotus-bench $install_path
+if [ -f ./lotus-bench ]; then
+    cp -rf lotus-bench $install_path
+fi
