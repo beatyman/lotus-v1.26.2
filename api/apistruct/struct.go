@@ -268,6 +268,7 @@ type StorageMinerStruct struct {
 		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
 		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
 		HlmSectorSetState    func(ctx context.Context, sid, memo string, state int) error                              `perm:"write"`
+		HlmSectorFinalize    func(ctx context.Context, sid string) error                                               `perm:"write"`
 		HlmSectorListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
 		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
 		UnlockGPUService     func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
@@ -285,17 +286,18 @@ type StorageMinerStruct struct {
 		WorkerPreConn        func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
 		WorkerMinerConn      func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
-		Testing           func(ctx context.Context, fnName string, args []string) error                       `perm:"admin"`
-		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error                         `perm:"write"`
-		DisableHLMStorage func(ctx context.Context, id int64) error                                           `perm:"write"`
-		MountHLMStorage   func(ctx context.Context, id int64) error                                           `perm:"write"`
-		UMountHLMStorage  func(ctx context.Context, id int64) error                                           `perm:"write"`
-		RelinkHLMStorage  func(ctx context.Context, id int64) error                                           `perm:"write"`
-		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error                   `perm:"write"`
-		PreStorageNode    func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) `perm:"write"`
-		CommitStorageNode func(ctx context.Context, sectorId string) error                                    `perm:"write"`
-		CancelStorageNode func(ctx context.Context, sectorId string) error                                    `perm:"write"`
-		ChecksumStorage   func(ctx context.Context, ver int64) (database.StorageList, error)                  `perm:"read"`
+		Testing           func(ctx context.Context, fnName string, args []string) error                               `perm:"admin"`
+		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error                                 `perm:"write"`
+		DisableHLMStorage func(ctx context.Context, id int64) error                                                   `perm:"write"`
+		MountHLMStorage   func(ctx context.Context, id int64) error                                                   `perm:"write"`
+		UMountHLMStorage  func(ctx context.Context, id int64) error                                                   `perm:"write"`
+		RelinkHLMStorage  func(ctx context.Context, id int64) error                                                   `perm:"write"`
+		ReplaceHLMStorage func(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error `perm:"write"`
+		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error                           `perm:"write"`
+		PreStorageNode    func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)         `perm:"write"`
+		CommitStorageNode func(ctx context.Context, sectorId string) error                                            `perm:"write"`
+		CancelStorageNode func(ctx context.Context, sectorId string) error                                            `perm:"write"`
+		ChecksumStorage   func(ctx context.Context, ver int64) (database.StorageList, error)                          `perm:"read"`
 	}
 }
 
@@ -1143,6 +1145,9 @@ func (c *StorageMinerStruct) StopPledgeSector(ctx context.Context) error {
 func (c *StorageMinerStruct) HlmSectorSetState(ctx context.Context, sid, memo string, state int) error {
 	return c.Internal.HlmSectorSetState(ctx, sid, memo, state)
 }
+func (c *StorageMinerStruct) HlmSectorFinalize(ctx context.Context, sid string) error {
+	return c.Internal.HlmSectorFinalize(ctx, sid)
+}
 func (c *StorageMinerStruct) HlmSectorListAll(ctx context.Context) ([]api.SectorInfo, error) {
 	return c.Internal.HlmSectorListAll(ctx)
 }
@@ -1209,6 +1214,9 @@ func (c *StorageMinerStruct) UMountHLMStorage(ctx context.Context, id int64) err
 }
 func (c *StorageMinerStruct) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return c.Internal.RelinkHLMStorage(ctx, id)
+}
+func (c *StorageMinerStruct) ReplaceHLMStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error {
+	return c.Internal.ReplaceHLMStorage(ctx, id, signalUri, transfUri, mountType, mountOpt)
 }
 func (c *StorageMinerStruct) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return c.Internal.ScaleHLMStorage(ctx, id, size, work)

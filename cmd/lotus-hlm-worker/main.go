@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -339,6 +341,21 @@ var runCmd = &cli.Command{
 			fileServer = netIp + ":1280"
 		}
 
+		// init and clean the sealed dir who has mounted.
+		sealedMountedFile := workerIdFile + ".lock"
+		sealedMounted := map[string]string{}
+		if mountedData, err := ioutil.ReadFile(sealedMountedFile); err == nil {
+			if err := json.Unmarshal(mountedData, &sealedMounted); err != nil {
+				return errors.As(err)
+			}
+			for _, p := range sealedMounted {
+				if err := database.Umount(p); err != nil {
+					log.Info(err)
+				}
+			}
+		}
+
+		// init worker configuration
 		workerCfg := ffiwrapper.WorkerCfg{
 			ID:                 workerId,
 			IP:                 netIp,
@@ -358,6 +375,11 @@ var runCmd = &cli.Command{
 		workerApi := &rpcServer{
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
+		}
+		if workerCfg.WdPoStSrv || workerCfg.WdPoStSrv {
+			if err := workerApi.loadMinerStorage(ctx); err != nil {
+				return errors.As(err)
+			}
 		}
 
 		mux := mux.NewRouter()
@@ -389,6 +411,7 @@ var runCmd = &cli.Command{
 			}
 		}()
 
+		// set report url
 		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
 			report.SetReportUrl(reportUrl)
 		}
@@ -399,7 +422,7 @@ var runCmd = &cli.Command{
 			act, workerAddr,
 			"http://"+storageAddr, ainfo.AuthHeader(),
 			"http://"+fileServer,
-			r, sealedRepo,
+			r, sealedRepo, sealedMountedFile,
 			workerCfg,
 		); err != nil {
 			log.Warn(err)

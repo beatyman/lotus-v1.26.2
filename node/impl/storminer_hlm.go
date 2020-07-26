@@ -10,6 +10,9 @@ import (
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/specs-storage/storage"
+
+	"github.com/gwaylib/errors"
 )
 
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
@@ -28,6 +31,14 @@ func (sm *StorageMinerAPI) StopPledgeSector(ctx context.Context) error {
 
 func (sm *StorageMinerAPI) HlmSectorSetState(ctx context.Context, sid, memo string, state int) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, state)
+}
+
+func (sm *StorageMinerAPI) HlmSectorFinalize(ctx context.Context, sid string) error {
+	id, err := ffiwrapper.ParseSectorID(sid)
+	if err != nil {
+		return errors.As(err, sid)
+	}
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).FinalizeSector(ctx, id, []storage.Range{})
 }
 
 // Message communication
@@ -116,6 +127,9 @@ func (sm *StorageMinerAPI) UMountHLMStorage(ctx context.Context, id int64) error
 
 func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id)
+}
+func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ReplaceStorage(ctx, id, signalUri, transfUri, mountType, mountOpt)
 }
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)

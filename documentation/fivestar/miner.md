@@ -277,3 +277,8 @@ worker程序会根据miner分发的存储节点配置自动挂载
 ```
 
 
+## 发布二进制
+执行些脚本后会在./deploy/lotus生成数据并打包, ./publish.sh 型号
+```
+./publish.sh linux-amd64-amd
+```

@@ -114,3 +114,27 @@ var setHlmSectorStateCmd = &cli.Command{
 		return nodeApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"))
 	},
 }
+var finalizeHlmSectorCmd = &cli.Command{
+	Name:  "finalize",
+	Usage: "will call the finalize to trigger the remote do finalize",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "sector-id",
+			Usage: "sector id which want to set",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+
+		sid := cctx.String("sector-id")
+		if len(sid) == 0 {
+			return errors.New("need input sector-id")
+		}
+		return nodeApi.HlmSectorFinalize(ctx, sid)
+	},
+}

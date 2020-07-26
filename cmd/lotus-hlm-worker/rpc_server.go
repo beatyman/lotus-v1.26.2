@@ -63,7 +63,7 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context) error {
 		}
 
 		// version not match
-		if err := database.MountStorage(
+		if err := database.Mount(
 			info.MountType,
 			info.MountSignalUri,
 			filepath.Join(info.MountDir, fmt.Sprintf("%d", info.ID)),

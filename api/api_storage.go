@@ -95,6 +95,7 @@ type StorageMiner interface {
 	StopPledgeSector(context.Context) error
 
 	HlmSectorSetState(ctx context.Context, sid, memo string, state int) error
+	HlmSectorFinalize(ctx context.Context, sid string) error
 	HlmSectorListAll(context.Context) ([]SectorInfo, error)
 	SelectCommit2Service(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)
 	UnlockGPUService(ctx context.Context, workerId, taskKey string) error
@@ -118,6 +119,7 @@ type StorageMiner interface {
 	MountHLMStorage(ctx context.Context, id int64) error
 	UMountHLMStorage(ctx context.Context, id int64) error
 	RelinkHLMStorage(ctx context.Context, id int64) error
+	ReplaceHLMStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error
 	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
 	PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)
 	CommitStorageNode(ctx context.Context, sectorId string) error
