@@ -167,7 +167,7 @@ var sealBenchCmd = &cli.Command{
 		for i := 0; i < parallel; i++ {
 			select {
 			case b := <-result:
-				fmt.Printf("result of parallel %d: \n", i)
+				fmt.Printf("result of hlm-parallel %d: \n", i)
 				fmt.Print(b)
 			case <-end:
 				return nil
