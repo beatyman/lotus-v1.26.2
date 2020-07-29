@@ -13,5 +13,7 @@ ListenAddress = "/ip4/127.0.0.1/tcp/11345/http"
 #  AllowPreCommit1 = true
 #  AllowPreCommit2 = true
 #  AllowCommit = true
-RemoteMode = true
+RemoteSeal = true
+RemoteWnPoSt = true
+RemoteWdPoSt = true
 #
