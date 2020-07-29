@@ -46,7 +46,6 @@ func acceptJobs(ctx context.Context,
 	rpcServer *rpcServer,
 	act, workerAddr address.Address,
 	endpoint string, auth http.Header,
-	fileServer string,
 	repo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
