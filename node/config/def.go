@@ -128,6 +128,10 @@ func DefaultStorageMiner() *StorageMiner {
 			RemoteSeal:      false,
 			RemoteWnPoSt:    false,
 			RemoteWdPoSt:    false,
+
+			// Default to 10 - tcp should still be able to figure this out, and
+			// it's the ratio between 10gbit / 1gbit
+			ParallelFetchLimit: 10,
 		},
 
 		Dealmaking: DealmakingConfig{

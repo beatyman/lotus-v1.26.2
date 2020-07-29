@@ -146,9 +146,14 @@ var sealBenchCmd = &cli.Command{
 			Usage: "nums of parallel task",
 			Value: 1,
 		},
+		&cli.IntFlag{
+			Name:  "hlm-parallel",
+			Usage: "nums of hlm parallel task",
+			Value: 1,
+		},
 	},
 	Action: func(c *cli.Context) error {
-		parallel := c.Int("parallel")
+		parallel := c.Int("hlm-parallel")
 		result := make(chan string, parallel)
 		for i := 0; i < parallel; i++ {
 			log.Infof("run parallel index:%d", i)
@@ -162,7 +167,7 @@ var sealBenchCmd = &cli.Command{
 		for i := 0; i < parallel; i++ {
 			select {
 			case b := <-result:
-				fmt.Printf("result of parallel %d: \n", i)
+				fmt.Printf("result of hlm-parallel %d: \n", i)
 				fmt.Print(b)
 			case <-end:
 				return nil

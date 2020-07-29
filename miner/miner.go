@@ -14,7 +14,6 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
-	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 	lru "github.com/hashicorp/golang-lru"
 
@@ -35,7 +34,7 @@ import (
 var log = logging.Logger("miner")
 
 // returns a callback reporting whether we mined a blocks in this round
-type waitFunc func(ctx context.Context, baseTime uint64) (func(bool, error), error)
+type waitFunc func(ctx context.Context, baseTime uint64) (func(bool, error), abi.ChainEpoch, error)
 
 func randTimeOffset(width time.Duration) time.Duration {
 	buf := make([]byte, 8)
@@ -55,7 +54,7 @@ func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address)
 		api:     api,
 		epp:     epp,
 		address: addr,
-		waitFunc: func(ctx context.Context, baseTime uint64) (func(bool, error), error) {
+		waitFunc: func(ctx context.Context, baseTime uint64) (func(bool, error), abi.ChainEpoch, error) {
 			// Wait around for half the block time in case other parents come in
 			deadline := baseTime + build.PropagationDelaySecs
 			baseT := time.Unix(int64(deadline), 0)
@@ -64,7 +63,7 @@ func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address)
 
 			build.Clock.Sleep(build.Clock.Until(baseT))
 
-			return func(bool, error) {}, nil
+			return func(bool, error) {}, 0, nil
 		},
 		minedBlockHeights: arc,
 	}
@@ -161,10 +160,10 @@ func (m *Miner) mine(ctx context.Context) {
 		}
 
 		//// Wait until propagation delay period after block we plan to mine on
-		//onDone, err := m.waitFunc(ctx, prebase.TipSet.MinTimestamp())
+		//onDone, injectNulls, err := m.waitFunc(ctx, prebase.TipSet.MinTimestamp())
 		//if err != nil {
 		//	log.Error(err)
-		//	return
+		//	continue
 		//}
 
 		//base, err := m.GetBestMiningCandidate(ctx)
@@ -220,6 +219,7 @@ func (m *Miner) mine(ctx context.Context) {
 			}
 			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
 			lastBase.NullRounds++
+			//lastBase.NullRounds += injectNulls // testing
 			nextRound = nextRoundTime(&lastBase)
 		}
 		b, err := m.mineOne(ctx, &oldbase, &lastBase)
@@ -323,21 +323,16 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 	return m.lastWork, nil
 }
 
-func (m *Miner) hasPower(ctx context.Context, addr address.Address, ts *types.TipSet) (bool, error) {
-	mpower, err := m.api.StateMinerPower(ctx, addr, ts.Key())
-	if err != nil {
-		return false, err
-	}
-
-	return mpower.MinerPower.QualityAdjPower.GreaterThanEqual(power.ConsensusMinerMinPower), nil
-}
-
 // mineOne attempts to mine a single block, and does so synchronously, if and
 // only if we are eligible to mine.
 //
 // {hint/landmark}: This method coordinates all the steps involved in mining a
 // block, including the condition of whether mine or not at all depending on
 // whether we win the round or not.
+//
+// This method does the following:
+//
+//  1.
 func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.BlockMsg, error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := build.Clock.Now()
@@ -349,7 +344,10 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
-		base.NullRounds++
+		return nil, nil
+	}
+	if !mbi.HasMinPower {
+		// slashed or just have no power yet
 		return nil, nil
 	}
 
@@ -359,16 +357,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 
 	tDrand := build.Clock.Now()
 	bvals := mbi.BeaconEntries
-
-	hasPower, err := m.hasPower(ctx, m.address, base.TipSet)
-	if err != nil {
-		return nil, xerrors.Errorf("checking if miner is slashed: %w", err)
-	}
-	if !hasPower {
-		// slashed or just have no power yet
-		base.NullRounds++
-		return nil, nil
-	}
 
 	tPowercheck := build.Clock.Now()
 
@@ -400,7 +388,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 
 	if winner == nil {
 		log.Info("Not Win")
-		base.NullRounds++
 		return nil, nil
 	}
 
@@ -431,16 +418,9 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get pending messages: %w", err)
 	}
-	log.Infof("all pending msgs len:%d", len(pending))
-	pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
-	if err != nil {
-		return nil, xerrors.Errorf("message filtering failed: %w", err)
-	}
-	if len(pending) > build.BlockMessageLimit {
-		log.Error("SelectMessages returned too many messages: ", len(pending))
-		pending = pending[:build.BlockMessageLimit]
-	}
+
 	tPending := build.Clock.Now()
+
 	// TODO: winning post proof
 	b, err := m.createBlock(base, m.address, ticket, winner, bvals, postProof, pending)
 	if err != nil {
@@ -507,7 +487,19 @@ func (m *Miner) computeTicket(ctx context.Context, brand *types.BeaconEntry, bas
 
 func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket,
 	eproof *types.ElectionProof, bvals []types.BeaconEntry, wpostProof []abi.PoStProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
+	log.Infof("all pending msgs len:%d", len(msgs))
+	msgs, err := SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: msgs})
+	if err != nil {
+		return nil, xerrors.Errorf("message filtering failed: %w", err)
+	}
+
+	if len(msgs) > build.BlockMessageLimit {
+		log.Error("SelectMessages returned too many messages: ", len(msgs))
+		msgs = msgs[:build.BlockMessageLimit]
+	}
+
 	uts := base.TipSet.MinTimestamp() + build.BlockDelaySecs*(uint64(base.NullRounds)+1)
+
 	nheight := base.TipSet.Height() + base.NullRounds + 1
 
 	// why even return this? that api call could just submit it for us
