@@ -9,10 +9,12 @@ import (
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
+
+	"github.com/filecoin-project/go-multistore"
 )
 
 type Mgr struct {
-	mds *MultiStore
+	mds *multistore.MultiStore
 	ds  datastore.Batching
 
 	Blockstore blockstore.Blockstore
@@ -27,12 +29,10 @@ const (
 	LMTime    = "mtime"    // File modification timestamp
 )
 
-func New(mds *MultiStore, ds datastore.Batching) *Mgr {
+func New(mds *multistore.MultiStore, ds datastore.Batching) *Mgr {
 	return &Mgr{
-		mds: mds,
-		Blockstore: &multiReadBs{
-			mds: mds,
-		},
+		mds:        mds,
+		Blockstore: mds.MultiReadBlockstore(),
 
 		ds: datastore.NewLogDatastore(namespace.Wrap(ds, datastore.NewKey("/stores")), "storess"),
 	}
@@ -42,7 +42,7 @@ type StoreMeta struct {
 	Labels map[string]string
 }
 
-func (m *Mgr) NewStore() (int, *Store, error) {
+func (m *Mgr) NewStore() (multistore.StoreID, *multistore.Store, error) {
 	id := m.mds.Next()
 	st, err := m.mds.Get(id)
 	if err != nil {
@@ -60,7 +60,7 @@ func (m *Mgr) NewStore() (int, *Store, error) {
 	return id, st, err
 }
 
-func (m *Mgr) AddLabel(id int, key, value string) error { // source, file path, data CID..
+func (m *Mgr) AddLabel(id multistore.StoreID, key, value string) error { // source, file path, data CID..
 	meta, err := m.ds.Get(datastore.NewKey(fmt.Sprintf("%d", id)))
 	if err != nil {
 		return xerrors.Errorf("getting metadata form datastore: %w", err)
@@ -81,11 +81,11 @@ func (m *Mgr) AddLabel(id int, key, value string) error { // source, file path, 
 	return m.ds.Put(datastore.NewKey(fmt.Sprintf("%d", id)), meta)
 }
 
-func (m *Mgr) List() []int {
+func (m *Mgr) List() []multistore.StoreID {
 	return m.mds.List()
 }
 
-func (m *Mgr) Info(id int) (*StoreMeta, error) {
+func (m *Mgr) Info(id multistore.StoreID) (*StoreMeta, error) {
 	meta, err := m.ds.Get(datastore.NewKey(fmt.Sprintf("%d", id)))
 	if err != nil {
 		return nil, xerrors.Errorf("getting metadata form datastore: %w", err)
@@ -99,7 +99,7 @@ func (m *Mgr) Info(id int) (*StoreMeta, error) {
 	return &sm, nil
 }
 
-func (m *Mgr) Remove(id int) error {
+func (m *Mgr) Remove(id multistore.StoreID) error {
 	if err := m.mds.Delete(id); err != nil {
 		return xerrors.Errorf("removing import: %w", err)
 	}

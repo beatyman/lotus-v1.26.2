@@ -636,10 +636,8 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 
 	validationStart := build.Clock.Now()
 	defer func() {
-		dur := time.Since(validationStart)
-		durMilli := dur.Seconds() * float64(1000)
-		stats.Record(ctx, metrics.BlockValidationDurationMilliseconds.M(durMilli))
-		log.Infow("block validation", "took", dur, "height", b.Header.Height)
+		stats.Record(ctx, metrics.BlockValidationDurationMilliseconds.M(metrics.SinceInMilliseconds(validationStart)))
+		log.Infow("block validation", "took", time.Since(validationStart), "height", b.Header.Height)
 	}()
 
 	ctx, span := trace.StartSpan(ctx, "validateBlock")
@@ -741,6 +739,15 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	winnerCheck := async.Err(func() error {
 		if h.ElectionProof.WinCount < 1 {
 			return xerrors.Errorf("block is not claiming to be a winner")
+		}
+
+		hp, err := stmgr.MinerHasMinPower(ctx, syncer.sm, h.Miner, lbts)
+		if err != nil {
+			return xerrors.Errorf("determining if miner has min power failed: %w", err)
+		}
+
+		if !hp {
+			return xerrors.New("block's miner does not meet minimum power threshold")
 		}
 
 		rBeacon := *prevBeacon
