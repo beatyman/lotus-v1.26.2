@@ -3,6 +3,7 @@ package stmgr
 import (
 	"context"
 	"fmt"
+	"github.com/filecoin-project/specs-actors/actors/builtin/multisig"
 	"sync"
 
 	"github.com/filecoin-project/go-address"
@@ -13,20 +14,22 @@ import (
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/vm"
+	"github.com/filecoin-project/lotus/lib/blockstore"
+
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/market"
 	"github.com/filecoin-project/specs-actors/actors/builtin/reward"
 	"github.com/filecoin-project/specs-actors/actors/util/adt"
-	cbg "github.com/whyrusleeping/cbor-gen"
+
 	"golang.org/x/xerrors"
 
 	bls "github.com/filecoin-project/filecoin-ffi"
 	"github.com/ipfs/go-cid"
-	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	logging "github.com/ipfs/go-log/v2"
+	cbg "github.com/whyrusleeping/cbor-gen"
 	"go.opencensus.io/trace"
 )
 
@@ -35,10 +38,12 @@ var log = logging.Logger("statemgr")
 type StateManager struct {
 	cs *store.ChainStore
 
-	stCache  map[string][]cid.Cid
-	compWait map[string]chan struct{}
-	stlk     sync.Mutex
-	newVM    func(cid.Cid, abi.ChainEpoch, vm.Rand, blockstore.Blockstore, vm.SyscallBuilder) (*vm.VM, error)
+	stCache       map[string][]cid.Cid
+	compWait      map[string]chan struct{}
+	stlk          sync.Mutex
+	genesisMsigLk sync.Mutex
+	newVM         func(cid.Cid, abi.ChainEpoch, vm.Rand, blockstore.Blockstore, vm.SyscallBuilder, vm.VestedCalculator) (*vm.VM, error)
+	genesisMsigs  []multisig.State
 }
 
 func NewStateManager(cs *store.ChainStore) *StateManager {
@@ -147,7 +152,7 @@ type BlockMessages struct {
 type ExecCallback func(cid.Cid, *types.Message, *vm.ApplyRet) error
 
 func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEpoch, pstate cid.Cid, bms []BlockMessages, epoch abi.ChainEpoch, r vm.Rand, cb ExecCallback) (cid.Cid, cid.Cid, error) {
-	vmi, err := sm.newVM(pstate, parentEpoch, r, sm.cs.Blockstore(), sm.cs.VMSys())
+	vmi, err := sm.newVM(pstate, epoch, r, sm.cs.Blockstore(), sm.cs.VMSys(), sm.GetVestedFunds)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("instantiating VM failed: %w", err)
 	}
@@ -715,34 +720,18 @@ func (sm *StateManager) MarketBalance(ctx context.Context, addr address.Address,
 	if err != nil {
 		return api.MarketBalance{}, err
 	}
-	ehas, err := et.Has(addr)
+	out.Escrow, err = et.Get(addr)
 	if err != nil {
-		return api.MarketBalance{}, err
-	}
-	if ehas {
-		out.Escrow, _, err = et.Get(addr)
-		if err != nil {
-			return api.MarketBalance{}, xerrors.Errorf("getting escrow balance: %w", err)
-		}
-	} else {
-		out.Escrow = big.Zero()
+		return api.MarketBalance{}, xerrors.Errorf("getting escrow balance: %w", err)
 	}
 
 	lt, err := adt.AsBalanceTable(sm.cs.Store(ctx), state.LockedTable)
 	if err != nil {
 		return api.MarketBalance{}, err
 	}
-	lhas, err := lt.Has(addr)
+	out.Locked, err = lt.Get(addr)
 	if err != nil {
-		return api.MarketBalance{}, err
-	}
-	if lhas {
-		out.Locked, _, err = lt.Get(addr)
-		if err != nil {
-			return api.MarketBalance{}, xerrors.Errorf("getting locked balance: %w", err)
-		}
-	} else {
-		out.Locked = big.Zero()
+		return api.MarketBalance{}, xerrors.Errorf("getting locked balance: %w", err)
 	}
 
 	return out, nil
@@ -777,6 +766,91 @@ func (sm *StateManager) ValidateChain(ctx context.Context, ts *types.TipSet) err
 	return nil
 }
 
-func (sm *StateManager) SetVMConstructor(nvm func(cid.Cid, abi.ChainEpoch, vm.Rand, blockstore.Blockstore, vm.SyscallBuilder) (*vm.VM, error)) {
+func (sm *StateManager) SetVMConstructor(nvm func(cid.Cid, abi.ChainEpoch, vm.Rand, blockstore.Blockstore, vm.SyscallBuilder, vm.VestedCalculator) (*vm.VM, error)) {
 	sm.newVM = nvm
+}
+
+type GenesisMsigEntry struct {
+	totalFunds abi.TokenAmount
+	unitVest   abi.TokenAmount
+}
+
+func (sm *StateManager) setupGenesisMsigs(ctx context.Context) error {
+	gb, err := sm.cs.GetGenesis()
+	if err != nil {
+		return xerrors.Errorf("getting genesis block: %w", err)
+	}
+
+	gts, err := types.NewTipSet([]*types.BlockHeader{gb})
+	if err != nil {
+		return xerrors.Errorf("getting genesis tipset: %w", err)
+	}
+
+	st, _, err := sm.TipSetState(ctx, gts)
+	if err != nil {
+		return xerrors.Errorf("getting genesis tipset state: %w", err)
+	}
+
+	r, err := adt.AsMap(sm.cs.Store(ctx), st)
+	if err != nil {
+		return xerrors.Errorf("getting genesis actors: %w", err)
+	}
+
+	totalsByEpoch := make(map[abi.ChainEpoch]abi.TokenAmount)
+	var act types.Actor
+	err = r.ForEach(&act, func(k string) error {
+		if act.Code == builtin.MultisigActorCodeID {
+			var s multisig.State
+			err := sm.cs.Store(ctx).Get(ctx, act.Head, &s)
+			if err != nil {
+				return err
+			}
+
+			if s.StartEpoch != 0 {
+				return xerrors.New("genesis multisig doesn't start vesting at epoch 0!")
+			}
+
+			ot, f := totalsByEpoch[s.UnlockDuration]
+			if f {
+				totalsByEpoch[s.UnlockDuration] = big.Add(ot, s.InitialBalance)
+			} else {
+				totalsByEpoch[s.UnlockDuration] = s.InitialBalance
+			}
+
+		}
+		return nil
+	})
+
+	if err != nil {
+		return xerrors.Errorf("error setting up composite genesis multisigs: %w", err)
+	}
+
+	sm.genesisMsigs = make([]multisig.State, 0, len(totalsByEpoch))
+	for k, v := range totalsByEpoch {
+		ns := multisig.State{
+			InitialBalance: v,
+			UnlockDuration: k,
+			PendingTxns:    cid.Undef,
+		}
+		sm.genesisMsigs = append(sm.genesisMsigs, ns)
+	}
+
+	return nil
+}
+
+func (sm *StateManager) GetVestedFunds(ctx context.Context, height abi.ChainEpoch) (abi.TokenAmount, error) {
+	sm.genesisMsigLk.Lock()
+	defer sm.genesisMsigLk.Unlock()
+	if sm.genesisMsigs == nil {
+		err := sm.setupGenesisMsigs(ctx)
+		if err != nil {
+			return big.Zero(), xerrors.Errorf("failed to setup genesis msig entries: %w", err)
+		}
+	}
+	vf := big.Zero()
+	for _, v := range sm.genesisMsigs {
+		au := big.Sub(v.InitialBalance, v.AmountLocked(height))
+		vf = big.Add(vf, au)
+	}
+	return vf, nil
 }

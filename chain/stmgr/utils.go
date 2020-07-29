@@ -7,7 +7,6 @@ import (
 	"reflect"
 
 	cid "github.com/ipfs/go-cid"
-	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	"golang.org/x/xerrors"
@@ -38,6 +37,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/vm"
+	"github.com/filecoin-project/lotus/lib/blockstore"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 )
 
@@ -440,7 +440,7 @@ func ComputeState(ctx context.Context, sm *StateManager, height abi.ChainEpoch, 
 	}
 
 	r := store.NewChainRand(sm.cs, ts.Cids(), height)
-	vmi, err := vm.NewVM(base, height, r, sm.cs.Blockstore(), sm.cs.VMSys())
+	vmi, err := vm.NewVM(base, height, r, sm.cs.Blockstore(), sm.cs.VMSys(), sm.GetVestedFunds)
 	if err != nil {
 		return cid.Undef, nil, err
 	}
@@ -595,7 +595,7 @@ func (sm *StateManager) CirculatingSupply(ctx context.Context, ts *types.TipSet)
 	}
 
 	r := store.NewChainRand(sm.cs, ts.Cids(), ts.Height())
-	vmi, err := vm.NewVM(st, ts.Height(), r, sm.cs.Blockstore(), sm.cs.VMSys())
+	vmi, err := vm.NewVM(st, ts.Height(), r, sm.cs.Blockstore(), sm.cs.VMSys(), sm.GetVestedFunds)
 	if err != nil {
 		return big.Zero(), err
 	}
