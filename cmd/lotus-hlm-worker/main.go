@@ -428,7 +428,7 @@ var runCmd = &cli.Command{
 			workerSealer, sealedSB,
 			workerApi,
 			act, workerAddr,
-			"http://"+storageAddr, ainfo.AuthHeader(),
+			storageAddr, ainfo.AuthHeader(),
 			r, sealedRepo, sealedMountedFile,
 			workerCfg,
 		); err != nil {

@@ -449,7 +449,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			uri = w.minerEndpoint
 		}
 		if err := w.fetchRemote(
-			uri,
+			"http://"+uri,
 			task.SectorStorage.SectorInfo.ID,
 			task.Type,
 		); err != nil {
