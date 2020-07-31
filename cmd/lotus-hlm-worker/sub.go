@@ -465,7 +465,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// release the storage cache
 		log.Infof("fetch %s done, try delete remote files.", task.Key())
 		if err := w.deleteRemoteCache(
-			uri,
+			"https://"+uri,
 			task.SectorStorage.SectorInfo.ID,
 		); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
