@@ -8,6 +8,8 @@ import (
 	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-fil-markets/piecestore"
+	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/sector-storage/database"
@@ -75,6 +77,8 @@ type StorageMiner interface {
 	MarketListIncompleteDeals(ctx context.Context) ([]storagemarket.MinerDeal, error)
 	MarketSetAsk(ctx context.Context, price types.BigInt, duration abi.ChainEpoch, minPieceSize abi.PaddedPieceSize, maxPieceSize abi.PaddedPieceSize) error
 	MarketGetAsk(ctx context.Context) (*storagemarket.SignedStorageAsk, error)
+	MarketSetRetrievalAsk(ctx context.Context, rask *retrievalmarket.Ask) error
+	MarketGetRetrievalAsk(ctx context.Context) (*retrievalmarket.Ask, error)
 
 	DealsImportData(ctx context.Context, dealPropCid cid.Cid, file string) error
 	DealsList(ctx context.Context) ([]storagemarket.StorageDeal, error)
@@ -90,6 +94,11 @@ type StorageMiner interface {
 	DealsSetConsiderOfflineRetrievalDeals(context.Context, bool) error
 
 	StorageAddLocal(ctx context.Context, path string) error
+
+	PiecesListPieces(ctx context.Context) ([]cid.Cid, error)
+	PiecesListCidInfos(ctx context.Context) ([]cid.Cid, error)
+	PiecesGetPieceInfo(ctx context.Context, pieceCid cid.Cid) (*piecestore.PieceInfo, error)
+	PiecesGetCIDInfo(ctx context.Context, payloadCid cid.Cid) (*piecestore.CIDInfo, error)
 
 	// implements by hlm
 	Testing(ctx context.Context, fnName string, args []string) error
