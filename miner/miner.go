@@ -437,15 +437,14 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		"took", dur,
 		"submit", time.Unix(int64(base.TipSet.MinTimestamp()+(uint64(base.NullRounds)+1)*build.BlockDelaySecs), 0).Format(time.RFC3339))
 	if dur > time.Second*time.Duration(build.BlockDelaySecs) {
-		log.Warn("CAUTION: block production took longer than the block delay. Your computer may not be fast enough to keep up")
-
-		log.Warnw("tMinerBaseInfo ", "duration", tMBI.Sub(start))
-		log.Warnw("tDrand ", "duration", tDrand.Sub(tMBI))
-		log.Warnw("tPowercheck ", "duration", tPowercheck.Sub(tDrand))
-		log.Warnw("tTicket ", "duration", tTicket.Sub(tPowercheck))
-		log.Warnw("tSeed ", "duration", tSeed.Sub(tTicket))
-		log.Warnw("tPending ", "duration", tPending.Sub(tSeed))
-		log.Warnw("tCreateBlock ", "duration", tCreateBlock.Sub(tPending))
+		log.Warnw("CAUTION: block production took longer than the block delay. Your computer may not be fast enough to keep up",
+			"tMinerBaseInfo ", tMBI.Sub(start),
+			"tDrand ", tDrand.Sub(tMBI),
+			"tPowercheck ", tPowercheck.Sub(tDrand),
+			"tTicket ", tTicket.Sub(tPowercheck),
+			"tSeed ", tSeed.Sub(tTicket),
+			"tPending ", tPending.Sub(tSeed),
+			"tCreateBlock ", tCreateBlock.Sub(tPending))
 	}
 
 	return b, nil

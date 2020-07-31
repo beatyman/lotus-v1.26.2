@@ -171,6 +171,7 @@ type FullNodeStruct struct {
 		StateListMessages                  func(ctx context.Context, match *types.Message, tsk types.TipSetKey, toht abi.ChainEpoch) ([]cid.Cid, error)        `perm:"read"`
 		StateCompute                       func(context.Context, abi.ChainEpoch, []*types.Message, types.TipSetKey) (*api.ComputeStateOutput, error)           `perm:"read"`
 		StateVerifiedClientStatus          func(context.Context, address.Address, types.TipSetKey) (*verifreg.DataCap, error)                                  `perm:"read"`
+		StateDealProviderCollateralBounds  func(context.Context, abi.PaddedPieceSize, bool, types.TipSetKey) (api.DealCollateralBounds, error)                 `perm:"read"`
 
 		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                                                    `perm:"read"`
 		MsigCreate              func(context.Context, uint64, []address.Address, abi.ChainEpoch, types.BigInt, address.Address, types.BigInt) (cid.Cid, error)                   `perm:"sign"`
@@ -325,7 +326,7 @@ type WorkerStruct struct {
 		MoveStorage     func(ctx context.Context, sector abi.SectorID) error                                                                                                                                       `perm:"admin"`
 
 		UnsealPiece func(context.Context, abi.SectorID, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) error `perm:"admin"`
-		ReadPiece   func(context.Context, io.Writer, abi.SectorID, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize) error                   `perm:"admin"`
+		ReadPiece   func(context.Context, io.Writer, abi.SectorID, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize) (bool, error)           `perm:"admin"`
 
 		Fetch func(context.Context, abi.SectorID, stores.SectorFileType, stores.PathType, stores.AcquireMode) error `perm:"admin"`
 
@@ -790,6 +791,10 @@ func (c *FullNodeStruct) StateVerifiedClientStatus(ctx context.Context, addr add
 	return c.Internal.StateVerifiedClientStatus(ctx, addr, tsk)
 }
 
+func (c *FullNodeStruct) StateDealProviderCollateralBounds(ctx context.Context, size abi.PaddedPieceSize, verified bool, tsk types.TipSetKey) (api.DealCollateralBounds, error) {
+	return c.Internal.StateDealProviderCollateralBounds(ctx, size, verified, tsk)
+}
+
 func (c *FullNodeStruct) MsigGetAvailableBalance(ctx context.Context, a address.Address, tsk types.TipSetKey) (types.BigInt, error) {
 	return c.Internal.MsigGetAvailableBalance(ctx, a, tsk)
 }
@@ -1132,7 +1137,7 @@ func (w *WorkerStruct) UnsealPiece(ctx context.Context, id abi.SectorID, index s
 	return w.Internal.UnsealPiece(ctx, id, index, size, randomness, c)
 }
 
-func (w *WorkerStruct) ReadPiece(ctx context.Context, writer io.Writer, id abi.SectorID, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) error {
+func (w *WorkerStruct) ReadPiece(ctx context.Context, writer io.Writer, id abi.SectorID, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {
 	return w.Internal.ReadPiece(ctx, writer, id, index, size)
 }
 
