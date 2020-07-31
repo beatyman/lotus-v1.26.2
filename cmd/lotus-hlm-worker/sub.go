@@ -229,7 +229,7 @@ func (w *worker) cleanCache(ctx context.Context, path string) error {
 func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
 	sid := task.GetSectorID()
 	log.Infof("pushCache:%+v", sid)
-	defer log.Infof("pushCache done:%+v", sid)
+	defer log.Infof("pushCache exit:%+v", sid)
 
 	api, err := GetNodeApi()
 	if err != nil {
@@ -252,7 +252,7 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		return errors.As(err, mountDir)
 	}
 	defer func() {
-		log.Infof("Remove:%s", mountDir)
+		log.Infof("Remove mount point:%s", mountDir)
 		if err := os.RemoveAll(mountDir); err != nil {
 			log.Error(errors.As(err))
 		}
@@ -267,6 +267,7 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		return errors.As(err)
 	}
 	defer func() {
+		log.Infof("Umount mount point:%s", mountDir)
 		if err := database.Umount(mountDir); err != nil {
 			log.Error(errors.As(err))
 		}
