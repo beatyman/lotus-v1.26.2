@@ -163,9 +163,13 @@ func main() {
 			&cli.StringFlag{
 				Name:  "listen-addr",
 				Value: "",
-				Usage: "server address for listen",
+				Usage: "listen address a local",
 			},
-
+			&cli.StringFlag{
+				Name:  "server-addr",
+				Value: "",
+				Usage: "server address for visit",
+			},
 			&cli.UintFlag{
 				Name:  "max-tasks",
 				Value: 1,
@@ -336,9 +340,13 @@ var runCmd = &cli.Command{
 		workerId := GetWorkerID(workerIdFile)
 		netIp := os.Getenv("NETIP")
 		// make serivce server
-		fileServer := cctx.String("listen-addr")
-		if len(fileServer) == 0 {
-			fileServer = netIp + ":1280"
+		listenAddr := cctx.String("listen-addr")
+		if len(listenAddr) == 0 {
+			listenAddr = netIp + ":1280"
+		}
+		serverAddr := cctx.String("server-addr")
+		if len(serverAddr) == 0 {
+			serverAddr = listenAddr
 		}
 
 		// init and clean the sealed dir who has mounted.
@@ -359,7 +367,7 @@ var runCmd = &cli.Command{
 		workerCfg := ffiwrapper.WorkerCfg{
 			ID:                 workerId,
 			IP:                 netIp,
-			SvcUri:             fileServer,
+			SvcUri:             serverAddr,
 			MaxTaskNum:         int(cctx.Uint("max-tasks")),
 			CacheMode:          int(cctx.Uint("cache-mode")),
 			TransferBuffer:     int(cctx.Uint("transfer-buffer")),
@@ -399,7 +407,7 @@ var runCmd = &cli.Command{
 				return ctx
 			},
 		}
-		nl, err := net.Listen("tcp", fileServer)
+		nl, err := net.Listen("tcp", listenAddr)
 		if err != nil {
 			return err
 		}
@@ -421,7 +429,6 @@ var runCmd = &cli.Command{
 			workerApi,
 			act, workerAddr,
 			"http://"+storageAddr, ainfo.AuthHeader(),
-			"http://"+fileServer,
 			r, sealedRepo, sealedMountedFile,
 			workerCfg,
 		); err != nil {

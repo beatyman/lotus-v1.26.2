@@ -46,7 +46,6 @@ func acceptJobs(ctx context.Context,
 	rpcServer *rpcServer,
 	act, workerAddr address.Address,
 	endpoint string, auth http.Header,
-	fileServer string,
 	repo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
@@ -534,7 +533,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		var err error
 		// if local no gpu service, using remote if the remtoes have.
 		// TODO: Optimized waiting algorithm
-		if w.workerCfg.ParallelCommit2 == 0 {
+		if w.workerCfg.ParallelCommit2 == 0 && !w.workerCfg.Commit2Srv {
 			for {
 				out, err = CallCommit2Service(ctx, task)
 				if err != nil {
