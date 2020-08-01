@@ -161,6 +161,7 @@ func (m *Miner) mine(ctx context.Context) {
 		//}
 
 		if !prebase.TipSet.Equals(lastBase.TipSet) {
+			// TODO: fix the condition for null rounds, it do a repeat mining in its own mining out of the null round situation.
 			base := prebase
 			// make auto clean for pending messages every round.
 			pending, err := m.api.MpoolPending(context.TODO(), base.TipSet.Key())
@@ -193,13 +194,6 @@ func (m *Miner) mine(ctx context.Context) {
 			nextRound = nextRoundTime(base)
 			lastBase = *base
 		} else {
-			now := time.Now()
-			// if the base was dead, make the nullRound++ step by round actually change.
-			// and in current round, checking the base by every 1 second until pass or round out.
-			if lastBase.TipSet == nil || (lastBase.NullRounds > 0 && (now.Unix()-nextRound.Unix())/int64(build.BlockDelaySecs) == 0) {
-				time.Sleep(1e9)
-				continue
-			}
 			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
 			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
