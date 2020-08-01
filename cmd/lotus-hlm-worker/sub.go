@@ -229,7 +229,7 @@ func (w *worker) cleanCache(ctx context.Context, path string) error {
 func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
 	sid := task.GetSectorID()
 	log.Infof("pushCache:%+v", sid)
-	defer log.Infof("pushCache done:%+v", sid)
+	defer log.Infof("pushCache exit:%+v", sid)
 
 	api, err := GetNodeApi()
 	if err != nil {
@@ -252,7 +252,7 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		return errors.As(err, mountDir)
 	}
 	defer func() {
-		log.Infof("Remove:%s", mountDir)
+		log.Infof("Remove mount point:%s", mountDir)
 		if err := os.RemoveAll(mountDir); err != nil {
 			log.Error(errors.As(err))
 		}
@@ -267,6 +267,7 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		return errors.As(err)
 	}
 	defer func() {
+		log.Infof("Umount mount point:%s", mountDir)
 		if err := database.Umount(mountDir); err != nil {
 			log.Error(errors.As(err))
 		}
@@ -448,7 +449,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			uri = w.minerEndpoint
 		}
 		if err := w.fetchRemote(
-			uri,
+			"http://"+uri,
 			task.SectorStorage.SectorInfo.ID,
 			task.Type,
 		); err != nil {
@@ -464,7 +465,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// release the storage cache
 		log.Infof("fetch %s done, try delete remote files.", task.Key())
 		if err := w.deleteRemoteCache(
-			uri,
+			"http://"+uri,
 			task.SectorStorage.SectorInfo.ID,
 		); err != nil {
 			return errRes(errors.As(err, w.workerCfg), task)
