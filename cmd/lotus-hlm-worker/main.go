@@ -273,7 +273,11 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		workerIdFile, err := homedir.Expand(cctx.String("id-file"))
+		idFile := cctx.String("id-file")
+		if len(idFile) == 0 {
+			idFile = "~/.lotusworker/worker.id"
+		}
+		workerIdFile, err := homedir.Expand(idFile)
 		if err != nil {
 			return err
 		}
