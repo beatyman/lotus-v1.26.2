@@ -1,4 +1,4 @@
-package miner
+package messagepool
 
 import (
 	"bytes"
@@ -8,35 +8,46 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/messagepool/gasguess"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/abi/big"
-	"github.com/gwaylib/errors"
+	"github.com/ipfs/go-cid"
 )
 
-type MsgPool struct {
-	FromApi api.FullNode
-	Msgs    []*types.SignedMessage
-}
+func (mp *MessagePool) pruneExcessMessages() error {
 
-func (p *MsgPool) Remove(ctx context.Context, msg *types.SignedMessage) {
-	// remove fault message
-	if err := p.FromApi.MpoolRemove(ctx, msg.Message.From, msg.Message.Nonce); err != nil {
-		log.Warn(errors.As(err))
+	start := time.Now()
+	defer func() {
+		log.Infow("message pruning complete", "took", time.Since(start))
+	}()
+
+	mp.curTsLk.Lock()
+	ts := mp.curTs
+	mp.curTsLk.Unlock()
+
+	mp.lk.Lock()
+	defer mp.lk.Unlock()
+
+	if mp.currentSize < mp.maxTxPoolSizeHi {
+		return nil
 	}
+
+	return mp.pruneMessages(context.TODO(), ts)
 }
 
-func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipSet, mpool *MsgPool) ([]*types.SignedMessage, error) {
-	msgs := mpool.Msgs
-	al = (&cachedActorLookup{
-		tsk:      ts.Key(),
-		cache:    map[address.Address]actCacheEntry{},
-		fallback: al,
-	}).StateGetActor
+// just copied from miner/ SelectMessages
+func (mp *MessagePool) pruneMessages(ctx context.Context, ts *types.TipSet) error {
+	al := func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*types.Actor, error) {
+		return mp.api.StateGetActor(addr, ts)
+	}
+
+	msgs := make([]*types.SignedMessage, 0, mp.currentSize)
+	for a := range mp.pending {
+		msgs = append(msgs, mp.pendingFor(a)...)
+	}
 
 	type senderMeta struct {
 		lastReward   abi.TokenAmount
@@ -69,8 +80,7 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 
 		minGas := vm.PricelistByEpoch(ts.Height()).OnChainMessage(msg.ChainLength()) // TODO: really should be doing just msg.ChainLength() but the sync side of this code doesnt seem to have access to that
 		if err := msg.VMMessage().ValidForBlockInclusion(minGas.Total()); err != nil {
-			//log.Infof("invalid message in message pool: %s", err)
-			mpool.Remove(ctx, msg)
+			log.Warnf("invalid message in message pool: %s", err)
 			continue
 		}
 
@@ -78,14 +88,12 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 
 		// TODO: this should be in some more general 'validate message' call
 		if msg.Message.GasLimit > build.BlockGasLimit {
-			//log.Warnf("message in mempool had too high of a gas limit (%d)", msg.Message.GasLimit)
-			mpool.Remove(ctx, msg)
+			log.Warnf("message in mempool had too high of a gas limit (%d)", msg.Message.GasLimit)
 			continue
 		}
 
 		if msg.Message.To == address.Undef {
-			//log.Warnf("message in mempool had bad 'To' address")
-			mpool.Remove(ctx, msg)
+			log.Warnf("message in mempool had bad 'To' address")
 			continue
 		}
 
@@ -93,10 +101,9 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 
 		getBalStart := build.Clock.Now()
 		if _, ok := inclNonces[from]; !ok {
-			act, err := al(ctx, from, ts.Key())
+			act, err := mp.api.StateGetActor(from, nil)
 			if err != nil {
-				//log.Warnf("failed to check message sender balance, skipping message: %+v", err)
-				mpool.Remove(ctx, msg)
+				log.Warnf("failed to check message sender balance, skipping message: %+v", err)
 				continue
 			}
 
@@ -108,19 +115,15 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 		if inclBalances[from].LessThan(msg.Message.RequiredFunds()) {
 			tooLowFundMsgs++
 			// todo: drop from mpool
-			mpool.Remove(ctx, msg)
 			continue
 		}
 
 		if msg.Message.Nonce > inclNonces[from] {
 			tooHighNonceMsgs++
-			mpool.Remove(ctx, msg)
 			continue
 		}
 
 		if msg.Message.Nonce < inclNonces[from] {
-			//log.Warnf("message in mempool has already used nonce (%d < %d), %s (%d pending for)", msg.Message.Nonce, inclNonces[from], msg.Message.String(), countFrom(mpool.Msgs, from))
-			mpool.Remove(ctx, msg)
 			continue
 		}
 
@@ -137,7 +140,7 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 		sm.lastGasLimit = sm.gasLimit[len(sm.gasLimit)-1]
 
 		guessGasStart := build.Clock.Now()
-		guessedGas, err := gasguess.GuessGasUsed(ctx, ts.Key(), msg, al)
+		guessedGas, err := gasguess.GuessGasUsed(ctx, types.EmptyTSK, msg, al)
 		guessGasDur += build.Clock.Since(guessGasStart)
 		if err != nil {
 			log.Infow("failed to guess gas", "to", msg.Message.To, "method", msg.Message.Method, "err", err)
@@ -153,8 +156,6 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 		outBySender[from] = sm
 	}
 
-	gasLimitLeft := int64(build.BlockGasLimit)
-
 	orderedSenders := make([]address.Address, 0, len(outBySender))
 	for k := range outBySender {
 		orderedSenders = append(orderedSenders, k)
@@ -163,7 +164,7 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 		return bytes.Compare(orderedSenders[i].Bytes(), orderedSenders[j].Bytes()) == -1
 	})
 
-	out := make([]*types.SignedMessage, 0, build.BlockMessageLimit)
+	out := make([]*types.SignedMessage, 0, mp.maxTxPoolSizeLo)
 	{
 		for {
 			var bestSender address.Address
@@ -177,11 +178,8 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 					continue
 				}
 				for n := range meta.msgs {
-					if meta.gasLimit[n] > gasLimitLeft {
-						break
-					}
 
-					if n+len(out) > build.BlockMessageLimit {
+					if n+len(out) >= mp.maxTxPoolSizeLo {
 						break
 					}
 
@@ -202,7 +200,6 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 
 			{
 				out = append(out, outBySender[bestSender].msgs[:nBest]...)
-				gasLimitLeft -= outBySender[bestSender].gasLimit[nBest-1]
 
 				outBySender[bestSender].msgs = outBySender[bestSender].msgs[nBest:]
 				outBySender[bestSender].gasLimit = outBySender[bestSender].gasLimit[nBest:]
@@ -213,7 +210,7 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 				}
 			}
 
-			if len(out) >= build.BlockMessageLimit {
+			if len(out) >= mp.maxTxPoolSizeLo {
 				break
 			}
 		}
@@ -237,5 +234,16 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 			"msgs", len(msgs))
 	}
 
-	return out, nil
+	good := make(map[cid.Cid]bool)
+	for _, m := range out {
+		good[m.Cid()] = true
+	}
+
+	for _, m := range msgs {
+		if !good[m.Cid()] {
+			mp.remove(m.Message.From, m.Message.Nonce)
+		}
+	}
+
+	return nil
 }
