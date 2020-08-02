@@ -102,7 +102,7 @@ RUST_BACKTRACE=1 RUST_LOG=info FIL_PROOFS_USE_GPU_TREE_BUILDER=1 FIL_PROOFS_USE_
 [dependencies.filecoin-proofs-api]
 package = "filecoin-proofs-api"
 #version = "4.0.2"
-path = "../../../rust-filecoin-proofs-api"
+path = "../../../../rust-filecoin-proofs-api"
 ```
 
 2, 切换rust-filecoin-proofs-api版本与指向
