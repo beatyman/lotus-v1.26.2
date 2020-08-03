@@ -246,17 +246,24 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
 	}
 
-	// manage mount point
+	// mount
 	mountDir := filepath.Join(w.sealedRepo, sid)
 	if err := os.MkdirAll(mountDir, 0755); err != nil {
 		return errors.As(err, mountDir)
 	}
-	defer func() {
-		log.Infof("Remove mount point:%s", mountDir)
-		if err := os.RemoveAll(mountDir); err != nil {
-			log.Error(errors.As(err))
-		}
-	}()
+	w.pushMu.Lock()
+	w.sealedMounted[sid] = mountDir
+	mountedData, err := json.Marshal(w.sealedMounted)
+	if err != nil {
+		w.pushMu.Unlock()
+		return errors.As(err, w.sealedMountedFile)
+	}
+	if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
+		w.pushMu.Unlock()
+		return errors.As(err, w.sealedMountedFile)
+	}
+	w.pushMu.Unlock()
+
 	// a fix point, link or mount to the targe file.
 	if err := database.Mount(
 		storage.MountType,
@@ -266,11 +273,20 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	); err != nil {
 		return errors.As(err)
 	}
+
+	// umount
 	defer func() {
-		log.Infof("Umount mount point:%s", mountDir)
-		if err := database.Umount(mountDir); err != nil {
+		// umount and client the tmp file
+		if _, err := database.Umount(mountDir); err != nil {
 			log.Error(errors.As(err))
+			return
 		}
+		log.Infof("Remove mount point:%s", mountDir)
+		if err := os.RemoveAll(mountDir); err != nil {
+			log.Error(errors.As(err, mountDir))
+			return
+		}
+
 		w.pushMu.Lock()
 		delete(w.sealedMounted, sid)
 		mountedData, err := json.Marshal(w.sealedMounted)
@@ -282,17 +298,6 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		}
 		w.pushMu.Unlock()
 	}()
-	w.pushMu.Lock()
-	w.sealedMounted[sid] = mountDir
-	mountedData, err := json.Marshal(w.sealedMounted)
-	if err != nil {
-		panic(err)
-	}
-	if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
-		panic(err)
-	}
-	w.pushMu.Unlock()
-	// manage mount point end
 
 	sealedPath := filepath.Join(mountDir, "sealed")
 	if err := os.MkdirAll(sealedPath, 0755); err != nil {

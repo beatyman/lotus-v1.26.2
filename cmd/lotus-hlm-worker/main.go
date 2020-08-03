@@ -361,8 +361,12 @@ var runCmd = &cli.Command{
 				return errors.As(err)
 			}
 			for _, p := range sealedMounted {
-				if err := database.Umount(p); err != nil {
+				if _, err := database.Umount(p); err != nil {
 					log.Info(err)
+				} else {
+					if err := os.RemoveAll(p); err != nil {
+						log.Error(err)
+					}
 				}
 			}
 		}
