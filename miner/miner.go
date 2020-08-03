@@ -210,7 +210,7 @@ func (m *Miner) mine(ctx context.Context) {
 			now := time.Now()
 			// if the base was dead, make the nullRound++ step by round actually change.
 			// and in current round, checking the base by every 1 second until pass or round out.
-			if lastBase.TipSet == nil || (now.Unix()-nextRound.Unix())/int64(build.BlockDelaySecs) == 0 {
+			if lastBase.TipSet == nil || (now.Unix() < nextRound.Unix()+int64(build.PropagationDelaySecs)) {
 				time.Sleep(1e9)
 				continue
 			}
