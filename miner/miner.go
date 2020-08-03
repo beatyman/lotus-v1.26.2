@@ -17,6 +17,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/gen"
+	"github.com/filecoin-project/lotus/chain/messagepool/gasguess"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 
@@ -206,16 +207,8 @@ func (m *Miner) mine(ctx context.Context) {
 			nextRound = nextRoundTime(base)
 			lastBase = *base
 		} else {
-			now := time.Now()
-			// if the base was dead, make the nullRound++ step by round actually change.
-			// and in current round, checking the base by every 1 second until pass or round out.
-			if lastBase.TipSet == nil || (now.Unix()-nextRound.Unix())/int64(build.BlockDelaySecs) == 0 {
-				time.Sleep(1e9)
-				continue
-			}
 			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
 			lastBase.NullRounds++
-			//lastBase.NullRounds += injectNulls // testing
 			nextRound = nextRoundTime(&lastBase)
 		}
 		b, err := m.mineOne(ctx, &oldbase, &lastBase)
@@ -249,7 +242,6 @@ func (m *Miner) mine(ctx context.Context) {
 			blkKey := fmt.Sprintf("%d", b.Header.Height)
 			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
 				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
-
 				// in case for nullRound, it will happend the same block.
 				//continue
 			}
@@ -519,7 +511,7 @@ type actCacheEntry struct {
 type cachedActorLookup struct {
 	tsk      types.TipSetKey
 	cache    map[address.Address]actCacheEntry
-	fallback ActorLookup
+	fallback gasguess.ActorLookup
 }
 
 func (c *cachedActorLookup) StateGetActor(ctx context.Context, a address.Address, tsk types.TipSetKey) (*types.Actor, error) {
