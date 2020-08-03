@@ -11,7 +11,10 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/lib/addrutil"
+
+	"github.com/gwaylib/errors"
 )
 
 var netCmd = &cli.Command{
@@ -119,7 +122,7 @@ var netListen = &cli.Command{
 var netConnect = &cli.Command{
 	Name:      "connect",
 	Usage:     "Connect to a peer",
-	ArgsUsage: "[peerMultiaddr]",
+	ArgsUsage: "[peerMultiaddr]/boostrap",
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetAPI(cctx)
 		if err != nil {
@@ -127,10 +130,21 @@ var netConnect = &cli.Command{
 		}
 		defer closer()
 		ctx := ReqContext(cctx)
-
-		pis, err := addrutil.ParseAddresses(ctx, cctx.Args().Slice())
-		if err != nil {
-			return err
+		pis := []peer.AddrInfo{}
+		args := cctx.Args()
+		if args.Len() == 0 {
+			return errors.New("need input [peerMultiaddr]/boostrap")
+		}
+		if args.Len() > 0 && args.First() == "boostrap" {
+			pis, err = build.BuiltinBootstrap()
+			if err != nil {
+				return err
+			}
+		} else {
+			pis, err = addrutil.ParseAddresses(ctx, cctx.Args().Slice())
+			if err != nil {
+				return err
+			}
 		}
 
 		for _, pi := range pis {
