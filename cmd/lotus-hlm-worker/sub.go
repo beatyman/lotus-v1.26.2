@@ -574,12 +574,19 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
-		if err := w.workerSB.FinalizeSector(ctx, task.SectorID, nil); err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
-
-		if err := w.pushCommit(ctx, task); err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
+		sealedFile := w.workerSB.SectorPath("sealed", task.GetSectorID())
+		_, err := os.Stat(string(sealedFile))
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return errRes(errors.As(err, sealedFile), task)
+			}
+		} else {
+			if err := w.workerSB.FinalizeSector(ctx, task.SectorID, nil); err != nil {
+				return errRes(errors.As(err, w.workerCfg), task)
+			}
+			if err := w.pushCommit(ctx, task); err != nil {
+				return errRes(errors.As(err, w.workerCfg), task)
+			}
 		}
 	}
 
