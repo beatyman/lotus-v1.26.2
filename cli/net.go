@@ -21,16 +21,16 @@ var netCmd = &cli.Command{
 	Name:  "net",
 	Usage: "Manage P2P Network",
 	Subcommands: []*cli.Command{
-		netPeers,
+		NetPeers,
 		netConnect,
-		netListen,
-		netId,
+		NetListen,
+		NetId,
 		netFindPeer,
 		netScores,
 	},
 }
 
-var netPeers = &cli.Command{
+var NetPeers = &cli.Command{
 	Name:  "peers",
 	Usage: "Print peers",
 	Action: func(cctx *cli.Context) error {
@@ -96,7 +96,7 @@ var netScores = &cli.Command{
 	},
 }
 
-var netListen = &cli.Command{
+var NetListen = &cli.Command{
 	Name:  "listen",
 	Usage: "List listen addresses",
 	Action: func(cctx *cli.Context) error {
@@ -161,7 +161,7 @@ var netConnect = &cli.Command{
 	},
 }
 
-var netId = &cli.Command{
+var NetId = &cli.Command{
 	Name:  "id",
 	Usage: "Get node identity",
 	Action: func(cctx *cli.Context) error {
