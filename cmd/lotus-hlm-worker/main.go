@@ -293,6 +293,7 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		log.Infof("Running ActorSize:%s", ssize.ShortString())
 
 		workerAddr, err := nodeApi.WorkerAddress(ctx, act, types.EmptyTSK)
 		if err != nil {

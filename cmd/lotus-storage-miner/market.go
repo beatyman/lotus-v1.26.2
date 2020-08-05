@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -338,6 +339,14 @@ var dealsImportDataCmd = &cli.Command{
 var dealsListCmd = &cli.Command{
 	Name:  "list",
 	Usage: "List all deals for this miner",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:     "json",
+			Usage:    "json output",
+			Required: false,
+			Value:    false,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -352,16 +361,25 @@ var dealsListCmd = &cli.Command{
 			return err
 		}
 
+		isJsonOutPut := cctx.Bool("json")
+
+		if isJsonOutPut {
+			data, err := json.MarshalIndent(deals, "", "  ")
+			if err != nil {
+				return err
+			}
+
+			fmt.Println(string(data))
+			return nil
+
+		}
+
 		w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
 
 		_, _ = fmt.Fprintf(w, "ProposalCid\tDealId\tState\tClient\tSize\tPrice\tDuration\n")
 
 		for _, deal := range deals {
-			pc, err := deal.Proposal.Cid()
-			if err != nil {
-				return err
-			}
-			propcid := pc.String()
+			propcid := deal.ProposalCid.String()
 			propcid = "..." + propcid[len(propcid)-8:]
 
 			fil := types.FIL(types.BigMul(deal.Proposal.StoragePricePerEpoch, types.NewInt(uint64(deal.Proposal.Duration()))))

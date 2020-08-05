@@ -226,28 +226,8 @@ func (w *worker) cleanCache(ctx context.Context, path string) error {
 	return nil
 }
 
-func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
-	sid := task.GetSectorID()
-	log.Infof("pushCache:%+v", sid)
-	defer log.Infof("pushCache exit:%+v", sid)
-
-	api, err := GetNodeApi()
-	if err != nil {
-		return errors.As(err)
-	}
-	storage, err := api.PreStorageNode(ctx, sid, w.workerCfg.IP)
-	if err != nil {
-		return errors.As(err)
-	}
-	mountUri := storage.MountTransfUri
-	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
-		log.Infof("found local storage, chagne %s to mount local", mountUri)
-		// fix to 127.0.0.1 if it has the same ip.
-		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
-	}
-
+func (w *worker) mountPush(sid, mountType, mountUri, mountDir, mountOpt string) error {
 	// mount
-	mountDir := filepath.Join(w.sealedRepo, sid)
 	if err := os.MkdirAll(mountDir, 0755); err != nil {
 		return errors.As(err, mountDir)
 	}
@@ -266,6 +246,61 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 
 	// a fix point, link or mount to the targe file.
 	if err := database.Mount(
+		mountType,
+		mountUri,
+		mountDir,
+		mountOpt,
+	); err != nil {
+		return errors.As(err)
+	}
+	return nil
+}
+
+func (w *worker) umountPush(sid, mountDir string) error {
+	// umount and client the tmp file
+	if _, err := database.Umount(mountDir); err != nil {
+		return errors.As(err)
+	}
+	log.Infof("Remove mount point:%s", mountDir)
+	if err := os.RemoveAll(mountDir); err != nil {
+		return errors.As(err)
+	}
+
+	w.pushMu.Lock()
+	delete(w.sealedMounted, sid)
+	mountedData, err := json.Marshal(w.sealedMounted)
+	if err != nil {
+		panic(err)
+	}
+	if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
+		panic(err)
+	}
+	w.pushMu.Unlock()
+	return nil
+}
+
+func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
+	sid := task.GetSectorID()
+	log.Infof("PushCache:%+v", sid)
+	defer log.Infof("PushCache exit:%+v", sid)
+
+	api, err := GetNodeApi()
+	if err != nil {
+		return errors.As(err)
+	}
+	storage, err := api.PreStorageNode(ctx, sid, w.workerCfg.IP)
+	if err != nil {
+		return errors.As(err)
+	}
+	mountUri := storage.MountTransfUri
+	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
+		log.Infof("found local storage, chagne %s to mount local", mountUri)
+		// fix to 127.0.0.1 if it has the same ip.
+		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
+	}
+	mountDir := filepath.Join(w.sealedRepo, sid)
+	if err := w.mountPush(
+		sid,
 		storage.MountType,
 		mountUri,
 		mountDir,
@@ -273,32 +308,6 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	); err != nil {
 		return errors.As(err)
 	}
-
-	// umount
-	defer func() {
-		// umount and client the tmp file
-		if _, err := database.Umount(mountDir); err != nil {
-			log.Error(errors.As(err))
-			return
-		}
-		log.Infof("Remove mount point:%s", mountDir)
-		if err := os.RemoveAll(mountDir); err != nil {
-			log.Error(errors.As(err, mountDir))
-			return
-		}
-
-		w.pushMu.Lock()
-		delete(w.sealedMounted, sid)
-		mountedData, err := json.Marshal(w.sealedMounted)
-		if err != nil {
-			panic(err)
-		}
-		if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
-			panic(err)
-		}
-		w.pushMu.Unlock()
-	}()
-
 	sealedPath := filepath.Join(mountDir, "sealed")
 	if err := os.MkdirAll(sealedPath, 0755); err != nil {
 		return errors.As(err)
@@ -312,6 +321,9 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 		return errors.As(err)
 	}
 	if err := w.pushRemote(ctx, "cache", sid, cachePath); err != nil {
+		return errors.As(err)
+	}
+	if err := w.umountPush(sid, mountDir); err != nil {
 		return errors.As(err)
 	}
 	if err := api.CommitStorageNode(ctx, sid); err != nil {

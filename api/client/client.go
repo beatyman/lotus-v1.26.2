@@ -49,7 +49,6 @@ func NewStorageMinerRPC(addr string, requestHeader http.Header) (api.StorageMine
 	if err != nil {
 		return nil, nil, errors.As(err, addr)
 	}
-
 	return &res, closer, err
 }
 
@@ -61,7 +60,9 @@ func NewWorkerRPC(addr string, requestHeader http.Header) (api.WorkerAPI, jsonrp
 		},
 		requestHeader,
 	)
-
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
 	return &res, closer, err
 }
 
@@ -73,6 +74,8 @@ func NewWorkerHlmRPC(addr string, requestHeader http.Header) (api.WorkerHlmAPI, 
 		},
 		requestHeader,
 	)
-
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
 	return &res, closer, err
 }

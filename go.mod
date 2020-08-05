@@ -12,6 +12,7 @@ require (
 	github.com/Gurpartap/async v0.0.0-20180927173644-4f7f499dd9ee
 	github.com/Shopify/sarama v1.19.0
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
+	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/bsm/sarama-cluster v2.1.15+incompatible
 	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/dgraph-io/badger/v2 v2.0.3
@@ -26,16 +27,16 @@ require (
 	github.com/filecoin-project/go-bitfield v0.1.2
 	github.com/filecoin-project/go-cbor-util v0.0.0-20191219014500-08c40a1e63a2
 	github.com/filecoin-project/go-crypto v0.0.0-20191218222705-effae4ea9f03
-	github.com/filecoin-project/go-data-transfer v0.5.3-0.20200731171043-3cb77ab72923
+	github.com/filecoin-project/go-data-transfer v0.5.3
 	github.com/filecoin-project/go-fil-commcid v0.0.0-20200716160307-8f644712406f
-	github.com/filecoin-project/go-fil-markets v0.5.3-0.20200731191349-05110623f114
+	github.com/filecoin-project/go-fil-markets v0.5.3
 	github.com/filecoin-project/go-jsonrpc v0.1.1-0.20200602181149-522144ab4e24
-	github.com/filecoin-project/go-multistore v0.0.2
+	github.com/filecoin-project/go-multistore v0.0.3
 	github.com/filecoin-project/go-padreader v0.0.0-20200210211231-548257017ca6
 	github.com/filecoin-project/go-paramfetch v0.0.2-0.20200701152213-3e0f0afdc261
 	github.com/filecoin-project/go-statestore v0.1.0
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
-	github.com/filecoin-project/sector-storage v0.0.0-20200730203805-7153e1dd05b5
+	github.com/filecoin-project/sector-storage v0.0.0-20200803184904-3cab915fd225
 	github.com/filecoin-project/specs-actors v0.8.6
 	github.com/filecoin-project/specs-storage v0.1.1-0.20200622113353-88a9704877ea
 	github.com/filecoin-project/storage-fsm v0.0.0-20200730122205-d423ae90d8d4
@@ -62,7 +63,7 @@ require (
 	github.com/ipfs/go-ds-measure v0.1.0
 	github.com/ipfs/go-filestore v1.0.0
 	github.com/ipfs/go-fs-lock v0.0.1
-	github.com/ipfs/go-graphsync v0.0.6-0.20200731020347-9ff2ade94aa4
+	github.com/ipfs/go-graphsync v0.1.0
 	github.com/ipfs/go-ipfs-blockstore v1.0.0
 	github.com/ipfs/go-ipfs-chunker v0.0.5
 	github.com/ipfs/go-ipfs-ds-help v1.0.0
@@ -141,7 +142,7 @@ replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
-replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200803072442-2fe9529ee887
+replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200805094312-7e7cf78da85b
 
 //replace github.com/filecoin-project/sector-storage => ../sector-storage
 
