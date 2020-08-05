@@ -13,6 +13,7 @@ require (
 	github.com/Shopify/sarama v1.19.0
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
+	github.com/bsm/sarama-cluster v2.1.15+incompatible
 	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/dgraph-io/badger/v2 v2.0.3
 	github.com/docker/go-units v0.4.0
