@@ -111,16 +111,22 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-miner init' to set it up", minerRepoPath)
 		}
 
+		// implement by hlm
 		// init storage database
 		database.InitDB(minerRepoPath)
 		// mount nfs storage node
 		if err := database.MountAllStorage(false); err != nil {
 			return errors.As(err)
 		}
+		defer func() {
+			log.Info("RollbackAllStorageTx by program exit.")
+			database.RollbackAllStorageTx()
+		}()
 		// checking sealed for proof
 		if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
 			return errors.As(err)
 		}
+		// implement by hlm end.
 
 		shutdownChan := make(chan struct{})
 
