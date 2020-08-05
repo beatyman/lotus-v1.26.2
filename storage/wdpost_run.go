@@ -47,7 +47,6 @@ func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *miner.Deadli
 		proof, err := s.runPost(ctx, *deadline, ts)
 		switch err {
 		case errNoPartitions:
-			log.Info("NoPartitions")
 			return
 		case nil:
 			if err := s.submitPost(ctx, proof); err != nil {
@@ -337,6 +336,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	if err != nil {
 		return nil, xerrors.Errorf("getting partitions: %w", err)
 	}
+	log.Infof("DEBUG doPost StateMinerPartitions:%d,len:%d", di.Index, len(partitions))
 
 	params := &miner.SubmitWindowedPoStParams{
 		Deadline:   di.Index,
@@ -354,6 +354,9 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		if err != nil {
 			return nil, xerrors.Errorf("getting active sectors: %w", err)
 		}
+		toProveCount, _ := toProve.Count()
+		recoverCount, _ := partition.Recoveries.Count()
+		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d", partIdx, toProveCount, recoverCount)
 
 		toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
 		if err != nil {
@@ -364,11 +367,15 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		if err != nil {
 			return nil, xerrors.Errorf("checking sectors to skip: %w", err)
 		}
+		goodCount, _ := good.Count()
+		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,good:%d", partIdx, goodCount)
 
 		skipped, err := bitfield.SubtractBitField(toProve, good)
 		if err != nil {
 			return nil, xerrors.Errorf("toProve - good: %w", err)
 		}
+		skippedCount, _ := skipped.Count()
+		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,skipped:%d", partIdx, skippedCount)
 
 		sc, err := skipped.Count()
 		if err != nil {
@@ -381,6 +388,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		if err != nil {
 			return nil, xerrors.Errorf("getting sorted sector info: %w", err)
 		}
+		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,len ssi:%d", partIdx, len(ssi))
 
 		if len(ssi) == 0 {
 			continue
@@ -398,6 +406,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	}
 
 	if len(sinfos) == 0 {
+		log.Info("NoPartitions")
 		// nothing to prove..
 		return nil, errNoPartitions
 	}
