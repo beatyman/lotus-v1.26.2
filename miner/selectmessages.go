@@ -106,7 +106,7 @@ func SelectMessages(ctx context.Context, al gasguess.ActorLookup, ts *types.TipS
 		getbal += build.Clock.Since(getBalStart)
 
 		if inclBalances[from].LessThan(msg.Message.RequiredFunds()) {
-			log.Warnf("message had too low funds: %s %d %s %s %s", from, msg.Message.Nonce, inclBalances[from], msg.Message.Value, msg.Message.RequiredFunds())
+			//log.Warnf("message had too low funds: %s %d %s %s %s", from, msg.Message.Nonce, inclBalances[from], msg.Message.Value, msg.Message.RequiredFunds())
 			tooLowFundMsgs++
 			// todo: drop from mpool
 			mpool.Remove(ctx, msg)
