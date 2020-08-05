@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/filecoin-project/go-bitfield"
@@ -294,14 +293,15 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
 
-	var declWait sync.WaitGroup
-	defer declWait.Wait()
-	declWait.Add(1)
+	// SPEC by hlm: Close this wait because just go and delare the recovery, no care about it's result.
+	//var declWait sync.WaitGroup
+	//defer declWait.Wait()
+	//declWait.Add(1)
 
 	go func() {
 		// TODO: extract from runPost, run on fault cutoff boundaries
 
-		defer declWait.Done()
+		//defer declWait.Done()
 
 		// check faults / recoveries for the *next* deadline. It's already too
 		// late to declare them for this deadline
