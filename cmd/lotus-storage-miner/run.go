@@ -118,6 +118,10 @@ var runCmd = &cli.Command{
 		if err := database.MountAllStorage(false); err != nil {
 			return errors.As(err)
 		}
+		// clean storage cur_work cause by no worker on starting.
+		if err := database.ClearStorageWork(); err != nil {
+			return errors.As(err)
+		}
 		defer func() {
 			log.Info("RollbackAllStorageTx by program exit.")
 			database.RollbackAllStorageTx()
