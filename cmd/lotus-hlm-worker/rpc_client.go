@@ -62,6 +62,8 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask) (storag
 		}
 	}()
 
+	log.Infof("Selected Commit2 Service: %s", rCfg.SvcUri)
+
 	// connect to remote worker
 	rClient, err := ConnectHlmWorker(ctx, napi, rCfg.SvcUri)
 	if err != nil {
