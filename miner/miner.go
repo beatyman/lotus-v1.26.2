@@ -249,9 +249,9 @@ func (m *Miner) mine(ctx context.Context) {
 					"block-time", btime, "time", build.Clock.Now(), "difference", build.Clock.Since(btime))
 			}
 
-			if err := m.sf.MinedBlock(b.Header, base.TipSet.Height()+base.NullRounds); err != nil {
+			if err := m.sf.MinedBlock(b.Header, lastBase.TipSet.Height()+lastBase.NullRounds); err != nil {
 				log.Errorf("<!!> SLASH FILTER ERROR: %s", err)
-				continue
+				//continue
 			}
 
 			blkKey := fmt.Sprintf("%d", b.Header.Height)
