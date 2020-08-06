@@ -8,6 +8,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-multistore"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -524,7 +525,7 @@ type QueryOffer struct {
 	PaymentInterval         uint64
 	PaymentIntervalIncrease uint64
 	Miner                   address.Address
-	MinerPeerID             peer.ID
+	MinerPeer               retrievalmarket.RetrievalPeer
 }
 
 func (o *QueryOffer) Order(client address.Address) RetrievalOrder {
@@ -538,8 +539,8 @@ func (o *QueryOffer) Order(client address.Address) RetrievalOrder {
 		PaymentIntervalIncrease: o.PaymentIntervalIncrease,
 		Client:                  client,
 
-		Miner:       o.Miner,
-		MinerPeerID: o.MinerPeerID,
+		Miner:     o.Miner,
+		MinerPeer: o.MinerPeer,
 	}
 }
 
@@ -565,7 +566,7 @@ type RetrievalOrder struct {
 	PaymentIntervalIncrease uint64
 	Client                  address.Address
 	Miner                   address.Address
-	MinerPeerID             peer.ID
+	MinerPeer               retrievalmarket.RetrievalPeer
 }
 
 type InvocResult struct {
