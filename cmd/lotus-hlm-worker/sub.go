@@ -579,11 +579,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			if err := w.workerSB.FinalizeSector(ctx, task.SectorID, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), task)
 			}
-			// clean unsealed
-			log.Infof("Remove:%s", filepath.Join(w.repo, "unsealed", task.GetSectorID()))
-			if err := os.RemoveAll(filepath.Join(w.repo, "unsealed", task.GetSectorID())); err != nil {
-				log.Error(errors.As(err, task.GetSectorID()))
-			}
 			if err := w.pushCommit(ctx, task); err != nil {
 				return errRes(errors.As(err, w.workerCfg), task)
 			}
