@@ -8,6 +8,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-multistore"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -106,14 +107,25 @@ type FullNode interface {
 	// ChainExport returns a stream of bytes with CAR dump of chain data.
 	ChainExport(context.Context, types.TipSetKey) (<-chan []byte, error)
 
+	// MethodGroup: Beacon
+	// The Beacon method group contains methods for interacting with the random beacon (DRAND)
+
+	// BeaconGetEntry returns the beacon entry for the given filecoin epoch. If
+	// the entry has not yet been produced, the call will block until the entry
+	// becomes available
+	BeaconGetEntry(ctx context.Context, epoch abi.ChainEpoch) (*types.BeaconEntry, error)
+
+	// GasEstimateFeeCap estimates gas fee cap
+	GasEstimateFeeCap(context.Context, int64, types.TipSetKey) (types.BigInt, error)
+
 	// GasEstimateGasLimit estimates gas used by the message and returns it.
 	// It fails if message fails to execute.
 	GasEstimateGasLimit(context.Context, *types.Message, types.TipSetKey) (int64, error)
 
-	// GasEstimateGasPrice estimates what gas price should be used for a
+	// GasEsitmateGasPremium estimates what gas price should be used for a
 	// message to have high likelihood of inclusion in `nblocksincl` epochs.
 
-	GasEstimateGasPrice(_ context.Context, nblocksincl uint64,
+	GasEsitmateGasPremium(_ context.Context, nblocksincl uint64,
 		sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error)
 
 	// MethodGroup: Sync
@@ -146,6 +158,9 @@ type FullNode interface {
 	// MpoolPending returns pending mempool messages.
 	MpoolPending(context.Context, types.TipSetKey) ([]*types.SignedMessage, error)
 
+	// MpoolSelect returns a list of pending messages for inclusion in the next block
+	MpoolSelect(context.Context, types.TipSetKey) ([]*types.SignedMessage, error)
+
 	// MpoolPush pushes a signed message to mempool.
 	MpoolPush(context.Context, *types.SignedMessage) (cid.Cid, error)
 
@@ -158,10 +173,6 @@ type FullNode interface {
 	MpoolGetNonce(context.Context, address.Address) (uint64, error)
 	MpoolSub(context.Context) (<-chan MpoolUpdate, error)
 	MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error
-
-	// MpoolEstimateGasPrice is depracated
-	// Deprecated: use GasEstimateGasPrice instead
-	MpoolEstimateGasPrice(ctx context.Context, nblocksincl uint64, sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error)
 
 	// MethodGroup: Miner
 
@@ -377,7 +388,8 @@ type FullNode interface {
 	// MethodGroup: Paych
 	// The Paych methods are for interacting with and managing payment channels
 
-	PaychGet(ctx context.Context, from, to address.Address, ensureFunds types.BigInt) (*ChannelInfo, error)
+	PaychGet(ctx context.Context, from, to address.Address, amt types.BigInt) (*ChannelInfo, error)
+	PaychGetWaitReady(context.Context, cid.Cid) (address.Address, error)
 	PaychList(context.Context) ([]address.Address, error)
 	PaychStatus(context.Context, address.Address) (*PaychStatus, error)
 	PaychSettle(context.Context, address.Address) (cid.Cid, error)
@@ -524,7 +536,7 @@ type QueryOffer struct {
 	PaymentInterval         uint64
 	PaymentIntervalIncrease uint64
 	Miner                   address.Address
-	MinerPeerID             peer.ID
+	MinerPeer               retrievalmarket.RetrievalPeer
 }
 
 func (o *QueryOffer) Order(client address.Address) RetrievalOrder {
@@ -538,8 +550,8 @@ func (o *QueryOffer) Order(client address.Address) RetrievalOrder {
 		PaymentIntervalIncrease: o.PaymentIntervalIncrease,
 		Client:                  client,
 
-		Miner:       o.Miner,
-		MinerPeerID: o.MinerPeerID,
+		Miner:     o.Miner,
+		MinerPeer: o.MinerPeer,
 	}
 }
 
@@ -565,7 +577,7 @@ type RetrievalOrder struct {
 	PaymentIntervalIncrease uint64
 	Client                  address.Address
 	Miner                   address.Address
-	MinerPeerID             peer.ID
+	MinerPeer               retrievalmarket.RetrievalPeer
 }
 
 type InvocResult struct {

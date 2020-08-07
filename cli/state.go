@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/multiformats/go-multiaddr"
 	"html/template"
 	"io"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/multiformats/go-multiaddr"
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -36,7 +37,6 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/miner"
 )
 
 var stateCmd = &cli.Command{
@@ -857,12 +857,7 @@ var stateComputeStateCmd = &cli.Command{
 
 		var msgs []*types.Message
 		if cctx.Bool("apply-mpool-messages") {
-			pmsgs, err := api.MpoolPending(ctx, ts.Key())
-			if err != nil {
-				return err
-			}
-
-			pmsgs, err = miner.SelectMessages(ctx, api.StateGetActor, ts, &miner.MsgPool{FromApi: api, Msgs: pmsgs})
+			pmsgs, err := api.MpoolSelect(ctx, ts.Key())
 			if err != nil {
 				return err
 			}
@@ -942,7 +937,7 @@ var compStateTemplate = `
     font-size: 12px;
     border-collapse: collapse;
    }
-   tr { 
+   tr {
    	border-top: 1px solid black;
    	border-bottom: 1px solid black;
    }
@@ -961,7 +956,7 @@ var compStateTemplate = `
    /**
    Checked State
    **/
-   
+
    .ellipsis-toggle input:checked + .ellipsis {
      display: none;
    }
@@ -1014,7 +1009,7 @@ var compStateMsg = `
   <div><pre class="params">{{JsonParams ($code) (.Msg.Method) (.Msg.Params) | html}}</pre></div>
  {{end}}
  <div><span class="slow-{{IsSlow .Duration}}-{{IsVerySlow .Duration}}">Took {{.Duration}}</span>, <span class="exit{{IntExit .MsgRct.ExitCode}}">Exit: <b>{{.MsgRct.ExitCode}}</b></span>{{if gt (len .MsgRct.Return) 0}}, Return{{end}}</div>
- 
+
  {{if gt (len .MsgRct.Return) 0}}
   <div><pre class="ret">{{JsonReturn ($code) (.Msg.Method) (.MsgRct.Return) | html}}</pre></div>
  {{end}}
@@ -1389,13 +1384,11 @@ var stateCallCmd = &cli.Command{
 		}
 
 		ret, err := api.StateCall(ctx, &types.Message{
-			From:     froma,
-			To:       toa,
-			Value:    types.BigInt(value),
-			GasLimit: 10000000000,
-			GasPrice: types.NewInt(0),
-			Method:   abi.MethodNum(method),
-			Params:   params,
+			From:   froma,
+			To:     toa,
+			Value:  types.BigInt(value),
+			Method: abi.MethodNum(method),
+			Params: params,
 		}, ts.Key())
 		if err != nil {
 			return fmt.Errorf("state call failed: %s", err)

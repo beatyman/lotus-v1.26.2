@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/filecoin-project/go-bitfield"
@@ -48,7 +47,6 @@ func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *miner.Deadli
 		proof, err := s.runPost(ctx, *deadline, ts)
 		switch err {
 		case errNoPartitions:
-			log.Info("NoPartitions")
 			return
 		case nil:
 			if err := s.submitPost(ctx, proof); err != nil {
@@ -294,31 +292,25 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
 
-	var declWait sync.WaitGroup
-	defer declWait.Wait()
-	declWait.Add(1)
-
 	go func() {
 		// TODO: extract from runPost, run on fault cutoff boundaries
-
-		defer declWait.Done()
 
 		// check faults / recoveries for the *next* deadline. It's already too
 		// late to declare them for this deadline
 		declDeadline := (di.Index + 2) % miner.WPoStPeriodDeadlines
 
-		partitions, err := s.api.StateMinerPartitions(ctx, s.actor, declDeadline, ts.Key())
+		partitions, err := s.api.StateMinerPartitions(context.TODO(), s.actor, declDeadline, ts.Key())
 		if err != nil {
 			log.Errorf("getting partitions: %v", err)
 			return
 		}
 
-		if err := s.checkNextRecoveries(ctx, declDeadline, partitions); err != nil {
+		if err := s.checkNextRecoveries(context.TODO(), declDeadline, partitions); err != nil {
 			// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
 			log.Errorf("checking sector recoveries: %v", err)
 		}
 
-		if err := s.checkNextFaults(ctx, declDeadline, partitions); err != nil {
+		if err := s.checkNextFaults(context.TODO(), declDeadline, partitions); err != nil {
 			// TODO: This is also potentially really bad, but we try to post anyways
 			log.Errorf("checking sector faults: %v", err)
 		}
@@ -337,6 +329,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	if err != nil {
 		return nil, xerrors.Errorf("getting partitions: %w", err)
 	}
+	log.Infof("DEBUG doPost StateMinerPartitions:%d,len:%d", di.Index, len(partitions))
 
 	params := &miner.SubmitWindowedPoStParams{
 		Deadline:   di.Index,
@@ -354,6 +347,9 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		if err != nil {
 			return nil, xerrors.Errorf("getting active sectors: %w", err)
 		}
+		toProveCount, _ := toProve.Count()
+		recoverCount, _ := partition.Recoveries.Count()
+		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d", partIdx, toProveCount, recoverCount)
 
 		toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
 		if err != nil {
@@ -364,11 +360,15 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		if err != nil {
 			return nil, xerrors.Errorf("checking sectors to skip: %w", err)
 		}
+		goodCount, _ := good.Count()
+		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,good:%d", partIdx, goodCount)
 
 		skipped, err := bitfield.SubtractBitField(toProve, good)
 		if err != nil {
 			return nil, xerrors.Errorf("toProve - good: %w", err)
 		}
+		skippedCount, _ := skipped.Count()
+		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,skipped:%d", partIdx, skippedCount)
 
 		sc, err := skipped.Count()
 		if err != nil {
@@ -381,6 +381,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		if err != nil {
 			return nil, xerrors.Errorf("getting sorted sector info: %w", err)
 		}
+		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,len ssi:%d", partIdx, len(ssi))
 
 		if len(ssi) == 0 {
 			continue
@@ -398,6 +399,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	}
 
 	if len(sinfos) == 0 {
+		log.Info("NoPartitions")
 		// nothing to prove..
 		return nil, errNoPartitions
 	}

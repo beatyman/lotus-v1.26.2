@@ -88,8 +88,11 @@ type FullNodeStruct struct {
 		ChainGetPath           func(context.Context, types.TipSetKey, types.TipSetKey) ([]*api.HeadChange, error)                                 `perm:"read"`
 		ChainExport            func(context.Context, types.TipSetKey) (<-chan []byte, error)                                                      `perm:"read"`
 
-		GasEstimateGasPrice func(context.Context, uint64, address.Address, int64, types.TipSetKey) (types.BigInt, error) `perm:"read"`
-		GasEstimateGasLimit func(context.Context, *types.Message, types.TipSetKey) (int64, error)                        `perm:"read"`
+		BeaconGetEntry func(ctx context.Context, epoch abi.ChainEpoch) (*types.BeaconEntry, error) `perm:"read"`
+
+		GasEsitmateGasPremium func(context.Context, uint64, address.Address, int64, types.TipSetKey) (types.BigInt, error) `perm:"read"`
+		GasEstimateGasLimit   func(context.Context, *types.Message, types.TipSetKey) (int64, error)                        `perm:"read"`
+		GasEstimateFeeCap     func(context.Context, int64, types.TipSetKey) (types.BigInt, error)                          `perm:"read"`
 
 		SyncState          func(context.Context) (*api.SyncState, error)                `perm:"read"`
 		SyncSubmitBlock    func(ctx context.Context, blk *types.BlockMsg) error         `perm:"write"`
@@ -97,6 +100,7 @@ type FullNodeStruct struct {
 		SyncMarkBad        func(ctx context.Context, bcid cid.Cid) error                `perm:"admin"`
 		SyncCheckBad       func(ctx context.Context, bcid cid.Cid) (string, error)      `perm:"read"`
 
+		MpoolSelect      func(context.Context, types.TipSetKey) ([]*types.SignedMessage, error) `perm:"read"`
 		MpoolPending     func(context.Context, types.TipSetKey) ([]*types.SignedMessage, error) `perm:"read"`
 		MpoolPush        func(context.Context, *types.SignedMessage) (cid.Cid, error)           `perm:"write"`
 		MpoolPushMessage func(context.Context, *types.Message) (*types.SignedMessage, error)    `perm:"sign"`
@@ -187,7 +191,8 @@ type FullNodeStruct struct {
 
 		MarketEnsureAvailable func(context.Context, address.Address, address.Address, types.BigInt) (cid.Cid, error) `perm:"sign"`
 
-		PaychGet                   func(ctx context.Context, from, to address.Address, ensureFunds types.BigInt) (*api.ChannelInfo, error)   `perm:"sign"`
+		PaychGet                   func(ctx context.Context, from, to address.Address, amt types.BigInt) (*api.ChannelInfo, error)           `perm:"sign"`
+		PaychGetWaitReady          func(context.Context, cid.Cid) (address.Address, error)                                                   `perm:"sign"`
 		PaychList                  func(context.Context) ([]address.Address, error)                                                          `perm:"read"`
 		PaychStatus                func(context.Context, address.Address) (*api.PaychStatus, error)                                          `perm:"read"`
 		PaychSettle                func(context.Context, address.Address) (cid.Cid, error)                                                   `perm:"sign"`
@@ -219,6 +224,8 @@ type StorageMinerStruct struct {
 
 		MarketImportDealData      func(context.Context, cid.Cid, string) error                                                                                                                                 `perm:"write"`
 		MarketListDeals           func(ctx context.Context) ([]storagemarket.StorageDeal, error)                                                                                                               `perm:"read"`
+		MarketListRetrievalDeals  func(ctx context.Context) ([]retrievalmarket.ProviderDealState, error)                                                                                                       `perm:"read"`
+		MarketGetDealUpdates      func(ctx context.Context, d cid.Cid) (<-chan storagemarket.MinerDeal, error)                                                                                                 `perm:"read"`
 		MarketListIncompleteDeals func(ctx context.Context) ([]storagemarket.MinerDeal, error)                                                                                                                 `perm:"read"`
 		MarketSetAsk              func(ctx context.Context, price types.BigInt, verifiedPrice types.BigInt, duration abi.ChainEpoch, minPieceSize abi.PaddedPieceSize, maxPieceSize abi.PaddedPieceSize) error `perm:"admin"`
 		MarketGetAsk              func(ctx context.Context) (*storagemarket.SignedStorageAsk, error)                                                                                                           `perm:"read"`
@@ -436,6 +443,7 @@ func (c *FullNodeStruct) ClientMinerQueryOffer(ctx context.Context, miner addres
 func (c *FullNodeStruct) ClientStartDeal(ctx context.Context, params *api.StartDealParams) (*cid.Cid, error) {
 	return c.Internal.ClientStartDeal(ctx, params)
 }
+
 func (c *FullNodeStruct) ClientGetDealInfo(ctx context.Context, deal cid.Cid) (*api.DealInfo, error) {
 	return c.Internal.ClientGetDealInfo(ctx, deal)
 }
@@ -463,14 +471,22 @@ func (c *FullNodeStruct) ClientDealSize(ctx context.Context, root cid.Cid) (api.
 	return c.Internal.ClientDealSize(ctx, root)
 }
 
-func (c *FullNodeStruct) GasEstimateGasPrice(ctx context.Context, nblocksincl uint64,
+func (c *FullNodeStruct) GasEsitmateGasPremium(ctx context.Context, nblocksincl uint64,
 	sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error) {
-	return c.Internal.GasEstimateGasPrice(ctx, nblocksincl, sender, gaslimit, tsk)
+	return c.Internal.GasEsitmateGasPremium(ctx, nblocksincl, sender, gaslimit, tsk)
+}
+func (c *FullNodeStruct) GasEstimateFeeCap(ctx context.Context, maxqueueblks int64,
+	tsk types.TipSetKey) (types.BigInt, error) {
+	return c.Internal.GasEstimateFeeCap(ctx, maxqueueblks, tsk)
 }
 
 func (c *FullNodeStruct) GasEstimateGasLimit(ctx context.Context, msg *types.Message,
 	tsk types.TipSetKey) (int64, error) {
 	return c.Internal.GasEstimateGasLimit(ctx, msg, tsk)
+}
+
+func (c *FullNodeStruct) MpoolSelect(ctx context.Context, tsk types.TipSetKey) ([]*types.SignedMessage, error) {
+	return c.Internal.MpoolSelect(ctx, tsk)
 }
 
 func (c *FullNodeStruct) MpoolPending(ctx context.Context, tsk types.TipSetKey) ([]*types.SignedMessage, error) {
@@ -491,10 +507,6 @@ func (c *FullNodeStruct) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, 
 
 func (c *FullNodeStruct) MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error {
 	return c.Internal.MpoolRemove(ctx, from, nonce)
-}
-
-func (c *FullNodeStruct) MpoolEstimateGasPrice(ctx context.Context, nblocksincl uint64, sender address.Address, limit int64, tsk types.TipSetKey) (types.BigInt, error) {
-	return c.Internal.GasEstimateGasPrice(ctx, nblocksincl, sender, limit, tsk)
 }
 
 func (c *FullNodeStruct) MinerGetBaseInfo(ctx context.Context, maddr address.Address, epoch abi.ChainEpoch, tsk types.TipSetKey) (*api.MiningBaseInfo, error) {
@@ -631,6 +643,10 @@ func (c *FullNodeStruct) ChainGetPath(ctx context.Context, from types.TipSetKey,
 
 func (c *FullNodeStruct) ChainExport(ctx context.Context, tsk types.TipSetKey) (<-chan []byte, error) {
 	return c.Internal.ChainExport(ctx, tsk)
+}
+
+func (c *FullNodeStruct) BeaconGetEntry(ctx context.Context, epoch abi.ChainEpoch) (*types.BeaconEntry, error) {
+	return c.Internal.BeaconGetEntry(ctx, epoch)
 }
 
 func (c *FullNodeStruct) SyncState(ctx context.Context) (*api.SyncState, error) {
@@ -845,8 +861,12 @@ func (c *FullNodeStruct) MarketEnsureAvailable(ctx context.Context, addr, wallet
 	return c.Internal.MarketEnsureAvailable(ctx, addr, wallet, amt)
 }
 
-func (c *FullNodeStruct) PaychGet(ctx context.Context, from, to address.Address, ensureFunds types.BigInt) (*api.ChannelInfo, error) {
-	return c.Internal.PaychGet(ctx, from, to, ensureFunds)
+func (c *FullNodeStruct) PaychGet(ctx context.Context, from, to address.Address, amt types.BigInt) (*api.ChannelInfo, error) {
+	return c.Internal.PaychGet(ctx, from, to, amt)
+}
+
+func (c *FullNodeStruct) PaychGetWaitReady(ctx context.Context, mcid cid.Cid) (address.Address, error) {
+	return c.Internal.PaychGetWaitReady(ctx, mcid)
 }
 
 func (c *FullNodeStruct) PaychList(ctx context.Context) ([]address.Address, error) {
@@ -1031,6 +1051,14 @@ func (c *StorageMinerStruct) MarketImportDealData(ctx context.Context, propcid c
 
 func (c *StorageMinerStruct) MarketListDeals(ctx context.Context) ([]storagemarket.StorageDeal, error) {
 	return c.Internal.MarketListDeals(ctx)
+}
+
+func (c *StorageMinerStruct) MarketListRetrievalDeals(ctx context.Context) ([]retrievalmarket.ProviderDealState, error) {
+	return c.Internal.MarketListRetrievalDeals(ctx)
+}
+
+func (c *StorageMinerStruct) MarketGetDealUpdates(ctx context.Context, d cid.Cid) (<-chan storagemarket.MinerDeal, error) {
+	return c.Internal.MarketGetDealUpdates(ctx, d)
 }
 
 func (c *StorageMinerStruct) MarketListIncompleteDeals(ctx context.Context) ([]storagemarket.MinerDeal, error) {

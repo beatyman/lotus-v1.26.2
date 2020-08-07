@@ -199,8 +199,8 @@ func (syncer *Syncer) InformNewHead(from peer.ID, fts *store.FullTipSet) bool {
 
 	syncer.Bsync.AddPeer(from)
 
-	bestPweight := syncer.store.GetHeaviestTipSet().Blocks()[0].ParentWeight
-	targetWeight := fts.TipSet().Blocks()[0].ParentWeight
+	bestPweight := syncer.store.GetHeaviestTipSet().ParentWeight()
+	targetWeight := fts.TipSet().ParentWeight()
 	if targetWeight.LessThan(bestPweight) {
 		var miners []string
 		for _, blk := range fts.TipSet().Blocks() {
@@ -673,9 +673,11 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 		return xerrors.Errorf("failed to get latest beacon entry: %w", err)
 	}
 
-	//nulls := h.Height - (baseTs.Height() + 1)
-
 	// fast checks first
+	nulls := h.Height - (baseTs.Height() + 1)
+	if tgtTs := baseTs.MinTimestamp() + build.BlockDelaySecs*uint64(nulls+1); h.Timestamp != tgtTs {
+		return xerrors.Errorf("block has wrong timestamp: %d != %d", h.Timestamp, tgtTs)
+	}
 
 	now := uint64(build.Clock.Now().Unix())
 	if h.Timestamp > now+build.AllowableClockDriftSecs {
@@ -683,13 +685,6 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	}
 	if h.Timestamp > now {
 		log.Warn("Got block from the future, but within threshold", h.Timestamp, build.Clock.Now().Unix())
-	}
-
-	if h.Timestamp < baseTs.MinTimestamp()+(build.BlockDelaySecs*uint64(h.Height-baseTs.Height())) {
-		log.Warn("timestamp funtimes: ", h.Timestamp, baseTs.MinTimestamp(), h.Height, baseTs.Height())
-		diff := (baseTs.MinTimestamp() + (build.BlockDelaySecs * uint64(h.Height-baseTs.Height()))) - h.Timestamp
-
-		return xerrors.Errorf("block was generated too soon (h.ts:%d < base.mints:%d + BLOCK_DELAY:%d * deltaH:%d; diff %d)", h.Timestamp, baseTs.MinTimestamp(), build.BlockDelaySecs, h.Height-baseTs.Height(), diff)
 	}
 
 	msgsCheck := async.Err(func() error {
@@ -705,6 +700,27 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 		}
 		return nil
 	})
+
+	baseFeeCheck := async.Err(func() error {
+		baseFee, err := syncer.store.ComputeBaseFee(ctx, baseTs)
+		if err != nil {
+			return xerrors.Errorf("computing base fee: %w", err)
+		}
+		if types.BigCmp(baseFee, b.Header.ParentBaseFee) != 0 {
+			return xerrors.Errorf("base fee doesn't match: %s (header) != %s (computed)",
+				b.Header.ParentBaseFee, baseFee)
+		}
+		return nil
+	})
+	pweight, err := syncer.store.Weight(ctx, baseTs)
+	if err != nil {
+		return xerrors.Errorf("getting parent weight: %w", err)
+	}
+
+	if types.BigCmp(pweight, b.Header.ParentWeight) != 0 {
+		return xerrors.Errorf("parrent weight different: %s (header) != %s (computed)",
+			b.Header.ParentWeight, pweight)
+	}
 
 	// Stuff that needs stateroot / worker address
 	stateroot, precp, err := syncer.sm.TipSetState(ctx, baseTs)
@@ -848,6 +864,7 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 		wproofCheck,
 		winnerCheck,
 		msgsCheck,
+		baseFeeCheck,
 	}
 
 	var merr error
@@ -999,7 +1016,6 @@ func (syncer *Syncer) checkBlockMessages(ctx context.Context, b *types.FullBlock
 				return xerrors.Errorf("failed to get actor: %w", err)
 			}
 
-			// redundant check
 			if !act.IsAccountActor() {
 				return xerrors.New("Sender must be an account actor")
 			}
@@ -1246,6 +1262,22 @@ loop:
 		}
 		log.Info("Got blocks: ", blks[0].Height(), len(blks))
 
+		// Check that the fetched segment of the chain matches what we already
+		// have. Since we fetch from the head backwards our reassembled chain
+		// is sorted in reverse here: we have a child -> parent order, our last
+		// tipset then should be child of the first tipset retrieved.
+		// FIXME: The reassembly logic should be part of the `BlockSync`
+		//  service, the consumer should not be concerned with the
+		//  `MaxRequestLength` limitation, it should just be able to request
+		//  an segment of arbitrary length. The same burden is put on
+		//  `syncFork()` which needs to be aware this as well.
+		if blockSet[len(blockSet)-1].IsChildOf(blks[0]) == false {
+			return nil, xerrors.Errorf("retrieved segments of the chain are not connected at heights %d/%d",
+				blockSet[len(blockSet)-1].Height(), blks[0].Height())
+			// A successful `GetBlocks()` call is guaranteed to fetch at least
+			// one tipset so the acess `blks[0]` is safe.
+		}
+
 		for _, b := range blks {
 			if b.Height() < untilHeight {
 				break loop
@@ -1270,7 +1302,7 @@ loop:
 	}
 
 	// base is the tipset in the candidate chain at the height equal to our known tipset height.
-	if base := blockSet[len(blockSet)-1]; !types.CidArrsEqual(base.Parents().Cids(), known.Cids()) {
+	if base := blockSet[len(blockSet)-1]; !types.CidArrsSubset(base.Parents().Cids(), known.Cids()) {
 		if base.Parents() == known.Parents() {
 			// common case: receiving a block thats potentially part of the same tipset as our best block
 			return blockSet, nil
@@ -1398,7 +1430,7 @@ func (syncer *Syncer) iterFullTipsets(ctx context.Context, headers []*types.TipS
 
 		nextI := (i + 1) - batchSize // want to fetch batchSize values, 'i' points to last one we want to fetch, so its 'inclusive' of our request, thus we need to add one to our request start index
 
-		var bstout []*blocksync.BSTipSet
+		var bstout []*blocksync.CompactedMessages
 		for len(bstout) < batchSize {
 			next := headers[nextI]
 
@@ -1419,10 +1451,10 @@ func (syncer *Syncer) iterFullTipsets(ctx context.Context, headers []*types.TipS
 
 			this := headers[i-bsi]
 			bstip := bstout[len(bstout)-(bsi+1)]
-			fts, err := zipTipSetAndMessages(blks, this, bstip.BlsMessages, bstip.SecpkMessages, bstip.BlsMsgIncludes, bstip.SecpkMsgIncludes)
+			fts, err := zipTipSetAndMessages(blks, this, bstip.Bls, bstip.Secpk, bstip.BlsIncludes, bstip.SecpkIncludes)
 			if err != nil {
 				log.Warnw("zipping failed", "error", err, "bsi", bsi, "i", i,
-					"height", this.Height(), "bstip-height", bstip.Blocks[0].Height,
+					"height", this.Height(),
 					"next-height", i+batchSize)
 				return xerrors.Errorf("message processing failed: %w", err)
 			}
@@ -1445,15 +1477,15 @@ func (syncer *Syncer) iterFullTipsets(ctx context.Context, headers []*types.TipS
 	return nil
 }
 
-func persistMessages(bs bstore.Blockstore, bst *blocksync.BSTipSet) error {
-	for _, m := range bst.BlsMessages {
+func persistMessages(bs bstore.Blockstore, bst *blocksync.CompactedMessages) error {
+	for _, m := range bst.Bls {
 		//log.Infof("putting BLS message: %s", m.Cid())
 		if _, err := store.PutMessage(bs, m); err != nil {
 			log.Errorf("failed to persist messages: %+v", err)
 			return xerrors.Errorf("BLS message processing failed: %w", err)
 		}
 	}
-	for _, m := range bst.SecpkMessages {
+	for _, m := range bst.Secpk {
 		if m.Signature.Type != crypto.SigTypeSecp256k1 {
 			return xerrors.Errorf("unknown signature type on message %s: %q", m.Cid(), m.Signature.Type)
 		}

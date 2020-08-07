@@ -759,7 +759,7 @@ func (a *StateAPI) StateSectorExpiration(ctx context.Context, maddr address.Addr
 	var onTimeEpoch, earlyEpoch abi.ChainEpoch
 
 	err := a.sectorPartition(ctx, maddr, sectorNumber, tsk, func(store adt.Store, mas *miner.State, di uint64, pi uint64, part *miner.Partition) error {
-		quant := mas.QuantEndOfDeadline()
+		quant := mas.QuantSpecForDeadline(di)
 		expirations, err := miner.LoadExpirationQueue(store, part.ExpirationsEpochs, quant)
 		if err != nil {
 			return xerrors.Errorf("loading expiration queue: %w", err)
@@ -968,12 +968,10 @@ func (a *StateAPI) StateMinerPreCommitDepositForPower(ctx context.Context, maddr
 		}
 
 		ret, err := a.StateManager.Call(ctx, &types.Message{
-			From:     maddr,
-			To:       builtin.StorageMarketActorAddr,
-			Method:   builtin.MethodsMarket.VerifyDealsForActivation,
-			GasLimit: 0,
-			GasPrice: types.NewInt(0),
-			Params:   params,
+			From:   maddr,
+			To:     builtin.StorageMarketActorAddr,
+			Method: builtin.MethodsMarket.VerifyDealsForActivation,
+			Params: params,
 		}, ts)
 		if err != nil {
 			return types.EmptyInt, err
@@ -1048,12 +1046,10 @@ func (a *StateAPI) StateMinerInitialPledgeCollateral(ctx context.Context, maddr 
 		}
 
 		ret, err := a.StateManager.Call(ctx, &types.Message{
-			From:     maddr,
-			To:       builtin.StorageMarketActorAddr,
-			Method:   builtin.MethodsMarket.VerifyDealsForActivation,
-			GasLimit: 0,
-			GasPrice: types.NewInt(0),
-			Params:   params,
+			From:   maddr,
+			To:     builtin.StorageMarketActorAddr,
+			Method: builtin.MethodsMarket.VerifyDealsForActivation,
+			Params: params,
 		}, ts)
 		if err != nil {
 			return types.EmptyInt, err
