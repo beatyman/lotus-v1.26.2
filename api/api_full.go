@@ -116,7 +116,7 @@ type FullNode interface {
 	BeaconGetEntry(ctx context.Context, epoch abi.ChainEpoch) (*types.BeaconEntry, error)
 
 	// GasEstimateFeeCap estimates gas fee cap
-	GasEstimateFeeCap(context.Context, int64, types.TipSetKey) (types.BigInt, error)
+	GasEstimateFeeCap(context.Context, *types.Message, int64, types.TipSetKey) (types.BigInt, error)
 
 	// GasEstimateGasLimit estimates gas used by the message and returns it.
 	// It fails if message fails to execute.
@@ -173,6 +173,11 @@ type FullNode interface {
 	MpoolGetNonce(context.Context, address.Address) (uint64, error)
 	MpoolSub(context.Context) (<-chan MpoolUpdate, error)
 	MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error
+
+	// MpoolGetConfig returns (a copy of) the current mpool config
+	MpoolGetConfig(context.Context) (*types.MpoolConfig, error)
+	// MpoolSetConfig sets the mpool config to (a copy of) the supplied config
+	MpoolSetConfig(context.Context, *types.MpoolConfig) error
 
 	// MethodGroup: Miner
 
@@ -346,6 +351,9 @@ type FullNode interface {
 	// StateDealProviderCollateralBounds returns the min and max collateral a storage provider
 	// can issue. It takes the deal size and verified status as parameters.
 	StateDealProviderCollateralBounds(context.Context, abi.PaddedPieceSize, bool, types.TipSetKey) (DealCollateralBounds, error)
+
+	// StateCirculatingSupply returns the circulating supply of Filecoin at the given tipset
+	StateCirculatingSupply(context.Context, types.TipSetKey) (abi.TokenAmount, error)
 
 	// MethodGroup: Msig
 	// The Msig methods are used to interact with multisig wallets on the

@@ -177,6 +177,12 @@ func NewWinningPoStProver(api api.FullNode, prover storage.Prover, verifier ffiw
 		return nil, err
 	}
 
+	if build.InsecurePoStValidation {
+		log.Warn("*****************************************************************************")
+		log.Warn(" Generating fake PoSt proof! You should only see this while running tests! ")
+		log.Warn("*****************************************************************************")
+	}
+
 	return &StorageWpp{prover, verifier, abi.ActorID(miner), wpt}, nil
 }
 

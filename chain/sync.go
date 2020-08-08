@@ -138,6 +138,12 @@ func NewSyncer(sm *stmgr.StateManager, bsync *blocksync.BlockSync, connmgr connm
 		incoming: pubsub.New(50),
 	}
 
+	if build.InsecurePoStValidation {
+		log.Warn("*********************************************************************************************")
+		log.Warn(" [INSECURE-POST-VALIDATION] Insecure test validation is enabled. If you see this outside of a test, it is a severe bug! ")
+		log.Warn("*********************************************************************************************")
+	}
+
 	s.syncmgr = NewSyncManager(s.Sync)
 	return s, nil
 }
@@ -642,10 +648,6 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 
 	ctx, span := trace.StartSpan(ctx, "validateBlock")
 	defer span.End()
-
-	if build.InsecurePoStValidation {
-		log.Warn("[INSECURE-POST-VALIDATION] if you see this outside of a test, it is a severe bug!")
-	}
 
 	if err := blockSanityChecks(b.Header); err != nil {
 		return xerrors.Errorf("incoming header failed basic sanity checks: %w", err)
@@ -1301,42 +1303,44 @@ loop:
 		at = blks[len(blks)-1].Parents()
 	}
 
-	// base is the tipset in the candidate chain at the height equal to our known tipset height.
-	if base := blockSet[len(blockSet)-1]; !types.CidArrsSubset(base.Parents().Cids(), known.Cids()) {
-		if base.Parents() == known.Parents() {
-			// common case: receiving a block thats potentially part of the same tipset as our best block
-			return blockSet, nil
-		}
-
-		incomingHeaviestMiners := []string{}
-		for _, blk := range incoming.Blocks() {
-			incomingHeaviestMiners = append(incomingHeaviestMiners,
-				fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
-			)
-		}
-		knownHeaviestMiners := []string{}
-		for _, blk := range incoming.Blocks() {
-			knownHeaviestMiners = append(knownHeaviestMiners,
-				fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
-			)
-		}
-
-		// We have now ascertained that this is *not* a 'fast forward'
-		log.Warnf("(fork detected) synced header chain (%s - %d)(%+v) does not link to our best block (%s - %d)(%+v)", incoming.Cids(), incoming.Height(), incomingHeaviestMiners, known.Cids(), known.Height(), knownHeaviestMiners)
-		fork, err := syncer.syncFork(ctx, base, known)
-		if err != nil {
-			if xerrors.Is(err, ErrForkTooLong) {
-				// TODO: we're marking this block bad in the same way that we mark invalid blocks bad. Maybe distinguish?
-				log.Warn("adding forked chain to our bad tipset cache")
-				for _, b := range incoming.Blocks() {
-					syncer.bad.Add(b.Cid(), NewBadBlockReason(incoming.Cids(), "fork past finality"))
-				}
-			}
-			return nil, xerrors.Errorf("failed to sync fork: %w", err)
-		}
-
-		blockSet = append(blockSet, fork...)
+	base := blockSet[len(blockSet)-1]
+	if base.Parents() == known.Parents() {
+		// common case: receiving a block thats potentially part of the same tipset as our best block
+		return blockSet, nil
 	}
+
+	if types.CidArrsEqual(base.Parents().Cids(), known.Cids()) {
+		// common case: receiving blocks that are building on top of our best tipset
+		return blockSet, nil
+	}
+	incomingHeaviestMiners := []string{}
+	for _, blk := range incoming.Blocks() {
+		incomingHeaviestMiners = append(incomingHeaviestMiners,
+			fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+		)
+	}
+	knownHeaviestMiners := []string{}
+	for _, blk := range incoming.Blocks() {
+		knownHeaviestMiners = append(knownHeaviestMiners,
+			fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+		)
+	}
+
+	// We have now ascertained that this is *not* a 'fast forward'
+	log.Warnf("(fork detected) synced header chain (%s - %d)(%+v) does not link to our best block (%s - %d)(%+v)", incoming.Cids(), incoming.Height(), incomingHeaviestMiners, known.Cids(), known.Height(), knownHeaviestMiners)
+	fork, err := syncer.syncFork(ctx, base, known)
+	if err != nil {
+		if xerrors.Is(err, ErrForkTooLong) {
+			// TODO: we're marking this block bad in the same way that we mark invalid blocks bad. Maybe distinguish?
+			log.Warn("adding forked chain to our bad tipset cache")
+			for _, b := range incoming.Blocks() {
+				syncer.bad.Add(b.Cid(), NewBadBlockReason(incoming.Cids(), "fork past finality"))
+			}
+		}
+		return nil, xerrors.Errorf("failed to sync fork: %w", err)
+	}
+
+	blockSet = append(blockSet, fork...)
 
 	return blockSet, nil
 }
@@ -1365,7 +1369,7 @@ func (syncer *Syncer) syncFork(ctx context.Context, incoming *types.TipSet, know
 			if !syncer.Genesis.Equals(nts) {
 				return nil, xerrors.Errorf("somehow synced chain that linked back to a different genesis (bad genesis: %s)", nts.Key())
 			}
-			return nil, xerrors.Errorf("synced chain forked at genesis, refusing to sync; incoming: %s")
+			return nil, xerrors.Errorf("synced chain forked at genesis, refusing to sync; incoming: %s", incoming.Cids())
 		}
 
 		if nts.Equals(tips[cur]) {
