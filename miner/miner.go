@@ -22,6 +22,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/messagepool/gasguess"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/journal"
 
 	logging "github.com/ipfs/go-log/v2"
 	"go.opencensus.io/trace"
@@ -210,6 +211,14 @@ func (m *Miner) mine(ctx context.Context) {
 		//onDone(b != nil, nil)
 
 		if b != nil {
+			journal.Add("blockMined", map[string]interface{}{
+				"parents":   lastBase.TipSet.Cids(),
+				"nulls":     lastBase.NullRounds,
+				"epoch":     b.Header.Height,
+				"timestamp": b.Header.Timestamp,
+				"cid":       b.Header.Cid(),
+			})
+
 			btime := time.Unix(int64(b.Header.Timestamp), 0)
 			now := build.Clock.Now()
 			switch {
@@ -409,12 +418,18 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 
 	tCreateBlock := build.Clock.Now()
 	dur := tCreateBlock.Sub(start)
+	parentMiners := make([]address.Address, len(base.TipSet.Blocks()))
+	for i, header := range base.TipSet.Blocks() {
+		parentMiners[i] = header.Miner
+	}
 	log.Infow("mined new block",
 		"cid", b.Cid(),
 		"height", b.Header.Height,
 		"weight", b.Header.ParentWeight,
 		"rounds", base.NullRounds,
 		"took", dur,
+		"miner", b.Header.Miner,
+		"parents", parentMiners,
 		"submit", time.Unix(int64(base.TipSet.MinTimestamp()+(uint64(base.NullRounds)+1)*build.BlockDelaySecs), 0).Format(time.RFC3339))
 	if dur > time.Second*time.Duration(build.BlockDelaySecs) {
 		log.Warnw("CAUTION: block production took longer than the block delay. Your computer may not be fast enough to keep up",
