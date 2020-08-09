@@ -40,7 +40,7 @@ var log = logging.Logger("messagepool")
 
 const futureDebug = false
 
-const repubMsgLimit = 5
+const repubMsgLimit = 10000
 
 const RbfDenom = 256
 
