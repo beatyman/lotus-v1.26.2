@@ -135,14 +135,18 @@ var mpoolSetCfg = &cli.Command{
 
 var mpoolFix = &cli.Command{
 	Name:  "fix",
-	Usage: "fix local message with hard code, the logic need to see the source code",
+	Usage: "fix [address]",
 	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "address",
-			Usage: "select a wallet address to fix.",
+		&cli.BoolFlag{
+			Name:  "really-do-it",
+			Usage: "fix local message with hard code, the logic need to see the source code",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() < 1 {
+			return errors.New("need input from address argument")
+		}
+
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
 			return err
@@ -151,7 +155,7 @@ var mpoolFix = &cli.Command{
 
 		ctx := ReqContext(cctx)
 
-		fixAddr, err := address.NewFromString(cctx.String("address"))
+		fixAddr, err := address.NewFromString(cctx.Args().First())
 		if err != nil {
 			return errors.New("need input address")
 		}
