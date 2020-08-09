@@ -20,6 +20,7 @@ var mpoolCmd = &cli.Command{
 	Name:  "mpool",
 	Usage: "Manage message pool",
 	Subcommands: []*cli.Command{
+		mpoolFix,
 		mpoolPending,
 		mpoolSub,
 		mpoolStat,
