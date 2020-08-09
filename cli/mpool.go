@@ -168,7 +168,7 @@ var mpoolFix = &cli.Command{
 			return err
 		}
 
-		for _, msg := range msgs {
+		for idx, msg := range msgs {
 			if _, has := filter[msg.Message.From]; !has {
 				continue
 			}
@@ -191,7 +191,7 @@ var mpoolFix = &cli.Command{
 			if err != nil {
 				return fmt.Errorf("failed to push new message to mempool: %w", err)
 			}
-			fmt.Println("new message cid: ", cid)
+			fmt.Printf("new message cid %s, %d: ", cid, idx)
 		}
 
 		return nil
