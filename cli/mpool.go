@@ -281,8 +281,9 @@ type statBucket struct {
 	msgs map[uint64]*types.SignedMessage
 }
 type mpStat struct {
-	addr              string
-	past, cur, future uint64
+	addr                             string
+	past, cur, future                uint64
+	pastNonce, curNonce, futureNonce uint64
 }
 
 var mpoolStat = &cli.Command{
@@ -366,21 +367,32 @@ var mpoolStat = &cli.Command{
 			}
 
 			past := uint64(0)
+			pastNonce := uint64(0)
 			future := uint64(0)
+			futureNonce := uint64(0)
 			for _, m := range bkt.msgs {
 				if m.Message.Nonce < act.Nonce {
 					past++
+					if pastNonce == 0 {
+						pastNonce = m.Message.Nonce
+					}
 				}
 				if m.Message.Nonce > cur {
 					future++
+					if futureNonce == 0 {
+						futureNonce = m.Message.Nonce
+					}
 				}
 			}
 
 			out = append(out, mpStat{
-				addr:   a.String(),
-				past:   past,
-				cur:    cur - act.Nonce,
-				future: future,
+				addr:        a.String(),
+				past:        past,
+				cur:         cur - act.Nonce,
+				future:      future,
+				pastNonce:   pastNonce,
+				curNonce:    act.Nonce,
+				futureNonce: futureNonce,
 			})
 		}
 
@@ -395,7 +407,9 @@ var mpoolStat = &cli.Command{
 			total.cur += stat.cur
 			total.future += stat.future
 
-			fmt.Printf("%s: past: %d, cur: %d, future: %d\n", stat.addr, stat.past, stat.cur, stat.future)
+			fmt.Printf("%s: past(%d): %d, cur(%d): %d, future(%d): %d\n",
+				stat.addr, stat.pastNonce, stat.past, stat.curNonce, stat.cur, stat.futureNonce, stat.future,
+			)
 		}
 
 		fmt.Println("-----")
