@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gwaylib/errors"
 	"github.com/urfave/cli/v2"
@@ -20,6 +22,8 @@ var mpoolCmd = &cli.Command{
 	Name:  "mpool",
 	Usage: "Manage message pool",
 	Subcommands: []*cli.Command{
+		mpoolGetCfg,
+		mpoolSetCfg,
 		mpoolFix,
 		mpoolPending,
 		mpoolSub,
@@ -28,11 +32,112 @@ var mpoolCmd = &cli.Command{
 		mpoolFindCmd,
 	},
 }
+var mpoolGetCfg = &cli.Command{
+	Name:  "get-cfg",
+	Usage: "Println the configration of mpool",
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ctx := ReqContext(cctx)
+		cfg, err := api.MpoolGetConfig(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%+v\n", cfg)
+		return nil
+	},
+}
+var mpoolSetCfg = &cli.Command{
+	Name:  "set-cfg",
+	Usage: "Println the configration of mpool",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "PriorityAddrs",
+			Usage: "Array of address, split with ',', empty not change, '-' to clean.",
+		},
+		&cli.IntFlag{
+			Name:  "SizeLimitHigh",
+			Usage: "SizeLimitHigh, < 0 not change.",
+			Value: -1,
+		},
+		&cli.IntFlag{
+			Name:  "SizeLimitLow",
+			Usage: "SizeLimitLow, < 0 not change.",
+			Value: -1,
+		},
+		&cli.Float64Flag{
+			Name:  "ReplaceByFeeRatio",
+			Usage: "ReplaceByFeeRatio, < 0 not change.",
+			Value: -1,
+		},
+		&cli.Int64Flag{
+			Name:  "PruneCooldown",
+			Usage: "PruneCooldown, < 0 not change.",
+			Value: -1,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ctx := ReqContext(cctx)
+		cfg, err := api.MpoolGetConfig(ctx)
+		if err != nil {
+			return err
+		}
+		coolDown := cctx.Int("PruneCooldown")
+		if coolDown > -1 {
+			cfg.PruneCooldown = time.Duration(coolDown)
+		}
+		radio := cctx.Float64("ReplaceByFeeRatio")
+		if radio > -1 {
+			cfg.ReplaceByFeeRatio = radio
+		}
+
+		limitLow := cctx.Int("SizeLimitLow")
+		if limitLow > -1 {
+			cfg.SizeLimitLow = limitLow
+		}
+		limitHigh := cctx.Int("SizeLimitHigh")
+		if limitHigh > -1 {
+			cfg.SizeLimitHigh = limitHigh
+		}
+		addrs := cctx.String("PriorityAddrs")
+		if len(addrs) > 0 {
+			tAddrs := []address.Address{}
+			arrAddr := strings.Split(addrs, ",")
+			for _, a := range arrAddr {
+				if a == "-" {
+					break
+				}
+				tAddr, err := address.NewFromString(a)
+				if err != nil {
+					return err
+				}
+				tAddrs = append(tAddrs, tAddr)
+			}
+			cfg.PriorityAddrs = tAddrs
+		}
+		if err := api.MpoolSetConfig(ctx, cfg); err != nil {
+			return err
+		}
+		fmt.Printf("new cfg: %+v\n", cfg)
+		return nil
+	},
+}
+
 var mpoolFix = &cli.Command{
 	Name:  "fix",
 	Usage: "fix local message with hard code, the logic need to see the source code",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
+		&cli.StringFlag{
 			Name:  "address",
 			Usage: "select a wallet address to fix.",
 		},
