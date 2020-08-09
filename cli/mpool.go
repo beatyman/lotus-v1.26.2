@@ -163,6 +163,10 @@ var mpoolFix = &cli.Command{
 		if err != nil {
 			return err
 		}
+		baseFee, err := api.ChainComputeBaseFee(ctx, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
 
 		for _, msg := range msgs {
 			if _, has := filter[msg.Message.From]; !has {
@@ -174,7 +178,10 @@ var mpoolFix = &cli.Command{
 				newMsg.GasPremium,
 				types.BigDiv(types.BigMul(newMsg.GasPremium, types.NewInt(50)), types.NewInt(100)),
 			)
-			newMsg.GasFeeCap = types.NewInt(1e11)
+			newMsg.GasFeeCap = types.BigAdd(
+				baseFee,
+				types.BigDiv(types.BigMul(baseFee, types.NewInt(50)), types.NewInt(100)),
+			)
 
 			smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
 			if err != nil {
