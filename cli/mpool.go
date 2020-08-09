@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/gwaylib/errors"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -26,7 +27,63 @@ var mpoolCmd = &cli.Command{
 		mpoolFindCmd,
 	},
 }
+var mpoolFix = &cli.Command{
+	Name:  "fix",
+	Usage: "fix local message with hard code, the logic need to see the source code",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "address",
+			Usage: "select a wallet address to fix.",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
 
+		ctx := ReqContext(cctx)
+
+		fixAddr, err := address.NewFromString(cctx.String("address"))
+		if err != nil {
+			return errors.New("need input address")
+		}
+		filter := map[address.Address]struct{}{
+			fixAddr: struct{}{},
+		}
+
+		msgs, err := api.MpoolPending(ctx, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		for _, msg := range msgs {
+			if _, has := filter[msg.Message.From]; !has {
+				continue
+			}
+			// fix with replace
+			newMsg := msg.Message
+			newMsg.GasPremium = types.BigAdd(
+				newMsg.GasPremium,
+				types.BigDiv(types.BigMul(newMsg.GasPremium, types.NewInt(50)), types.NewInt(100)),
+			)
+			newMsg.GasFeeCap = types.NewInt(1e11)
+
+			smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
+			if err != nil {
+				return fmt.Errorf("failed to sign message: %w", err)
+			}
+			cid, err := api.MpoolPush(ctx, smsg)
+			if err != nil {
+				return fmt.Errorf("failed to push new message to mempool: %w", err)
+			}
+			fmt.Println("new message cid: ", cid)
+		}
+
+		return nil
+	},
+}
 var mpoolPending = &cli.Command{
 	Name:  "pending",
 	Usage: "Get pending messages",
