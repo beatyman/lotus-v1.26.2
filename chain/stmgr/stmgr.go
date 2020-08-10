@@ -667,6 +667,10 @@ func (sm *StateManager) tipsetExecutedMessage(ts *types.TipSet, msg cid.Cid, vmm
 
 		if m.VMMessage().From == vmm.From { // cheaper to just check origin first
 			if m.VMMessage().Nonce == vmm.Nonce {
+				// TODO: cause by replace command has changed the cid
+				// TODO: waiting Magik6k fix it.
+				return sm.cs.GetParentReceipt(ts.Blocks()[0], i)
+
 				if m.Cid() == msg {
 					return sm.cs.GetParentReceipt(ts.Blocks()[0], i)
 				}
