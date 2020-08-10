@@ -195,7 +195,7 @@ var mpoolFix = &cli.Command{
 			if err != nil {
 				return fmt.Errorf("failed to push new message to mempool: %w", err)
 			}
-			fmt.Printf("new message cid %s, %d: ", cid, idx)
+			fmt.Printf("new message cid %s, %d \n", cid, idx)
 		}
 
 		return nil
