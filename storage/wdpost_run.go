@@ -421,12 +421,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 
 	postOut, postSkipped, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, abi.PoStRandomness(rand))
 	if err != nil {
-		// retry.
-		// TODO: run two in parallel, and get the good to commit.
-		postOut, postSkipped, err = s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, abi.PoStRandomness(rand))
-		if err != nil {
-			return nil, xerrors.Errorf("running post failed: %w", err)
-		}
+		return nil, xerrors.Errorf("running post failed: %w", err)
 	}
 
 	if len(postOut) == 0 {

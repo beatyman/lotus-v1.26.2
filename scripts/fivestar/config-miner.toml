@@ -36,6 +36,6 @@ ListenAddress = "/ip4/127.0.0.1/tcp/2348/http"
 #  AllowCommit = true
 #  AllowUnseal = true
 RemoteSeal = true
-RemoteWnPoSt = true
-RemoteWdPoSt = true
+RemoteWnPoSt = 1
+RemoteWdPoSt = 2
 #
