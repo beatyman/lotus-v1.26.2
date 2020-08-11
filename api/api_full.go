@@ -124,10 +124,10 @@ type FullNode interface {
 	// It fails if message fails to execute.
 	GasEstimateGasLimit(context.Context, *types.Message, types.TipSetKey) (int64, error)
 
-	// GasEsitmateGasPremium estimates what gas price should be used for a
+	// GasEstimateGasPremium estimates what gas price should be used for a
 	// message to have high likelihood of inclusion in `nblocksincl` epochs.
 
-	GasEsitmateGasPremium(_ context.Context, nblocksincl uint64,
+	GasEstimateGasPremium(_ context.Context, nblocksincl uint64,
 		sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error)
 
 	// MethodGroup: Sync
@@ -399,7 +399,7 @@ type FullNode interface {
 	// The Paych methods are for interacting with and managing payment channels
 
 	PaychGet(ctx context.Context, from, to address.Address, amt types.BigInt) (*ChannelInfo, error)
-	PaychGetWaitReady(context.Context, cid.Cid) (address.Address, error)
+	PaychGetWaitReady(context.Context, PaychWaitSentinel) (address.Address, error)
 	PaychList(context.Context) ([]address.Address, error)
 	PaychStatus(context.Context, address.Address) (*PaychStatus, error)
 	PaychSettle(context.Context, address.Address) (cid.Cid, error)
@@ -510,15 +510,17 @@ type PaychStatus struct {
 	Direction   PCHDir
 }
 
+type PaychWaitSentinel cid.Cid
+
 type ChannelInfo struct {
-	Channel        address.Address
-	ChannelMessage cid.Cid
+	Channel      address.Address
+	WaitSentinel PaychWaitSentinel
 }
 
 type PaymentInfo struct {
-	Channel        address.Address
-	ChannelMessage *cid.Cid
-	Vouchers       []*paych.SignedVoucher
+	Channel      address.Address
+	WaitSentinel PaychWaitSentinel
+	Vouchers     []*paych.SignedVoucher
 }
 
 type VoucherSpec struct {

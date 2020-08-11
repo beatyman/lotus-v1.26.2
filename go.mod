@@ -49,6 +49,7 @@ require (
 	github.com/gwaylib/database v0.0.0-20191004162319-8535ba649f9c
 	github.com/gwaylib/errors v0.0.0-20190905023356-162e59439c92
 	github.com/gwaylib/log v0.0.0-20190829041528-b6c28711ef53
+	github.com/hannahhoward/go-pubsub v0.0.0-20200423002714-8d62886cc36e
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d
@@ -93,7 +94,7 @@ require (
 	github.com/libp2p/go-libp2p-mplex v0.2.4
 	github.com/libp2p/go-libp2p-peer v0.2.0
 	github.com/libp2p/go-libp2p-peerstore v0.2.6
-	github.com/libp2p/go-libp2p-pubsub v0.3.4-0.20200731161531-2b5243c72f0d
+	github.com/libp2p/go-libp2p-pubsub v0.3.4
 	github.com/libp2p/go-libp2p-quic-transport v0.7.1
 	github.com/libp2p/go-libp2p-record v0.1.3
 	github.com/libp2p/go-libp2p-routing-helpers v0.2.3
@@ -142,7 +143,7 @@ replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
-replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200811200142-b6ae0a747772
+replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200811234210-33f886fc8c29
 
 //replace github.com/filecoin-project/sector-storage => ../sector-storage
 
