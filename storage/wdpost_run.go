@@ -194,6 +194,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 	}
 
 	if rec.Receipt.ExitCode != 0 {
+		log.Infow("declare faults recovered exit non-0 ", rec.Receipt.ExitCode, "deadline", dlIdx, "cid", sm.Cid())
 		return xerrors.Errorf("declare faults recovered wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
 	log.Infow("declare faults recovered exit 0", "deadline", dlIdx, "cid", sm.Cid())
@@ -345,19 +346,42 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		// TODO: Can do this in parallel
 		toProve, err := partition.ActiveSectors()
 		if err != nil {
+			log.Warn(err)
 			return nil, xerrors.Errorf("getting active sectors: %w", err)
 		}
-		toProveCount, _ := toProve.Count()
-		recoverCount, _ := partition.Recoveries.Count()
-		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d", partIdx, toProveCount, recoverCount)
+		toProveCount, err := toProve.Count()
+		if err != nil {
+			log.Warn(err)
+		}
+		recoverCount, err := partition.Recoveries.Count()
+		if err != nil {
+			log.Warn(err)
+		}
+
+		tsc, err := partition.Sectors.Count()
+		if err != nil {
+			log.Warn(err)
+		}
+		tfc, err := partition.Faults.Count()
+		if err != nil {
+			log.Warn(err)
+		}
+		ttc, err := partition.Terminated.Count()
+		if err != nil {
+			log.Warn(err)
+		}
+
+		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d,tsc:%d,tfc:%d,ttc:%d", partIdx, toProveCount, recoverCount, tsc, tfc, ttc)
 
 		toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
 		if err != nil {
+			log.Warn(err)
 			return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
 		}
 
 		good, err := s.checkSectors(ctx, toProve)
 		if err != nil {
+			log.Warn(err)
 			return nil, xerrors.Errorf("checking sectors to skip: %w", err)
 		}
 		goodCount, _ := good.Count()
