@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"context"
-	"errors"
 	"time"
 
 	"github.com/filecoin-project/go-bitfield"
@@ -19,6 +18,8 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/types"
+
+	"github.com/gwaylib/errors"
 )
 
 var errNoPartitions = errors.New("no partitions")
@@ -194,6 +195,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 	}
 
 	if rec.Receipt.ExitCode != 0 {
+		log.Infow("declare faults recovered exit non-0 ", rec.Receipt.ExitCode, "deadline", dlIdx, "cid", sm.Cid())
 		return xerrors.Errorf("declare faults recovered wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
 	log.Infow("declare faults recovered exit 0", "deadline", dlIdx, "cid", sm.Cid())
@@ -345,19 +347,42 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 		// TODO: Can do this in parallel
 		toProve, err := partition.ActiveSectors()
 		if err != nil {
+			log.Warn(err)
 			return nil, xerrors.Errorf("getting active sectors: %w", err)
 		}
-		toProveCount, _ := toProve.Count()
-		recoverCount, _ := partition.Recoveries.Count()
-		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d", partIdx, toProveCount, recoverCount)
+		toProveCount, err := toProve.Count()
+		if err != nil {
+			log.Warn(err)
+		}
+		recoverCount, err := partition.Recoveries.Count()
+		if err != nil {
+			log.Warn(err)
+		}
+
+		tsc, err := partition.Sectors.Count()
+		if err != nil {
+			log.Warn(err)
+		}
+		tfc, err := partition.Faults.Count()
+		if err != nil {
+			log.Warn(err)
+		}
+		ttc, err := partition.Terminated.Count()
+		if err != nil {
+			log.Warn(err)
+		}
+
+		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d,tsc:%d,tfc:%d,ttc:%d", partIdx, toProveCount, recoverCount, tsc, tfc, ttc)
 
 		toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
 		if err != nil {
+			log.Warn(err)
 			return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
 		}
 
 		good, err := s.checkSectors(ctx, toProve)
 		if err != nil {
+			log.Warn(err)
 			return nil, xerrors.Errorf("checking sectors to skip: %w", err)
 		}
 		goodCount, _ := good.Count()
@@ -421,12 +446,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 
 	postOut, postSkipped, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, abi.PoStRandomness(rand))
 	if err != nil {
-		// retry.
-		// TODO: run two in parallel, and get the good to commit.
-		postOut, postSkipped, err = s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, abi.PoStRandomness(rand))
-		if err != nil {
-			return nil, xerrors.Errorf("running post failed: %w", err)
-		}
+		return nil, xerrors.Errorf("running post failed: %w", err)
 	}
 
 	if len(postOut) == 0 {
@@ -491,21 +511,21 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 		return xerrors.Errorf("pushing message to mpool: %w", err)
 	}
 
-	log.Infof("Submitted window post: %s", sm.Cid())
+	log.Infof("Submitting window post %d: %s", proof.Deadline, sm.Cid())
 
 	go func() {
 		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
 		if err != nil {
-			log.Error(err)
+			log.Error(errors.As(err, proof.Deadline))
 			return
 		}
 
 		if rec.Receipt.ExitCode == 0 {
-			log.Infof("Submitting window post %s success.", sm.Cid())
+			log.Infof("Submitting window post %d, %s success.", proof.Deadline, sm.Cid())
 			return
 		}
 
-		log.Errorf("Submitting window post %s failed: exit %d", sm.Cid(), rec.Receipt.ExitCode)
+		log.Errorf("Submitting window post %d, %s failed: exit %d", proof.Deadline, sm.Cid(), rec.Receipt.ExitCode)
 	}()
 
 	return nil
