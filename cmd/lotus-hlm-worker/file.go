@@ -186,8 +186,8 @@ func CopyFile(ctx context.Context, from, to string) error {
 		tCtx, cancel := context.WithTimeout(ctx, time.Hour)
 		if err := copyFile(tCtx, src, toFile); err != nil {
 			cancel()
-			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
 			// do retry
+			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
 			if err := copyFile(tCtx, src, toFile); err != nil {
 				cancel()
 				return errors.As(err)

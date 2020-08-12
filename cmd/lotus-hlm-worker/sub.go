@@ -270,19 +270,27 @@ func (w *worker) umountPush(sid, mountDir string) error {
 	delete(w.sealedMounted, sid)
 	mountedData, err := json.Marshal(w.sealedMounted)
 	if err != nil {
-		panic(err)
+		w.pushMu.Unlock()
+		return errors.As(err)
 	}
 	if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
-		panic(err)
+		w.pushMu.Unlock()
+		return errors.As(err)
 	}
 	w.pushMu.Unlock()
 	return nil
 }
 
+var (
+	pushCacheLk = sync.Mutex{}
+)
+
 func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
 	sid := task.GetSectorID()
 	log.Infof("PushCache:%+v", sid)
 	defer log.Infof("PushCache exit:%+v", sid)
+	pushCacheLk.Lock()
+	defer pushCacheLk.Unlock()
 
 	api, err := GetNodeApi()
 	if err != nil {
