@@ -134,6 +134,14 @@ func addConns(n int) {
 }
 
 func (f *StorageFileServer) FileHttpServer(w http.ResponseWriter, r *http.Request) {
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		// has checksum in go-jsonrpc
+		w.WriteHeader(401)
+		return
+	}
+
+	// auth
 	f.router.ServeHTTP(w, r)
 }
 
