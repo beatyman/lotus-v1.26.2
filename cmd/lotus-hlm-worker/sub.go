@@ -289,8 +289,10 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	sid := task.GetSectorID()
 	log.Infof("PushCache:%+v", sid)
 	defer log.Infof("PushCache exit:%+v", sid)
-	pushCacheLk.Lock()
-	defer pushCacheLk.Unlock()
+
+	// only can transfer one
+	//pushCacheLk.Lock()
+	//defer pushCacheLk.Unlock()
 
 	api, err := GetNodeApi()
 	if err != nil {
