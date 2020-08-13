@@ -149,7 +149,7 @@ func (w *worker) tryFetchParams(ctx context.Context, napi api.StorageMiner, endp
 			return errors.As(err)
 		}
 		// no worker online, get from miner
-		if minerConns > 3 {
+		if minerConns > 1 {
 			return errors.New("miner download connections full")
 		}
 		paramUri = "http://" + endpoint + PARAMS_PATH
