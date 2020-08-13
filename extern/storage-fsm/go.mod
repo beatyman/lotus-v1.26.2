@@ -12,6 +12,7 @@ require (
 	github.com/filecoin-project/sector-storage v0.0.0-20200712023225-1d67dcfa3c15
 	github.com/filecoin-project/specs-actors v0.7.3-0.20200716231407-60a2ae96d2e6
 	github.com/filecoin-project/specs-storage v0.1.1-0.20200622113353-88a9704877ea
+	github.com/gwaylib/errors v0.0.0-20190905023356-162e59439c92
 	github.com/ipfs/go-cid v0.0.6
 	github.com/ipfs/go-datastore v0.4.4
 	github.com/ipfs/go-hamt-ipld v0.0.15-0.20200204200533-99b8553ef242 // indirect
@@ -30,3 +31,7 @@ require (
 )
 
 replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v1.18.0
+
+//replace github.com/filecoin-project/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200720065745-1b0b52440b86
+
+replace github.com/filecoin-project/sector-storage => ../sector-storage

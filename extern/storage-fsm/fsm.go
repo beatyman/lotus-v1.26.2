@@ -11,7 +11,10 @@ import (
 	"golang.org/x/xerrors"
 
 	statemachine "github.com/filecoin-project/go-statemachine"
+	"github.com/filecoin-project/sector-storage/database"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/gwaylib/errors"
 )
 
 func (m *Sealing) Plan(events []statemachine.Event, user interface{}) (interface{}, uint64, error) {
@@ -131,6 +134,14 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 }
 
 func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(statemachine.Context, SectorInfo) error, error) {
+	// checking the sector state in hlm miner
+	if sInfo, err := database.GetSectorInfo(ffiwrapper.SectorName(m.minerSector(state.SectorNumber))); err != nil {
+		log.Warn(errors.As(err))
+	} else if state.SectorNumber > 0 && sInfo.State > database.SECTOR_STATE_DONE {
+		log.Infof("sector(%s,%d) state(%d,%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
+		return nil, nil
+	}
+
 	/////
 	// First process all events
 
