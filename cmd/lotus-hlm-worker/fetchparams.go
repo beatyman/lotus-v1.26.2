@@ -115,6 +115,7 @@ func (w *worker) FetchHlmParams(ctx context.Context, napi api.StorageMiner, endp
 
 func (w *worker) tryFetchParams(ctx context.Context, napi api.StorageMiner, endpoint, to string) error {
 	paramUri := ""
+	dlWorkerUsed := false
 	// try download from worker
 	dlWorker, err := napi.WorkerPreConn(ctx)
 	if err != nil {
@@ -124,13 +125,18 @@ func (w *worker) tryFetchParams(ctx context.Context, napi api.StorageMiner, endp
 		// pass, using miner's
 	} else {
 		if dlWorker.SvcConn < 2 {
+			dlWorkerUsed = true
 			paramUri = "http://" + dlWorker.SvcUri + PARAMS_PATH
-			defer napi.WorkerAddConn(ctx, dlWorker.ID, -1) // return preconn
 		} else {
 			napi.WorkerAddConn(ctx, dlWorker.ID, -1) // return preconn
 			// else using miner's
 		}
 	}
+	defer func() {
+		if dlWorkerUsed {
+			napi.WorkerAddConn(ctx, dlWorker.ID, -1) // return preconn
+		}
+	}()
 
 	// try download from miner
 	if len(paramUri) == 0 {
