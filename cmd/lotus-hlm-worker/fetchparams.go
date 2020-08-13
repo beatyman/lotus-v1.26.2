@@ -97,8 +97,10 @@ func (w *worker) FetchHlmParams(ctx context.Context, napi api.StorageMiner, endp
 	//if err := paramfetch.GetParams(ctx, build.ParametersJSON(), ssize); err != nil {
 	//	return errors.As(err)
 	//}
-	if err := checkParams(ctx, build.ParametersJSON(), ssize, to); err != nil {
-		return errors.As(err)
+	if err := checkParams(ctx, build.ParametersJSON(), ssize, to); err == nil {
+		return nil
+	} else {
+		log.Warn(errors.As(err))
 	}
 	for {
 		log.Info("try fetch hlm params")
