@@ -299,10 +299,6 @@ var runCmd = &cli.Command{
 			return errors.As(err)
 		}
 
-		//if err := paramfetch.GetParams(ctx, build.ParametersJSON(), uint64(ssize)); err != nil {
-		//	return xerrors.Errorf("get params: %w", err)
-		//}
-
 		if err := os.MkdirAll(r, 0755); err != nil {
 			return errors.As(err, r)
 		}
@@ -429,7 +425,7 @@ var runCmd = &cli.Command{
 		if err := acceptJobs(ctx,
 			workerSealer, sealedSB,
 			workerApi,
-			act, workerAddr,
+			uint64(ssize), act, workerAddr,
 			storageAddr, ainfo.AuthHeader(),
 			r, sealedRepo, sealedMountedFile,
 			workerCfg,

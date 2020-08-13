@@ -27,6 +27,7 @@ type worker struct {
 	sealedRepo    string
 	auth          http.Header
 
+	ssize   uint64
 	actAddr address.Address
 
 	workerSB  *ffiwrapper.Sealer
@@ -44,7 +45,7 @@ type worker struct {
 func acceptJobs(ctx context.Context,
 	workerSB, sealedSB *ffiwrapper.Sealer,
 	rpcServer *rpcServer,
-	act, workerAddr address.Address,
+	ssize uint64, act, workerAddr address.Address,
 	minerEndpoint string, auth http.Header,
 	repo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
@@ -59,6 +60,7 @@ func acceptJobs(ctx context.Context,
 		sealedRepo:    sealedRepo,
 		auth:          auth,
 
+		ssize:     ssize,
 		actAddr:   act,
 		workerSB:  workerSB,
 		rpcServer: rpcServer,
@@ -75,7 +77,7 @@ func acceptJobs(ctx context.Context,
 	if len(envParam) > 0 {
 		to = envParam
 	}
-	if err := w.FetchHlmParams(ctx, nodeApi, minerEndpoint, to); err != nil {
+	if err := w.FetchHlmParams(ctx, nodeApi, minerEndpoint, to, ssize); err != nil {
 		return errors.As(err)
 	}
 
