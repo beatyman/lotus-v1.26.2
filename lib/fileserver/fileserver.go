@@ -26,10 +26,9 @@ var (
 )
 
 type StorageFileServer struct {
-	repo   string
-	token  string
-	router *mux.Router
-	next   http.Handler
+	repo  string
+	token string
+	next  http.Handler
 }
 
 type StorageDirectory struct {
@@ -55,58 +54,10 @@ func (f *fileHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func NewStorageFileServer(repo, token string, next http.Handler) *StorageFileServer {
-	r := mux.NewRouter()
-	r.PathPrefix("/filecoin-proof-parameters").Handler(http.StripPrefix(
-		"/filecoin-proof-parameters",
-		&fileHandle{handler: http.FileServer(http.Dir("/var/tmp/filecoin-proof-parameters"))},
-	))
-
-	r.PathPrefix("/storage/cache").Handler(http.StripPrefix(
-		"/storage/cache",
-		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(repo, "cache")))},
-	))
-	r.PathPrefix("/storage/unsealed").Handler(http.StripPrefix(
-		"/storage/unsealed",
-		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(repo, "unsealed")))},
-	))
-	r.PathPrefix("/storage/sealed").Handler(http.StripPrefix(
-		"/storage/sealed",
-		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(repo, "sealed")))},
-	))
-
-	r.HandleFunc("/storage/delete", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("flags", "done")
-		// TODO: make auth
-		sid := r.FormValue("sid")
-
-		if len(sid) == 0 {
-			w.WriteHeader(404)
-			w.Write([]byte("sector id not found"))
-			return
-		}
-		log.Infof("try delete cache:%s", sid)
-		if err := os.RemoveAll(filepath.Join(repo, "cache", sid)); err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte("delete cache failed:" + err.Error()))
-			return
-		}
-		if err := os.RemoveAll(filepath.Join(repo, "sealed", sid)); err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte("delete sealed failed:" + err.Error()))
-			return
-		}
-		if err := os.RemoveAll(filepath.Join(repo, "unsealed", sid)); err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte("delete unsealed failed:" + err.Error()))
-			return
-		}
-	})
-
 	return &StorageFileServer{
-		repo:   repo,
-		token:  token,
-		router: r,
-		next:   next,
+		repo:  repo,
+		token: token,
+		next:  next,
 	}
 }
 
@@ -129,14 +80,12 @@ func (f *FileHandle) FileHttpServer(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: missing write permission"})
 		return
 	}
-
 	mu := mux.NewRouter()
 	//test
 	mu.PathPrefix("/file/filecoin-proof-parameters").Handler(http.StripPrefix(
 		"/file/filecoin-proof-parameters",
-		&fileHandle{handler: http.FileServer(http.Dir("/var/tmp/filecoin-proof-parameters"))},
+		&fileHandle{handler: http.FileServer(http.Dir("/var/tmp/filecoin-proof-parameters"))}, // TODO: get from env
 	))
-
 	mu.PathPrefix("/file/storage/cache").Handler(http.StripPrefix(
 		"/file/storage/cache",
 		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(f.Repo, "cache")))},

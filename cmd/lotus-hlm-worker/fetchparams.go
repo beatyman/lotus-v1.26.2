@@ -7,6 +7,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
+	"time"
+
 	//"path/filepath"
 
 	"github.com/filecoin-project/lotus/api"
@@ -14,7 +17,11 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-func FetchHlmParams(ctx context.Context, napi api.StorageMiner, endpoint string) error {
+const (
+	PARAMS_PATH = "/file/filecoin-proof-parameters"
+)
+
+func (w *worker) FetchHlmParams(ctx context.Context, napi api.StorageMiner, endpoint string) error {
 	paramUri := ""
 	// try download from worker
 	dlWorker, err := napi.WorkerPreConn(ctx)
@@ -25,7 +32,7 @@ func FetchHlmParams(ctx context.Context, napi api.StorageMiner, endpoint string)
 		// pass, using miner's
 	} else {
 		if dlWorker.SvcConn < 2 {
-			paramUri = dlWorker.SvcUri
+			paramUri = "http://" + dlWorker.SvcUri + PARAMS_PATH
 		}
 		// else using miner's
 	}
@@ -39,24 +46,24 @@ func FetchHlmParams(ctx context.Context, napi api.StorageMiner, endpoint string)
 		if minerConns > 10 {
 			return errors.New("miner download connections full")
 		}
-		paramUri = "http://" + endpoint
+		paramUri = "http://" + endpoint + PARAMS_PATH
 	}
 
 	for {
 		log.Info("try fetch hlm params")
-		//		if err := fetchParams(paramUri, "/var/tmp/filecoin-proof-parameters"); err != nil {
-		//			log.Warn(errors.As(err))
-		//			time.Sleep(10e9)
-		//			continue
-		//		}
+		if err := w.tryFetchParams(paramUri, "/var/tmp/filecoin-proof-parameters"); err != nil {
+			log.Warn(errors.As(err))
+			time.Sleep(10e9)
+			continue
+		}
 		return nil
 	}
 }
 
-func fetchParams(serverUri, to string) error {
+func (w *worker) tryFetchParams(serverUri, to string) error {
 	var err error
 	for i := 0; i < 3; i++ {
-		err = tryFetchParams(serverUri, to)
+		err = w.fetchParams(serverUri, to)
 		if err != nil {
 			log.Warn(errors.As(err, serverUri, to))
 			continue
@@ -65,7 +72,8 @@ func fetchParams(serverUri, to string) error {
 	}
 	return err
 }
-func tryFetchParams(serverUri, to string) error {
+
+func (w *worker) fetchParams(serverUri, to string) error {
 	// fetch cache
 	cacheResp, err := http.Get(fmt.Sprintf("%s/filecoin-proof-parameters/", serverUri))
 	if err != nil {
@@ -86,13 +94,15 @@ func tryFetchParams(serverUri, to string) error {
 	if err := os.MkdirAll(to, 0755); err != nil {
 		return errors.As(err)
 	}
-	//for _, file := range cacheDir.Files {
-	//		if err := fetchFile(
-	//			fmt.Sprintf("%s/filecoin-proof-parameters/%s", serverUri, file.Value),
-	//			filepath.Join(to, file.Value),
-	//		); err != nil {
-	//			return errors.As(err)
-	//		}
-	//}
+	for _, file := range cacheDir.Files {
+		from := fmt.Sprintf("%s/filecoin-proof-parameters/%s", serverUri, file.Value)
+		to := filepath.Join(to, file.Value)
+		if err := w.fetchRemoteFile(
+			from,
+			to,
+		); err != nil {
+			return errors.As(err)
+		}
+	}
 	return nil
 }

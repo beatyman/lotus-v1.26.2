@@ -45,7 +45,7 @@ func acceptJobs(ctx context.Context,
 	workerSB, sealedSB *ffiwrapper.Sealer,
 	rpcServer *rpcServer,
 	act, workerAddr address.Address,
-	endpoint string, auth http.Header,
+	minerEndpoint string, auth http.Header,
 	repo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
@@ -54,7 +54,7 @@ func acceptJobs(ctx context.Context,
 		return errors.As(err)
 	}
 	w := &worker{
-		minerEndpoint: endpoint,
+		minerEndpoint: minerEndpoint,
 		repo:          repo,
 		sealedRepo:    sealedRepo,
 		auth:          auth,
@@ -69,6 +69,12 @@ func acceptJobs(ctx context.Context,
 		sealedMounted:     map[string]string{},
 		sealedMountedFile: mountedFile,
 	}
+	// fetch parameters from hlm
+	// TODO: need more develop time
+	if err := w.FetchHlmParams(ctx, nodeApi, minerEndpoint); err != nil {
+		return errors.As(err)
+	}
+
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
 		return errors.As(err)

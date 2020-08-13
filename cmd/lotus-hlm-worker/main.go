@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
-	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/sector-storage/ffiwrapper/basicfs"
@@ -300,15 +299,9 @@ var runCmd = &cli.Command{
 			return errors.As(err)
 		}
 
-		// fetch parameters from hlm
-		// TODO: need more develop time
-		//if err := FetchHlmParams(ctx, nodeApi, storageAddr); err != nil {
-		//	return errors.As(err)
+		//if err := paramfetch.GetParams(ctx, build.ParametersJSON(), uint64(ssize)); err != nil {
+		//	return xerrors.Errorf("get params: %w", err)
 		//}
-
-		if err := paramfetch.GetParams(ctx, build.ParametersJSON(), uint64(ssize)); err != nil {
-			return xerrors.Errorf("get params: %w", err)
-		}
 
 		if err := os.MkdirAll(r, 0755); err != nil {
 			return errors.As(err, r)
