@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/sector-storage/stores"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gorilla/mux"
@@ -135,12 +134,15 @@ func addConns(n int) {
 }
 
 func (f *StorageFileServer) FileHttpServer(w http.ResponseWriter, r *http.Request) {
-	// auth
-	unVerify := auth.Permission("NoVerify")
-	if auth.HasPerm(r.Context(), []auth.Permission{unVerify}, unVerify) {
-		w.WriteHeader(401)
-		return
-	}
+	// TODO: auth
+	//data, _ := httputil.DumpRequest(r, true)
+	//log.Info(string(data))
+	//// auth
+	//unVerify := auth.Permission("NoVerify")
+	//if auth.HasPerm(r.Context(), []auth.Permission{unVerify}, unVerify) {
+	//	w.WriteHeader(401)
+	//	return
+	//}
 
 	f.router.ServeHTTP(w, r)
 }

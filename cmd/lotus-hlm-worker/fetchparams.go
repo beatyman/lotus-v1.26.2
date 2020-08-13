@@ -75,7 +75,7 @@ func (w *worker) tryFetchParams(serverUri, to string) error {
 
 func (w *worker) fetchParams(serverUri, to string) error {
 	// fetch cache
-	cacheResp, err := http.Get(fmt.Sprintf("%s/filecoin-proof-parameters/", serverUri))
+	cacheResp, err := http.Get(serverUri)
 	if err != nil {
 		return errors.As(err)
 	}
@@ -95,7 +95,7 @@ func (w *worker) fetchParams(serverUri, to string) error {
 		return errors.As(err)
 	}
 	for _, file := range cacheDir.Files {
-		from := fmt.Sprintf("%s/filecoin-proof-parameters/%s", serverUri, file.Value)
+		from := fmt.Sprintf("%s/%s", serverUri, file.Value)
 		to := filepath.Join(to, file.Value)
 		if err := w.fetchRemoteFile(
 			from,
