@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
-	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/sector-storage/ffiwrapper/basicfs"
@@ -300,16 +299,6 @@ var runCmd = &cli.Command{
 			return errors.As(err)
 		}
 
-		// fetch parameters from hlm
-		// TODO: need more develop time
-		//if err := FetchHlmParams(ctx, nodeApi, storageAddr); err != nil {
-		//	return errors.As(err)
-		//}
-
-		if err := paramfetch.GetParams(ctx, build.ParametersJSON(), uint64(ssize)); err != nil {
-			return xerrors.Errorf("get params: %w", err)
-		}
-
 		if err := os.MkdirAll(r, 0755); err != nil {
 			return errors.As(err, r)
 		}
@@ -403,7 +392,7 @@ var runCmd = &cli.Command{
 		rpcServer := jsonrpc.NewServer()
 		rpcServer.Register("Filecoin", apistruct.PermissionedWorkerHlmAPI(workerApi))
 		mux.Handle("/rpc/v0", rpcServer)
-		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: r}).FileHttpServer)
+		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(r).FileHttpServer)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
 		ah := &auth.Handler{
@@ -436,7 +425,7 @@ var runCmd = &cli.Command{
 		if err := acceptJobs(ctx,
 			workerSealer, sealedSB,
 			workerApi,
-			act, workerAddr,
+			uint64(ssize), act, workerAddr,
 			storageAddr, ainfo.AuthHeader(),
 			r, sealedRepo, sealedMountedFile,
 			workerCfg,

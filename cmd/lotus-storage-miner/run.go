@@ -122,10 +122,6 @@ var runCmd = &cli.Command{
 		if err := database.ClearStorageWork(); err != nil {
 			return errors.As(err)
 		}
-		defer func() {
-			log.Info("RollbackAllStorageTx by program exit.")
-			database.RollbackAllStorageTx()
-		}()
 		// checking sealed for proof
 		if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
 			return errors.As(err)
@@ -180,7 +176,7 @@ var runCmd = &cli.Command{
 
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)
-		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: minerRepoPath}).FileHttpServer)
+		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(minerRepoPath).FileHttpServer)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
 		ah := &auth.Handler{

@@ -6,6 +6,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-statemachine"
+	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 )
 
@@ -163,6 +164,7 @@ func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo
 		}
 	}
 
+	log.Infof("checkCommit:%d,%+v", ffiwrapper.SectorName(m.minerSector(sector.SectorNumber)), sector.Proof)
 	if err := m.checkCommit(ctx.Context(), sector, sector.Proof, tok); err != nil {
 		switch err.(type) {
 		case *ErrApi:

@@ -148,6 +148,7 @@ func copyFile(ctx context.Context, from, to string) error {
 	interrupt := false
 	iLock := sync.Mutex{}
 	go func() {
+		buf := make([]byte, 32*1024)
 		for {
 			iLock.Lock()
 			if interrupt {
@@ -156,8 +157,20 @@ func copyFile(ctx context.Context, from, to string) error {
 			}
 			iLock.Unlock()
 
-			if _, err := io.CopyN(toFile, fromFile, 32*1024); err != nil {
-				errBuff <- errors.As(err)
+			nr, er := fromFile.Read(buf)
+			if nr > 0 {
+				nw, ew := toFile.Write(buf[0:nr])
+				if ew != nil {
+					errBuff <- errors.As(ew)
+					return
+				}
+				if nr != nw {
+					errBuff <- errors.As(io.ErrShortWrite)
+					return
+				}
+			}
+			if er != nil {
+				errBuff <- errors.As(er)
 				return
 			}
 		}
@@ -186,8 +199,8 @@ func CopyFile(ctx context.Context, from, to string) error {
 		tCtx, cancel := context.WithTimeout(ctx, time.Hour)
 		if err := copyFile(tCtx, src, toFile); err != nil {
 			cancel()
-			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
 			// do retry
+			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
 			if err := copyFile(tCtx, src, toFile); err != nil {
 				cancel()
 				return errors.As(err)

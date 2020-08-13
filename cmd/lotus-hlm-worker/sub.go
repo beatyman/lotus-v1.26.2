@@ -27,6 +27,7 @@ type worker struct {
 	sealedRepo    string
 	auth          http.Header
 
+	ssize   uint64
 	actAddr address.Address
 
 	workerSB  *ffiwrapper.Sealer
@@ -44,8 +45,8 @@ type worker struct {
 func acceptJobs(ctx context.Context,
 	workerSB, sealedSB *ffiwrapper.Sealer,
 	rpcServer *rpcServer,
-	act, workerAddr address.Address,
-	endpoint string, auth http.Header,
+	ssize uint64, act, workerAddr address.Address,
+	minerEndpoint string, auth http.Header,
 	repo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
@@ -54,11 +55,12 @@ func acceptJobs(ctx context.Context,
 		return errors.As(err)
 	}
 	w := &worker{
-		minerEndpoint: endpoint,
+		minerEndpoint: minerEndpoint,
 		repo:          repo,
 		sealedRepo:    sealedRepo,
 		auth:          auth,
 
+		ssize:     ssize,
 		actAddr:   act,
 		workerSB:  workerSB,
 		rpcServer: rpcServer,
@@ -69,6 +71,16 @@ func acceptJobs(ctx context.Context,
 		sealedMounted:     map[string]string{},
 		sealedMountedFile: mountedFile,
 	}
+	// fetch parameters from miner
+	to := "/var/tmp/filecoin-proof-parameters"
+	envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
+	if len(envParam) > 0 {
+		to = envParam
+	}
+	if err := w.FetchHlmParams(ctx, nodeApi, minerEndpoint, to, ssize); err != nil {
+		return errors.As(err)
+	}
+
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
 		return errors.As(err)
@@ -270,19 +282,29 @@ func (w *worker) umountPush(sid, mountDir string) error {
 	delete(w.sealedMounted, sid)
 	mountedData, err := json.Marshal(w.sealedMounted)
 	if err != nil {
-		panic(err)
+		w.pushMu.Unlock()
+		return errors.As(err)
 	}
 	if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
-		panic(err)
+		w.pushMu.Unlock()
+		return errors.As(err)
 	}
 	w.pushMu.Unlock()
 	return nil
 }
 
+var (
+	pushCacheLk = sync.Mutex{}
+)
+
 func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
 	sid := task.GetSectorID()
 	log.Infof("PushCache:%+v", sid)
 	defer log.Infof("PushCache exit:%+v", sid)
+
+	// only can transfer one
+	//pushCacheLk.Lock()
+	//defer pushCacheLk.Unlock()
 
 	api, err := GetNodeApi()
 	if err != nil {
@@ -461,9 +483,11 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 	retryFetch:
 		// fetch data
+		fromMiner := false
 		uri := task.SectorStorage.WorkerInfo.SvcUri
 		if len(uri) == 0 {
 			uri = w.minerEndpoint
+			fromMiner = true
 		}
 		if err := w.fetchRemote(
 			"http://"+uri,
@@ -479,13 +503,17 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			ReleaseNodeApi(false)
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
-		// release the storage cache
-		log.Infof("fetch %s done, try delete remote files.", task.Key())
-		if err := w.deleteRemoteCache(
-			"http://"+uri,
-			task.SectorStorage.SectorInfo.ID,
-		); err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
+		// keep unseal data from miner
+		if !fromMiner {
+			// release the storage cache
+			log.Infof("fetch %s done, try delete remote files.", task.Key())
+			if err := w.deleteRemoteCache(
+				"http://"+uri,
+				task.SectorStorage.SectorInfo.ID,
+				"all",
+			); err != nil {
+				return errRes(errors.As(err, w.workerCfg), task)
+			}
 		}
 	}
 	// lock the task to this worker

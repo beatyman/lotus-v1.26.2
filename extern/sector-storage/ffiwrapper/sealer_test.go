@@ -266,7 +266,7 @@ func TestSealAndVerify(t *testing.T) {
 	sp := &basicfs.Provider{
 		Root: cdir,
 	}
-	sb, err := New(sp, cfg)
+	sb, err := New(false, sp, cfg)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -336,7 +336,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	sp := &basicfs.Provider{
 		Root: dir,
 	}
-	sb, err := New(sp, cfg)
+	sb, err := New(false, sp, cfg)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -398,7 +398,7 @@ func TestSealAndVerify2(t *testing.T) {
 	sp := &basicfs.Provider{
 		Root: dir,
 	}
-	sb, err := New(sp, cfg)
+	sb, err := New(false, sp, cfg)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}

@@ -416,7 +416,15 @@ var sectorsUpdateCmd = &cli.Command{
 			return xerrors.Errorf("could not parse sector number: %w", err)
 		}
 
-		return nodeApi.SectorsUpdate(ctx, abi.SectorNumber(id), api.SectorState(cctx.Args().Get(1)))
+		state := cctx.Args().Get(1)
+		switch state {
+		case "PreCommit1", "Committing", "FinalizeSector":
+			// pass
+		default:
+			return xerrors.Errorf("Not in support state")
+		}
+
+		return nodeApi.SectorsUpdate(ctx, abi.SectorNumber(id), api.SectorState(state))
 	},
 }
 
