@@ -105,7 +105,7 @@ func (w *worker) FetchHlmParams(ctx context.Context, napi api.StorageMiner, endp
 	for {
 		log.Info("try fetch hlm params")
 		if err := w.tryFetchParams(ctx, napi, endpoint, to); err != nil {
-			log.Warn(errors.As(err))
+			log.Info(errors.As(err))
 			time.Sleep(10e9)
 			continue
 		}
@@ -149,7 +149,7 @@ func (w *worker) tryFetchParams(ctx context.Context, napi api.StorageMiner, endp
 	for i := 0; i < 3; i++ {
 		err = w.fetchParams(paramUri, to)
 		if err != nil {
-			log.Warn(errors.As(err, paramUri, to))
+			log.Info(errors.As(err, paramUri, to))
 			continue
 		}
 		return nil
