@@ -21,7 +21,19 @@ const (
 	PARAMS_PATH = "/file/filecoin-proof-parameters"
 )
 
-func (w *worker) FetchHlmParams(ctx context.Context, napi api.StorageMiner, endpoint string) error {
+func (w *worker) FetchHlmParams(ctx context.Context, napi api.StorageMiner, endpoint, to string) error {
+	for {
+		log.Info("try fetch hlm params")
+		if err := w.tryFetchParams(ctx, napi, endpoint, to); err != nil {
+			log.Warn(errors.As(err))
+			time.Sleep(10e9)
+			continue
+		}
+		return nil
+	}
+}
+
+func (w *worker) tryFetchParams(ctx context.Context, napi api.StorageMiner, endpoint, to string) error {
 	paramUri := ""
 	// try download from worker
 	dlWorker, err := napi.WorkerPreConn(ctx)
@@ -33,9 +45,13 @@ func (w *worker) FetchHlmParams(ctx context.Context, napi api.StorageMiner, endp
 	} else {
 		if dlWorker.SvcConn < 2 {
 			paramUri = "http://" + dlWorker.SvcUri + PARAMS_PATH
+			defer napi.WorkerAddConn(ctx, dlWorker.ID, -1) // return preconn
+		} else {
+			napi.WorkerAddConn(ctx, dlWorker.ID, -1) // return preconn
+			// else using miner's
 		}
-		// else using miner's
 	}
+
 	// try download from miner
 	if len(paramUri) == 0 {
 		minerConns, err := napi.WorkerMinerConn(ctx)
@@ -43,29 +59,17 @@ func (w *worker) FetchHlmParams(ctx context.Context, napi api.StorageMiner, endp
 			return errors.As(err)
 		}
 		// no worker online, get from miner
-		if minerConns > 10 {
+		if minerConns > 3 {
 			return errors.New("miner download connections full")
 		}
 		paramUri = "http://" + endpoint + PARAMS_PATH
 	}
 
-	for {
-		log.Info("try fetch hlm params")
-		if err := w.tryFetchParams(paramUri, "/var/tmp/filecoin-proof-parameters"); err != nil {
-			log.Warn(errors.As(err))
-			time.Sleep(10e9)
-			continue
-		}
-		return nil
-	}
-}
-
-func (w *worker) tryFetchParams(serverUri, to string) error {
-	var err error
+	err = nil
 	for i := 0; i < 3; i++ {
-		err = w.fetchParams(serverUri, to)
+		err = w.fetchParams(paramUri, to)
 		if err != nil {
-			log.Warn(errors.As(err, serverUri, to))
+			log.Warn(errors.As(err, paramUri, to))
 			continue
 		}
 		return nil
