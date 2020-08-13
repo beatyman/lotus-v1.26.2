@@ -19,10 +19,10 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-func (w *worker) deleteRemoteCache(uri, sid string) error {
+func (w *worker) deleteRemoteCache(uri, sid, typ string) error {
 	data := url.Values{}
 	data.Set("sid", sid)
-	data.Set("type", "all")
+	data.Set("type", typ)
 	url := fmt.Sprintf("%s/file/storage/delete", uri)
 	//log.Info("url:", url)
 	req, err := http.NewRequest("POST", url, strings.NewReader(data.Encode()))

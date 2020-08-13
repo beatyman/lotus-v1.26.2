@@ -396,7 +396,7 @@ var runCmd = &cli.Command{
 		rpcServer := jsonrpc.NewServer()
 		rpcServer.Register("Filecoin", apistruct.PermissionedWorkerHlmAPI(workerApi))
 		mux.Handle("/rpc/v0", rpcServer)
-		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: r}).FileHttpServer)
+		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(r).FileHttpServer)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
 		ah := &auth.Handler{

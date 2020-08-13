@@ -477,9 +477,11 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 	retryFetch:
 		// fetch data
+		fromMiner := false
 		uri := task.SectorStorage.WorkerInfo.SvcUri
 		if len(uri) == 0 {
 			uri = w.minerEndpoint
+			fromMiner = true
 		}
 		if err := w.fetchRemote(
 			"http://"+uri,
@@ -495,13 +497,17 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			ReleaseNodeApi(false)
 			return errRes(errors.As(err, w.workerCfg), task)
 		}
-		// release the storage cache
-		log.Infof("fetch %s done, try delete remote files.", task.Key())
-		if err := w.deleteRemoteCache(
-			"http://"+uri,
-			task.SectorStorage.SectorInfo.ID,
-		); err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
+		// keep unseal data from miner
+		if !fromMiner {
+			// release the storage cache
+			log.Infof("fetch %s done, try delete remote files.", task.Key())
+			if err := w.deleteRemoteCache(
+				"http://"+uri,
+				task.SectorStorage.SectorInfo.ID,
+				"all",
+			); err != nil {
+				return errRes(errors.As(err, w.workerCfg), task)
+			}
 		}
 	}
 	// lock the task to this worker

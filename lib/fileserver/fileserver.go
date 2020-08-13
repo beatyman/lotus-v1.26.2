@@ -47,7 +47,7 @@ func (f *fileHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.handler.ServeHTTP(w, r)
 }
 
-func NewStorageFileServer(repo, token string, next http.Handler) *StorageFileServer {
+func NewStorageFileServer(repo string) *StorageFileServer {
 	mu := mux.NewRouter()
 	//test
 	mu.PathPrefix("/file/filecoin-proof-parameters").Handler(http.StripPrefix(
@@ -113,9 +113,7 @@ func NewStorageFileServer(repo, token string, next http.Handler) *StorageFileSer
 
 	return &StorageFileServer{
 		repo:   repo,
-		token:  token,
 		router: mu,
-		next:   next,
 	}
 }
 
