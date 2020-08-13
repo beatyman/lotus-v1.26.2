@@ -50,10 +50,14 @@ func (f *fileHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func NewStorageFileServer(repo string) *StorageFileServer {
 	mu := mux.NewRouter()
+	paramsPath := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
+	if len(paramsPath) == 0 {
+		paramsPath = "/var/tmp/filecoin-proof-parameters"
+	}
 	//test
 	mu.PathPrefix("/file/filecoin-proof-parameters").Handler(http.StripPrefix(
 		"/file/filecoin-proof-parameters",
-		&fileHandle{handler: http.FileServer(http.Dir("/var/tmp/filecoin-proof-parameters"))}, // TODO: get from env
+		&fileHandle{handler: http.FileServer(http.Dir(paramsPath))}, // TODO: get from env
 	))
 	mu.PathPrefix("/file/storage/cache").Handler(http.StripPrefix(
 		"/file/storage/cache",

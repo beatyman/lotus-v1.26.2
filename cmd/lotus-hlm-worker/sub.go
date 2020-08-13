@@ -69,9 +69,13 @@ func acceptJobs(ctx context.Context,
 		sealedMounted:     map[string]string{},
 		sealedMountedFile: mountedFile,
 	}
-	// fetch parameters from hlm
-	// TODO: get from env
-	if err := w.FetchHlmParams(ctx, nodeApi, minerEndpoint, "/var/tmp/filecoin-proof-parameters"); err != nil {
+	// fetch parameters from miner
+	to := "/var/tmp/filecoin-proof-parameters"
+	envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
+	if len(envParam) > 0 {
+		to = envParam
+	}
+	if err := w.FetchHlmParams(ctx, nodeApi, minerEndpoint, to); err != nil {
 		return errors.As(err)
 	}
 
