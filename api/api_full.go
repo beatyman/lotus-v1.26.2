@@ -21,6 +21,7 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 
 	"github.com/filecoin-project/lotus/chain/types"
+	marketevents "github.com/filecoin-project/lotus/markets/loggers"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 )
 
@@ -39,8 +40,11 @@ type FullNode interface {
 	// ChainHead returns the current head of the chain.
 	ChainHead(context.Context) (*types.TipSet, error)
 
-	// ChainGetRandomness is used to sample the chain for randomness.
-	ChainGetRandomness(ctx context.Context, tsk types.TipSetKey, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error)
+	// ChainGetRandomnessFromTickets is used to sample the chain for randomness.
+	ChainGetRandomnessFromTickets(ctx context.Context, tsk types.TipSetKey, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error)
+
+	// ChainGetRandomnessFromBeacon is used to sample the beacon for randomness.
+	ChainGetRandomnessFromBeacon(ctx context.Context, tsk types.TipSetKey, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error)
 
 	// ChainGetBlock returns the block specified by the given CID.
 	ChainGetBlock(context.Context, cid.Cid) (*types.BlockHeader, error)
@@ -161,14 +165,18 @@ type FullNode interface {
 	MpoolPending(context.Context, types.TipSetKey) ([]*types.SignedMessage, error)
 
 	// MpoolSelect returns a list of pending messages for inclusion in the next block
-	MpoolSelect(context.Context, types.TipSetKey) ([]*types.SignedMessage, error)
+	MpoolSelect(context.Context, types.TipSetKey, float64) ([]*types.SignedMessage, error)
 
 	// MpoolPush pushes a signed message to mempool.
 	MpoolPush(context.Context, *types.SignedMessage) (cid.Cid, error)
 
 	// MpoolPushMessage atomically assigns a nonce, signs, and pushes a message
 	// to mempool.
-	MpoolPushMessage(context.Context, *types.Message) (*types.SignedMessage, error)
+	// maxFee is only used when GasFeeCap/GasPremium fields aren't specified
+	//
+	// When maxFee is set to 0, MpoolPushMessage will guess appropriate fee
+	// based on current chain conditions
+	MpoolPushMessage(ctx context.Context, msg *types.Message, spec *MessageSendSpec) (*types.SignedMessage, error)
 
 	// MpoolGetNonce gets next nonce for the specified sender.
 	// Note that this method may not be atomic. Use MpoolPushMessage instead.
@@ -239,11 +247,11 @@ type FullNode interface {
 	// ClientMinerQueryOffer returns a QueryOffer for the specific miner and file.
 	ClientMinerQueryOffer(ctx context.Context, miner address.Address, root cid.Cid, piece *cid.Cid) (QueryOffer, error)
 	// ClientRetrieve initiates the retrieval of a file, as specified in the order.
-	ClientRetrieve(ctx context.Context, order RetrievalOrder, ref *FileRef) error
+	ClientRetrieve(ctx context.Context, order RetrievalOrder, ref *FileRef) (<-chan marketevents.RetrievalEvent, error)
 	// ClientQueryAsk returns a signed StorageAsk from the specified miner.
 	ClientQueryAsk(ctx context.Context, p peer.ID, miner address.Address) (*storagemarket.SignedStorageAsk, error)
-	// ClientCalcCommP calculates the CommP for a specified file, based on the sector size of the provided miner.
-	ClientCalcCommP(ctx context.Context, inpath string, miner address.Address) (*CommPRet, error)
+	// ClientCalcCommP calculates the CommP for a specified file
+	ClientCalcCommP(ctx context.Context, inpath string) (*CommPRet, error)
 	// ClientGenCar generates a CAR file for the specified file.
 	ClientGenCar(ctx context.Context, ref FileRef, outpath string) error
 	// ClientDealSize calculates real deal data size
@@ -293,11 +301,11 @@ type FullNode interface {
 	// StateMinerPartitions loads miner partitions for the specified miner/deadline
 	StateMinerPartitions(context.Context, address.Address, uint64, types.TipSetKey) ([]*miner.Partition, error)
 	// StateMinerFaults returns a bitfield indicating the faulty sectors of the given miner
-	StateMinerFaults(context.Context, address.Address, types.TipSetKey) (*abi.BitField, error)
+	StateMinerFaults(context.Context, address.Address, types.TipSetKey) (abi.BitField, error)
 	// StateAllMinerFaults returns all non-expired Faults that occur within lookback epochs of the given tipset
 	StateAllMinerFaults(ctx context.Context, lookback abi.ChainEpoch, ts types.TipSetKey) ([]*Fault, error)
 	// StateMinerRecoveries returns a bitfield indicating the recovering sectors of the given miner
-	StateMinerRecoveries(context.Context, address.Address, types.TipSetKey) (*abi.BitField, error)
+	StateMinerRecoveries(context.Context, address.Address, types.TipSetKey) (abi.BitField, error)
 	// StateMinerInitialPledgeCollateral returns the precommit deposit for the specified miner's sector
 	StateMinerPreCommitDepositForPower(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (types.BigInt, error)
 	// StateMinerInitialPledgeCollateral returns the initial pledge collateral for the specified miner's sector
@@ -399,7 +407,7 @@ type FullNode interface {
 	// The Paych methods are for interacting with and managing payment channels
 
 	PaychGet(ctx context.Context, from, to address.Address, amt types.BigInt) (*ChannelInfo, error)
-	PaychGetWaitReady(context.Context, PaychWaitSentinel) (address.Address, error)
+	PaychGetWaitReady(context.Context, cid.Cid) (address.Address, error)
 	PaychList(context.Context) ([]address.Address, error)
 	PaychStatus(context.Context, address.Address) (*PaychStatus, error)
 	PaychSettle(context.Context, address.Address) (cid.Cid, error)
@@ -510,16 +518,14 @@ type PaychStatus struct {
 	Direction   PCHDir
 }
 
-type PaychWaitSentinel cid.Cid
-
 type ChannelInfo struct {
 	Channel      address.Address
-	WaitSentinel PaychWaitSentinel
+	WaitSentinel cid.Cid
 }
 
 type PaymentInfo struct {
 	Channel      address.Address
-	WaitSentinel PaychWaitSentinel
+	WaitSentinel cid.Cid
 	Vouchers     []*paych.SignedVoucher
 }
 
