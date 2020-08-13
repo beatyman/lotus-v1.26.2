@@ -1,7 +1,6 @@
 package fileserver
 
 import (
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"net/http"
@@ -9,8 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/filecoin-project/go-jsonrpc/auth"
-	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/sector-storage/stores"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gorilla/mux"
@@ -26,9 +23,10 @@ var (
 )
 
 type StorageFileServer struct {
-	repo  string
-	token string
-	next  http.Handler
+	repo   string
+	token  string
+	router *mux.Router
+	next   http.Handler
 }
 
 type StorageDirectory struct {
@@ -43,10 +41,6 @@ type fileHandle struct {
 	handler http.Handler
 }
 
-type FileHandle struct {
-	Repo string
-}
-
 func (f *fileHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	addConns(1)
 	defer addConns(-1)
@@ -54,32 +48,6 @@ func (f *fileHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func NewStorageFileServer(repo, token string, next http.Handler) *StorageFileServer {
-	return &StorageFileServer{
-		repo:  repo,
-		token: token,
-		next:  next,
-	}
-}
-
-func Conns() int {
-	_connMux.Lock()
-	defer _connMux.Unlock()
-	return _conns
-}
-func addConns(n int) {
-	_connMux.Lock()
-	defer _connMux.Unlock()
-	_conns += n
-}
-
-func (f *FileHandle) FileHttpServer(w http.ResponseWriter, r *http.Request) {
-	// auth
-	//fmt.Println("testing fileServer")
-	if !auth.HasPerm(r.Context(), nil, apistruct.PermAdmin) {
-		w.WriteHeader(401)
-		json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: missing write permission"})
-		return
-	}
 	mu := mux.NewRouter()
 	//test
 	mu.PathPrefix("/file/filecoin-proof-parameters").Handler(http.StripPrefix(
@@ -88,15 +56,15 @@ func (f *FileHandle) FileHttpServer(w http.ResponseWriter, r *http.Request) {
 	))
 	mu.PathPrefix("/file/storage/cache").Handler(http.StripPrefix(
 		"/file/storage/cache",
-		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(f.Repo, "cache")))},
+		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(repo, "cache")))},
 	))
 	mu.PathPrefix("/file/storage/unsealed").Handler(http.StripPrefix(
 		"/file/storage/unsealed",
-		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(f.Repo, "unsealed")))},
+		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(repo, "unsealed")))},
 	))
 	mu.PathPrefix("/file/storage/sealed").Handler(http.StripPrefix(
 		"/file/storage/sealed",
-		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(f.Repo, "sealed")))},
+		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(repo, "sealed")))},
 	))
 
 	mu.HandleFunc("/file/storage/delete", func(w http.ResponseWriter, r *http.Request) {
@@ -118,23 +86,23 @@ func (f *FileHandle) FileHttpServer(w http.ResponseWriter, r *http.Request) {
 		}
 		if ft == "all" {
 			//log.Infof("try delete cache:%s", sid)
-			if err := os.RemoveAll(filepath.Join(f.Repo, "cache", sid)); err != nil {
+			if err := os.RemoveAll(filepath.Join(repo, "cache", sid)); err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte("delete cache failed:" + err.Error()))
 				return
 			}
-			if err := os.RemoveAll(filepath.Join(f.Repo, "sealed", sid)); err != nil {
+			if err := os.RemoveAll(filepath.Join(repo, "sealed", sid)); err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte("delete sealed failed:" + err.Error()))
 				return
 			}
-			if err := os.RemoveAll(filepath.Join(f.Repo, "unsealed", sid)); err != nil {
+			if err := os.RemoveAll(filepath.Join(repo, "unsealed", sid)); err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte("delete unsealed failed:" + err.Error()))
 				return
 			}
 		} else {
-			path := filepath.Join(f.Repo, ft, sid)
+			path := filepath.Join(repo, ft, sid)
 			if err := os.RemoveAll(path); err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte("delete cache failed:" + err.Error()))
@@ -143,7 +111,27 @@ func (f *FileHandle) FileHttpServer(w http.ResponseWriter, r *http.Request) {
 		}
 	})
 
-	mu.ServeHTTP(w, r)
+	return &StorageFileServer{
+		repo:   repo,
+		token:  token,
+		router: mu,
+		next:   next,
+	}
+}
+
+func Conns() int {
+	_connMux.Lock()
+	defer _connMux.Unlock()
+	return _conns
+}
+func addConns(n int) {
+	_connMux.Lock()
+	defer _connMux.Unlock()
+	_conns += n
+}
+
+func (f *StorageFileServer) FileHttpServer(w http.ResponseWriter, r *http.Request) {
+	f.router.ServeHTTP(w, r)
 }
 
 func parseSectorID(baseName string) (string, error) {
