@@ -50,10 +50,6 @@ func acceptJobs(ctx context.Context,
 	repo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
-	api, err := GetNodeApi()
-	if err != nil {
-		return errors.As(err)
-	}
 	w := &worker{
 		minerEndpoint: minerEndpoint,
 		repo:          repo,
@@ -77,10 +73,14 @@ func acceptJobs(ctx context.Context,
 	if len(envParam) > 0 {
 		to = envParam
 	}
-	if err := w.FetchHlmParams(ctx, nodeApi, minerEndpoint, to, ssize); err != nil {
+	if err := w.FetchHlmParams(ctx, minerEndpoint, to, ssize); err != nil {
 		return errors.As(err)
 	}
 
+	api, err := GetNodeApi()
+	if err != nil {
+		return errors.As(err)
+	}
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
 		return errors.As(err)

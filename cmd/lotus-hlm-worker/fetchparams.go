@@ -93,7 +93,7 @@ func checkFile(path string, info paramFile) error {
 	return xerrors.Errorf("checksum mismatch in param file %s, %s != %s", path, strSum, info.Digest)
 }
 
-func (w *worker) FetchHlmParams(ctx context.Context, napi api.StorageMiner, endpoint, to string, ssize uint64) error {
+func (w *worker) FetchHlmParams(ctx context.Context, endpoint, to string, ssize uint64) error {
 	//if err := paramfetch.GetParams(ctx, build.ParametersJSON(), ssize); err != nil {
 	//	return errors.As(err)
 	//}
@@ -103,6 +103,10 @@ func (w *worker) FetchHlmParams(ctx context.Context, napi api.StorageMiner, endp
 		log.Warn(errors.As(err))
 	}
 	for {
+		napi, err := GetNodeApi()
+		if err != nil {
+			return err
+		}
 		log.Info("try fetch hlm params")
 		if err := w.tryFetchParams(ctx, napi, endpoint, to); err != nil {
 			log.Info(errors.As(err))
