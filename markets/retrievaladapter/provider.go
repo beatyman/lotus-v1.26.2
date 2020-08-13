@@ -11,11 +11,14 @@ import (
 	"github.com/filecoin-project/sector-storage/storiface"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin/paych"
+	"github.com/gwaylib/log"
 	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/storage"
+
+	"github.com/gwaylib/errors"
 )
 
 type retrievalProviderNode struct {
@@ -63,6 +66,9 @@ func (rpn *retrievalProviderNode) UnsealSector(ctx context.Context, sectorID abi
 			commD = *si.CommD
 		}
 		err := rpn.sealer.ReadPiece(ctx, w, sid, storiface.UnpaddedByteIndex(offset), length, si.TicketValue, commD)
+		if err != nil {
+			log.Error(errors.As(err, sid))
+		}
 		_ = w.CloseWithError(err)
 	}()
 
