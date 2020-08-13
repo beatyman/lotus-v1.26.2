@@ -72,6 +72,8 @@ type Manager struct {
 
 	sched *scheduler
 
+	w Worker
+
 	storage.Prover
 }
 
@@ -83,9 +85,22 @@ type SealerConfig struct {
 	AllowPreCommit2 bool
 	AllowCommit     bool
 	AllowUnseal     bool
+
+	RemoteSeal   bool
+	RemoteWnPoSt int
+	RemoteWdPoSt int
 }
 
 type StorageAuth http.Header
+
+// only for hlm worker
+func NewWorkerManager(sb *ffiwrapper.Sealer) *Manager {
+	return &Manager{
+		Prover: sb,
+	}
+}
+
+// end hlmd
 
 func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, cfg *ffiwrapper.Config, sc SealerConfig, urls URLs, sa StorageAuth) (*Manager, error) {
 	lstor, err := stores.NewLocal(ctx, ls, si, urls)
@@ -93,7 +108,12 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, cfg
 		return nil, err
 	}
 
-	prover, err := ffiwrapper.New(&readonlyProvider{stor: lstor, index: si}, cfg)
+	remoteCfg := ffiwrapper.RemoteCfg{
+		SealSector:  sc.RemoteSeal,
+		WindowPoSt:  sc.RemoteWdPoSt,
+		WinningPoSt: sc.RemoteWnPoSt,
+	}
+	prover, err := ffiwrapper.New(remoteCfg, &readonlyProvider{stor: lstor}, cfg)
 	if err != nil {
 		return nil, xerrors.Errorf("creating prover instance: %w", err)
 	}
@@ -114,7 +134,7 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, cfg
 		Prover: prover,
 	}
 
-	go m.sched.runSched()
+	// go m.sched.runSched()
 
 	localTasks := []sealtasks.TaskType{
 		sealtasks.TTAddPiece, sealtasks.TTCommit1, sealtasks.TTFinalize, sealtasks.TTFetch, sealtasks.TTReadUnsealed,
@@ -132,14 +152,18 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, cfg
 		localTasks = append(localTasks, sealtasks.TTUnseal)
 	}
 
-	err = m.AddWorker(ctx, NewLocalWorker(WorkerConfig{
+	//err = m.AddWorker(ctx, NewLocalWorker(sc.RemoteMode, WorkerConfig{
+	//	SealProof: cfg.SealProofType,
+	//	TaskTypes: localTasks,
+	//}, stor, lstor, si))
+	//if err != nil {
+	//	return nil, xerrors.Errorf("adding local worker: %w", err)
+	//}
+
+	m.w = NewLocalWorker(remoteCfg, WorkerConfig{
 		SealProof: cfg.SealProofType,
 		TaskTypes: localTasks,
-	}, stor, lstor, si))
-	if err != nil {
-		return nil, xerrors.Errorf("adding local worker: %w", err)
-	}
-
+	}, stor, lstor, si)
 	return m, nil
 }
 
@@ -212,24 +236,25 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector abi.Sect
 		return xerrors.Errorf("read piece: checking for already existing unsealed sector: %w", err)
 	}
 
-	var selector WorkerSelector
-	if len(best) == 0 { // new
-		selector = newAllocSelector(m.index, stores.FTUnsealed, stores.PathSealing)
-	} else { // append to existing
-		selector = newExistingSelector(m.index, sector, stores.FTUnsealed, false)
-	}
+	//var selector WorkerSelector
+	//if len(best) == 0 { // new
+	//	selector = newAllocSelector(m.index, stores.FTUnsealed, stores.PathSealing)
+	//} else { // append to existing
+	//	selector = newExistingSelector(m.index, sector, stores.FTUnsealed, false)
+	//}
 
 	var readOk bool
 
 	if len(best) > 0 {
 		// There is unsealed sector, see if we can read from it
 
-		selector = newExistingSelector(m.index, sector, stores.FTUnsealed, false)
+		//	selector = newExistingSelector(m.index, sector, stores.FTUnsealed, false)
 
-		err = m.sched.Schedule(ctx, sector, sealtasks.TTReadUnsealed, selector, schedFetch(sector, stores.FTUnsealed, stores.PathSealing, stores.AcquireMove), func(ctx context.Context, w Worker) error {
-			readOk, err = w.ReadPiece(ctx, sink, sector, offset, size)
-			return err
-		})
+		//	err = m.sched.Schedule(ctx, sector, sealtasks.TTReadUnsealed, selector, schedFetch(sector, stores.FTUnsealed, stores.PathSealing, stores.AcquireMove), func(ctx context.Context, w Worker) error {
+		//		readOk, err = w.ReadPiece(ctx, sink, sector, offset, size)
+		//		return err
+		//	})
+		readOk, err := m.w.ReadPiece(ctx, sink, sector, offset, size)
 		if err != nil {
 			return xerrors.Errorf("reading piece from sealed sector: %w", err)
 		}
@@ -239,32 +264,36 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector abi.Sect
 		}
 	}
 
-	unsealFetch := func(ctx context.Context, worker Worker) error {
-		if err := worker.Fetch(ctx, sector, stores.FTSealed|stores.FTCache, stores.PathSealing, stores.AcquireCopy); err != nil {
-			return xerrors.Errorf("copy sealed/cache sector data: %w", err)
-		}
+	//unsealFetch := func(ctx context.Context, worker Worker) error {
+	//	if err := worker.Fetch(ctx, sector, stores.FTSealed|stores.FTCache, stores.PathSealing, stores.AcquireCopy); err != nil {
+	//		return xerrors.Errorf("copy sealed/cache sector data: %w", err)
+	//	}
+	//
+	//	if len(best) > 0 {
+	//		if err := worker.Fetch(ctx, sector, stores.FTUnsealed, stores.PathSealing, stores.AcquireMove); err != nil {
+	//			return xerrors.Errorf("copy unsealed sector data: %w", err)
+	//		}
+	//	}
+	//	return nil
+	//}
 
-		if len(best) > 0 {
-			if err := worker.Fetch(ctx, sector, stores.FTUnsealed, stores.PathSealing, stores.AcquireMove); err != nil {
-				return xerrors.Errorf("copy unsealed sector data: %w", err)
-			}
-		}
-		return nil
-	}
-
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTUnseal, selector, unsealFetch, func(ctx context.Context, w Worker) error {
-		return w.UnsealPiece(ctx, sector, offset, size, ticket, unsealed)
-	})
-	if err != nil {
+	//err = m.sched.Schedule(ctx, sector, sealtasks.TTUnseal, selector, unsealFetch, func(ctx context.Context, w Worker) error {
+	//	return w.UnsealPiece(ctx, sector, offset, size, ticket, unsealed)
+	//})
+	//if err != nil {
+	//	return err
+	//}
+	if err := m.w.UnsealPiece(ctx, sector, offset, size, ticket, unsealed); err != nil {
 		return err
 	}
 
-	selector = newExistingSelector(m.index, sector, stores.FTUnsealed, false)
-
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTReadUnsealed, selector, schedFetch(sector, stores.FTUnsealed, stores.PathSealing, stores.AcquireMove), func(ctx context.Context, w Worker) error {
-		readOk, err = w.ReadPiece(ctx, sink, sector, offset, size)
-		return err
-	})
+	//selector = newExistingSelector(m.index, sector, stores.FTUnsealed, false)
+	//
+	//err = m.sched.Schedule(ctx, sector, sealtasks.TTReadUnsealed, selector, schedFetch(sector, stores.FTUnsealed, stores.PathSealing, stores.AcquireMove), func(ctx context.Context, w Worker) error {
+	//	readOk, err = w.ReadPiece(ctx, sink, sector, offset, size)
+	//	return err
+	//})
+	readOk, err = m.w.ReadPiece(ctx, sink, sector, offset, size)
 	if err != nil {
 		return xerrors.Errorf("reading piece from sealed sector: %w", err)
 	}
@@ -277,11 +306,19 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector abi.Sect
 }
 
 func (m *Manager) NewSector(ctx context.Context, sector abi.SectorID) error {
-	log.Warnf("stub NewSector")
-	return nil
+	sb, ok := m.Prover.(*ffiwrapper.Sealer)
+	if !ok {
+		log.Warnf("stub NewSector")
+	}
+	return sb.NewSector(ctx, sector)
 }
 
 func (m *Manager) AddPiece(ctx context.Context, sector abi.SectorID, existingPieces []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
+	// for hlm worker
+	if m.w != nil {
+		return m.w.AddPiece(ctx, sector, existingPieces, sz, r)
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -311,6 +348,8 @@ func (m *Manager) AddPiece(ctx context.Context, sector abi.SectorID, existingPie
 }
 
 func (m *Manager) SealPreCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
+	return m.w.SealPreCommit1(ctx, sector, ticket, pieces)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -335,6 +374,8 @@ func (m *Manager) SealPreCommit1(ctx context.Context, sector abi.SectorID, ticke
 }
 
 func (m *Manager) SealPreCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage.PreCommit1Out) (out storage.SectorCids, err error) {
+	return m.w.SealPreCommit2(ctx, sector, phase1Out)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -356,6 +397,8 @@ func (m *Manager) SealPreCommit2(ctx context.Context, sector abi.SectorID, phase
 }
 
 func (m *Manager) SealCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (out storage.Commit1Out, err error) {
+	return m.w.SealCommit1(ctx, sector, ticket, seed, pieces, cids)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -380,21 +423,12 @@ func (m *Manager) SealCommit1(ctx context.Context, sector abi.SectorID, ticket a
 }
 
 func (m *Manager) SealCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage.Commit1Out) (out storage.Proof, err error) {
-	selector := newTaskSelector()
-
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTCommit2, selector, schedNop, func(ctx context.Context, w Worker) error {
-		p, err := w.SealCommit2(ctx, sector, phase1Out)
-		if err != nil {
-			return err
-		}
-		out = p
-		return nil
-	})
-
-	return out, err
+	return m.w.SealCommit2(ctx, sector, phase1Out)
 }
 
 func (m *Manager) FinalizeSector(ctx context.Context, sector abi.SectorID, keepUnsealed []storage.Range) error {
+	return m.w.FinalizeSector(ctx, sector, keepUnsealed)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

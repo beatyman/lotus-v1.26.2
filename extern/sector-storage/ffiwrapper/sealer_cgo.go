@@ -6,10 +6,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math/bits"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
@@ -24,11 +26,14 @@ import (
 	"github.com/filecoin-project/sector-storage/stores"
 	"github.com/filecoin-project/sector-storage/storiface"
 	"github.com/filecoin-project/sector-storage/zerocomm"
+
+	"github.com/filecoin-project/sector-storage/database"
+	"github.com/gwaylib/errors"
 )
 
 var _ Storage = &Sealer{}
 
-func New(sectors SectorProvider, cfg *Config) (*Sealer, error) {
+func New(remoteCfg RemoteCfg, sectors SectorProvider, cfg *Config) (*Sealer, error) {
 	sectorSize, err := sizeFromConfig(*cfg)
 	if err != nil {
 		return nil, err
@@ -41,6 +46,13 @@ func New(sectors SectorProvider, cfg *Config) (*Sealer, error) {
 		sectors: sectors,
 
 		stopping: make(chan struct{}),
+
+		remoteCfg: remoteCfg,
+	}
+	if sectors != nil {
+		if err := os.MkdirAll(sectors.RepoPath(), 0755); err != nil {
+			return nil, err
+		}
 	}
 
 	return sb, nil
@@ -48,6 +60,21 @@ func New(sectors SectorProvider, cfg *Config) (*Sealer, error) {
 
 func (sb *Sealer) NewSector(ctx context.Context, sector abi.SectorID) error {
 	// TODO: Allocate the sector here instead of in addpiece
+
+	if database.HasDB() {
+		now := time.Now()
+		seInfo := &database.SectorInfo{
+			ID:         sb.SectorName(sector),
+			MinerId:    fmt.Sprintf("s-t0%d", sector.Miner),
+			UpdateTime: now,
+			State:      -1,
+			StateTime:  now,
+			CreateTime: now,
+		}
+		if err := database.AddSectorInfo(seInfo); err != nil {
+			return errors.As(err)
+		}
+	}
 
 	return nil
 }
@@ -409,7 +436,7 @@ func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector abi.Se
 	return false, nil
 }
 
-func (sb *Sealer) SealPreCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
+func (sb *Sealer) sealPreCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, stores.FTUnsealed, stores.FTSealed|stores.FTCache, stores.PathSealing)
 	if err != nil {
 		return nil, xerrors.Errorf("acquiring sector paths: %w", err)
@@ -466,7 +493,7 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector abi.SectorID, ticke
 	return p1o, nil
 }
 
-func (sb *Sealer) SealPreCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage.PreCommit1Out) (storage.SectorCids, error) {
+func (sb *Sealer) sealPreCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage.PreCommit1Out) (storage.SectorCids, error) {
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, stores.FTSealed|stores.FTCache, 0, stores.PathSealing)
 	if err != nil {
 		return storage.SectorCids{}, xerrors.Errorf("acquiring sector paths: %w", err)
@@ -484,7 +511,7 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector abi.SectorID, phase
 	}, nil
 }
 
-func (sb *Sealer) SealCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) {
+func (sb *Sealer) sealCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) {
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, stores.FTSealed|stores.FTCache, 0, stores.PathSealing)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire sector paths: %w", err)
@@ -511,11 +538,11 @@ func (sb *Sealer) SealCommit1(ctx context.Context, sector abi.SectorID, ticket a
 	return output, nil
 }
 
-func (sb *Sealer) SealCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage.Commit1Out) (storage.Proof, error) {
+func (sb *Sealer) sealCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage.Commit1Out) (storage.Proof, error) {
 	return ffi.SealCommitPhase2(phase1Out, sector.Number, sector.Miner)
 }
 
-func (sb *Sealer) FinalizeSector(ctx context.Context, sector abi.SectorID, keepUnsealed []storage.Range) error {
+func (sb *Sealer) finalizeSector(ctx context.Context, sector abi.SectorID, keepUnsealed []storage.Range) error {
 	if len(keepUnsealed) > 0 {
 		maxPieceSize := abi.PaddedPieceSize(sb.ssize)
 
