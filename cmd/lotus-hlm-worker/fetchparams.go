@@ -4,23 +4,17 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	//"path/filepath"
-
 	"github.com/dchest/blake2b"
-	"github.com/filecoin-project/lotus/api"
+	// paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/lotus/build"
-	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/gwaylib/errors"
 	"golang.org/x/xerrors"
 )
@@ -29,31 +23,15 @@ const (
 	PARAMS_PATH = "/file/filecoin-proof-parameters"
 )
 
-var checked = map[string]struct{}{}
-var checkedLk sync.Mutex
-
 type paramFile struct {
 	Cid        string `json:"cid"`
 	Digest     string `json:"digest"`
 	SectorSize uint64 `json:"sector_size"`
 }
 
-func checkParams(ctx context.Context, paramBytes []byte, storageSize uint64, paramDir string) error {
-	var params map[string]paramFile
-	if err := json.Unmarshal(paramBytes, &params); err != nil {
-		return err
-	}
-	for name, info := range params {
-		if storageSize != info.SectorSize && strings.HasSuffix(name, ".params") {
-			continue
-		}
-		path := filepath.Join(paramDir, name)
-		if err := checkFile(path, info); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+var checked = map[string]bool{}
+var checkedLk sync.Mutex
+
 func checkFile(path string, info paramFile) error {
 	if os.Getenv("TRUST_PARAMS") == "1" {
 		log.Warn("Assuming parameter files are ok. DO NOT USE IN PRODUCTION")
@@ -81,34 +59,24 @@ func checkFile(path string, info paramFile) error {
 	sum := h.Sum(nil)
 	strSum := hex.EncodeToString(sum[:16])
 	if strSum == info.Digest {
-		log.Infof("Parameter file %s is ok", path)
-
 		checkedLk.Lock()
-		checked[path] = struct{}{}
+		checked[path] = true
 		checkedLk.Unlock()
-
+		log.Infof("Parameter file %s is ok", path)
 		return nil
 	}
 
 	return xerrors.Errorf("checksum mismatch in param file %s, %s != %s", path, strSum, info.Digest)
 }
 
-func (w *worker) FetchHlmParams(ctx context.Context, endpoint, to string, ssize uint64) error {
+func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ssize uint64) error {
+	//// for origin params
 	//if err := paramfetch.GetParams(ctx, build.ParametersJSON(), ssize); err != nil {
 	//	return errors.As(err)
 	//}
-	if err := checkParams(ctx, build.ParametersJSON(), ssize, to); err == nil {
-		return nil
-	} else {
-		log.Warn(errors.As(err))
-	}
+
 	for {
-		napi, err := GetNodeApi()
-		if err != nil {
-			return err
-		}
-		log.Info("try fetch hlm params")
-		if err := w.tryFetchParams(ctx, napi, endpoint, to); err != nil {
+		if err := w.checkParams(ctx, ssize, endpoint, paramsDir); err != nil {
 			log.Info(errors.As(err))
 			time.Sleep(10e9)
 			continue
@@ -117,7 +85,40 @@ func (w *worker) FetchHlmParams(ctx context.Context, endpoint, to string, ssize 
 	}
 }
 
-func (w *worker) tryFetchParams(ctx context.Context, napi api.StorageMiner, endpoint, to string) error {
+func (w *worker) checkParams(ctx context.Context, ssize uint64, endpoint, paramsDir string) error {
+	if err := os.MkdirAll(paramsDir, 0755); err != nil {
+		return errors.As(err)
+	}
+	paramBytes := build.ParametersJSON()
+	var params map[string]paramFile
+	if err := json.Unmarshal(paramBytes, &params); err != nil {
+		return errors.As(err)
+	}
+	for name, info := range params {
+		if ssize != info.SectorSize && strings.HasSuffix(name, ".params") {
+			continue
+		}
+		to := filepath.Join(paramsDir, name)
+		if err := checkFile(to, info); err != nil {
+			log.Info(errors.As(err))
+
+			if err := w.fetchParams(ctx, endpoint, paramsDir, name); err != nil {
+				return errors.As(err)
+			}
+			// checksum again
+			if err := checkFile(to, info); err != nil {
+				return errors.As(err)
+			}
+		}
+	}
+	return nil
+}
+
+func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName string) error {
+	napi, err := GetNodeApi()
+	if err != nil {
+		return err
+	}
 	paramUri := ""
 	dlWorkerUsed := false
 	// try download from worker
@@ -132,13 +133,21 @@ func (w *worker) tryFetchParams(ctx context.Context, napi api.StorageMiner, endp
 			dlWorkerUsed = true
 			paramUri = "http://" + dlWorker.SvcUri + PARAMS_PATH
 		} else {
-			napi.WorkerAddConn(ctx, dlWorker.ID, -1) // return preconn
-			// else using miner's
+			// return preconn
+			if err := napi.WorkerAddConn(ctx, dlWorker.ID, -1); err != nil {
+				log.Warn(err)
+			}
+			// worker all busy, using miner's
 		}
 	}
 	defer func() {
-		if dlWorkerUsed {
-			napi.WorkerAddConn(ctx, dlWorker.ID, -1) // return preconn
+		if !dlWorkerUsed {
+			return
+		}
+
+		// return preconn
+		if err := napi.WorkerAddConn(ctx, dlWorker.ID, -1); err != nil {
+			log.Warn(err)
 		}
 	}()
 
@@ -156,47 +165,14 @@ func (w *worker) tryFetchParams(ctx context.Context, napi api.StorageMiner, endp
 	}
 
 	err = nil
+	from := fmt.Sprintf("%s/%s", paramUri, fileName)
+	to := filepath.Join(paramsDir, fileName)
 	for i := 0; i < 3; i++ {
-		err = w.fetchParams(paramUri, to)
+		err = w.fetchRemoteFile(from, to)
 		if err != nil {
-			log.Info(errors.As(err, paramUri, to))
 			continue
 		}
 		return nil
 	}
 	return err
-}
-
-func (w *worker) fetchParams(serverUri, to string) error {
-	// fetch cache
-	cacheResp, err := http.Get(serverUri)
-	if err != nil {
-		return errors.As(err)
-	}
-	defer cacheResp.Body.Close()
-	if cacheResp.StatusCode != 200 {
-		return errors.New(cacheResp.Status).As(serverUri)
-	}
-	cacheRespData, err := ioutil.ReadAll(cacheResp.Body)
-	if err != nil {
-		return errors.As(err)
-	}
-	cacheDir := &fileserver.StorageDirectoryResp{}
-	if err := xml.Unmarshal(cacheRespData, cacheDir); err != nil {
-		return errors.As(err)
-	}
-	if err := os.MkdirAll(to, 0755); err != nil {
-		return errors.As(err)
-	}
-	for _, file := range cacheDir.Files {
-		from := fmt.Sprintf("%s/%s", serverUri, file.Value)
-		to := filepath.Join(to, file.Value)
-		if err := w.fetchRemoteFile(
-			from,
-			to,
-		); err != nil {
-			return errors.As(err)
-		}
-	}
-	return nil
 }

@@ -86,5 +86,6 @@ func PrepareWorkerConn() (*WorkerInfo, error) {
 	if _, err := db.Exec("UPDATE worker_info SET svc_conn=svc_conn+1 WHERE id=?", wInfo.ID); err != nil {
 		return nil, errors.As(err)
 	}
+	wInfo.SvcConn++
 	return wInfo, nil
 }
