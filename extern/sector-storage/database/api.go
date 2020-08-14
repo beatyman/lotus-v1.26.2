@@ -100,6 +100,12 @@ func Umount(mountPoint string) (bool, error) {
 
 // if the mountUri is local file, it would make a link.
 func Mount(mountType, mountUri, mountPoint, mountOpts string) error {
+	// umount
+	if _, err := Umount(mountPoint); err != nil {
+		return errors.As(err, mountPoint)
+	}
+
+	// remove link
 	info, err := os.Lstat(mountPoint)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -114,12 +120,7 @@ func Mount(mountType, mountUri, mountPoint, mountOpts string) error {
 			if err := os.Remove(mountPoint); err != nil {
 				return errors.As(err, mountPoint)
 			}
-		} else if m.IsDir() {
-			// umount
-			if _, err := Umount(mountPoint); err != nil {
-				return errors.As(err, mountPoint)
-			}
-		} else {
+		} else if !m.IsDir() {
 			return errors.New("file has existed").As(mountPoint)
 		}
 	}
