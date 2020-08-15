@@ -29,21 +29,21 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 	for _, r := range _remotes {
 		if r.cfg.Commit2Srv {
 			commit2SrvTotal++
-			if r.LimitParallel(WorkerCommit2, true) {
+			if r.limitParallel(WorkerCommit2, true) {
 				commit2SrvUsed++
 			}
 		}
 
 		if r.cfg.WnPoStSrv {
 			wnPoStSrvTotal++
-			if r.LimitParallel(WorkerWinningPoSt, true) {
+			if r.limitParallel(WorkerWinningPoSt, true) {
 				wnPoStSrvUsed++
 			}
 		}
 
 		if r.cfg.WdPoStSrv {
 			wdPoStSrvTotal++
-			if r.LimitParallel(WorkerWindowPoSt, true) {
+			if r.limitParallel(WorkerWindowPoSt, true) {
 				wdPoStSrvUsed++
 			}
 		}
@@ -231,12 +231,12 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 				continue
 			}
 		}
-		if _r.LimitParallel(task.Type, true) {
-			continue
-		}
-
 		r = _r
 		r.lk.Lock()
+		if _r.limitParallel(task.Type, true) {
+			r.lk.Unlock()
+			continue
+		}
 		r.busyOnTasks[sid] = task
 		r.lk.Unlock()
 		break
