@@ -95,6 +95,10 @@ func Umount(mountPoint string) (bool, error) {
 		// not mounted
 		return false, nil
 	}
+	if strings.Index(string(out), "no mount point") > -1 {
+		// no mount point
+		return false, nil
+	}
 	return false, errors.As(err, mountPoint)
 }
 
