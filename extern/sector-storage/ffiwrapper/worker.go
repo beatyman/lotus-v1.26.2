@@ -231,12 +231,12 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 				continue
 			}
 		}
-		r = _r
-		r.lk.Lock()
-		if _r.limitParallel(task.Type, true) {
-			r.lk.Unlock()
+		if _r.LimitParallel(task.Type, true) {
+			// r is nil
 			continue
 		}
+		r = _r
+		r.lk.Lock()
 		r.busyOnTasks[sid] = task
 		r.lk.Unlock()
 		break
