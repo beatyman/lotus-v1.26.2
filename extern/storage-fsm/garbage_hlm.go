@@ -41,7 +41,7 @@ func (g *Pledge) PledgeSector(ctx context.Context) ([]abi.PieceInfo, error) {
 	sb := g.Sealing.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
 	out := make([]abi.PieceInfo, len(sizes))
 	for i, size := range sizes {
-		ppi, err := sb.AddPiece(ctx, sectorID, existingPieceSizes, size, g.Sealing.pledgeReader(size))
+		ppi, err := sb.AddPiece(ctx, sectorID, existingPieceSizes, size, NewNullReader(size))
 		if err != nil {
 			return nil, xerrors.Errorf("add piece: %w", err)
 		}
@@ -80,16 +80,15 @@ func (m *Sealing) PledgeRemoteSector() error {
 		}
 
 		ps := make([]Piece, len(pieces))
-		for idx := range pieces {
+		for idx := range ps {
 			ps[idx] = Piece{
 				Piece:    pieces[idx],
 				DealInfo: nil,
 			}
-			if err := m.newSectorCC(sid, ps); err != nil {
-				return errors.As(err)
-			}
 		}
-
+		if err := m.newSectorCC(sid, ps); err != nil {
+			return errors.As(err)
+		}
 		return nil
 	}()
 }
