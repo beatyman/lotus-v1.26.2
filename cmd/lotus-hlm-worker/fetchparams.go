@@ -16,11 +16,14 @@ import (
 	// paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/gwaylib/errors"
-	"golang.org/x/xerrors"
 )
 
 const (
 	PARAMS_PATH = "/file/filecoin-proof-parameters"
+)
+
+var (
+	ErrChecksum = errors.New("checksum failed")
 )
 
 type paramFile struct {
@@ -66,7 +69,7 @@ func checkFile(path string, info paramFile) error {
 		return nil
 	}
 
-	return xerrors.Errorf("checksum mismatch in param file %s, %s != %s", path, strSum, info.Digest)
+	return ErrChecksum.As(path, strSum, info.Digest)
 }
 
 func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ssize uint64) error {
@@ -101,6 +104,11 @@ func (w *worker) checkParams(ctx context.Context, ssize uint64, endpoint, params
 		to := filepath.Join(paramsDir, name)
 		if err := checkFile(to, info); err != nil {
 			log.Info(errors.As(err))
+			if ErrChecksum.Equal(err) {
+				if err := os.RemoveAll(to); err != nil {
+					return errors.As(err)
+				}
+			}
 
 			if err := w.fetchParams(ctx, endpoint, paramsDir, name); err != nil {
 				return errors.As(err)
