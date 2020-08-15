@@ -154,7 +154,7 @@ replace github.com/filecoin-project/sector-storage => ./extern/sector-storage
 //replace github.com/filecoin-project/storage-fsm => ../storage-fsm
 replace github.com/filecoin-project/storage-fsm => ./extern/storage-fsm
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200725101155-dfb4f419f085
+replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200815055707-9b0e34e030fb
 
 //replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
 
