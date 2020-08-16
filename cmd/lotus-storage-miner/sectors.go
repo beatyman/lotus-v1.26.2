@@ -418,8 +418,9 @@ var sectorsUpdateCmd = &cli.Command{
 
 		state := cctx.Args().Get(1)
 		switch state {
-		case "PreCommit1", "Committing", "FinalizeSector":
-			// pass
+		case "Packing", "PreCommit1", "PreCommit2", "Committing", "Proving", "FinalizeSector":
+		// TODO: verify the every command.
+		// pass
 		default:
 			return xerrors.Errorf("Not in support state")
 		}
