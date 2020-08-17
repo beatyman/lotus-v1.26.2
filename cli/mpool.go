@@ -389,13 +389,15 @@ var mpoolStat = &cli.Command{
 			for _, m := range bkt.msgs {
 				if m.Message.Nonce < act.Nonce {
 					past++
-					if pastNonce == 0 {
+					if pastNonce > m.Message.Nonce || pastNonce == 0 {
+						// get the min
 						pastNonce = m.Message.Nonce
 					}
 				}
 				if m.Message.Nonce > cur {
 					future++
-					if futureNonce == 0 {
+					if futureNonce > m.Message.Nonce || futureNonce == 0 {
+						// get the min
 						futureNonce = m.Message.Nonce
 					}
 				}
