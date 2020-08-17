@@ -282,7 +282,7 @@ func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
 		return cid.Undef, err
 	}
 
-	if err := mp.Add(m); err != nil {
+	if err := mp.add(m, false); err != nil {
 		return cid.Undef, err
 	}
 
@@ -297,6 +297,9 @@ func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
 }
 
 func (mp *MessagePool) Add(m *types.SignedMessage) error {
+	return mp.add(m, true)
+}
+func (mp *MessagePool) add(m *types.SignedMessage, serial bool) error {
 	// big messages are bad, anti DOS
 	if m.Size() > 32*1024 {
 		return xerrors.Errorf("mpool message too large (%dB): %w", m.Size(), ErrMessageTooBig)
@@ -315,12 +318,17 @@ func (mp *MessagePool) Add(m *types.SignedMessage) error {
 		return err
 	}
 
-	// serialize push access to reduce lock contention
-	mp.addSema <- struct{}{}
-	defer func() {
-		<-mp.addSema
-	}()
+	if serial {
+		//// serialize push access to reduce lock contention
+		mp.addSema <- struct{}{}
+		defer func() {
+			<-mp.addSema
+		}()
 
+		mp.curTsLk.Lock()
+		defer mp.curTsLk.Unlock()
+		return mp.addTs(m, mp.curTs)
+	}
 	mp.curTsLk.Lock()
 	defer mp.curTsLk.Unlock()
 	return mp.addTs(m, mp.curTs)
