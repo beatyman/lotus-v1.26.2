@@ -664,6 +664,8 @@ func (sm *StateManager) tipsetExecutedMessage(ts *types.TipSet, msg cid.Cid, vmm
 				}
 
 				// TODO: continue waitting Magik6k fix it.
+				log.Warn(xerrors.Errorf("found message with equal nonce as the one we are looking for (F:%s n %d, TS: %s n%d)",	msg, vmm.Nonce, m.Cid(), m.VMMessage().Nonce))
+
 				pr, err := sm.cs.GetParentReceipt(ts.Blocks()[0], i)
 				if err != nil {
 					return nil, cid.Undef, err
