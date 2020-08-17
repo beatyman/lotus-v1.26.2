@@ -187,6 +187,10 @@ var mpoolFix = &cli.Command{
 				baseFee,
 				types.BigDiv(types.BigMul(baseFee, types.NewInt(50)), types.NewInt(100)),
 			)
+			// ERROR: failed to push new message to mempool: message will not be included in a block: 'GasFeeCap' less than 'GasPremium'
+			if types.BigCmp(newMsg.GasFeeCap, newMsg.GasPremium) < 0 {
+				newMsg.GasFeeCap = newMsg.GasPremium
+			}
 
 			smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
 			if err != nil {
