@@ -29,8 +29,8 @@ import (
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/filecoin-project/lotus/lib/fileserver"
-	"github.com/filecoin-project/sector-storage/database"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
 

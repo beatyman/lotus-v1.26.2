@@ -7,8 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
 )
 

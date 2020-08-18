@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-address"
-	sectorstorage "github.com/filecoin-project/sector-storage"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
 
+	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
 

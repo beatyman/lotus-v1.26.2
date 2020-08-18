@@ -1,3 +1,5 @@
+//go:generate go run ./gen
+
 package sealing
 
 import (
@@ -11,9 +13,10 @@ import (
 	"golang.org/x/xerrors"
 
 	statemachine "github.com/filecoin-project/go-statemachine"
-	"github.com/filecoin-project/sector-storage/database"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
 
