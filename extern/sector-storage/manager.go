@@ -226,9 +226,9 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector abi.Sect
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if err := m.index.StorageLock(ctx, sector, stores.FTSealed|stores.FTCache, stores.FTUnsealed); err != nil {
-		return xerrors.Errorf("acquiring sector lock: %w", err)
-	}
+	// if err := m.index.StorageLock(ctx, sector, stores.FTSealed|stores.FTCache, stores.FTUnsealed); err != nil {
+	// 	return xerrors.Errorf("acquiring sector lock: %w", err)
+	// }
 
 	// passing 0 spt because we only need it when allowFetch is true
 	best, err := m.index.StorageFindSector(ctx, sector, stores.FTUnsealed, 0, false)
