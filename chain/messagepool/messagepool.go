@@ -59,7 +59,7 @@ var (
 	ErrBroadcastAnyway  = errors.New("broadcasting message despite validation fail")
 	ErrRBFTooLowPremium = errors.New("replace by fee has too low GasPremium")
 
-	ErrTryAgain = errors.New("state inconsistency while signing message; please try again")
+	ErrTryAgain = errors.New("state inconsistency while pushing message; please try again")
 )
 
 const (
@@ -264,6 +264,11 @@ func (mp *MessagePool) verifyMsgBeforePush(m *types.SignedMessage, epoch abi.Cha
 }
 
 func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
+	err := mp.checkMessage(m)
+	if err != nil {
+		return cid.Undef, err
+	}
+
 	// serialize push access to reduce lock contention
 	mp.addSema <- struct{}{}
 	defer func() {
@@ -271,7 +276,8 @@ func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
 	}()
 
 	mp.curTsLk.Lock()
-	epoch := mp.curTs.Height()
+	curTs := mp.curTs
+	epoch := curTs.Height()
 	mp.curTsLk.Unlock()
 	if err := mp.verifyMsgBeforePush(m, epoch); err != nil {
 		return cid.Undef, err
@@ -282,9 +288,17 @@ func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
 		return cid.Undef, err
 	}
 
-	if err := mp.add(m, false); err != nil {
+	mp.curTsLk.Lock()
+	if mp.curTs != curTs {
+		mp.curTsLk.Unlock()
+		return cid.Undef, ErrTryAgain
+	}
+
+	if err := mp.addTs(m, mp.curTs); err != nil {
+		mp.curTsLk.Unlock()
 		return cid.Undef, err
 	}
+	mp.curTsLk.Unlock()
 
 	mp.lk.Lock()
 	if err := mp.addLocal(m, msgb); err != nil {
@@ -296,10 +310,7 @@ func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
 	return m.Cid(), mp.api.PubSubPublish(build.MessagesTopic(mp.netName), msgb)
 }
 
-func (mp *MessagePool) Add(m *types.SignedMessage) error {
-	return mp.add(m, true)
-}
-func (mp *MessagePool) add(m *types.SignedMessage, serial bool) error {
+func (mp *MessagePool) checkMessage(m *types.SignedMessage) error {
 	// big messages are bad, anti DOS
 	if m.Size() > 32*1024 {
 		return xerrors.Errorf("mpool message too large (%dB): %w", m.Size(), ErrMessageTooBig)
@@ -318,17 +329,21 @@ func (mp *MessagePool) add(m *types.SignedMessage, serial bool) error {
 		return err
 	}
 
-	if serial {
-		//// serialize push access to reduce lock contention
-		mp.addSema <- struct{}{}
-		defer func() {
-			<-mp.addSema
-		}()
+	return nil
+}
 
-		mp.curTsLk.Lock()
-		defer mp.curTsLk.Unlock()
-		return mp.addTs(m, mp.curTs)
+func (mp *MessagePool) Add(m *types.SignedMessage) error {
+	err := mp.checkMessage(m)
+	if err != nil {
+		return err
 	}
+
+	// serialize push access to reduce lock contention
+	mp.addSema <- struct{}{}
+	defer func() {
+		<-mp.addSema
+	}()
+
 	mp.curTsLk.Lock()
 	defer mp.curTsLk.Unlock()
 	return mp.addTs(m, mp.curTs)
