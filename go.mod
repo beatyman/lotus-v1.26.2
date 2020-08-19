@@ -14,6 +14,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/bsm/sarama-cluster v2.1.15+incompatible
+	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
 	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/dchest/blake2b v1.0.0
 	github.com/detailyang/go-fallocate v0.0.0-20180908115635-432fa640bd2e
