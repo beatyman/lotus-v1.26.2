@@ -42,6 +42,12 @@ var (
 	sourceLk = sync.Mutex{}
 )
 
+func curSourceID() int64 {
+	sourceLk.Lock()
+	defer sourceLk.Unlock()
+	return sourceId
+}
+
 func nextSourceID() int64 {
 	sourceLk.Lock()
 	defer sourceLk.Unlock()
@@ -366,11 +372,12 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	result := make(chan resp, len(remotes))
 
 	for _, r := range remotes {
-		go func(r *req) {
-			defer sb.UnlockGPUService(ctx, r.remote.cfg.ID, r.task.Key())
+		go func(req *req) {
+			ctx := context.TODO()
+			defer sb.UnlockGPUService(ctx, req.remote.cfg.ID, req.task.Key())
 
 			// send to remote worker
-			res, interrupt := sb.TaskSend(ctx, r.remote, *r.task)
+			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
 			result <- resp{res, interrupt}
 		}(r)
 	}
@@ -397,8 +404,9 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 }
 
 func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []abi.SectorInfo, randomness abi.PoStRandomness) ([]abi.PoStProof, []abi.SectorID, error) {
-	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s", sb.remoteCfg.SealSector, minerID)
-	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s", minerID)
+	curSourceId := curSourceID()
+	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s-%d", sb.remoteCfg.SealSector, minerID, curSourceId)
+	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s-%d", minerID, curSourceId)
 
 	if sb.remoteCfg.WindowPoSt < 1 {
 		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
@@ -435,11 +443,12 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	}
 	result := make(chan resp, len(remotes))
 	for _, r := range remotes {
-		go func(r *req) {
-			defer sb.UnlockGPUService(ctx, r.remote.cfg.ID, r.task.Key())
+		go func(req *req) {
+			ctx := context.TODO()
+			defer sb.UnlockGPUService(ctx, req.remote.cfg.ID, req.task.Key())
 
 			// send to remote worker
-			res, interrupt := sb.TaskSend(ctx, r.remote, *r.task)
+			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
 			result <- resp{res, interrupt}
 		}(r)
 	}

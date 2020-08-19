@@ -827,8 +827,6 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		}
 		r.lk.Unlock()
 
-		// send the result back to the caller
-		log.Infof("Got task ret:%s", res.TaskID)
 		select {
 		case <-ctx.Done():
 			log.Warnf(
@@ -865,7 +863,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		r.UpdateTask(task.GetSectorID(), state) // set state to done
 
 		_remoteLk.Lock()
-		// log.Infof("Delete remoteResults :%s", taskKey)
+		log.Infof("Delete task result waiting :%s", taskKey)
 		delete(_remoteResults, taskKey)
 		_remoteLk.Unlock()
 	}()
@@ -882,10 +880,14 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	// wait for the TaskDone called
 	select {
 	case <-ctx.Done():
+		log.Infof("ctx done:%s", taskKey)
 		return SealRes{}, true
 	case <-sb.stopping:
+		log.Infof("sb stoped:%s", taskKey)
 		return SealRes{}, true
 	case res := <-resCh:
+		// send the result back to the caller
+		log.Infof("Got task ret:%s", res.TaskID)
 		return res, false
 	}
 }
