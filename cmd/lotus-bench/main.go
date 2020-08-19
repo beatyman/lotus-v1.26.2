@@ -23,9 +23,9 @@ import (
 	"github.com/filecoin-project/go-address"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/sector-storage/stores"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
+	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-storage/storage"
@@ -146,9 +146,14 @@ var sealBenchCmd = &cli.Command{
 			Usage: "nums of parallel task",
 			Value: 1,
 		},
+		&cli.IntFlag{
+			Name:  "hlm-parallel",
+			Usage: "nums of hlm parallel task",
+			Value: 1,
+		},
 	},
 	Action: func(c *cli.Context) error {
-		parallel := c.Int("parallel")
+		parallel := c.Int("hlm-parallel")
 		result := make(chan string, parallel)
 		for i := 0; i < parallel; i++ {
 			log.Infof("run parallel index:%d", i)
@@ -162,7 +167,7 @@ var sealBenchCmd = &cli.Command{
 		for i := 0; i < parallel; i++ {
 			select {
 			case b := <-result:
-				fmt.Printf("result of parallel %d: \n", i)
+				fmt.Printf("result of hlm-parallel %d: \n", i)
 				fmt.Print(b)
 			case <-end:
 				return nil
@@ -261,7 +266,7 @@ func action(c *cli.Context, i int) string {
 			Root: sbdir,
 		}
 
-		sb, err := ffiwrapper.New(false, sbfs, cfg)
+		sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, sbfs, cfg)
 		if err != nil {
 			return err.Error()
 		}
@@ -645,7 +650,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 					if !skipunseal {
 						log.Infof("[%d] Unsealing sector", i)
 						{
-							p, done, err := sbfs.AcquireSector(context.TODO(), abi.SectorID{Miner: mid, Number: 1}, stores.FTUnsealed, stores.FTNone, true)
+							p, done, err := sbfs.AcquireSector(context.TODO(), abi.SectorID{Miner: mid, Number: 1}, stores.FTUnsealed, stores.FTNone, stores.PathSealing)
 							if err != nil {
 								return xerrors.Errorf("acquire unsealed sector for removing: %w", err)
 							}
@@ -748,7 +753,7 @@ var proveCmd = &cli.Command{
 			SealProofType: spt,
 		}
 
-		sb, err := ffiwrapper.New(false, nil, cfg)
+		sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, nil, cfg)
 		if err != nil {
 			return err
 		}
@@ -776,5 +781,5 @@ func bps(data abi.SectorSize, d time.Duration) string {
 	bdata := new(big.Int).SetUint64(uint64(data))
 	bdata = bdata.Mul(bdata, big.NewInt(time.Second.Nanoseconds()))
 	bps := bdata.Div(bdata, big.NewInt(d.Nanoseconds()))
-	return types.SizeStr(types.BigInt{bps}) + "/s"
+	return types.SizeStr(types.BigInt{Int: bps}) + "/s"
 }

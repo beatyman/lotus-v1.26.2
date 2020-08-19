@@ -19,11 +19,11 @@ if [ ! -z "$gpu" ]; then
 fi
 
 
-storagerepo=$1 # storagerepo of go-filecoin
+miner_repo=$1 # miner_repo of go-filecoin
 
 
-if [ -z "$storagerepo" ]; then
-    storagerepo=/data/sdb/lotus-user-1/.lotusstorage
+if [ -z "$miner_repo" ]; then
+    miner_repo=/data/sdb/lotus-user-1/.lotusstorage
 fi
 
 tmp=/data/cache/tmp
@@ -31,15 +31,15 @@ repo=$2
 if [ -z "$repo" ]; then
     repo=/data/cache/.lotusworker 
 fi
-sealedrepo=$3
-if [ -z "$sealedrepo" ]; then
-    sealedrepo=$repo/push # 密封结果存放
+storage_repo=$3
+if [ -z "$storage_repo" ]; then
+    storage_repo=$repo/push # 密封结果存放
 fi
 
 mkdir -p $tmp
 mkdir -p $repo
-mkdir -p $storagerepo
-mkdir -p $sealedrepo
+mkdir -p $miner_repo
+mkdir -p $storage_repo
 
 # check parameters
 rm /var/tmp/filecoin-proof-parameters # try remove the link
@@ -80,7 +80,8 @@ if [ -z "$netip" ]; then
     netip="127.0.0.1"
 fi
 
-RUST_LOG=info RUST_BACKTRACE=1 NETIP=$netip ../../lotus-seal-worker --repo=$repo --storagerepo=$storagerepo --sealedrepo=$sealedrepo --cache-sectors=2 run & pid=$!
+RUST_LOG=info RUST_BACKTRACE=1 NETIP=$netip ../../lotus-worker --repo=$repo --miner-repo=$miner_repo --storage-repo=$storage_repo run &
+pid=$!
 
 # set ulimit for process
 nropen=$(cat /proc/sys/fs/nr_open)

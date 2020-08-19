@@ -6,15 +6,15 @@ repodir=$1
 if [ -z "$repodir" ]; then
     repodir=/data/sdb/lotus-user-1/.lotus
 fi
-storagerepodir=$2
-if [ -z "$storagerepodir" ]; then
-    storagerepodir=/data/sdb/lotus-user-1/.lotusstorage
+miner_repodir=$2
+if [ -z "$miner_repodir" ]; then
+    miner_repodir=/data/sdb/lotus-user-1/.lotusstorage
 fi
 
 mkdir -p $repodir
-mkdir -p $storagerepodir
+mkdir -p $miner_repodir
 
-RUST_LOG=info RUST_BACKTRACE=1 ../../lotus-storage-miner --repo=$repodir --storagerepo=$storagerepodir run --nosync=true &
+RUST_LOG=info RUST_BACKTRACE=1 ../../lotus-miner --repo=$repodir --miner-repo=$miner_repodir run --nosync=true &
 pid=$!
 
 # set ulimit for process

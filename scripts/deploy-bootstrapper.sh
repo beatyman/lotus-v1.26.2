@@ -10,15 +10,15 @@ log "> Deploying bootstrap node $host"
 log "Stopping lotus daemon"
 
 ssh "$host" 'systemctl stop lotus-daemon' &
-ssh "$host" 'systemctl stop lotus-storage-miner' &
+ssh "$host" 'systemctl stop lotus-miner' &
 
 wait
 
-ssh "$host" 'rm -rf .lotus & mkdir -p .lotus' &
-ssh "$host" 'rm -rf .lotusstorage & mkdir -p .lotusstorage' &
+ssh "$host" 'rm -rf .lotus' &
+ssh "$host" 'rm -rf .lotusminer' &
 
 scp -C lotus "${host}":/usr/local/bin/lotus &
-scp -C lotus-storage-miner "${host}":/usr/local/bin/lotus-storage-miner &
+scp -C lotus-miner "${host}":/usr/local/bin/lotus-miner &
 
 wait
 
@@ -40,5 +40,5 @@ ssh "$host" 'lotus net connect $(lotus --repo=/data/lotus/dev/.ldt0111 net liste
 
 log 'Get fil from t0111'
 ssh "$host" 'lotus wallet new bls'
-ssh "$host" 'lotus --repo=/data/lotus/dev/.ldt0111 send $(lotus wallet default) 9000'
+ssh "$host" 'lotus --repo=/data/lotus/dev/.ldt0111 send $(lotus wallet default) 40000000'
 git checkout build

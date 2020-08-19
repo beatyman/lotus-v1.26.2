@@ -2,11 +2,17 @@ package client
 
 import (
 	"net/http"
+	"net/url"
+	"path"
+	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
+
+	"github.com/filecoin-project/lotus/lib/rpcenc"
+	"github.com/gwaylib/errors"
 )
 
 // NewCommonRPC creates a new http jsonrpc client.
@@ -34,8 +40,8 @@ func NewFullNodeRPC(addr string, requestHeader http.Header) (api.FullNode, jsonr
 	return &res, closer, err
 }
 
-// NewStorageMinerRPC creates a new http jsonrpc client for storage miner
-func NewStorageMinerRPC(addr string, requestHeader http.Header) (api.StorageMiner, jsonrpc.ClientCloser, error) {
+// NewStorageMinerRPC creates a new http jsonrpc client for miner
+func NewStorageMinerRPC(addr string, requestHeader http.Header, opts ...jsonrpc.Option) (api.StorageMiner, jsonrpc.ClientCloser, error) {
 	var res apistruct.StorageMinerStruct
 	closer, err := jsonrpc.NewMergeClient(addr, "Filecoin",
 		[]interface{}{
@@ -43,19 +49,55 @@ func NewStorageMinerRPC(addr string, requestHeader http.Header) (api.StorageMine
 			&res.Internal,
 		},
 		requestHeader,
+		opts...,
 	)
-
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
 	return &res, closer, err
 }
 
 func NewWorkerRPC(addr string, requestHeader http.Header) (api.WorkerAPI, jsonrpc.ClientCloser, error) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch u.Scheme {
+	case "ws":
+		u.Scheme = "http"
+	case "wss":
+		u.Scheme = "https"
+	}
+	///rpc/v0 -> /rpc/streams/v0/push
+
+	u.Path = path.Join(u.Path, "../streams/v0/push")
+
 	var res apistruct.WorkerStruct
 	closer, err := jsonrpc.NewMergeClient(addr, "Filecoin",
 		[]interface{}{
 			&res.Internal,
 		},
 		requestHeader,
+		rpcenc.ReaderParamEncoder(u.String()),
+		jsonrpc.WithNoReconnect(),
+		jsonrpc.WithTimeout(30*time.Second),
 	)
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
+	return &res, closer, err
+}
 
+func NewWorkerHlmRPC(addr string, requestHeader http.Header) (api.WorkerHlmAPI, jsonrpc.ClientCloser, error) {
+	var res apistruct.WorkerHlmStruct
+	closer, err := jsonrpc.NewMergeClient(addr, "Filecoin",
+		[]interface{}{
+			&res.Internal,
+		},
+		requestHeader,
+	)
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
 	return &res, closer, err
 }

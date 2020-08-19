@@ -8,7 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 )
 
 var hlmStorageCmd = &cli.Command{
@@ -35,8 +35,13 @@ var addHLMStorageCmd = &cli.Command{
 			Value: "",
 		},
 		&cli.StringFlag{
-			Name:  "mount-uri",
-			Usage: "uri of mount, net uri or local uri",
+			Name:  "mount-signal-uri",
+			Usage: "uri for mount signal channel, net uri or local uri",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "mount-transf-uri",
+			Usage: "uri for mount transfer channel, net uri or local uri",
 			Value: "",
 		},
 		&cli.StringFlag{
@@ -74,9 +79,13 @@ var addHLMStorageCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		mountType := cctx.String("mount-type")
 		mountOpt := cctx.String("mount-opt")
-		mountUri := cctx.String("mount-uri")
-		if len(mountUri) == 0 {
-			return errors.New("need mount-uri")
+		mountSignalUri := cctx.String("mount-signal-uri")
+		if len(mountSignalUri) == 0 {
+			return errors.New("need mount-signal-uri")
+		}
+		mountTransfUri := cctx.String("mount-transf-uri")
+		if len(mountTransfUri) == 0 {
+			mountTransfUri = mountSignalUri
 		}
 		mountDir := cctx.String("mount-dir")
 		if len(mountDir) == 0 {
@@ -90,7 +99,7 @@ var addHLMStorageCmd = &cli.Command{
 		keepSize := cctx.Int64("keep-size")
 		sectorSize := cctx.Int64("sector-size")
 		maxWork := cctx.Int("max-work")
-		fmt.Println(mountType, mountUri, mountDir, maxSize, keepSize, sectorSize, maxWork)
+		fmt.Println(mountType, mountSignalUri, mountTransfUri, mountDir, maxSize, keepSize, sectorSize, maxWork)
 
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -99,14 +108,15 @@ var addHLMStorageCmd = &cli.Command{
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 		return nodeApi.AddHLMStorage(ctx, database.StorageInfo{
-			MountType:  mountType,
-			MountUri:   mountUri,
-			MountDir:   mountDir,
-			MountOpt:   mountOpt,
-			MaxSize:    maxSize,
-			KeepSize:   keepSize,
-			SectorSize: sectorSize,
-			MaxWork:    maxWork,
+			MountType:      mountType,
+			MountSignalUri: mountSignalUri,
+			MountTransfUri: mountTransfUri,
+			MountDir:       mountDir,
+			MountOpt:       mountOpt,
+			MaxSize:        maxSize,
+			KeepSize:       keepSize,
+			SectorSize:     sectorSize,
+			MaxWork:        maxWork,
 		})
 	},
 }
@@ -219,6 +229,61 @@ var relinkHLMStorageCmd = &cli.Command{
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 		return nodeApi.RelinkHLMStorage(ctx, id)
+	},
+}
+
+var replaceHLMStorageCmd = &cli.Command{
+	Name:  "replace",
+	Usage: "Replace the storage node",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:  "storage-id",
+			Usage: "id of storage",
+		},
+		&cli.StringFlag{
+			Name:  "mount-signal-uri",
+			Usage: "uri for mount signal channel, net uri or local uri who can mount",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "mount-transf-uri",
+			Usage: "uri for mount signal channel, net uri or local uri who can mount, empty should same as mount-signal-uri",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "mount-type",
+			Usage: "mount type, like nfs, empty to keep the origin value",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "mount-opt",
+			Usage: "mount opt, format should be \"-o ...\", empty to keep the origin value",
+			Value: "",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		storageId := cctx.Int64("storage-id")
+		if storageId <= 0 {
+			return errors.New("need input storage-id>0")
+		}
+		mountSignalUri := cctx.String("mount-signal-uri")
+		if len(mountSignalUri) == 0 {
+			return errors.New("need mount-signal-uri")
+		}
+		mountTransfUri := cctx.String("mount-transf-uri")
+		if len(mountTransfUri) == 0 {
+			mountTransfUri = mountSignalUri
+		}
+		mountType := cctx.String("mount-type")
+		mountOpt := cctx.String("mount-opt")
+
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		return nodeApi.ReplaceHLMStorage(ctx, storageId, mountSignalUri, mountTransfUri, mountType, mountOpt)
 	},
 }
 

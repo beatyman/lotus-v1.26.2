@@ -1,7 +1,7 @@
 #!/bin/sh
 
 install_path=$HOME/hlm-miner/apps/lotus;
-if [ ! -z "$FILECOIN_BIN"]; then
+if [ ! -z "$FILECOIN_BIN" ]; then
     install_path=$FILECOIN_BIN
 fi
 mkdir -p $install_path
@@ -26,7 +26,11 @@ case $1 in
     ;;
 esac
 
+echo "copy to : "$install_path
 cp -rf lotus $install_path
-cp -rf lotus-storage-miner $install_path
-cp -rf lotus-seal-worker $install_path
+cp -rf lotus-miner $install_path
+cp -rf lotus-worker $install_path
 cp -rf lotus-chain-watch $install_path
+if [ -f ./lotus-bench ]; then
+    cp -rf lotus-bench $install_path
+fi

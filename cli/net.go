@@ -11,23 +11,27 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/lib/addrutil"
+
+	"github.com/gwaylib/errors"
 )
 
 var netCmd = &cli.Command{
 	Name:  "net",
 	Usage: "Manage P2P Network",
 	Subcommands: []*cli.Command{
-		netPeers,
+		NetPeers,
 		netConnect,
-		netListen,
-		netId,
+		NetListen,
+		NetId,
 		netFindPeer,
 		netScores,
+		NetReachability,
 	},
 }
 
-var netPeers = &cli.Command{
+var NetPeers = &cli.Command{
 	Name:  "peers",
 	Usage: "Print peers",
 	Action: func(cctx *cli.Context) error {
@@ -93,7 +97,7 @@ var netScores = &cli.Command{
 	},
 }
 
-var netListen = &cli.Command{
+var NetListen = &cli.Command{
 	Name:  "listen",
 	Usage: "List listen addresses",
 	Action: func(cctx *cli.Context) error {
@@ -119,7 +123,7 @@ var netListen = &cli.Command{
 var netConnect = &cli.Command{
 	Name:      "connect",
 	Usage:     "Connect to a peer",
-	ArgsUsage: "[peerMultiaddr]",
+	ArgsUsage: "[peerMultiaddr]/boostrap",
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetAPI(cctx)
 		if err != nil {
@@ -127,10 +131,21 @@ var netConnect = &cli.Command{
 		}
 		defer closer()
 		ctx := ReqContext(cctx)
-
-		pis, err := addrutil.ParseAddresses(ctx, cctx.Args().Slice())
-		if err != nil {
-			return err
+		pis := []peer.AddrInfo{}
+		args := cctx.Args()
+		if args.Len() == 0 {
+			return errors.New("need input [peerMultiaddr]/boostrap")
+		}
+		if args.Len() > 0 && args.First() == "boostrap" {
+			pis, err = build.BuiltinBootstrap()
+			if err != nil {
+				return err
+			}
+		} else {
+			pis, err = addrutil.ParseAddresses(ctx, cctx.Args().Slice())
+			if err != nil {
+				return err
+			}
 		}
 
 		for _, pi := range pis {
@@ -147,7 +162,7 @@ var netConnect = &cli.Command{
 	},
 }
 
-var netId = &cli.Command{
+var NetId = &cli.Command{
 	Name:  "id",
 	Usage: "Get node identity",
 	Action: func(cctx *cli.Context) error {
@@ -199,6 +214,31 @@ var netFindPeer = &cli.Command{
 		}
 
 		fmt.Println(addrs)
+		return nil
+	},
+}
+
+var NetReachability = &cli.Command{
+	Name:  "reachability",
+	Usage: "Print information about reachability from the internet",
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := GetAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ctx := ReqContext(cctx)
+
+		i, err := api.NetAutoNatStatus(ctx)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("AutoNAT status: ", i.Reachability.String())
+		if i.PublicAddr != "" {
+			fmt.Println("Public address: ", i.PublicAddr)
+		}
 		return nil
 	},
 }

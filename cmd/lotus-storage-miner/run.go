@@ -21,6 +21,7 @@ import (
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
@@ -28,18 +29,23 @@ import (
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/filecoin-project/lotus/lib/fileserver"
-	"github.com/filecoin-project/sector-storage/database"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
 
 var runCmd = &cli.Command{
 	Name:  "run",
-	Usage: "Start a lotus storage miner process",
+	Usage: "Start a lotus miner process",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "api",
 			Usage: "2345",
+		},
+		&cli.StringFlag{
+			Name:  "report-url",
+			Value: "",
+			Usage: "report url for state",
 		},
 		&cli.BoolFlag{
 			Name:  "enable-gpu-proving",
@@ -91,8 +97,8 @@ var runCmd = &cli.Command{
 			}
 		}
 
-		storageRepoPath := cctx.String(FlagStorageRepo)
-		r, err := repo.NewFS(storageRepoPath)
+		minerRepoPath := cctx.String(FlagMinerRepo)
+		r, err := repo.NewFS(minerRepoPath)
 		if err != nil {
 			return err
 		}
@@ -102,19 +108,25 @@ var runCmd = &cli.Command{
 			return err
 		}
 		if !ok {
-			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-storage-miner init' to set it up", storageRepoPath)
+			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-miner init' to set it up", minerRepoPath)
 		}
 
+		// implement by hlm
 		// init storage database
-		database.InitDB(storageRepoPath)
+		database.InitDB(minerRepoPath)
 		// mount nfs storage node
-		if err := database.MountAllStorage(); err != nil {
+		if err := database.MountAllStorage(false); err != nil {
+			return errors.As(err)
+		}
+		// clean storage cur_work cause by no worker on starting.
+		if err := database.ClearStorageWork(); err != nil {
 			return errors.As(err)
 		}
 		// checking sealed for proof
-		if err := ffiwrapper.CheckSealed(storageRepoPath); err != nil {
+		if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
 			return errors.As(err)
 		}
+		// implement by hlm end.
 
 		shutdownChan := make(chan struct{})
 
@@ -164,7 +176,7 @@ var runCmd = &cli.Command{
 
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)
-		mux.PathPrefix("/file").HandlerFunc((&fileserver.FileHandle{Repo: storageRepoPath}).FileHttpServer)
+		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(minerRepoPath).FileHttpServer)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
 		ah := &auth.Handler{
@@ -192,9 +204,9 @@ var runCmd = &cli.Command{
 		}()
 		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
-		// TODO: make fileHandle
-		// fileHandle := fileserver.NewStorageFileServer(storageRepoPath, "", nil)
-
+		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
+			report.SetReportUrl(reportUrl)
+		}
 		return srv.Serve(manet.NetListener(lst))
 	},
 }

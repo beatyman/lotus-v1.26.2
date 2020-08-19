@@ -8,5 +8,5 @@ interopnet -- 与官方一致，会定期修复或合并官方的interopnet分�
 其他分支说明
 feat/xxx -- 特性开发中的分支
 fix/xxx  -- 用于修复BUG的分支
-dev/zhoushuyue  -- 用于个人分支
+dev/name  -- 用于个人分支
 

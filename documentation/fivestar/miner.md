@@ -1,4 +1,19 @@
-# 安装说明
+# 搭建开发环境
+
+- [开发环境安装](#开发环境安装)
+- [国内安装技巧](#国内安装技巧)
+- [下载lotus源代码](#下载lotus源代码)
+- [调试RUST](#调试RUST)
+- [创建本地开发网络](#搭建创世节点)
+    - [搭建存储节点](#搭建存储节点)
+    - [接入本地开发网](#接入本地开发网)
+- [目录规范](#目录规范)
+    - [存储节点上的目录](#存储节点上的目录)
+    - [链节点目录](#链节点目录)
+    - [矿工节点目录](#矿工节点目录)
+    - [计算节点目录](#计算节点目录)
+- [发布二进制](#发布二进制)
+- [附录](#附录)
 
 ## 开发环境安装
 ```shell
@@ -8,7 +23,7 @@ apt-get install aptitude
 aptitude install chrony nfs-common gcc git bzr jq pkg-config mesa-opencl-icd ocl-icd-opencl-dev 
 ```
 
-## 国内安装技巧: 
+## 国内安装技巧 
 参考: https://docs.lotu.sh/en+install-lotus-ubuntu
 
 ### 1), 安装go
@@ -60,21 +75,6 @@ EOF
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-## 安装nfs环境
-```shell
-aptitude install nfs-server
-mkdir -p /data/nfs
-mkdir -p /data/zfs
-mkdir -p /data/zfs/cache
-mkdir -p /data/zfs/sealed
-chattr -V +a /data/zfs
-chattr -V +a /data/zfs/cache
-chattr -V +a /data/zfs/sealed
-
-echo "/data/zfs/ *(rw,sync,insecure,no_root_squash)" >>/etc/exports
-systemctl reload nfs-server
-```
-
 ## 下载lotus源代码
 ```shell
 mkdir -p $HOME/go/src/github.com/filecoin-project
@@ -83,7 +83,7 @@ git clone https://github.com/filecoin-fivestar/lotus.git lotus
 cd lotus
 ```
 
-## RUST开发编译(不调试RUST不涉及)
+## 调试RUST
 ```shell
 mkdir -p $HOME/go/src/github.com/filecoin-project
 cd $HOME/go/src/github.com/filecoin-project
@@ -102,7 +102,7 @@ RUST_BACKTRACE=1 RUST_LOG=info FIL_PROOFS_USE_GPU_TREE_BUILDER=1 FIL_PROOFS_USE_
 [dependencies.filecoin-proofs-api]
 package = "filecoin-proofs-api"
 #version = "4.0.2"
-path = "../../../rust-filecoin-proofs-api"
+path = "../../../../rust-filecoin-proofs-api"
 ```
 
 2, 切换rust-filecoin-proofs-api版本与指向
@@ -110,6 +110,7 @@ path = "../../../rust-filecoin-proofs-api"
 cd $HOME/go/src/github.com/filecoin-project/rust-filecoin-proofs-api
 git checkout v4.0.2 # 需要与lotus使用的同一版本
 ```
+
 修改rust-filecoin-proofs-api/Cargo.toml指向
 ```
 [dependencies]
@@ -134,7 +135,7 @@ env RUSTFLAGS="-C target-cpu=native -g" FFI_BUILD_FROM_SOURCE=1 make bench
 ./bensh.sh
 ```
 
-## 搭建私网创世节点
+## 搭建创世节点
 ```shell
 ./clean-bootstrap.sh
 ps axu|grep lotus # 确认所有相关进程已关闭
@@ -144,7 +145,24 @@ ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
 ./deploy-boostrap.sh # 部署水龙头及对外提供的初始节点
 ```
 
-## 编译lotus接入前面的私网
+## 创建本地开发网络
+
+### 搭建存储节点
+```shell
+aptitude install nfs-server
+mkdir -p /data/nfs
+mkdir -p /data/zfs
+mkdir -p /data/zfs/cache
+mkdir -p /data/zfs/sealed
+chattr -V +a /data/zfs
+chattr -V +a /data/zfs/cache
+chattr -V +a /data/zfs/sealed
+
+echo "/data/zfs/ *(rw,sync,insecure,no_root_squash)" >>/etc/exports
+systemctl reload nfs-server
+```
+
+### 接入本地开发网
 ```shell
 ./install.sh debug # 若是使用正式，执行./install.sh进行编译, 编译完成后自动放在$FILECOIN_BIN下
 rm -rf /data/sdb/lotus-user-1/.lotus* # 注意!!!! 需要确认此库不是正式库，删掉需要重新同步数据与创建矿工，若创世节点一样，可不删除。
@@ -195,7 +213,7 @@ cd ../../scripts/fivestar
 /data -- 项目数据目录
 
 # 缓存盘
-/data/cache -- 缓存盘，必要时此盘数据会被清除，存放的数据要求是可损坏的，可单独挂载盘，建议挂载1T ssd盘
+/data/cache -- 缓存盘，必要时此盘数据会被清除，存放的数据要求是可损坏的，可单独挂载盘，建议挂载ssd盘
 /data/cache/filecoin-proof-parameters -- filecoin本地启动参数版本管理目录文件，此文件数据需要65G左右的空间
 /data/cache/filecoin-proof-parameters/v20 -- filecoin本地启动参数目录实际目文件
 /data/cache/.lotusworker -- lotus-seal-worker计算缓存目录，计算结束后会自动清除，需要1T左右空间
@@ -222,7 +240,7 @@ cd ../../scripts/fivestar
 ```
 
 
-### 存储节点目
+### 存储节点上的目录
 
 ```
 /data/zfs的目录自行挂载需要的盘
@@ -234,11 +252,16 @@ cd ../../scripts/fivestar
 /data/zfs/ *(rw,sync,insecure,no_root_squash)
 ```
 
+### 链节点目录
+链同步节点目录, 用于存储区块链数据，长期考虑，应留1T的链数据空间或挂载为长期的存储盘，应与矿工数据分离存储
+```text
+/data/sd(?)/lotus-user-x/.lotus # 默认为/data/sdb/lotus-user-1/.lotus
+```
 ### 矿工节点目录
 
 在miner节点中，会用到三种级别的目录
 
-链同步节点目录, 用于存储区块链数据，长期考虑，应留1T的链数据空间或挂载为长期的存储盘，应与矿工数据分离存储
+链api目录, 若是同一台机器，不需要新建
 ```text
 /data/sd(?)/lotus-user-x/.lotus # 默认为/data/sdb/lotus-user-1/.lotus
 ```
@@ -255,11 +278,11 @@ cd ../../scripts/fivestar
 /data/nfs/3
 ```
 
-### 计算节点(worker)工作目录
+### 计算节点目录
 
 在worker中，需要用到三个目录
 
-矿工配置文件目录，用于启动worker
+矿工api配置文件目录，用于启动worker, 若在同一台机器上，不需要新建
 ```text
 /data/sdx/lotus-user-x/.lotusstorage
 ```
@@ -276,4 +299,12 @@ cd ../../scripts/fivestar
 worker程序会根据miner分发的存储节点配置自动挂载
 ```
 
+## 发布二进制
+将发布到./deploy/lotus
+```
+./publish.sh linux-amd64-amd
+```
 
+## 附录
+
+[开发IDE](https://github.com/filecoin-fivestar/ide)

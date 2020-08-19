@@ -132,7 +132,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, ts *types.TipSet, blkCid c
 			toActorMiner = mInfo
 			log.Info("toStateMiner done")
 		}
-		fromStateActor, err := api.StateGetActor(ctx, v.Message.From, ts.Key())
+		fromStateActor, err := api.StateGetActor(ctx, v.Message.From, tsKey)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -148,12 +148,12 @@ func subMpool(ctx context.Context, api aapi.FullNode, ts *types.TipSet, blkCid c
 			}
 			fromActorMiner = mInfo
 		}
-		toAct, err := api.StateLookupID(ctx, v.Message.To, ts.Key())
+		toAct, err := api.StateLookupID(ctx, v.Message.To, tsKey)
 		if err != nil {
 			log.Error(err)
 			continue
 		}
-		fromAct, err := api.StateLookupID(ctx, v.Message.From, ts.Key())
+		fromAct, err := api.StateLookupID(ctx, v.Message.From, tsKey)
 		if err != nil {
 			log.Error(err)
 			continue
