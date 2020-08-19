@@ -269,6 +269,29 @@ func (w *worker) mountPush(sid, mountType, mountUri, mountDir, mountOpt string) 
 	return nil
 }
 
+func umountAllPush(sealedMountedFile string) error {
+	sealedMounted := map[string]string{}
+	if mountedData, err := ioutil.ReadFile(sealedMountedFile); err == nil {
+		if err := json.Unmarshal(mountedData, &sealedMounted); err != nil {
+			return errors.As(err, sealedMountedFile)
+		}
+		for _, p := range sealedMounted {
+			if _, err := database.Umount(p); err != nil {
+				log.Info(err)
+			} else {
+				if err := os.RemoveAll(p); err != nil {
+					log.Error(err)
+				}
+			}
+		}
+		return nil
+	} else {
+		// drop the file error
+		log.Info(errors.As(err))
+	}
+	return nil
+}
+
 func (w *worker) umountPush(sid, mountDir string) error {
 	// umount and client the tmp file
 	if _, err := database.Umount(mountDir); err != nil {

@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -345,20 +343,8 @@ var runCmd = &cli.Command{
 
 		// init and clean the sealed dir who has mounted.
 		sealedMountedFile := workerIdFile + ".lock"
-		sealedMounted := map[string]string{}
-		if mountedData, err := ioutil.ReadFile(sealedMountedFile); err == nil {
-			if err := json.Unmarshal(mountedData, &sealedMounted); err != nil {
-				return errors.As(err)
-			}
-			for _, p := range sealedMounted {
-				if _, err := database.Umount(p); err != nil {
-					log.Info(err)
-				} else {
-					if err := os.RemoveAll(p); err != nil {
-						log.Error(err)
-					}
-				}
-			}
+		if err := umountAllPush(sealedMountedFile); err != nil {
+			return errors.As(err)
 		}
 
 		// init worker configuration
@@ -432,6 +418,10 @@ var runCmd = &cli.Command{
 		); err != nil {
 			log.Warn(err)
 			ReleaseNodeApi(false)
+
+			if err := umountAllPush(sealedMountedFile); err != nil {
+				log.Warn(errors.As(err))
+			}
 		}
 		return nil
 	},
