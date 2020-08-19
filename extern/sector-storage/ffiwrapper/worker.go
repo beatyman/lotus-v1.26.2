@@ -7,8 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
 )
 
@@ -29,21 +30,21 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 	for _, r := range _remotes {
 		if r.cfg.Commit2Srv {
 			commit2SrvTotal++
-			if r.LimitParallel(WorkerCommit2, true) {
+			if r.limitParallel(WorkerCommit2, true) {
 				commit2SrvUsed++
 			}
 		}
 
 		if r.cfg.WnPoStSrv {
 			wnPoStSrvTotal++
-			if r.LimitParallel(WorkerWinningPoSt, true) {
+			if r.limitParallel(WorkerWinningPoSt, true) {
 				wnPoStSrvUsed++
 			}
 		}
 
 		if r.cfg.WdPoStSrv {
 			wdPoStSrvTotal++
-			if r.LimitParallel(WorkerWindowPoSt, true) {
+			if r.limitParallel(WorkerWindowPoSt, true) {
 				wdPoStSrvUsed++
 			}
 		}
@@ -232,9 +233,9 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 			}
 		}
 		if _r.LimitParallel(task.Type, true) {
+			// r is nil
 			continue
 		}
-
 		r = _r
 		r.lk.Lock()
 		r.busyOnTasks[sid] = task
@@ -826,8 +827,6 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		}
 		r.lk.Unlock()
 
-		// send the result back to the caller
-		log.Infof("Got task ret:%s", res.TaskID)
 		select {
 		case <-ctx.Done():
 			log.Warnf(
@@ -864,7 +863,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		r.UpdateTask(task.GetSectorID(), state) // set state to done
 
 		_remoteLk.Lock()
-		// log.Infof("Delete remoteResults :%s", taskKey)
+		log.Infof("Delete task result waiting :%s", taskKey)
 		delete(_remoteResults, taskKey)
 		_remoteLk.Unlock()
 	}()
@@ -881,10 +880,14 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	// wait for the TaskDone called
 	select {
 	case <-ctx.Done():
+		log.Infof("ctx done:%s", taskKey)
 		return SealRes{}, true
 	case <-sb.stopping:
+		log.Infof("sb stoped:%s", taskKey)
 		return SealRes{}, true
 	case res := <-resCh:
+		// send the result back to the caller
+		log.Infof("Got task ret:%s", res.TaskID)
 		return res, false
 	}
 }

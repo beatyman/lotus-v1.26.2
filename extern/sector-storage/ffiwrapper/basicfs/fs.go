@@ -8,8 +8,8 @@ import (
 
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
-	"github.com/filecoin-project/sector-storage/stores"
-	"github.com/filecoin-project/sector-storage/storiface"
+	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
+	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 )
 
 type sectorFile struct {
@@ -32,13 +32,13 @@ func (b *Provider) RepoPath() string {
 }
 
 func (b *Provider) AcquireSector(ctx context.Context, id abi.SectorID, existing stores.SectorFileType, allocate stores.SectorFileType, ptype stores.PathType) (stores.SectorPaths, func(), error) {
-	if err := os.Mkdir(filepath.Join(b.Root, stores.FTUnsealed.String()), 0755); err != nil && !os.IsExist(err) {
+	if err := os.Mkdir(filepath.Join(b.Root, stores.FTUnsealed.String()), 0755); err != nil && !os.IsExist(err) { // nolint
 		return stores.SectorPaths{}, nil, err
 	}
-	if err := os.Mkdir(filepath.Join(b.Root, stores.FTSealed.String()), 0755); err != nil && !os.IsExist(err) {
+	if err := os.Mkdir(filepath.Join(b.Root, stores.FTSealed.String()), 0755); err != nil && !os.IsExist(err) { // nolint
 		return stores.SectorPaths{}, nil, err
 	}
-	if err := os.Mkdir(filepath.Join(b.Root, stores.FTCache.String()), 0755); err != nil && !os.IsExist(err) {
+	if err := os.Mkdir(filepath.Join(b.Root, stores.FTCache.String()), 0755); err != nil && !os.IsExist(err) { // nolint
 		return stores.SectorPaths{}, nil, err
 	}
 	//return stores.HLMSectorPath(id, b.RepoPath()), func() {}, nil
@@ -46,7 +46,7 @@ func (b *Provider) AcquireSector(ctx context.Context, id abi.SectorID, existing 
 	done := func() {}
 
 	out := stores.SectorPaths{
-		Id: id,
+		ID: id,
 	}
 
 	for _, fileType := range stores.PathTypes {

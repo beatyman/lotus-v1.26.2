@@ -8,17 +8,18 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/sector-storage/stores"
+	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/specs-actors/actors/abi"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 )
 
-// TODO: Track things more actively
+// FaultTracker TODO: Track things more actively
 type FaultTracker interface {
 	CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID) ([]abi.SectorID, error)
 }
 
-// Returns unprovable sectors
+// CheckProvable returns unprovable sectors
 func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID) ([]abi.SectorID, error) {
 	var bad []abi.SectorID
 
@@ -33,7 +34,7 @@ func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof
 	for _, sector := range sectors {
 		err := func() error {
 			lp := stores.SectorPaths{
-				Id:       sector,
+				ID:       sector,
 				Unsealed: filepath.Join(repo, "unsealed", ffiwrapper.SectorName(sector)),
 				Sealed:   filepath.Join(repo, "sealed", ffiwrapper.SectorName(sector)),
 				Cache:    filepath.Join(repo, "cache", ffiwrapper.SectorName(sector)),

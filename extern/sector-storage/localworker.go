@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"sync"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
@@ -15,10 +16,12 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	storage2 "github.com/filecoin-project/specs-storage/storage"
 
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/sector-storage/sealtasks"
-	"github.com/filecoin-project/sector-storage/stores"
-	"github.com/filecoin-project/sector-storage/storiface"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
+	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
+	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+
+	"github.com/gwaylib/errors"
 )
 
 var pathTypes = []stores.SectorFileType{stores.FTUnsealed, stores.FTSealed, stores.FTCache}
@@ -36,6 +39,9 @@ type LocalWorker struct {
 	sindex     stores.SectorIndex
 
 	acceptTasks map[sealtasks.TaskType]struct{}
+
+	sbLk    sync.Mutex
+	sbStore ffiwrapper.Storage
 }
 
 func NewLocalWorker(remoteCfg ffiwrapper.RemoteCfg, wcfg WorkerConfig, store stores.Store, local *stores.Local, sindex stores.SectorIndex) *LocalWorker {
@@ -107,7 +113,16 @@ func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector abi.
 }
 
 func (l *LocalWorker) sb() (ffiwrapper.Storage, error) {
-	return ffiwrapper.New(l.remoteCfg, &localWorkerPathProvider{w: l}, l.scfg)
+	l.sbLk.Lock()
+	defer l.sbLk.Unlock()
+	if l.sbStore == nil {
+		sb, err := ffiwrapper.New(l.remoteCfg, &localWorkerPathProvider{w: l}, l.scfg)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+		l.sbStore = sb
+	}
+	return l.sbStore, nil
 }
 
 func (l *LocalWorker) NewSector(ctx context.Context, sector abi.SectorID) error {

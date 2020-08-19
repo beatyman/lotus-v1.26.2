@@ -319,7 +319,7 @@ func (p *Processor) storeMinerPreCommitInfo(ctx context.Context, miners []minerA
 
 		changes, err := p.getMinerPreCommitChanges(ctx, m)
 		if err != nil {
-			if strings.Contains(err.Error(), "address not found") {
+			if strings.Contains(err.Error(), types.ErrActorNotFound.Error()) {
 				continue
 			} else {
 				return err
@@ -439,7 +439,7 @@ func (p *Processor) storeMinerSectorInfo(ctx context.Context, miners []minerActo
 	for _, m := range miners {
 		changes, err := p.getMinerSectorChanges(ctx, m)
 		if err != nil {
-			if strings.Contains(err.Error(), "address not found") {
+			if strings.Contains(err.Error(), types.ErrActorNotFound.Error()) {
 				continue
 			} else {
 				return err
@@ -518,7 +518,7 @@ func (p *Processor) getMinerPartitionsDifferences(ctx context.Context, miners []
 		m := m
 		grp.Go(func() error {
 			if err := p.diffMinerPartitions(ctx, m, events); err != nil {
-				if strings.Contains(err.Error(), "address not found") {
+				if strings.Contains(err.Error(), types.ErrActorNotFound.Error()) {
 					return nil
 				}
 				return err
@@ -873,17 +873,21 @@ func (p *Processor) storeMinersActorInfoState(ctx context.Context, miners []mine
 	for _, m := range miners {
 		mi, err := p.node.StateMinerInfo(ctx, m.common.addr, m.common.tsKey)
 		if err != nil {
-			if strings.Contains(err.Error(), "address not found") {
+			if strings.Contains(err.Error(), types.ErrActorNotFound.Error()) {
 				continue
 			} else {
 				return err
 			}
 		}
+		var pid string
+		if mi.PeerId != nil {
+			pid = mi.PeerId.String()
+		}
 		if _, err := stmt.Exec(
 			m.common.addr.String(),
 			mi.Owner.String(),
 			mi.Worker.String(),
-			mi.PeerId.String(),
+			pid,
 			mi.SectorSize.ShortString(),
 		); err != nil {
 			log.Errorw("failed to store miner state", "state", m.state, "info", m.state.Info, "error", err)

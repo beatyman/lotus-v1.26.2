@@ -3,8 +3,9 @@ package stmgr
 import (
 	"context"
 	"fmt"
-	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"sync"
+
+	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 
 	"github.com/filecoin-project/specs-actors/actors/builtin/multisig"
 
@@ -323,7 +324,7 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 
 	var parentEpoch abi.ChainEpoch
 	pstate := blks[0].ParentStateRoot
-	if len(blks[0].Parents) > 0 {
+	if blks[0].Height > 0 {
 		parent, err := sm.cs.GetBlock(blks[0].Parents[0])
 		if err != nil {
 			return cid.Undef, cid.Undef, xerrors.Errorf("getting parent block: %w", err)
@@ -664,6 +665,8 @@ func (sm *StateManager) tipsetExecutedMessage(ts *types.TipSet, msg cid.Cid, vmm
 				}
 
 				// TODO: continue waitting Magik6k fix it.
+				log.Warn(xerrors.Errorf("found message with equal nonce as the one we are looking for (F:%s n %d, TS: %s n%d)",	msg, vmm.Nonce, m.Cid(), m.VMMessage().Nonce))
+
 				pr, err := sm.cs.GetParentReceipt(ts.Blocks()[0], i)
 				if err != nil {
 					return nil, cid.Undef, err
@@ -794,7 +797,7 @@ type genesisActor struct {
 	initBal abi.TokenAmount
 }
 
-// sets up information about the non-multisig actors in the genesis state
+// sets up information about the actors in the genesis state
 func (sm *StateManager) setupGenesisActors(ctx context.Context) error {
 
 	gi := genesisInfo{}
@@ -857,21 +860,24 @@ func (sm *StateManager) setupGenesisActors(ctx context.Context) error {
 			}
 
 		} else if act.Code == builtin.AccountActorCodeID {
+			// should exclude burnt funds actor and "remainder account actor"
 			// should only ever be "faucet" accounts in testnets
 			kaddr, err := address.NewFromBytes([]byte(k))
 			if err != nil {
 				return xerrors.Errorf("decoding address: %w", err)
 			}
 
-			kid, err := sTree.LookupID(kaddr)
-			if err != nil {
-				return xerrors.Errorf("resolving address: %w", err)
-			}
+			if kaddr != builtin.BurntFundsActorAddr {
+				kid, err := sTree.LookupID(kaddr)
+				if err != nil {
+					return xerrors.Errorf("resolving address: %w", err)
+				}
 
-			gi.genesisActors = append(gi.genesisActors, genesisActor{
-				addr:    kid,
-				initBal: act.Balance,
-			})
+				gi.genesisActors = append(gi.genesisActors, genesisActor{
+					addr:    kid,
+					initBal: act.Balance,
+				})
+			}
 		}
 		return nil
 	})
@@ -879,6 +885,83 @@ func (sm *StateManager) setupGenesisActors(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("error setting up genesis infos: %w", err)
 	}
+
+	gi.genesisMsigs = make([]multisig.State, 0, len(totalsByEpoch))
+	for k, v := range totalsByEpoch {
+		ns := multisig.State{
+			InitialBalance: v,
+			UnlockDuration: k,
+			PendingTxns:    cid.Undef,
+		}
+		gi.genesisMsigs = append(gi.genesisMsigs, ns)
+	}
+
+	sm.genInfo = &gi
+
+	return nil
+}
+
+// sets up information about the actors in the genesis state
+// For testnet we use a hardcoded set of multisig states, instead of what's actually in the genesis multisigs
+// We also do not consider ANY account actors (including the faucet)
+func (sm *StateManager) setupGenesisActorsTestnet(ctx context.Context) error {
+
+	gi := genesisInfo{}
+
+	gb, err := sm.cs.GetGenesis()
+	if err != nil {
+		return xerrors.Errorf("getting genesis block: %w", err)
+	}
+
+	gts, err := types.NewTipSet([]*types.BlockHeader{gb})
+	if err != nil {
+		return xerrors.Errorf("getting genesis tipset: %w", err)
+	}
+
+	st, _, err := sm.TipSetState(ctx, gts)
+	if err != nil {
+		return xerrors.Errorf("getting genesis tipset state: %w", err)
+	}
+
+	cst := cbor.NewCborStore(sm.cs.Blockstore())
+	sTree, err := state.LoadStateTree(cst, st)
+	if err != nil {
+		return xerrors.Errorf("loading state tree: %w", err)
+	}
+
+	gi.genesisMarketFunds, err = getFilMarketLocked(ctx, sTree)
+	if err != nil {
+		return xerrors.Errorf("setting up genesis market funds: %w", err)
+	}
+
+	gi.genesisPledge, err = getFilPowerLocked(ctx, sTree)
+	if err != nil {
+		return xerrors.Errorf("setting up genesis pledge: %w", err)
+	}
+
+	totalsByEpoch := make(map[abi.ChainEpoch]abi.TokenAmount)
+
+	// 6 months
+	sixMonths := abi.ChainEpoch(183 * builtin.EpochsInDay)
+	totalsByEpoch[sixMonths] = big.NewInt(49_929_341)
+	totalsByEpoch[sixMonths] = big.Add(totalsByEpoch[sixMonths], big.NewInt(32_787_700))
+
+	// 1 year
+	oneYear := abi.ChainEpoch(365 * builtin.EpochsInDay)
+	totalsByEpoch[oneYear] = big.NewInt(22_421_712)
+
+	// 2 years
+	twoYears := abi.ChainEpoch(2 * 365 * builtin.EpochsInDay)
+	totalsByEpoch[twoYears] = big.NewInt(7_223_364)
+
+	// 3 years
+	threeYears := abi.ChainEpoch(3 * 365 * builtin.EpochsInDay)
+	totalsByEpoch[threeYears] = big.NewInt(87_637_883)
+
+	// 6 years
+	sixYears := abi.ChainEpoch(6 * 365 * builtin.EpochsInDay)
+	totalsByEpoch[sixYears] = big.NewInt(100_000_000)
+	totalsByEpoch[sixYears] = big.Add(totalsByEpoch[sixYears], big.NewInt(300_000_000))
 
 	gi.genesisMsigs = make([]multisig.State, 0, len(totalsByEpoch))
 	for k, v := range totalsByEpoch {
@@ -905,7 +988,7 @@ func (sm *StateManager) GetFilVested(ctx context.Context, height abi.ChainEpoch,
 		vf = big.Add(vf, au)
 	}
 
-	// these should only ever be "faucet" accounts in testnets
+	// there should not be any such accounts in testnet (and also none in mainnet?)
 	for _, v := range sm.genInfo.genesisActors {
 		act, err := st.GetActor(v.addr)
 		if err != nil {
@@ -991,34 +1074,34 @@ func GetFilBurnt(ctx context.Context, st *state.StateTree) (abi.TokenAmount, err
 	return burnt.Balance, nil
 }
 
-func (sm *StateManager) GetCirculatingSupply(ctx context.Context, height abi.ChainEpoch, st *state.StateTree) (abi.TokenAmount, error) {
+func (sm *StateManager) GetCirculatingSupplyDetailed(ctx context.Context, height abi.ChainEpoch, st *state.StateTree) (api.CirculatingSupply, error) {
 	sm.genesisMsigLk.Lock()
 	defer sm.genesisMsigLk.Unlock()
 	if sm.genInfo == nil {
-		err := sm.setupGenesisActors(ctx)
+		err := sm.setupGenesisActorsTestnet(ctx)
 		if err != nil {
-			return big.Zero(), xerrors.Errorf("failed to setup genesis information: %w", err)
+			return api.CirculatingSupply{}, xerrors.Errorf("failed to setup genesis information: %w", err)
 		}
 	}
 
 	filVested, err := sm.GetFilVested(ctx, height, st)
 	if err != nil {
-		return big.Zero(), xerrors.Errorf("failed to calculate filVested: %w", err)
+		return api.CirculatingSupply{}, xerrors.Errorf("failed to calculate filVested: %w", err)
 	}
 
 	filMined, err := GetFilMined(ctx, st)
 	if err != nil {
-		return big.Zero(), xerrors.Errorf("failed to calculate filMined: %w", err)
+		return api.CirculatingSupply{}, xerrors.Errorf("failed to calculate filMined: %w", err)
 	}
 
 	filBurnt, err := GetFilBurnt(ctx, st)
 	if err != nil {
-		return big.Zero(), xerrors.Errorf("failed to calculate filBurnt: %w", err)
+		return api.CirculatingSupply{}, xerrors.Errorf("failed to calculate filBurnt: %w", err)
 	}
 
 	filLocked, err := sm.GetFilLocked(ctx, st)
 	if err != nil {
-		return big.Zero(), xerrors.Errorf("failed to calculate filLocked: %w", err)
+		return api.CirculatingSupply{}, xerrors.Errorf("failed to calculate filLocked: %w", err)
 	}
 
 	ret := types.BigAdd(filVested, filMined)
@@ -1029,5 +1112,20 @@ func (sm *StateManager) GetCirculatingSupply(ctx context.Context, height abi.Cha
 		ret = big.Zero()
 	}
 
-	return ret, nil
+	return api.CirculatingSupply{
+		FilVested:      filVested,
+		FilMined:       filMined,
+		FilBurnt:       filBurnt,
+		FilLocked:      filLocked,
+		FilCirculating: ret,
+	}, nil
+}
+
+func (sm *StateManager) GetCirculatingSupply(ctx context.Context, height abi.ChainEpoch, st *state.StateTree) (abi.TokenAmount, error) {
+	csi, err := sm.GetCirculatingSupplyDetailed(ctx, height, st)
+	if err != nil {
+		return big.Zero(), err
+	}
+
+	return csi.FilCirculating, nil
 }

@@ -30,6 +30,7 @@ var mpoolCmd = &cli.Command{
 		mpoolStat,
 		mpoolReplaceCmd,
 		mpoolFindCmd,
+		mpoolConfig,
 	},
 }
 var mpoolGetCfg = &cli.Command{
@@ -186,6 +187,10 @@ var mpoolFix = &cli.Command{
 				baseFee,
 				types.BigDiv(types.BigMul(baseFee, types.NewInt(50)), types.NewInt(100)),
 			)
+			// ERROR: failed to push new message to mempool: message will not be included in a block: 'GasFeeCap' less than 'GasPremium'
+			if types.BigCmp(newMsg.GasFeeCap, newMsg.GasPremium) < 0 {
+				newMsg.GasFeeCap = newMsg.GasPremium
+			}
 
 			smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
 			if err != nil {
@@ -384,13 +389,15 @@ var mpoolStat = &cli.Command{
 			for _, m := range bkt.msgs {
 				if m.Message.Nonce < act.Nonce {
 					past++
-					if pastNonce == 0 {
+					if pastNonce > m.Message.Nonce || pastNonce == 0 {
+						// get the min
 						pastNonce = m.Message.Nonce
 					}
 				}
 				if m.Message.Nonce > cur {
 					future++
-					if futureNonce == 0 {
+					if futureNonce > m.Message.Nonce || futureNonce == 0 {
+						// get the min
 						futureNonce = m.Message.Nonce
 					}
 				}
@@ -600,6 +607,51 @@ var mpoolFindCmd = &cli.Command{
 		}
 
 		fmt.Println(string(b))
+		return nil
+	},
+}
+
+var mpoolConfig = &cli.Command{
+	Name:      "config",
+	Usage:     "get or set current mpool configuration",
+	ArgsUsage: "[new-config]",
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() > 1 {
+			return cli.ShowCommandHelp(cctx, cctx.Command.Name)
+		}
+
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ctx := ReqContext(cctx)
+
+		if cctx.Args().Len() == 0 {
+			cfg, err := api.MpoolGetConfig(ctx)
+			if err != nil {
+				return err
+			}
+
+			bytes, err := json.Marshal(cfg)
+			if err != nil {
+				return err
+			}
+
+			fmt.Println(string(bytes))
+		} else {
+			cfg := new(types.MpoolConfig)
+			bytes := []byte(cctx.Args().Get(0))
+
+			err := json.Unmarshal(bytes, cfg)
+			if err != nil {
+				return err
+			}
+
+			return api.MpoolSetConfig(ctx, cfg)
+		}
+
 		return nil
 	},
 }

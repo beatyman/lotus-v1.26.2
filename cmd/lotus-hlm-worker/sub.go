@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/sector-storage/database"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-storage/storage"
-	sealing "github.com/filecoin-project/storage-fsm"
 
 	"github.com/gwaylib/errors"
 )
@@ -50,10 +50,6 @@ func acceptJobs(ctx context.Context,
 	repo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
-	api, err := GetNodeApi()
-	if err != nil {
-		return errors.As(err)
-	}
 	w := &worker{
 		minerEndpoint: minerEndpoint,
 		repo:          repo,
@@ -71,16 +67,21 @@ func acceptJobs(ctx context.Context,
 		sealedMounted:     map[string]string{},
 		sealedMountedFile: mountedFile,
 	}
-	// fetch parameters from miner
+
+	// check params
 	to := "/var/tmp/filecoin-proof-parameters"
 	envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
 	if len(envParam) > 0 {
 		to = envParam
 	}
-	if err := w.FetchHlmParams(ctx, nodeApi, minerEndpoint, to, ssize); err != nil {
+	if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
 		return errors.As(err)
 	}
 
+	api, err := GetNodeApi()
+	if err != nil {
+		return errors.As(err)
+	}
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
 		return errors.As(err)

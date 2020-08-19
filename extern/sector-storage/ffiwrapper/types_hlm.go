@@ -6,11 +6,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/filecoin-project/sector-storage/database"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-storage/storage"
-	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/gwaylib/errors"
 )
 
 func SectorName(sid abi.SectorID) string {

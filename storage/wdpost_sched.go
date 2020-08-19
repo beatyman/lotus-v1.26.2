@@ -2,14 +2,11 @@ package storage
 
 import (
 	"context"
-	"github.com/filecoin-project/lotus/node/config"
 	"time"
 
-	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
-	sectorstorage "github.com/filecoin-project/sector-storage"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-storage/storage"
@@ -18,6 +15,11 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
+	"github.com/filecoin-project/lotus/node/config"
+
+	"go.opencensus.io/trace"
+
 	"github.com/gwaylib/errors"
 )
 
@@ -123,7 +125,7 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 		if notifs == nil {
 			notifs, err = s.api.ChainNotify(ctx)
 			if err != nil {
-				log.Errorf("ChainNotify error: %+v")
+				log.Errorf("ChainNotify error: %+v", err)
 
 				build.Clock.Sleep(10 * time.Second)
 				continue
@@ -226,8 +228,11 @@ func (s *WindowPoStScheduler) update(ctx context.Context, new *types.TipSet) err
 
 	s.abortActivePoSt()
 
-	if di.Challenge+StartConfidence >= new.Height() {
-		log.Info("not starting windowPost yet, waiting for startconfidence", di.Challenge, di.Challenge+StartConfidence, new.Height())
+	// TODO: wait for di.Challenge here, will give us ~10min more to compute windowpost
+	//  (Need to get correct deadline above, which is tricky)
+
+	if di.Open+StartConfidence >= new.Height() {
+		log.Info("not starting windowPost yet, waiting for startconfidence", di.Open, di.Open+StartConfidence, new.Height())
 		return nil
 	}
 

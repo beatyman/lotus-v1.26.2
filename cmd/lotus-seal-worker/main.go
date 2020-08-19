@@ -22,17 +22,18 @@ import (
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
+	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
+	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/lotus/lib/lotuslog"
+	"github.com/filecoin-project/lotus/lib/rpcenc"
 	"github.com/filecoin-project/lotus/node/repo"
-	sectorstorage "github.com/filecoin-project/sector-storage"
-	"github.com/filecoin-project/sector-storage/sealtasks"
-	"github.com/filecoin-project/sector-storage/stores"
 )
 
 var log = logging.Logger("main")
@@ -106,6 +107,11 @@ var runCmd = &cli.Command{
 			Usage: "don't use storageminer repo for sector storage",
 		},
 		&cli.BoolFlag{
+			Name:  "addpiece",
+			Usage: "enable addpiece",
+			Value: true,
+		},
+		&cli.BoolFlag{
 			Name:  "precommit1",
 			Usage: "enable precommit1 (32G sectors: 1 core, 128GiB Memory)",
 			Value: true,
@@ -158,7 +164,9 @@ var runCmd = &cli.Command{
 		var closer func()
 		var err error
 		for {
-			nodeApi, closer, err = lcli.GetStorageMinerAPI(cctx)
+			nodeApi, closer, err = lcli.GetStorageMinerAPI(cctx,
+				jsonrpc.WithNoReconnect(),
+				jsonrpc.WithTimeout(30*time.Second))
 			if err == nil {
 				break
 			}
@@ -204,6 +212,9 @@ var runCmd = &cli.Command{
 
 		taskTypes = append(taskTypes, sealtasks.TTFetch, sealtasks.TTCommit1, sealtasks.TTFinalize)
 
+		if cctx.Bool("addpiece") {
+			taskTypes = append(taskTypes, sealtasks.TTAddPiece)
+		}
 		if cctx.Bool("precommit1") {
 			taskTypes = append(taskTypes, sealtasks.TTPreCommit1)
 		}
@@ -337,10 +348,12 @@ var runCmd = &cli.Command{
 
 		log.Info("Setting up control endpoint at " + address)
 
-		rpcServer := jsonrpc.NewServer()
+		readerHandler, readerServerOpt := rpcenc.ReaderParamDecoder()
+		rpcServer := jsonrpc.NewServer(readerServerOpt)
 		rpcServer.Register("Filecoin", apistruct.PermissionedWorkerAPI(workerApi))
 
 		mux.Handle("/rpc/v0", rpcServer)
+		mux.Handle("/rpc/streams/v0/push/{uuid}", readerHandler)
 		mux.PathPrefix("/remote").HandlerFunc((&stores.FetchHandler{Local: localStore}).ServeHTTP)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
@@ -418,9 +431,13 @@ func watchMinerConn(ctx context.Context, cctx *cli.Context, nodeApi api.StorageM
 			"run",
 			fmt.Sprintf("--listen=%s", cctx.String("listen")),
 			fmt.Sprintf("--no-local-storage=%t", cctx.Bool("no-local-storage")),
+			fmt.Sprintf("--addpiece=%t", cctx.Bool("addpiece")),
 			fmt.Sprintf("--precommit1=%t", cctx.Bool("precommit1")),
+			fmt.Sprintf("--unseal=%t", cctx.Bool("unseal")),
 			fmt.Sprintf("--precommit2=%t", cctx.Bool("precommit2")),
 			fmt.Sprintf("--commit=%t", cctx.Bool("commit")),
+			fmt.Sprintf("--parallel-fetch-limit=%d", cctx.Int("parallel-fetch-limit")),
+			fmt.Sprintf("--timeout=%s", cctx.String("timeout")),
 		}, os.Environ()); err != nil {
 			fmt.Println(err)
 		}

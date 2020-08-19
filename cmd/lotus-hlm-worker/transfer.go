@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/filecoin-project/lotus/lib/fileserver"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gwaylib/errors"
 )

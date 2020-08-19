@@ -311,6 +311,10 @@ var clientDealCmd = &cli.Command{
 			Usage: "indicate that the deal counts towards verified client total",
 			Value: false,
 		},
+		&cli.StringFlag{
+			Name:  "provider-collateral",
+			Usage: "specify the requested provider collateral the miner should put up",
+		},
 		&CidBaseFlag,
 	},
 	Action: func(cctx *cli.Context) error {
@@ -349,6 +353,15 @@ var clientDealCmd = &cli.Command{
 		dur, err := strconv.ParseInt(cctx.Args().Get(3), 10, 32)
 		if err != nil {
 			return err
+		}
+
+		var provCol big.Int
+		if pcs := cctx.String("provider-collateral"); pcs != "" {
+			pc, err := big.FromString(pcs)
+			if err != nil {
+				return fmt.Errorf("failed to parse provider-collateral: %w", err)
+			}
+			provCol = pc
 		}
 
 		if abi.ChainEpoch(dur) < build.MinDealDuration {
@@ -415,14 +428,15 @@ var clientDealCmd = &cli.Command{
 		}
 
 		proposal, err := api.ClientStartDeal(ctx, &lapi.StartDealParams{
-			Data:              ref,
-			Wallet:            a,
-			Miner:             miner,
-			EpochPrice:        types.BigInt(price),
-			MinBlocksDuration: uint64(dur),
-			DealStartEpoch:    abi.ChainEpoch(cctx.Int64("start-epoch")),
-			FastRetrieval:     cctx.Bool("fast-retrieval"),
-			VerifiedDeal:      isVerified,
+			Data:               ref,
+			Wallet:             a,
+			Miner:              miner,
+			EpochPrice:         types.BigInt(price),
+			MinBlocksDuration:  uint64(dur),
+			DealStartEpoch:     abi.ChainEpoch(cctx.Int64("start-epoch")),
+			FastRetrieval:      cctx.Bool("fast-retrieval"),
+			VerifiedDeal:       isVerified,
+			ProviderCollateral: provCol,
 		})
 		if err != nil {
 			return err
@@ -536,7 +550,7 @@ func interactiveDeal(cctx *cli.Context) error {
 				continue
 			}
 
-			a, err := api.ClientQueryAsk(ctx, mi.PeerId, maddr)
+			a, err := api.ClientQueryAsk(ctx, *mi.PeerId, maddr)
 			if err != nil {
 				printErr(xerrors.Errorf("failed to query ask: %w", err))
 				state = "miner"
@@ -840,28 +854,28 @@ var clientRetrieveCmd = &cli.Command{
 			Path:  cctx.Args().Get(1),
 			IsCAR: cctx.Bool("car"),
 		}
-		updates, err := fapi.ClientRetrieve(ctx, offer.Order(payer), ref)
+		updates, err := fapi.ClientRetrieveWithEvents(ctx, offer.Order(payer), ref)
 		if err != nil {
 			return xerrors.Errorf("error setting up retrieval: %w", err)
 		}
 
 		for {
 			select {
-			case evt, chOpen := <-updates:
-				fmt.Printf("> Recv: %s, Paid %s, %s (%s)\n",
-					types.SizeStr(types.NewInt(evt.BytesReceived)),
-					types.FIL(evt.FundsSpent),
-					retrievalmarket.ClientEvents[evt.Event],
-					retrievalmarket.DealStatuses[evt.Status],
-				)
-
-				if !chOpen {
+			case evt, ok := <-updates:
+				if ok {
+					fmt.Printf("> Recv: %s, Paid %s, %s (%s)\n",
+						types.SizeStr(types.NewInt(evt.BytesReceived)),
+						types.FIL(evt.FundsSpent),
+						retrievalmarket.ClientEvents[evt.Event],
+						retrievalmarket.DealStatuses[evt.Status],
+					)
+				} else {
 					fmt.Println("Success")
 					return nil
 				}
 
 				if evt.Err != "" {
-					return xerrors.Errorf("retrieval failed: %v", err)
+					return xerrors.Errorf("retrieval failed: %s", evt.Err)
 				}
 			case <-ctx.Done():
 				return xerrors.Errorf("retrieval timed out")
@@ -919,11 +933,11 @@ var clientQueryAskCmd = &cli.Command{
 				return xerrors.Errorf("failed to get peerID for miner: %w", err)
 			}
 
-			if peer.ID(mi.PeerId) == peer.ID("SETME") {
+			if peer.ID(*mi.PeerId) == peer.ID("SETME") {
 				return fmt.Errorf("the miner hasn't initialized yet")
 			}
 
-			pid = peer.ID(mi.PeerId)
+			pid = peer.ID(*mi.PeerId)
 		}
 
 		ask, err := api.ClientQueryAsk(ctx, pid, maddr)

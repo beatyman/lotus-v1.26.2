@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"golang.org/x/xerrors"
 
 	"github.com/ipfs/go-blockservice"
@@ -36,11 +37,10 @@ import (
 	"github.com/filecoin-project/go-multistore"
 	"github.com/filecoin-project/go-padreader"
 	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	marketevents "github.com/filecoin-project/lotus/markets/loggers"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -137,7 +137,7 @@ func (a *API) ClientStartDeal(ctx context.Context, params *api.StartDealParams) 
 		return nil, xerrors.New("data doesn't fit in a sector")
 	}
 
-	providerInfo := utils.NewStorageProviderInfo(params.Miner, mi.Worker, mi.SectorSize, mi.PeerId, mi.Multiaddrs)
+	providerInfo := utils.NewStorageProviderInfo(params.Miner, mi.Worker, mi.SectorSize, *mi.PeerId, mi.Multiaddrs)
 
 	dealStart := params.DealStartEpoch
 	if dealStart <= 0 { // unset, or explicitly 'epoch undefined'
@@ -157,7 +157,7 @@ func (a *API) ClientStartDeal(ctx context.Context, params *api.StartDealParams) 
 		StartEpoch:    dealStart,
 		EndEpoch:      calcDealExpiration(params.MinBlocksDuration, md, dealStart),
 		Price:         params.EpochPrice,
-		Collateral:    big.Zero(),
+		Collateral:    params.ProviderCollateral,
 		Rt:            rt,
 		FastRetrieval: params.FastRetrieval,
 		VerifiedDeal:  params.VerifiedDeal,
@@ -255,7 +255,7 @@ func (a *API) ClientMinerQueryOffer(ctx context.Context, miner address.Address, 
 	}
 	rp := rm.RetrievalPeer{
 		Address: miner,
-		ID:      mi.PeerId,
+		ID:      *mi.PeerId,
 	}
 	return a.makeRetrievalQuery(ctx, rp, root, piece, rm.QueryParams{}), nil
 }
@@ -400,21 +400,55 @@ func (a *API) ClientListImports(ctx context.Context) ([]api.Import, error) {
 	return out, nil
 }
 
-func (a *API) ClientRetrieve(ctx context.Context, order api.RetrievalOrder, ref *api.FileRef) (<-chan marketevents.RetrievalEvent, error) {
+func (a *API) ClientRetrieve(ctx context.Context, order api.RetrievalOrder, ref *api.FileRef) error {
+	events := make(chan marketevents.RetrievalEvent)
+	go a.clientRetrieve(ctx, order, ref, events)
+
+	for {
+		select {
+		case evt, ok := <-events:
+			if !ok { // done successfully
+				return nil
+			}
+
+			if evt.Err != "" {
+				return xerrors.Errorf("retrieval failed: %s", evt.Err)
+			}
+		case <-ctx.Done():
+			return xerrors.Errorf("retrieval timed out")
+		}
+	}
+}
+
+func (a *API) ClientRetrieveWithEvents(ctx context.Context, order api.RetrievalOrder, ref *api.FileRef) (<-chan marketevents.RetrievalEvent, error) {
 	events := make(chan marketevents.RetrievalEvent)
 	go a.clientRetrieve(ctx, order, ref, events)
 	return events, nil
 }
 
 func (a *API) clientRetrieve(ctx context.Context, order api.RetrievalOrder, ref *api.FileRef, events chan marketevents.RetrievalEvent) {
-	defer close(events)
+	/*
+	panic: send on closed channel
+
+goroutine 8899776 [running]:
+github.com/filecoin-project/lotus/node/impl/client.(*API).clientRetrieve.func2(0x0, 0xc07a74e240, 0x26, 0x1, 0xc02b3e5180, 0x0, 0xc02b3e51e0, 0x100000, 0x100000, 0xc02b3e5200, ...)
+	/root/go/src/github.com/filecoin-project/lotus/node/impl/client/client.go:450 +0xd2
+github.com/filecoin-project/go-fil-markets/retrievalmarket/impl.dispatcher(0x28bb420, 0xc015003320, 0x27f7cc0, 0xc03b5b0840, 0x0, 0x0)
+	/root/go/pkg/mod/github.com/filecoin-project/go-fil-markets@v0.5.6/retrievalmarket/impl/client.go:58 +0x10e
+github.com/hannahhoward/go-pubsub.(*PubSub).Publish(0xc00d1bcb00, 0x28bb420, 0xc015003320, 0x0, 0x0)
+	/root/go/pkg/mod/github.com/hannahhoward/go-pubsub@v0.0.0-20200423002714-8d62886cc36e/pubsub.go:76 +0xd1
+github.com/filecoin-project/go-fil-markets/retrievalmarket/impl.(*Client).notifySubscribers(0xc000355880, 0x27555c0, 0x2e76a40, 0x2a7f960, 0xc03bae0ea0)
+	/root/go/pkg/mod/github.com/filecoin-project/go-fil-markets@v0.5.6/retrievalmarket/impl/client.go:243 +0x178
+github.com/filecoin-project/go-statemachine/fsm.fsmHandler.Init.func1(0xc040d11c20, 0x2f1ac40, 0x2a7f960, 0x2abf2fb, 0x6, 0xc015547d10, 0xc014162d80, 0x2ee11a0, 0xc0155a55c0, 0xc0155a55f0, ...)
+	/root/go/pkg/mod/github.com/filecoin-project/go-statemachine@v0.0.0-20200813232949-df9b130df370/fsm/fsm.go:127 +0x65
+	*/
+
+	// defer close(events)
 
 	finish := func(e error) {
-		errStr := ""
 		if e != nil {
-			errStr = e.Error()
+			events <- marketevents.RetrievalEvent{Err: e.Error(), FundsSpent: big.Zero()}
 		}
-		events <- marketevents.RetrievalEvent{Err: errStr}
 	}
 
 	if order.MinerPeer.ID == "" {
@@ -425,7 +459,7 @@ func (a *API) clientRetrieve(ctx context.Context, order api.RetrievalOrder, ref 
 		}
 
 		order.MinerPeer = retrievalmarket.RetrievalPeer{
-			ID:      mi.PeerId,
+			ID:      *mi.PeerId,
 			Address: order.Miner,
 		}
 	}

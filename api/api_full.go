@@ -247,7 +247,10 @@ type FullNode interface {
 	// ClientMinerQueryOffer returns a QueryOffer for the specific miner and file.
 	ClientMinerQueryOffer(ctx context.Context, miner address.Address, root cid.Cid, piece *cid.Cid) (QueryOffer, error)
 	// ClientRetrieve initiates the retrieval of a file, as specified in the order.
-	ClientRetrieve(ctx context.Context, order RetrievalOrder, ref *FileRef) (<-chan marketevents.RetrievalEvent, error)
+	ClientRetrieve(ctx context.Context, order RetrievalOrder, ref *FileRef) error
+	// ClientRetrieveWithEvents initiates the retrieval of a file, as specified in the order, and provides a channel
+	// of status updates.
+	ClientRetrieveWithEvents(ctx context.Context, order RetrievalOrder, ref *FileRef) (<-chan marketevents.RetrievalEvent, error)
 	// ClientQueryAsk returns a signed StorageAsk from the specified miner.
 	ClientQueryAsk(ctx context.Context, p peer.ID, miner address.Address) (*storagemarket.SignedStorageAsk, error)
 	// ClientCalcCommP calculates the CommP for a specified file
@@ -362,7 +365,7 @@ type FullNode interface {
 	StateDealProviderCollateralBounds(context.Context, abi.PaddedPieceSize, bool, types.TipSetKey) (DealCollateralBounds, error)
 
 	// StateCirculatingSupply returns the circulating supply of Filecoin at the given tipset
-	StateCirculatingSupply(context.Context, types.TipSetKey) (abi.TokenAmount, error)
+	StateCirculatingSupply(context.Context, types.TipSetKey) (CirculatingSupply, error)
 
 	// MethodGroup: Msig
 	// The Msig methods are used to interact with multisig wallets on the
@@ -612,14 +615,15 @@ type MethodCall struct {
 }
 
 type StartDealParams struct {
-	Data              *storagemarket.DataRef
-	Wallet            address.Address
-	Miner             address.Address
-	EpochPrice        types.BigInt
-	MinBlocksDuration uint64
-	DealStartEpoch    abi.ChainEpoch
-	FastRetrieval     bool
-	VerifiedDeal      bool
+	Data               *storagemarket.DataRef
+	Wallet             address.Address
+	Miner              address.Address
+	EpochPrice         types.BigInt
+	MinBlocksDuration  uint64
+	ProviderCollateral big.Int
+	DealStartEpoch     abi.ChainEpoch
+	FastRetrieval      bool
+	VerifiedDeal       bool
 }
 
 type IpldObject struct {
@@ -674,6 +678,14 @@ type ComputeStateOutput struct {
 type DealCollateralBounds struct {
 	Min abi.TokenAmount
 	Max abi.TokenAmount
+}
+
+type CirculatingSupply struct {
+	FilVested      abi.TokenAmount
+	FilMined       abi.TokenAmount
+	FilBurnt       abi.TokenAmount
+	FilLocked      abi.TokenAmount
+	FilCirculating abi.TokenAmount
 }
 
 type MiningBaseInfo struct {
