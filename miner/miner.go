@@ -169,7 +169,6 @@ func (m *Miner) mine(ctx context.Context) {
 			continue
 		}
 		if !prebase.TipSet.Equals(lastBase.TipSet) {
-
 			base := prebase
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			now := time.Now()
@@ -195,6 +194,7 @@ func (m *Miner) mine(ctx context.Context) {
 				time.Sleep(1e9)
 				continue
 			}
+
 			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
 			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
