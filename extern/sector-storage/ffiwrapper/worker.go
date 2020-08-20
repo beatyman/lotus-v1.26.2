@@ -34,7 +34,6 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 
 	for _, r := range remotes {
 		r.lk.Lock()
-		defer r.lk.Unlock()
 		if r.cfg.Commit2Srv {
 			commit2SrvTotal++
 			if r.limitParallel(WorkerCommit2, true) {
@@ -68,6 +67,7 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 				}
 			}
 		}
+		r.lk.Unlock()
 	}
 
 	return WorkerStats{
