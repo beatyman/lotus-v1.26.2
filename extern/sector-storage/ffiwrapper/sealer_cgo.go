@@ -391,7 +391,7 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector abi.SectorID, offset s
 func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector abi.SectorID, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {
 	path, done, err := sb.sectors.AcquireSector(ctx, sector, stores.FTUnsealed, stores.FTNone, stores.PathStorage)
 	if err != nil {
-		return false, xerrors.Errorf("acquire unsealed sector path: %w", err)
+		return false, errors.As(err, "acquire unsealed sector path", sector)
 	}
 	defer done()
 
@@ -399,7 +399,7 @@ func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector abi.Se
 
 	pf, err := openPartialFile(maxPieceSize, path.Unsealed)
 	if xerrors.Is(err, os.ErrNotExist) {
-		return false, xerrors.Errorf("opening partial file: %w", err)
+		return false, errors.As(err, "opening partial file", path.Unsealed)
 	}
 
 	ok, err := pf.HasAllocated(offset, size)

@@ -146,11 +146,12 @@ func (sb *Sealer) DelWorker(ctx context.Context, workerId string) {
 }
 
 func (sb *Sealer) DisableWorker(ctx context.Context, wid string, disable bool) error {
-	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
 	if err := database.DisableWorker(wid, disable); err != nil {
 		return errors.As(err, wid, disable)
 	}
+
+	_remoteLk.Lock()
+	defer _remoteLk.Unlock()
 	r, ok := _remotes[wid]
 	if ok {
 		r.disable = disable
@@ -159,11 +160,11 @@ func (sb *Sealer) DisableWorker(ctx context.Context, wid string, disable bool) e
 }
 
 func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan WorkerTask, error) {
-	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
 	if len(cfg.ID) == 0 {
 		return nil, errors.New("Worker ID not found").As(cfg)
 	}
+	_remoteLk.Lock()
+	defer _remoteLk.Unlock()
 	if old, ok := _remotes[cfg.ID]; ok {
 		if old.release != nil {
 			old.release()
@@ -250,12 +251,14 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 
 func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
 	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
 	r, ok := _remotes[workerId]
 	if !ok {
+		_remoteLk.Unlock()
 		log.Warnf("worker not found:%s", workerId)
 		return nil
 	}
+	_remoteLk.Unlock()
+
 	sid, _, err := ParseTaskKey(taskKey)
 	if err != nil {
 		return errors.As(err, workerId, taskKey)
@@ -332,12 +335,13 @@ func (sb *Sealer) GcWorker(invalidTime time.Time) ([]database.SectorInfo, error)
 // export for rpc service to notiy in pushing stage
 func (sb *Sealer) UnlockWorker(ctx context.Context, workerId, taskKey, memo string, state int) error {
 	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
 	r, ok := _remotes[workerId]
 	if !ok {
+		_remoteLk.Unlock()
 		log.Warnf("worker not found:%s", workerId)
 		return nil
 	}
+	_remoteLk.Unlock()
 	sid, _, err := ParseTaskKey(taskKey)
 	if err != nil {
 		return errors.As(err, workerId, taskKey, memo)
@@ -360,9 +364,6 @@ func (sb *Sealer) UnlockWorker(ctx context.Context, workerId, taskKey, memo stri
 }
 
 func (sb *Sealer) LockWorker(ctx context.Context, workerId, taskKey, memo string, status int) error {
-	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
-
 	sid, _, err := ParseTaskKey(taskKey)
 	if err != nil {
 		return errors.As(err)
@@ -804,7 +805,6 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		task.task.SectorStorage = *ss
 
 		sectorId := res.SectorID()
-		r.lk.Lock()
 		if res.GoErr != nil || len(res.Err) > 0 {
 			// ignore error and do retry until cancel task by manully.
 		} else if task.task.Type == WorkerFinalize {
@@ -825,7 +825,6 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 				res = sb.errTask(task, errors.As(err))
 			}
 		}
-		r.lk.Unlock()
 
 		select {
 		case <-ctx.Done():
