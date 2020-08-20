@@ -179,13 +179,14 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		return nil, errors.New("Worker ID not found").As(cfg)
 	}
 	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
 	if old, ok := _remotes[cfg.ID]; ok {
+		_remoteLk.Unlock()
 		if old.release != nil {
 			old.release()
 		}
 		return nil, errors.New("The worker has exist").As(old.cfg)
 	}
+	_remoteLk.Unlock()
 
 	// update state in db
 	if err := database.OnlineWorker(&database.WorkerInfo{
@@ -220,7 +221,9 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	if _, err := r.checkCache(true, nil); err != nil {
 		return nil, errors.As(err, cfg)
 	}
+	_remoteLk.Lock()
 	_remotes[cfg.ID] = r
+	_remoteLk.Unlock()
 
 	go sb.remoteWorker(ctx, r, cfg)
 
