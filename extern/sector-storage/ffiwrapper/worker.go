@@ -15,13 +15,6 @@ import (
 
 func (sb *Sealer) WorkerStats() WorkerStats {
 	// make a copy for stats
-	remotes := []remote{}
-	_remoteLk.Lock()
-	for _, r := range _remotes {
-		remotes = append(remotes, *r)
-	}
-	_remoteLk.Unlock()
-
 	sealWorkerTotal := 0
 	sealWorkerUsing := 0
 	sealWorkerLocked := 0
@@ -32,25 +25,25 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 	wdPoStSrvTotal := 0
 	wdPoStSrvUsed := 0
 
-	for _, r := range remotes {
-		r.lk.Lock()
+	_remotes.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
 		if r.cfg.Commit2Srv {
 			commit2SrvTotal++
-			if r.limitParallel(WorkerCommit2, true) {
+			if r.LimitParallel(WorkerCommit2, true) {
 				commit2SrvUsed++
 			}
 		}
 
 		if r.cfg.WnPoStSrv {
 			wnPoStSrvTotal++
-			if r.limitParallel(WorkerWinningPoSt, true) {
+			if r.LimitParallel(WorkerWinningPoSt, true) {
 				wnPoStSrvUsed++
 			}
 		}
 
 		if r.cfg.WdPoStSrv {
 			wdPoStSrvTotal++
-			if r.limitParallel(WorkerWindowPoSt, true) {
+			if r.LimitParallel(WorkerWindowPoSt, true) {
 				wdPoStSrvUsed++
 			}
 		}
@@ -60,15 +53,17 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 			if len(r.busyOnTasks) > 0 {
 				sealWorkerLocked++
 			}
+			r.lock.Lock()
 			for _, val := range r.busyOnTasks {
 				if val.Type%10 == 0 {
 					sealWorkerUsing++
 					break
 				}
 			}
+			r.lock.Unlock()
 		}
-		r.lk.Unlock()
-	}
+		return true // continue
+	})
 
 	return WorkerStats{
 		LocalFree:     0,
@@ -107,26 +102,21 @@ func (arr WorkerRemoteStatsArr) Less(i, j int) bool {
 	return arr[i].ID < arr[j].ID
 }
 func (sb *Sealer) WorkerRemoteStats() ([]WorkerRemoteStats, error) {
-	// make a copy for stats
-	remotes := []remote{}
-	_remoteLk.Lock()
-	for _, r := range _remotes {
-		remotes = append(remotes, *r)
-	}
-	_remoteLk.Unlock()
-
 	result := WorkerRemoteStatsArr{}
-	for _, r := range remotes {
+	var gErr error
+	_remotes.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
 		sectors, err := sb.TaskWorking(r.cfg.ID)
 		if err != nil {
-			return nil, errors.As(err)
+			gErr = errors.As(err)
+			return false
 		}
 		busyOn := []string{}
-		r.lk.Lock()
+		r.lock.Lock()
 		for _, b := range r.busyOnTasks {
 			busyOn = append(busyOn, b.GetSectorID())
 		}
-		r.lk.Unlock()
+		r.lock.Unlock()
 
 		result = append(result, WorkerRemoteStats{
 			ID:       r.cfg.ID,
@@ -136,14 +126,18 @@ func (sb *Sealer) WorkerRemoteStats() ([]WorkerRemoteStats, error) {
 			BusyOn:   fmt.Sprintf("%+v", busyOn),
 			SectorOn: sectors,
 		})
+		return true
+	})
+	if gErr != nil {
+		return nil, gErr
 	}
 	sort.Sort(result)
 	return result, nil
 }
 
 func (sb *Sealer) SetAddPieceListener(l func(WorkerTask)) error {
-	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
+	_addPieceListenerLk.Lock()
+	defer _addPieceListenerLk.Unlock()
 	_addPieceListener = l
 	return nil
 }
@@ -155,9 +149,7 @@ func (sb *Sealer) pubAddPieceEvent(t WorkerTask) {
 }
 
 func (sb *Sealer) DelWorker(ctx context.Context, workerId string) {
-	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
-	delete(_remotes, workerId)
+	_remotes.Delete(workerId)
 }
 
 func (sb *Sealer) DisableWorker(ctx context.Context, wid string, disable bool) error {
@@ -165,11 +157,9 @@ func (sb *Sealer) DisableWorker(ctx context.Context, wid string, disable bool) e
 		return errors.As(err, wid, disable)
 	}
 
-	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
-	r, ok := _remotes[wid]
+	r, ok := _remotes.Load(wid)
 	if ok {
-		r.disable = disable
+		r.(*remote).disable = disable
 	}
 	return nil
 }
@@ -178,15 +168,12 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	if len(cfg.ID) == 0 {
 		return nil, errors.New("Worker ID not found").As(cfg)
 	}
-	_remoteLk.Lock()
-	if old, ok := _remotes[cfg.ID]; ok {
-		_remoteLk.Unlock()
-		if old.release != nil {
-			old.release()
+	if old, ok := _remotes.Load(cfg.ID); ok {
+		if old.(*remote).release != nil {
+			old.(*remote).release()
 		}
-		return nil, errors.New("The worker has exist").As(old.cfg)
+		return nil, errors.New("The worker has exist").As(old.(*remote).cfg)
 	}
-	_remoteLk.Unlock()
 
 	// update state in db
 	if err := database.OnlineWorker(&database.WorkerInfo{
@@ -221,9 +208,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	if _, err := r.checkCache(true, nil); err != nil {
 		return nil, errors.As(err, cfg)
 	}
-	_remoteLk.Lock()
-	_remotes[cfg.ID] = r
-	_remoteLk.Unlock()
+	_remotes.Store(cfg.ID, r)
 
 	go sb.remoteWorker(ctx, r, cfg)
 
@@ -232,35 +217,34 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 
 // call UnlockService to release
 func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerTask) (*remote, error) {
-	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
 	// select a remote worker
 	var r *remote
-	for _, _r := range _remotes {
+	_remotes.Range(func(key, val interface{}) bool {
+		_r := val.(*remote)
 		switch task.Type {
 		case WorkerCommit2:
 			if !_r.cfg.Commit2Srv {
-				continue
+				return true
 			}
 		case WorkerWinningPoSt:
 			if !_r.cfg.WnPoStSrv {
-				continue
+				return true
 			}
 		case WorkerWindowPoSt:
 			if !_r.cfg.WdPoStSrv {
-				continue
+				return true
 			}
 		}
 		if _r.LimitParallel(task.Type, true) {
 			// r is nil
-			continue
+			return true
 		}
 		r = _r
-		r.lk.Lock()
+		r.lock.Lock()
 		r.busyOnTasks[sid] = task
-		r.lk.Unlock()
-		break
-	}
+		r.lock.Unlock()
+		return false
+	})
 	if r == nil {
 		return nil, errors.ErrNoData.As(sid, task)
 	}
@@ -268,27 +252,22 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 }
 
 func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
-	_remoteLk.Lock()
-	r, ok := _remotes[workerId]
+	_r, ok := _remotes.Load(workerId)
 	if !ok {
-		_remoteLk.Unlock()
 		log.Warnf("worker not found:%s", workerId)
 		return nil
 	}
-	_remoteLk.Unlock()
+	r := _r.(*remote)
 
 	sid, _, err := ParseTaskKey(taskKey)
 	if err != nil {
 		return errors.As(err, workerId, taskKey)
 	}
 
-	r.lk.Lock()
 	if !r.freeTask(sid) {
-		r.lk.Unlock()
 		// worker has free
 		return nil
 	}
-	r.lk.Unlock()
 
 	return nil
 }
@@ -300,21 +279,27 @@ func (sb *Sealer) UpdateSectorState(sid, memo string, state int) error {
 	}
 
 	// working check
-	_remoteLk.Lock()
-	defer _remoteLk.Unlock()
-	for _, r := range _remotes {
-		r.lk.Lock()
+	var gErr error
+	_remotes.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
+		r.lock.Lock()
 		task, ok := r.busyOnTasks[sid]
+		r.lock.Unlock()
 		if ok {
 			if task.Type%10 == 0 {
-				r.lk.Unlock()
-				return errors.New("task in working").As(sid, memo, state, task.Type)
+				gErr = errors.New("task in working").As(sid, memo, state, task.Type)
+				return false
 			} else {
 				// free memory
+				r.lock.Lock()
 				delete(r.busyOnTasks, sid)
+				r.lock.Unlock()
 			}
 		}
-		r.lk.Unlock()
+		return true
+	})
+	if gErr != nil {
+		return gErr
 	}
 
 	// update state
@@ -334,44 +319,32 @@ func (sb *Sealer) GcWorker(invalidTime time.Time) ([]database.SectorInfo, error)
 		//if err := database.UpdateSectorState(dropTask.ID, dropTask.WorkerId, "GC task", database.SECTOR_STATE_FAILED); err != nil {
 		//	return nil, errors.As(err)
 		//}
-		_remoteLk.Lock()
-		r, ok := _remotes[dropTask.WorkerId]
+		r, ok := _remotes.Load(dropTask.WorkerId)
 		if !ok {
-			_remoteLk.Unlock()
 			continue
 		}
-		_remoteLk.Unlock()
-
-		r.lk.Lock()
-		r.freeTask(dropTask.ID)
-		r.lk.Unlock()
-
+		r.(*remote).freeTask(dropTask.ID)
 	}
 	return dropTasks, nil
 }
 
 // export for rpc service to notiy in pushing stage
 func (sb *Sealer) UnlockWorker(ctx context.Context, workerId, taskKey, memo string, state int) error {
-	_remoteLk.Lock()
-	r, ok := _remotes[workerId]
+	_r, ok := _remotes.Load(workerId)
 	if !ok {
-		_remoteLk.Unlock()
 		log.Warnf("worker not found:%s", workerId)
 		return nil
 	}
-	_remoteLk.Unlock()
+	r := _r.(*remote)
 	sid, _, err := ParseTaskKey(taskKey)
 	if err != nil {
 		return errors.As(err, workerId, taskKey, memo)
 	}
 
-	r.lk.Lock()
 	if !r.freeTask(sid) {
-		r.lk.Unlock()
 		// worker has free
 		return nil
 	}
-	r.lk.Unlock()
 
 	log.Infof("Release task by UnlockWorker:%s, %+v", taskKey, r.cfg)
 	// release and waiting the next
@@ -418,35 +391,35 @@ func (sb *Sealer) toRemoteFree(task workerCall) {
 		sb.returnTask(task)
 		return
 	}
-	for _, r := range _remotes {
-		r.lk.Lock()
+	_remotes.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
+		r.lock.Lock()
 		if r.disable || len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
-			r.lk.Unlock()
-			continue
+			r.lock.Unlock()
+			return true
 		}
-		r.lk.Unlock()
+		r.lock.Unlock()
 
 		switch task.task.Type {
 		case WorkerPreCommit1:
 			if int(r.precommit1Wait) < r.cfg.ParallelPrecommit1 {
-				sb.toRemoteChan(task, r)
-				return
+				go sb.toRemoteChan(task, r)
+				return false
 			}
 		case WorkerPreCommit2:
 			if int(r.precommit2Wait) < r.cfg.ParallelPrecommit2 {
-				sb.toRemoteChan(task, r)
-				return
+				go sb.toRemoteChan(task, r)
+				return false
 			}
 		}
-	}
+		return true
+	})
 	sb.returnTask(task)
 }
 
 func (sb *Sealer) toRemoteOwner(task workerCall) {
-	_remoteLk.Lock()
-	r, ok := _remotes[task.task.WorkerID]
+	r, ok := _remotes.Load(task.task.WorkerID)
 	if !ok {
-		_remoteLk.Unlock()
 		log.Warnf(
 			"no worker(%s,%s) toOwner, return task:%s",
 			task.task.WorkerID, task.task.SectorStorage.WorkerInfo.Ip, task.task.Key(),
@@ -454,8 +427,7 @@ func (sb *Sealer) toRemoteOwner(task workerCall) {
 		sb.returnTask(task)
 		return
 	}
-	_remoteLk.Unlock()
-	sb.toRemoteChan(task, r)
+	sb.toRemoteChan(task, r.(*remote))
 }
 
 func (sb *Sealer) toRemoteChan(task workerCall, r *remote) {
@@ -524,13 +496,11 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	defer log.Infof("remote worker out:%+v", cfg)
 
 	defer func() {
-		_remoteLk.Lock()
+		_remotes.Delete(cfg.ID)
 		// offline worker
 		if err := database.OfflineWorker(cfg.ID); err != nil {
 			log.Error(errors.As(err))
 		}
-		delete(_remotes, cfg.ID)
-		_remoteLk.Unlock()
 	}()
 	addPieceTasks := _addPieceTasks
 	precommit1Tasks := _precommit1Tasks
@@ -552,27 +522,21 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 
 	checkAddPiece := func() {
 		// search checking is the remote busying
-		r.lk.Lock()
 		if r.fullTask() || r.disable {
-			r.lk.Unlock()
 			//log.Infow("DEBUG:", "fullTask", len(r.busyOnTasks), "maxTask", r.maxTaskNum)
 			return
 		}
-		if r.limitParallel(WorkerAddPiece, false) {
-			r.lk.Unlock()
+		if r.LimitParallel(WorkerAddPiece, false) {
 			//log.Infof("limit parallel-addpiece:%s", r.cfg.ID)
 			return
 		}
 		if fullCache, err := r.checkCache(false, nil); err != nil {
-			r.lk.Unlock()
 			log.Error(errors.As(err))
 			return
 		} else if fullCache {
-			r.lk.Unlock()
 			//log.Infof("checkAddPiece fullCache:%s", r.cfg.ID)
 			return
 		}
-		r.lk.Unlock()
 
 		//log.Infof("checkAddPiece:%d,queue:%d", _addPieceWait, len(_addPieceTasks))
 
@@ -725,11 +689,9 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		return
 	}
 
-	r.lk.Lock()
 	switch task.task.Type {
 	case WorkerAddPiece:
 		if r.fullTask() {
-			r.lk.Unlock()
 			log.Warnf("return task:%s", r.cfg.ID, task.task.Key())
 			sb.returnTask(task)
 			return
@@ -741,54 +703,45 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			// come from storage market, the workerID is empty.
 			task.task.WorkerID != "" {
 			// checking the owner is it exist, if exist, transfer to the owner.
-			_remoteLk.Lock()
-			owner, ok := _remotes[task.task.WorkerID]
-			_remoteLk.Unlock()
-			if ok && owner.precommit1Chan != nil {
-				r.lk.Unlock()
-				sb.toRemoteOwner(task)
+			owner, ok := _remotes.Load(task.task.WorkerID)
+			if ok && owner.(*remote).precommit1Chan != nil {
+				go sb.toRemoteOwner(task)
 				return
 			}
 
 			log.Warnf("Worker(%s) not found or functoin(%d) closed , waiting online or go to change the task:%+v", task.task.WorkerID, task.task.Type, task.task)
-			r.lk.Unlock()
-			sb.returnTask(task)
+			go sb.returnTask(task)
 			return
 		}
 		if (r.disable || r.fullTask()) && !r.busyOn(task.task.GetSectorID()) {
 			log.Infof("Worker(%s,%s) is in full tasks:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
-			r.lk.Unlock()
-			sb.toRemoteFree(task)
+			go sb.toRemoteFree(task)
 			return
 		}
 
 		// because on miner start, the busyOn is not exact, so, need to check the database for cache.
 		if fullCache, err := r.checkCache(false, []string{task.task.GetSectorID()}); err != nil {
-			r.lk.Unlock()
 			log.Error(errors.As(err))
-			sb.returnTask(task)
+			go sb.returnTask(task)
 			return
 		} else if fullCache {
 			// no cache to make a new task.
 			log.Infof("Worker(%s,%s) in full cache:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
-			r.lk.Unlock()
-			sb.toRemoteFree(task)
+			go sb.toRemoteFree(task)
 			return
 		}
 	default:
 		// not the task owner
 		if (task.task.SectorStorage.SectorInfo.State < database.SECTOR_STATE_MOVE ||
 			task.task.SectorStorage.SectorInfo.State == database.SECTOR_STATE_PUSH) && task.task.WorkerID != r.cfg.ID {
-			r.lk.Unlock()
-			sb.toRemoteOwner(task)
+			go sb.toRemoteOwner(task)
 			return
 		}
 
 		if task.task.Type != WorkerFinalize && r.fullTask() && !r.busyOn(task.task.GetSectorID()) {
 			log.Infof("Worker(%s,%s) in full working:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
 			// remote worker is locking for the task, and should not accept a new task.
-			r.lk.Unlock()
-			sb.toRemoteFree(task)
+			go sb.toRemoteFree(task)
 			return
 		}
 	}
@@ -799,8 +752,9 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		return
 	}
 	// make worker busy
+	r.lock.Lock()
 	r.busyOnTasks[task.task.GetSectorID()] = task.task
-	r.lk.Unlock()
+	r.lock.Unlock()
 
 	go func() {
 		res, interrupt := sb.TaskSend(ctx, r, task.task)
@@ -866,23 +820,23 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	taskKey := task.Key()
 	resCh := make(chan SealRes)
 
-	_remoteLk.Lock()
-	if _, ok := _remoteResults[taskKey]; ok {
-		_remoteLk.Unlock()
+	_remoteResultLk.Lock()
+	if _, ok := _remoteResult[taskKey]; ok {
+		_remoteResultLk.Unlock()
 		// should not reach here
 		panic(task)
 	}
-	_remoteResults[taskKey] = resCh
-	_remoteLk.Unlock()
+	_remoteResult[taskKey] = resCh
+	_remoteResultLk.Unlock()
 
 	defer func() {
 		state := int(task.Type) + 1
 		r.UpdateTask(task.GetSectorID(), state) // set state to done
 
-		_remoteLk.Lock()
 		log.Infof("Delete task result waiting :%s", taskKey)
-		delete(_remoteResults, taskKey)
-		_remoteLk.Unlock()
+		_remoteResultLk.Lock()
+		delete(_remoteResult, taskKey)
+		_remoteResultLk.Unlock()
 	}()
 
 	// send the task to daemon work.
@@ -911,9 +865,9 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 
 // export for rpc service
 func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
-	_remoteLk.Lock()
-	rres, ok := _remoteResults[res.TaskID]
-	_remoteLk.Unlock()
+	_remoteResultLk.Lock()
+	rres, ok := _remoteResult[res.TaskID]
+	_remoteResultLk.Unlock()
 	if !ok {
 		return errors.ErrNoData.As(res.TaskID)
 	}
