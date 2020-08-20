@@ -14,8 +14,13 @@ import (
 )
 
 func (sb *Sealer) WorkerStats() WorkerStats {
-	_remoteLk.RLock()
-	defer _remoteLk.RUnlock()
+	// make a copy for stats
+	remotes := []remote{}
+	_remoteLk.Lock()
+	for _, r := range _remotes {
+		remotes = append(remotes, *r)
+	}
+	_remoteLk.Unlock()
 
 	sealWorkerTotal := 0
 	sealWorkerUsing := 0
@@ -27,7 +32,9 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 	wdPoStSrvTotal := 0
 	wdPoStSrvUsed := 0
 
-	for _, r := range _remotes {
+	for _, r := range remotes {
+		r.lk.Lock()
+		defer r.lk.Unlock()
 		if r.cfg.Commit2Srv {
 			commit2SrvTotal++
 			if r.limitParallel(WorkerCommit2, true) {
@@ -100,19 +107,27 @@ func (arr WorkerRemoteStatsArr) Less(i, j int) bool {
 	return arr[i].ID < arr[j].ID
 }
 func (sb *Sealer) WorkerRemoteStats() ([]WorkerRemoteStats, error) {
-	_remoteLk.RLock()
-	defer _remoteLk.RUnlock()
+	// make a copy for stats
+	remotes := []remote{}
+	_remoteLk.Lock()
+	for _, r := range _remotes {
+		remotes = append(remotes, *r)
+	}
+	_remoteLk.Unlock()
 
 	result := WorkerRemoteStatsArr{}
-	for _, r := range _remotes {
+	for _, r := range remotes {
 		sectors, err := sb.TaskWorking(r.cfg.ID)
 		if err != nil {
 			return nil, errors.As(err)
 		}
 		busyOn := []string{}
+		r.lk.Lock()
 		for _, b := range r.busyOnTasks {
 			busyOn = append(busyOn, b.GetSectorID())
 		}
+		r.lk.Unlock()
+
 		result = append(result, WorkerRemoteStats{
 			ID:       r.cfg.ID,
 			IP:       r.cfg.IP,
