@@ -458,7 +458,6 @@ func (sb *Sealer) returnTask(task workerCall) {
 	var ret chan workerCall
 	switch task.task.Type {
 	case WorkerAddPiece:
-		time.Sleep(30e9) // sleep for a while, so othe worker can get from the addPieceWait to produce addpiece.
 		atomic.AddInt32(&_addPieceWait, 1)
 		ret = _addPieceTasks
 	case WorkerPreCommit1:
@@ -692,6 +691,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 	switch task.task.Type {
 	case WorkerAddPiece:
 		if r.fullTask() {
+			time.Sleep(30e9)
 			log.Warnf("return task:%s", r.cfg.ID, task.task.Key())
 			sb.returnTask(task)
 			return
