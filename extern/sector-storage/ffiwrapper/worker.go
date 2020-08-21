@@ -840,7 +840,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	}()
 
 	// send the task to daemon work.
-	log.Infof("DEBUG: send task %s to %s", task.Key(), r.cfg.ID)
+	log.Infof("DEBUG: send task %s to %s (locked:%s)", task.Key(), r.cfg.ID, task.WorkerID)
 	select {
 	case <-ctx.Done():
 		return SealRes{}, true
