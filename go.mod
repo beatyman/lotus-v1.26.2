@@ -14,6 +14,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/bsm/sarama-cluster v2.1.15+incompatible
+	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
 	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/dchest/blake2b v1.0.0
 	github.com/detailyang/go-fallocate v0.0.0-20180908115635-432fa640bd2e
@@ -158,7 +159,7 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 //replace github.com/filecoin-project/storage-fsm => ../storage-fsm
 //replace github.com/filecoin-project/storage-fsm => ./extern/storage-fsm
 
-//replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200815055707-9b0e34e030fb
+replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200818115924-6f194fb5f50c
 
 //replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
 

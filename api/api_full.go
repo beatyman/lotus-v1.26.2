@@ -134,6 +134,9 @@ type FullNode interface {
 	GasEstimateGasPremium(_ context.Context, nblocksincl uint64,
 		sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error)
 
+	// GasEstimateMessageGas estimates gas values for unset message gas fields
+	GasEstimateMessageGas(context.Context, *types.Message, *MessageSendSpec, types.TipSetKey) (*types.Message, error)
+
 	// MethodGroup: Sync
 	// The Sync method group contains methods for interacting with and
 	// observing the lotus sync service.
@@ -259,6 +262,9 @@ type FullNode interface {
 	ClientGenCar(ctx context.Context, ref FileRef, outpath string) error
 	// ClientDealSize calculates real deal data size
 	ClientDealSize(ctx context.Context, root cid.Cid) (DataSize, error)
+	// ClientListTransfers returns the status of all ongoing transfers of data
+	ClientListDataTransfers(ctx context.Context) ([]DataTransferChannel, error)
+	ClientDataTransferUpdates(ctx context.Context) (<-chan DataTransferChannel, error)
 
 	// ClientUnimport removes references to the specified file from filestore
 	//ClientUnimport(path string)
