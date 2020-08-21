@@ -432,23 +432,7 @@ func (a *API) ClientRetrieveWithEvents(ctx context.Context, order api.RetrievalO
 }
 
 func (a *API) clientRetrieve(ctx context.Context, order api.RetrievalOrder, ref *api.FileRef, events chan marketevents.RetrievalEvent) {
-	/*
-	panic: send on closed channel
-
-goroutine 8899776 [running]:
-github.com/filecoin-project/lotus/node/impl/client.(*API).clientRetrieve.func2(0x0, 0xc07a74e240, 0x26, 0x1, 0xc02b3e5180, 0x0, 0xc02b3e51e0, 0x100000, 0x100000, 0xc02b3e5200, ...)
-	/root/go/src/github.com/filecoin-project/lotus/node/impl/client/client.go:450 +0xd2
-github.com/filecoin-project/go-fil-markets/retrievalmarket/impl.dispatcher(0x28bb420, 0xc015003320, 0x27f7cc0, 0xc03b5b0840, 0x0, 0x0)
-	/root/go/pkg/mod/github.com/filecoin-project/go-fil-markets@v0.5.6/retrievalmarket/impl/client.go:58 +0x10e
-github.com/hannahhoward/go-pubsub.(*PubSub).Publish(0xc00d1bcb00, 0x28bb420, 0xc015003320, 0x0, 0x0)
-	/root/go/pkg/mod/github.com/hannahhoward/go-pubsub@v0.0.0-20200423002714-8d62886cc36e/pubsub.go:76 +0xd1
-github.com/filecoin-project/go-fil-markets/retrievalmarket/impl.(*Client).notifySubscribers(0xc000355880, 0x27555c0, 0x2e76a40, 0x2a7f960, 0xc03bae0ea0)
-	/root/go/pkg/mod/github.com/filecoin-project/go-fil-markets@v0.5.6/retrievalmarket/impl/client.go:243 +0x178
-github.com/filecoin-project/go-statemachine/fsm.fsmHandler.Init.func1(0xc040d11c20, 0x2f1ac40, 0x2a7f960, 0x2abf2fb, 0x6, 0xc015547d10, 0xc014162d80, 0x2ee11a0, 0xc0155a55c0, 0xc0155a55f0, ...)
-	/root/go/pkg/mod/github.com/filecoin-project/go-statemachine@v0.0.0-20200813232949-df9b130df370/fsm/fsm.go:127 +0x65
-	*/
-
-	// defer close(events)
+	defer close(events)
 
 	finish := func(e error) {
 		if e != nil {

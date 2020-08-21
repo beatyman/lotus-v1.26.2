@@ -17,18 +17,20 @@ var (
 )
 
 var (
-	_remoteLk        = sync.RWMutex{}
 	_addPieceTasks   = make(chan workerCall)
 	_precommit1Tasks = make(chan workerCall)
 	_precommit2Tasks = make(chan workerCall)
 	_commit1Tasks    = make(chan workerCall)
 	_commit2Tasks    = make(chan workerCall)
 	_finalizeTasks   = make(chan workerCall)
-	_remotes         = make(map[string]*remote)
-	_remoteResults   = make(map[string]chan<- SealRes)
+
+	_remotes        = sync.Map{}
+	_remoteResultLk = sync.RWMutex{}
+	_remoteResult   = make(map[string]chan<- SealRes)
 
 	// if set, should call back the task consume event with goroutine.
-	_addPieceListener func(WorkerTask)
+	_addPieceListenerLk = sync.Mutex{}
+	_addPieceListener   func(WorkerTask)
 
 	_addPieceWait   int32
 	_precommit1Wait int32

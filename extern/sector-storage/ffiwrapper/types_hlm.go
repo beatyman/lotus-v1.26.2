@@ -271,7 +271,7 @@ func (w *WorkerRemoteStats) String() string {
 }
 
 type remote struct {
-	lk      sync.Mutex
+	lock    sync.Mutex
 	cfg     WorkerCfg
 	release func()
 
@@ -290,23 +290,24 @@ type remote struct {
 }
 
 func (r *remote) busyOn(sid string) bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
 	_, ok := r.busyOnTasks[sid]
 	return ok
 }
 
 // for control the disk space
 func (r *remote) fullTask() bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
 	return len(r.busyOnTasks) >= r.cfg.MaxTaskNum
 }
 
 // for control the memory
 func (r *remote) LimitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
-	r.lk.Lock()
-	defer r.lk.Unlock()
-	return r.limitParallel(typ, isSrvCalled)
-}
+	r.lock.Lock()
+	defer r.lock.Unlock()
 
-func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	// no limit list
 	switch typ {
 	case WorkerCommit1, WorkerFinalize:
@@ -372,9 +373,8 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 }
 
 func (r *remote) UpdateTask(sid string, state int) bool {
-	r.lk.Lock()
-	defer r.lk.Unlock()
-
+	r.lock.Lock()
+	defer r.lock.Unlock()
 	task, ok := r.busyOnTasks[sid]
 	if !ok {
 		return false
@@ -385,6 +385,8 @@ func (r *remote) UpdateTask(sid string, state int) bool {
 
 }
 func (r *remote) freeTask(sid string) bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
 	_, ok := r.busyOnTasks[sid]
 	delete(r.busyOnTasks, sid)
 	return ok
@@ -424,6 +426,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 			if wTask.State < WorkerFinalize && len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
 				break
 			}
+			r.lock.Lock()
 			_, ok := r.busyOnTasks[wTask.ID]
 			if !ok {
 				// if no data in busy, restore from db, and waitting retry from storage-fsm
@@ -434,6 +437,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 					// others not implement yet, it should be update by doSealTask()
 				}
 			}
+			r.lock.Unlock()
 		}
 	}
 	return history.IsFullWork(r.cfg.MaxTaskNum, r.cfg.TransferBuffer), nil
