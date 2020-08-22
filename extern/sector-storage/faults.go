@@ -45,7 +45,7 @@ func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof
 		start := time.Now()
 		defer func() {
 			end := time.Now()
-			if end.Sub(start) > 10*time.Second {
+			if end.Sub(start) > time.Second {
 				log.Warn(errors.New("Using too much time to check bad").As(sector))
 			}
 		}()
