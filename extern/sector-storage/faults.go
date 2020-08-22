@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -12,6 +14,8 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/abi"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+
+	"github.com/gwaylib/errors"
 )
 
 // FaultTracker TODO: Track things more actively
@@ -22,6 +26,12 @@ type FaultTracker interface {
 // CheckProvable returns unprovable sectors
 func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID) ([]abi.SectorID, error) {
 	var bad []abi.SectorID
+	var badLk = sync.Mutex{}
+	var appendBad = func(sid abi.SectorID) {
+		badLk.Lock()
+		defer badLk.Unlock()
+		bad = append(bad, sid)
+	}
 
 	ssize, err := spt.SectorSize()
 	if err != nil {
@@ -31,51 +41,69 @@ func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof
 	// implement by hlm
 	lstor := &readonlyProvider{stor: m.localStore}
 	repo := lstor.RepoPath()
-	for _, sector := range sectors {
-		err := func() error {
-			lp := stores.SectorPaths{
-				ID:       sector,
-				Unsealed: filepath.Join(repo, "unsealed", ffiwrapper.SectorName(sector)),
-				Sealed:   filepath.Join(repo, "sealed", ffiwrapper.SectorName(sector)),
-				Cache:    filepath.Join(repo, "cache", ffiwrapper.SectorName(sector)),
+	checkBad := func(sector abi.SectorID) {
+		start := time.Now()
+		defer func() {
+			end := time.Now()
+			if end.Sub(start) > 10*time.Second {
+				log.Warn(errors.New("Using too much time to check bad").As(sector))
 			}
-
-			if lp.Sealed == "" || lp.Cache == "" {
-				log.Warnw("CheckProvable Sector FAULT: cache an/or sealed paths not found", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache)
-				bad = append(bad, sector)
-				return nil
-			}
-
-			toCheck := map[string]int64{
-				lp.Sealed:                        int64(ssize),
-				filepath.Join(lp.Cache, "t_aux"): 0,
-				filepath.Join(lp.Cache, "p_aux"): 0,
-			}
-
-			addCachePathsForSectorSize(toCheck, lp.Cache, ssize)
-
-			for p, sz := range toCheck {
-				st, err := os.Stat(p)
-				if err != nil {
-					log.Warnw("CheckProvable Sector FAULT: sector file stat error", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache, "file", p, "err", err)
-					bad = append(bad, sector)
-					return nil
-				}
-
-				if sz != 0 {
-					if st.Size() < sz {
-						log.Warnw("CheckProvable Sector FAULT: sector file is wrong size", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache, "file", p, "size", st.Size(), "expectSize", int64(ssize))
-						bad = append(bad, sector)
-						return nil
-					}
-				}
-			}
-
-			return nil
 		}()
-		if err != nil {
-			return nil, err
+
+		lp := stores.SectorPaths{
+			ID:       sector,
+			Unsealed: filepath.Join(repo, "unsealed", ffiwrapper.SectorName(sector)),
+			Sealed:   filepath.Join(repo, "sealed", ffiwrapper.SectorName(sector)),
+			Cache:    filepath.Join(repo, "cache", ffiwrapper.SectorName(sector)),
 		}
+
+		if lp.Sealed == "" || lp.Cache == "" {
+			log.Warnw("CheckProvable Sector FAULT: cache an/or sealed paths not found", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache)
+			appendBad(sector)
+			return
+		}
+
+		toCheck := map[string]int64{
+			lp.Sealed:                        int64(ssize),
+			filepath.Join(lp.Cache, "t_aux"): 0,
+			filepath.Join(lp.Cache, "p_aux"): 0,
+		}
+
+		addCachePathsForSectorSize(toCheck, lp.Cache, ssize)
+
+		for p, sz := range toCheck {
+			st, err := os.Stat(p)
+			if err != nil {
+				log.Warnw("CheckProvable Sector FAULT: sector file stat error", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache, "file", p, "err", err)
+				appendBad(sector)
+				return
+			}
+
+			if sz != 0 {
+				if st.Size() < sz {
+					log.Warnw("CheckProvable Sector FAULT: sector file is wrong size", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache, "file", p, "size", st.Size(), "expectSize", int64(ssize))
+					appendBad(sector)
+					return
+				}
+			}
+			// TODO: check 'sanity check failed' in rust
+		}
+		return
+	}
+	routines := make(chan bool, 1024) // limit the gorouting to checking the bad, the sectors would be lot.
+	done := make(chan bool, len(sectors))
+	for _, sector := range sectors {
+		go func(s abi.SectorID) {
+			routines <- true
+			defer func() {
+				<-routines
+			}()
+			checkBad(s)
+			done <- true
+		}(sector)
+	}
+	for waits := len(sectors); waits > 0; waits-- {
+		<-done
 	}
 
 	return bad, nil
@@ -155,13 +183,15 @@ func addCachePathsForSectorSize(chk map[string]int64, cacheDir string, ssize abi
 	case 512 << 20:
 		chk[filepath.Join(cacheDir, "sc-02-data-tree-r-last.dat")] = 0
 	case 32 << 30:
-		for i := 0; i < 8; i++ {
-			chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 4586976
-		}
+		chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", 0))] = 4586976 // just check one file cause it use a lot of time to check every file.
+		//for i := 0; i < 8; i++ {
+		//	chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 4586976
+		//}
 	case 64 << 30:
-		for i := 0; i < 16; i++ {
-			chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 0
-		}
+		chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", 0))] = 4586976
+		//for i := 0; i < 16; i++ {
+		//	chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 0
+		//}
 	default:
 		log.Warnf("not checking cache files of %s sectors for faults", ssize)
 	}

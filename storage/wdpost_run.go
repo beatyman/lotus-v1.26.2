@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/filecoin-project/go-bitfield"
@@ -347,87 +348,106 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	}
 
 	var sinfos []abi.SectorInfo
+	var sinfosLk = sync.Mutex{}
 	sidToPart := map[abi.SectorNumber]uint64{}
 	skipCount := uint64(0)
-
+	done := make(chan error, len(partitions))
 	for partIdx, partition := range partitions {
-		// TODO: Can do this in parallel
-		toProve, err := partition.ActiveSectors()
-		if err != nil {
-			log.Warn(err)
-			return nil, xerrors.Errorf("getting active sectors: %w", err)
-		}
-		toProveCount, err := toProve.Count()
-		if err != nil {
-			log.Warn(err)
-		}
-		recoverCount, err := partition.Recoveries.Count()
-		if err != nil {
-			log.Warn(err)
-		}
+		go func(partIdx int, partition *miner.Partition) {
+			var gErr error
+			defer func() {
+				done <- gErr
+			}()
+			// TODO: Can do this in parallel
+			toProve, err := partition.ActiveSectors()
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+			toProveCount, err := toProve.Count()
+			if err != nil {
+				log.Warn(err)
+			}
+			recoverCount, err := partition.Recoveries.Count()
+			if err != nil {
+				log.Warn(err)
+			}
 
-		tsc, err := partition.Sectors.Count()
+			tsc, err := partition.Sectors.Count()
+			if err != nil {
+				log.Warn(err)
+			}
+			tfc, err := partition.Faults.Count()
+			if err != nil {
+				log.Warn(err)
+			}
+			ttc, err := partition.Terminated.Count()
+			if err != nil {
+				log.Warn(err)
+			}
+
+			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d,tsc:%d,tfc:%d,ttc:%d", partIdx, toProveCount, recoverCount, tsc, tfc, ttc)
+
+			toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+
+			good, err := s.checkSectors(ctx, toProve)
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+			goodCount, _ := good.Count()
+			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,good:%d", partIdx, goodCount)
+
+			skipped, err := bitfield.SubtractBitField(toProve, good)
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+			skippedCount, _ := skipped.Count()
+			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,skipped:%d", partIdx, skippedCount)
+
+			sc, err := skipped.Count()
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+
+			skipCount += sc
+
+			ssi, err := s.sectorInfo(ctx, good, ts)
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,len ssi:%d", partIdx, len(ssi))
+
+			if len(ssi) == 0 {
+				return
+			}
+
+			sinfosLk.Lock()
+			sinfos = append(sinfos, ssi...)
+			for _, si := range ssi {
+				sidToPart[si.SectorNumber] = uint64(partIdx)
+			}
+
+			params.Partitions = append(params.Partitions, miner.PoStPartition{
+				Index:   uint64(partIdx),
+				Skipped: skipped,
+			})
+			sinfosLk.Unlock()
+		}(partIdx, partition)
+	}
+	for waits := len(partitions); waits > 0; waits-- {
+		err := <-done
 		if err != nil {
-			log.Warn(err)
+			log.Warn(errors.As(err))
+			return nil, err
 		}
-		tfc, err := partition.Faults.Count()
-		if err != nil {
-			log.Warn(err)
-		}
-		ttc, err := partition.Terminated.Count()
-		if err != nil {
-			log.Warn(err)
-		}
-
-		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d,tsc:%d,tfc:%d,ttc:%d", partIdx, toProveCount, recoverCount, tsc, tfc, ttc)
-
-		toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
-		if err != nil {
-			log.Warn(err)
-			return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
-		}
-
-		good, err := s.checkSectors(ctx, toProve)
-		if err != nil {
-			log.Warn(err)
-			return nil, xerrors.Errorf("checking sectors to skip: %w", err)
-		}
-		goodCount, _ := good.Count()
-		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,good:%d", partIdx, goodCount)
-
-		skipped, err := bitfield.SubtractBitField(toProve, good)
-		if err != nil {
-			return nil, xerrors.Errorf("toProve - good: %w", err)
-		}
-		skippedCount, _ := skipped.Count()
-		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,skipped:%d", partIdx, skippedCount)
-
-		sc, err := skipped.Count()
-		if err != nil {
-			return nil, xerrors.Errorf("getting skipped sector count: %w", err)
-		}
-
-		skipCount += sc
-
-		ssi, err := s.sectorInfo(ctx, good, ts)
-		if err != nil {
-			return nil, xerrors.Errorf("getting sorted sector info: %w", err)
-		}
-		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,len ssi:%d", partIdx, len(ssi))
-
-		if len(ssi) == 0 {
-			continue
-		}
-
-		sinfos = append(sinfos, ssi...)
-		for _, si := range ssi {
-			sidToPart[si.SectorNumber] = uint64(partIdx)
-		}
-
-		params.Partitions = append(params.Partitions, miner.PoStPartition{
-			Index:   uint64(partIdx),
-			Skipped: skipped,
-		})
 	}
 
 	if len(sinfos) == 0 {
