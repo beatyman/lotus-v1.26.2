@@ -25,6 +25,8 @@ type FaultTracker interface {
 
 // CheckProvable returns unprovable sectors
 func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID) ([]abi.SectorID, error) {
+	log.Info("Manager.CheckProvable in, len:", len(sectors))
+	defer log.Info("Manager.CheckProvable out, len:", len(sectors))
 	var bad []abi.SectorID
 	var badLk = sync.Mutex{}
 	var appendBad = func(sid abi.SectorID) {
