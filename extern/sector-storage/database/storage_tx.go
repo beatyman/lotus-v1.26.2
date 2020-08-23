@@ -72,13 +72,18 @@ WHERE
 		}
 	}
 
-	// allocate data
-	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work+1 WHERE id=?", info.ID); err != nil {
-		return nil, nil, errors.As(err)
-	}
+	// Allocate data
 	if _, err := db.Exec("UPDATE sector_info SET storage_id=? WHERE id=?", info.ID, sectorId); err != nil {
 		return nil, nil, errors.As(err, sectorId)
 	}
+	// Declaration of use the storage space
+	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work+1 WHERE id=?", info.ID); err != nil {
+		return nil, nil, errors.As(err)
+	}
+
+	allocateMux.Lock()
+	allocatePool[sectorId] = info.ID
+	allocateMux.Unlock()
 	return &StorageTx{SectorId: sectorId}, info, nil
 }
 func (tx *StorageTx) Commit() error {
@@ -88,17 +93,21 @@ func (tx *StorageTx) Commit() error {
 	}
 	// no prepare
 	if ssInfo.StorageInfo.ID == 0 {
+		allocateMux.Lock()
+		delete(allocatePool, tx.SectorId)
+		allocateMux.Unlock()
 		return nil
 	}
 
 	storage := ssInfo.StorageInfo
 	db := GetDB()
-	if _, err := db.Exec("UPDATE sector_info set storage_id=? WHERE id=?", storage.ID, tx.SectorId); err != nil {
-		return errors.As(err, *tx)
-	}
 	if _, err := db.Exec("UPDATE storage_info SET used_size=used_size+sector_size,cur_work=cur_work-1 WHERE id=?", storage.ID); err != nil {
 		return errors.As(err, *tx)
 	}
+
+	allocateMux.Lock()
+	delete(allocatePool, tx.SectorId)
+	allocateMux.Unlock()
 	return nil
 }
 func (tx *StorageTx) Rollback() error {
@@ -106,10 +115,15 @@ func (tx *StorageTx) Rollback() error {
 }
 
 func cancelStorage(sectorId string) error {
+	allocateMux.Lock()
+	delete(allocatePool, sectorId)
+	allocateMux.Unlock()
+
 	ssInfo, err := GetSectorStorage(sectorId)
 	if err != nil {
 		return errors.As(err, sectorId)
 	}
+
 	// no prepare
 	if ssInfo.StorageInfo.ID == 0 {
 		return nil
@@ -120,9 +134,6 @@ func cancelStorage(sectorId string) error {
 	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work-1 WHERE id=?", storage.ID); err != nil {
 		return errors.As(err, sectorId, storage.ID)
 	}
-	allocateMux.Lock()
-	delete(allocatePool, sectorId)
-	allocateMux.Unlock()
 
 	return nil
 }
@@ -136,6 +147,5 @@ func ClearStorageWork() error {
 	allocateMux.Lock()
 	allocatePool = map[string]int64{}
 	allocateMux.Unlock()
-
 	return nil
 }
