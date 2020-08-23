@@ -32,7 +32,7 @@ func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context, height abi.Ch
 	s.noSubmit = !submit
 	defer func() {
 		// rollback
-		s.noSubmit = bakSubmit
+		s.noSubmit = true
 	}()
 
 	var new *types.TipSet
