@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
-
-	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/specs-actors/actors/abi"
@@ -18,40 +17,58 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+type ProvableStat struct {
+	ID   abi.SectorID
+	Used time.Duration
+	Err  error
+}
+
+type ProvableStatArr []ProvableStat
+
+func (g ProvableStatArr) Len() int {
+	return len(g)
+}
+func (g ProvableStatArr) Swap(i, j int) {
+	g[i], g[j] = g[j], g[i]
+}
+func (g ProvableStatArr) Less(i, j int) bool {
+	return g[i].Used < g[j].Used
+}
+
 // FaultTracker TODO: Track things more actively
 type FaultTracker interface {
-	CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID) ([]abi.SectorID, error)
+	CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID, timeout time.Duration) (all []ProvableStat, bad []ProvableStat, err error)
 }
 
 // CheckProvable returns unprovable sectors
-func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID) ([]abi.SectorID, error) {
+func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID, timeout time.Duration) ([]ProvableStat, []ProvableStat, error) {
 	log.Info("Manager.CheckProvable in, len:", len(sectors))
 	defer log.Info("Manager.CheckProvable out, len:", len(sectors))
-	var bad []abi.SectorID
+	var bad = ProvableStatArr{}
 	var badLk = sync.Mutex{}
-	var appendBad = func(sid abi.SectorID) {
+	var appendBad = func(sid ProvableStat) {
 		badLk.Lock()
 		defer badLk.Unlock()
 		bad = append(bad, sid)
 	}
 
+	var all = ProvableStatArr{}
+	var allLk = sync.Mutex{}
+	var appendAll = func(sid ProvableStat) {
+		allLk.Lock()
+		defer allLk.Unlock()
+		all = append(all, sid)
+	}
+
 	ssize, err := spt.SectorSize()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// implement by hlm
 	lstor := &readonlyProvider{stor: m.localStore}
 	repo := lstor.RepoPath()
-	checkBad := func(sector abi.SectorID) {
-		start := time.Now()
-		defer func() {
-			end := time.Now()
-			if end.Sub(start) > time.Second {
-				log.Warn(errors.New("Using too much time to check bad").As(sector))
-			}
-		}()
-
+	checkBad := func(sector abi.SectorID) error {
 		lp := stores.SectorPaths{
 			ID:       sector,
 			Unsealed: filepath.Join(repo, "unsealed", ffiwrapper.SectorName(sector)),
@@ -60,9 +77,7 @@ func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof
 		}
 
 		if lp.Sealed == "" || lp.Cache == "" {
-			log.Warnw("CheckProvable Sector FAULT: cache an/or sealed paths not found", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache)
-			appendBad(sector)
-			return
+			return errors.New("CheckProvable Sector FAULT: cache an/or sealed paths not found").As(sector, lp.Sealed, lp.Cache)
 		}
 
 		toCheck := map[string]int64{
@@ -76,31 +91,52 @@ func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof
 		for p, sz := range toCheck {
 			st, err := os.Stat(p)
 			if err != nil {
-				log.Warnw("CheckProvable Sector FAULT: sector file stat error", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache, "file", p, "err", err)
-				appendBad(sector)
-				return
+				return errors.As(err, p)
 			}
 
 			if sz != 0 {
 				if st.Size() < sz {
-					log.Warnw("CheckProvable Sector FAULT: sector file is wrong size", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache, "file", p, "size", st.Size(), "expectSize", int64(ssize))
-					appendBad(sector)
-					return
+					return errors.New("CheckProvable Sector FAULT: sector file is wrong size").As(p, st.Size())
 				}
 			}
 			// TODO: check 'sanity check failed' in rust
 		}
-		return
+		return nil
 	}
+
 	routines := make(chan bool, 1024) // limit the gorouting to checking the bad, the sectors would be lot.
 	done := make(chan bool, len(sectors))
+
 	for _, sector := range sectors {
 		go func(s abi.SectorID) {
+			// limit the concurrency
 			routines <- true
 			defer func() {
 				<-routines
 			}()
-			checkBad(s)
+
+			// checking data
+			checkDone := make(chan error, 1)
+			start := time.Now()
+			go func() {
+				checkDone <- checkBad(s)
+			}()
+			var errResult error
+			select {
+			case <-time.After(timeout):
+				// read sector timeout
+				errResult = errors.New("sector stat timeout").As(timeout)
+			case err := <-checkDone:
+				errResult = err
+			}
+			used := time.Now().Sub(start)
+			sectorStat := ProvableStat{ID: s, Used: used, Err: errResult}
+			if errResult != nil {
+				appendBad(sectorStat)
+			}
+			appendAll(sectorStat)
+
+			// thread end
 			done <- true
 		}(sector)
 	}
@@ -108,72 +144,9 @@ func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof
 		<-done
 	}
 
-	return bad, nil
+	sort.Sort(all)
+	return all, bad, nil
 	// end by hlm
-
-	// TODO: More better checks
-	for _, sector := range sectors {
-		err := func() error {
-			ctx, cancel := context.WithCancel(ctx)
-			defer cancel()
-
-			locked, err := m.index.StorageTryLock(ctx, sector, stores.FTSealed|stores.FTCache, stores.FTNone)
-			if err != nil {
-				return xerrors.Errorf("acquiring sector lock: %w", err)
-			}
-
-			if !locked {
-				log.Warnw("CheckProvable Sector FAULT: can't acquire read lock", "sector", sector, "sealed")
-				bad = append(bad, sector)
-				return nil
-			}
-
-			lp, _, err := m.localStore.AcquireSector(ctx, sector, spt, stores.FTSealed|stores.FTCache, stores.FTNone, stores.PathStorage, stores.AcquireMove)
-			if err != nil {
-				log.Warnw("CheckProvable Sector FAULT: acquire sector in checkProvable", "sector", sector, "error", err)
-				bad = append(bad, sector)
-				return nil
-			}
-
-			if lp.Sealed == "" || lp.Cache == "" {
-				log.Warnw("CheckProvable Sector FAULT: cache an/or sealed paths not found", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache)
-				bad = append(bad, sector)
-				return nil
-			}
-
-			toCheck := map[string]int64{
-				lp.Sealed:                        int64(ssize),
-				filepath.Join(lp.Cache, "t_aux"): 0,
-				filepath.Join(lp.Cache, "p_aux"): 0,
-			}
-
-			addCachePathsForSectorSize(toCheck, lp.Cache, ssize)
-
-			for p, sz := range toCheck {
-				st, err := os.Stat(p)
-				if err != nil {
-					log.Warnw("CheckProvable Sector FAULT: sector file stat error", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache, "file", p, "err", err)
-					bad = append(bad, sector)
-					return nil
-				}
-
-				if sz != 0 {
-					if st.Size() != sz {
-						log.Warnw("CheckProvable Sector FAULT: sector file is wrong size", "sector", sector, "sealed", lp.Sealed, "cache", lp.Cache, "file", p, "size", st.Size(), "expectSize", int64(ssize)*sz)
-						bad = append(bad, sector)
-						return nil
-					}
-				}
-			}
-
-			return nil
-		}()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return bad, nil
 }
 
 func addCachePathsForSectorSize(chk map[string]int64, cacheDir string, ssize abi.SectorSize) {
@@ -185,15 +158,14 @@ func addCachePathsForSectorSize(chk map[string]int64, cacheDir string, ssize abi
 	case 512 << 20:
 		chk[filepath.Join(cacheDir, "sc-02-data-tree-r-last.dat")] = 0
 	case 32 << 30:
-		chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", 0))] = 4586976 // just check one file cause it use a lot of time to check every file.
-		//for i := 0; i < 8; i++ {
-		//	chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 4586976
-		//}
+		for i := 0; i < 8; i++ {
+			chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 4586976
+		}
 	case 64 << 30:
 		chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", 0))] = 4586976
-		//for i := 0; i < 16; i++ {
-		//	chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 0
-		//}
+		for i := 0; i < 16; i++ {
+			chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 0
+		}
 	default:
 		log.Warnf("not checking cache files of %s sectors for faults", ssize)
 	}
