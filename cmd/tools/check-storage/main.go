@@ -34,7 +34,11 @@ func main() {
 	}
 
 	for _, val := range all {
-		fmt.Printf("s-t01680-%d,%d,%s,%+v\n", val.ID.Number, val.Used, val.Used.String, val.Err)
+		errStr := "nil"
+		if err := errors.ParseError(val.Err); err != nil {
+			errStr = err.Code()
+		}
+		fmt.Printf("s-t01680-%d,%d,%s,%+v\n", val.ID.Number, val.Used, val.Used.String(), errStr)
 	}
 	fmt.Printf("used:%s, bad:%d\n", time.Now().Sub(start).String(), len(bad))
 }
@@ -132,7 +136,7 @@ func CheckProvable(repo string, ssize abi.SectorSize, sectors []abi.SectorID, ti
 			select {
 			case <-time.After(timeout):
 				// read sector timeout
-				errResult = errors.New("sector state timeout").As(timeout)
+				errResult = errors.New("sector stat timeout").As(timeout)
 			case err := <-checkDone:
 				errResult = err
 			}
