@@ -84,11 +84,6 @@ func GetNodeApi() (api.StorageMiner, error) {
 		return nodeApi, nil
 	}
 
-	ctx := lcli.ReqContext(nodeCCtx)
-	if nodeCCtx == nil {
-		panic("need init node cctx")
-	}
-
 	nApi, closer, err := lcli.GetStorageMinerAPI(nodeCCtx)
 	if err != nil {
 		closeNodeApi()
