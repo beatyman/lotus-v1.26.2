@@ -934,7 +934,7 @@ func (cs *ChainStore) LoadMessagesFromCids(cids []cid.Cid) ([]*types.Message, er
 	for i, c := range cids {
 		m, err := cs.GetMessage(c)
 		if err != nil {
-			return nil, xerrors.Errorf("failed to get message: (%s):%d: %w", err, c, i)
+			return nil, xerrors.Errorf("failed to get message: (%s):%d: %w", c, i, err)
 		}
 
 		msgs = append(msgs, m)
@@ -948,7 +948,7 @@ func (cs *ChainStore) LoadSignedMessagesFromCids(cids []cid.Cid) ([]*types.Signe
 	for i, c := range cids {
 		m, err := cs.GetSignedMessage(c)
 		if err != nil {
-			return nil, xerrors.Errorf("failed to get message: (%s):%d: %w", err, c, i)
+			return nil, xerrors.Errorf("failed to get message: (%s):%d: %w", c, i, err)
 		}
 
 		msgs = append(msgs, m)

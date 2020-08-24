@@ -26,6 +26,7 @@ var mpoolCmd = &cli.Command{
 		mpoolSetCfg,
 		mpoolFix,
 		mpoolPending,
+		mpoolClear,
 		mpoolSub,
 		mpoolStat,
 		mpoolReplaceCmd,
@@ -258,6 +259,38 @@ var mpoolPending = &cli.Command{
 		}
 
 		return nil
+	},
+}
+
+var mpoolClear = &cli.Command{
+	Name:  "clear",
+	Usage: "Clear all pending messages from the mpool (USE WITH CARE)",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "local",
+			Usage: "also clear local messages",
+		},
+		&cli.BoolFlag{
+			Name:  "really-do-it",
+			Usage: "must be specified for the action to take effect",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		really := cctx.Bool("really-do-it")
+		if !really {
+			return fmt.Errorf("--really-do-it must be specified for this action to have an effect; you have been warned.")
+		}
+
+		local := cctx.Bool("local")
+
+		ctx := ReqContext(cctx)
+		return api.MpoolClear(ctx, local)
 	},
 }
 
@@ -507,7 +540,7 @@ var mpoolReplaceCmd = &cli.Command{
 		if err != nil {
 			return fmt.Errorf("parsing gas-premium: %w", err)
 		}
-		// TODO: estiamte fee cap here
+		// TODO: estimate fee cap here
 		msg.GasFeeCap, err = types.BigFromString(cctx.String("gas-feecap"))
 		if err != nil {
 			return fmt.Errorf("parsing gas-feecap: %w", err)
