@@ -97,15 +97,15 @@ func GetNodeApi() (api.StorageMiner, error) {
 	nodeApi = nApi
 	nodeCloser = closer
 
-	v, err := nodeApi.Version(ctx)
-	if err != nil {
-		closeNodeApi()
-		return nil, errors.As(err)
-	}
-	if v.APIVersion != build.APIVersion {
-		closeNodeApi()
-		return nil, xerrors.Errorf("lotus-storage-miner API version doesn't match: local: ", api.Version{APIVersion: build.APIVersion})
-	}
+	//v, err := nodeApi.Version(ctx)
+	//if err != nil {
+	//	closeNodeApi()
+	//	return nil, errors.As(err)
+	//}
+	//if v.APIVersion != build.APIVersion {
+	//	closeNodeApi()
+	//	return nil, xerrors.Errorf("lotus-storage-miner API version doesn't match: local: ", api.Version{APIVersion: build.APIVersion})
+	//}
 
 	return nodeApi, nil
 }
