@@ -85,7 +85,7 @@ func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector abi.
 
 	paths, storageIDs, err := l.w.storage.AcquireSector(ctx, sector, l.w.scfg.SealProofType, existing, allocate, sealing, l.op)
 	if err != nil {
-		return stores.SectorPaths{}, nil, err
+		return stores.SectorPaths{}, nil, errors.As(err)
 	}
 
 	releaseStorage, err := l.w.localStore.Reserve(ctx, sector, l.w.scfg.SealProofType, allocate, storageIDs, stores.FSOverheadSeal)
@@ -144,6 +144,9 @@ func (l *LocalWorker) AddPiece(ctx context.Context, sector abi.SectorID, epcs []
 }
 
 func (l *LocalWorker) Fetch(ctx context.Context, sector abi.SectorID, fileType stores.SectorFileType, ptype stores.PathType, am stores.AcquireMode) error {
+	// cloase fetch
+	return nil
+
 	_, done, err := (&localWorkerPathProvider{w: l, op: am}).AcquireSector(ctx, sector, fileType, stores.FTNone, ptype)
 	if err != nil {
 		return err
