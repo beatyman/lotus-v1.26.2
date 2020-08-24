@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/filecoin-project/go-bitfield"
@@ -35,7 +36,7 @@ func (s *WindowPoStScheduler) failPost(deadline *miner.DeadlineInfo) {
 	s.failLk.Unlock()*/
 }
 
-func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *miner.DeadlineInfo, ts *types.TipSet) {
+func (s *WindowPoStScheduler) doPost(ctx context.Context, submit bool, deadline *miner.DeadlineInfo, ts *types.TipSet) {
 	ctx, abort := context.WithCancel(ctx)
 
 	s.abort = abort
@@ -47,7 +48,7 @@ func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *miner.Deadli
 		ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.doPost")
 		defer span.End()
 
-		proof, err := s.runPost(ctx, *deadline, ts)
+		proof, err := s.runPost(ctx, submit, *deadline, ts)
 		switch err {
 		case errNoPartitions:
 			return
@@ -65,7 +66,7 @@ func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *miner.Deadli
 	}()
 }
 
-func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check abi.BitField) (abi.BitField, error) {
+func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check abi.BitField, timeout time.Duration) (abi.BitField, error) {
 	spt, err := s.proofType.RegisteredSealProof()
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("getting seal proof type: %w", err)
@@ -92,12 +93,16 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check abi.BitFie
 		return bitfield.BitField{}, xerrors.Errorf("iterating over bitfield: %w", err)
 	}
 
-	bad, err := s.faultTracker.CheckProvable(ctx, spt, tocheck)
+	_, bad, err := s.faultTracker.CheckProvable(ctx, spt, tocheck, timeout)
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
 	}
-	for _, id := range bad {
-		delete(sectors, id)
+	// bad
+	for _, val := range bad {
+		if val.Err != nil {
+			log.Warnf("s-t0%d-%d,%d,%s,%s", val.ID.Miner, val.ID.Number, val.Used, val.Used.String(), errors.ParseError(val.Err))
+			delete(sectors, val.ID)
+		}
 	}
 
 	log.Warnw("Checked sectors", "checked", len(tocheck), "good", len(sectors))
@@ -110,7 +115,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check abi.BitFie
 	return sbf, nil
 }
 
-func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uint64, partitions []*miner.Partition) error {
+func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, submit bool, dlIdx uint64, partitions []*miner.Partition) error {
 	ctx, span := trace.StartSpan(ctx, "storage.checkNextRecoveries")
 	defer span.End()
 
@@ -137,7 +142,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 
 		faulty += uc
 
-		recovered, err := s.checkSectors(ctx, unrecovered)
+		recovered, err := s.checkSectors(ctx, unrecovered, 60*time.Second)
 		if err != nil {
 			return xerrors.Errorf("checking unrecovered sectors: %w", err)
 		}
@@ -171,7 +176,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 	if aerr != nil {
 		return xerrors.Errorf("could not serialize declare recoveries parameters: %w", aerr)
 	}
-	if s.noSubmit {
+	if !submit {
 		log.Infow("noSubmit for DeclareFaultsRecovered", "deadline", dlIdx)
 		return nil
 	}
@@ -223,7 +228,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 			return xerrors.Errorf("getting active sectors: %w", err)
 		}
 
-		good, err := s.checkSectors(ctx, toCheck)
+		good, err := s.checkSectors(ctx, toCheck, 60*time.Second)
 		if err != nil {
 			return xerrors.Errorf("checking sectors: %w", err)
 		}
@@ -296,7 +301,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 	return nil
 }
 
-func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo, ts *types.TipSet) (*miner.SubmitWindowedPoStParams, error) {
+func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di miner.DeadlineInfo, ts *types.TipSet) (*miner.SubmitWindowedPoStParams, error) {
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
 
@@ -313,7 +318,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 			return
 		}
 
-		if err := s.checkNextRecoveries(context.TODO(), declDeadline, partitions); err != nil {
+		if err := s.checkNextRecoveries(context.TODO(), submit, declDeadline, partitions); err != nil {
 			// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
 			log.Errorf("checking sector recoveries: %v", err)
 		}
@@ -347,87 +352,106 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	}
 
 	var sinfos []abi.SectorInfo
+	var sinfosLk = sync.Mutex{}
 	sidToPart := map[abi.SectorNumber]uint64{}
 	skipCount := uint64(0)
-
+	done := make(chan error, len(partitions))
 	for partIdx, partition := range partitions {
-		// TODO: Can do this in parallel
-		toProve, err := partition.ActiveSectors()
-		if err != nil {
-			log.Warn(err)
-			return nil, xerrors.Errorf("getting active sectors: %w", err)
-		}
-		toProveCount, err := toProve.Count()
-		if err != nil {
-			log.Warn(err)
-		}
-		recoverCount, err := partition.Recoveries.Count()
-		if err != nil {
-			log.Warn(err)
-		}
+		go func(partIdx int, partition *miner.Partition) {
+			var gErr error
+			defer func() {
+				done <- gErr
+			}()
+			// TODO: Can do this in parallel
+			toProve, err := partition.ActiveSectors()
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+			toProveCount, err := toProve.Count()
+			if err != nil {
+				log.Warn(err)
+			}
+			recoverCount, err := partition.Recoveries.Count()
+			if err != nil {
+				log.Warn(err)
+			}
 
-		tsc, err := partition.Sectors.Count()
+			tsc, err := partition.Sectors.Count()
+			if err != nil {
+				log.Warn(err)
+			}
+			tfc, err := partition.Faults.Count()
+			if err != nil {
+				log.Warn(err)
+			}
+			ttc, err := partition.Terminated.Count()
+			if err != nil {
+				log.Warn(err)
+			}
+
+			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d,tsc:%d,tfc:%d,ttc:%d", partIdx, toProveCount, recoverCount, tsc, tfc, ttc)
+
+			toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+
+			good, err := s.checkSectors(ctx, toProve, 3*time.Second) // spec, if it need a quick read for running proving, so, just have 3 seconds for timeout to detect the file
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+			goodCount, _ := good.Count()
+			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,good:%d", partIdx, goodCount)
+
+			skipped, err := bitfield.SubtractBitField(toProve, good)
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+			skippedCount, _ := skipped.Count()
+			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,skipped:%d", partIdx, skippedCount)
+
+			sc, err := skipped.Count()
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+
+			skipCount += sc
+
+			ssi, err := s.sectorInfo(ctx, good, ts)
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,len ssi:%d", partIdx, len(ssi))
+
+			if len(ssi) == 0 {
+				return
+			}
+
+			sinfosLk.Lock()
+			sinfos = append(sinfos, ssi...)
+			for _, si := range ssi {
+				sidToPart[si.SectorNumber] = uint64(partIdx)
+			}
+
+			params.Partitions = append(params.Partitions, miner.PoStPartition{
+				Index:   uint64(partIdx),
+				Skipped: skipped,
+			})
+			sinfosLk.Unlock()
+		}(partIdx, partition)
+	}
+	for waits := len(partitions); waits > 0; waits-- {
+		err := <-done
 		if err != nil {
-			log.Warn(err)
+			log.Warn(errors.As(err))
+			return nil, err
 		}
-		tfc, err := partition.Faults.Count()
-		if err != nil {
-			log.Warn(err)
-		}
-		ttc, err := partition.Terminated.Count()
-		if err != nil {
-			log.Warn(err)
-		}
-
-		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d,tsc:%d,tfc:%d,ttc:%d", partIdx, toProveCount, recoverCount, tsc, tfc, ttc)
-
-		toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
-		if err != nil {
-			log.Warn(err)
-			return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
-		}
-
-		good, err := s.checkSectors(ctx, toProve)
-		if err != nil {
-			log.Warn(err)
-			return nil, xerrors.Errorf("checking sectors to skip: %w", err)
-		}
-		goodCount, _ := good.Count()
-		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,good:%d", partIdx, goodCount)
-
-		skipped, err := bitfield.SubtractBitField(toProve, good)
-		if err != nil {
-			return nil, xerrors.Errorf("toProve - good: %w", err)
-		}
-		skippedCount, _ := skipped.Count()
-		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,skipped:%d", partIdx, skippedCount)
-
-		sc, err := skipped.Count()
-		if err != nil {
-			return nil, xerrors.Errorf("getting skipped sector count: %w", err)
-		}
-
-		skipCount += sc
-
-		ssi, err := s.sectorInfo(ctx, good, ts)
-		if err != nil {
-			return nil, xerrors.Errorf("getting sorted sector info: %w", err)
-		}
-		log.Infof("DEBUG doPost StateMinerPartitions, index:%d,len ssi:%d", partIdx, len(ssi))
-
-		if len(ssi) == 0 {
-			continue
-		}
-
-		sinfos = append(sinfos, ssi...)
-		for _, si := range ssi {
-			sidToPart[si.SectorNumber] = uint64(partIdx)
-		}
-
-		params.Partitions = append(params.Partitions, miner.PoStPartition{
-			Index:   uint64(partIdx),
-			Skipped: skipped,
-		})
 	}
 
 	if len(sinfos) == 0 {

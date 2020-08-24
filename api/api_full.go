@@ -187,6 +187,9 @@ type FullNode interface {
 	MpoolSub(context.Context) (<-chan MpoolUpdate, error)
 	MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error
 
+	// MpoolClear clears pending messages from the mpool
+	MpoolClear(context.Context, bool) error
+
 	// MpoolGetConfig returns (a copy of) the current mpool config
 	MpoolGetConfig(context.Context) (*types.MpoolConfig, error)
 	// MpoolSetConfig sets the mpool config to (a copy of) the supplied config
@@ -481,6 +484,8 @@ type DealInfo struct {
 	Duration      uint64
 
 	DealID abi.DealID
+
+	CreationTime time.Time
 }
 
 type MsgLookup struct {

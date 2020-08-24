@@ -4,6 +4,7 @@ package ffiwrapper
 
 import (
 	"context"
+	"path/filepath"
 
 	"golang.org/x/xerrors"
 
@@ -64,13 +65,22 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 
 		sid := abi.SectorID{Miner: mid, Number: s.SectorNumber}
 
-		paths, d, err := sb.sectors.AcquireSector(ctx, sid, stores.FTCache|stores.FTSealed, 0, stores.PathStorage)
-		if err != nil {
-			log.Warnw("failed to acquire sector, skipping", "sector", sid, "error", err)
-			skipped = append(skipped, sid)
-			continue
+		// Ignore to visit the storage. by hlm
+		//paths, d, err := sb.sectors.AcquireSector(ctx, sid, stores.FTCache|stores.FTSealed, 0, stores.PathStorage)
+		//if err != nil {
+		//	log.Warnw("failed to acquire sector, skipping", "sector", sid, "error", err)
+		//	skipped = append(skipped, sid)
+		//	continue
+		//}
+		//doneFuncs = append(doneFuncs, d)
+		repo := sb.sectors.RepoPath()
+		sName := SectorName(sid)
+		paths := stores.SectorPaths{
+			ID:       sid,
+			Unsealed: filepath.Join(repo, "unsealed", sName),
+			Sealed:   filepath.Join(repo, "sealed", sName),
+			Cache:    filepath.Join(repo, "cache", sName),
 		}
-		doneFuncs = append(doneFuncs, d)
 
 		postProofType, err := rpt(s.SealProof)
 		if err != nil {
