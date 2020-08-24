@@ -100,7 +100,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check abi.BitFie
 	// bad
 	for _, val := range bad {
 		if val.Err != nil {
-			log.Warnf("s-t01680-%d,%d,%s,%s", val.ID.Number, val.Used, val.Used.String(), errors.ParseError(val.Err))
+			log.Warnf("s-t0%d-%d,%d,%s,%s", val.ID.Miner, val.ID.Number, val.Used, val.Used.String(), errors.ParseError(val.Err))
 			delete(sectors, val.ID)
 		}
 	}
