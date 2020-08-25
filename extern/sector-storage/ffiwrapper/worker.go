@@ -159,6 +159,7 @@ func (sb *Sealer) DisableWorker(ctx context.Context, wid string, disable bool) e
 
 	r, ok := _remotes.Load(wid)
 	if ok {
+		// TODO: make sync?
 		r.(*remote).disable = disable
 	}
 	return nil
