@@ -98,7 +98,7 @@ var testWdPoStCmd = &cli.Command{
 				sb:           minerSealer,
 				storageCache: map[int64]database.StorageInfo{},
 			}
-			if err := rs.loadMinerStorage(ctx); err != nil {
+			if err := rs.loadMinerStorage(ctx, minerApi); err != nil {
 				return errors.As(err)
 			}
 		}
@@ -165,16 +165,24 @@ var testWdPoStCmd = &cli.Command{
 		}
 
 		toProvInfo := []abi.SectorInfo{}
-		for i, val := range all {
+		for _, val := range all {
 			errStr := "nil"
 			if err := errors.ParseError(val.Err); err != nil {
 				errStr = err.Code()
 			} else {
-				toProvInfo = append(toProvInfo, sinfos[i])
+				for i, _ := range sectors {
+					if sectors[i].Number == val.ID.Number {
+						toProvInfo = append(toProvInfo, sinfos[i])
+						break
+					}
+				}
 			}
 			fmt.Printf("s-t0%d-%d,%d,%s,%+v\n", val.ID.Miner, val.ID.Number, val.Used, val.Used.String(), errStr)
 		}
-		fmt.Printf("used:%s,all:%d, bad:%d\n", time.Now().Sub(start).String(), len(all), len(bad))
+		fmt.Printf("used:%s,all:%d, bad:%d,toProve:%d\n", time.Now().Sub(start).String(), len(all), len(bad), len(toProvInfo))
+		for _, val := range toProvInfo {
+			fmt.Println(val.SectorNumber)
+		}
 
 		if _, _, err := minerSealer.GenerateWindowPoSt(ctx, abi.ActorID(mid), toProvInfo, abi.PoStRandomness(rand)); err != nil {
 			return errors.As(err)

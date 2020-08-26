@@ -365,7 +365,7 @@ var runCmd = &cli.Command{
 			storageCache: map[int64]database.StorageInfo{},
 		}
 		if workerCfg.WdPoStSrv || workerCfg.WdPoStSrv {
-			if err := workerApi.loadMinerStorage(ctx); err != nil {
+			if err := workerApi.loadMinerStorage(ctx, nodeApi); err != nil {
 				return errors.As(err)
 			}
 		}
