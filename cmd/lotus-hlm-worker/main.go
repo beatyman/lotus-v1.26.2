@@ -412,13 +412,14 @@ var runCmd = &cli.Command{
 			r, sealedRepo, sealedMountedFile,
 			workerCfg,
 		); err != nil {
-			log.Warn(err)
-			ReleaseNodeApi(false)
-
 			if err := umountAllPush(sealedMountedFile); err != nil {
 				log.Warn(errors.As(err))
 			}
+
+			log.Warn(err)
+			ReleaseNodeApi(true)
 		}
+		log.Info("worker exit")
 		return nil
 	},
 }
