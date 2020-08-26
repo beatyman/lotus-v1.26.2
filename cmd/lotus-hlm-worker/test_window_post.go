@@ -12,6 +12,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
@@ -41,6 +42,11 @@ var testWdPoStCmd = &cli.Command{
 			Value: 0,
 			Usage: "Window PoSt deadline index",
 		},
+		&cli.BoolFlag{
+			Name:  "mount",
+			Value: false,
+			Usage: "mount storage node from miner",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		minerRepo, err := homedir.Expand(cctx.String("miner-repo"))
@@ -58,8 +64,6 @@ var testWdPoStCmd = &cli.Command{
 			return errors.As(err)
 		}
 		defer closer()
-
-		// TODO: mount storage from miner?
 
 		ctx, cancel := context.WithCancel(lcli.ReqContext(cctx))
 		defer cancel()
@@ -87,6 +91,16 @@ var testWdPoStCmd = &cli.Command{
 		}, cfg)
 		if err != nil {
 			return err
+		}
+		// mount storage from miner
+		if cctx.Bool("mount") {
+			rs := &rpcServer{
+				sb:           minerSealer,
+				storageCache: map[int64]database.StorageInfo{},
+			}
+			if err := rs.loadMinerStorage(ctx); err != nil {
+				return errors.As(err)
+			}
 		}
 
 		di := miner.DeadlineInfo{
