@@ -35,13 +35,19 @@ var testCmd = &cli.Command{
 var testWdPoStCmd = &cli.Command{
 	Name:  "wdpost",
 	Usage: "testing wdpost",
+	Flags: []cli.Flag{
+		&cli.IntFlag{
+			Name:  "index",
+			Value: 0,
+			Usage: "Window PoSt deadline index",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		minerRepo, err := homedir.Expand(cctx.String("miner-repo"))
 		if err != nil {
 			return err
 		}
 
-		//minerRepo := "/data/sdb/lotus-user-1/.lotusstorage"
 		fullApi, closer, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {
 			return errors.As(err)
@@ -52,6 +58,8 @@ var testWdPoStCmd = &cli.Command{
 			return errors.As(err)
 		}
 		defer closer()
+
+		// TODO: mount storage from miner?
 
 		ctx, cancel := context.WithCancel(lcli.ReqContext(cctx))
 		defer cancel()
@@ -81,38 +89,20 @@ var testWdPoStCmd = &cli.Command{
 			return err
 		}
 
-		//// TODO: get sectors from partitions
-		//sectors := []abi.SectorID{}
-		//for i := 0; i < 2300; i++ {
-		//	sectors = append(sectors, abi.SectorID{
-		//		Miner:  1680,
-		//		Number: abi.SectorNumber(i),
-		//	})
-		//}
-
-		//start := time.Now()
-		//all, bad, err := CheckProvable(minerRepo, ssize, sectors, 3*time.Second)
-		//if err != nil {
-		//	return errors.As(err)
-		//}
-
-		//badSector := map[abi.SectorNumber]bool{}
-		//for _, val := range all {
-		//	errStr := "nil"
-		//	if err := errors.ParseError(val.Err); err != nil {
-		//		errStr = err.Code()
-		//		badSector[val.ID.Number] = true
-		//	}
-		//	fmt.Printf("s-t0%d-%d,%d,%s,%+v\n", val.ID.Miner, val.ID.Number, val.Used, val.Used.String(), errStr)
-		//}
-		//fmt.Printf("used:%s, bad:%d\n", time.Now().Sub(start).String(), len(bad))
-
 		di := miner.DeadlineInfo{
-			Index: 0, // TODO: get from params
+			Index: cctx.Uint64("index"), // TODO: get from params
 		}
 		ts, err := fullApi.ChainHead(ctx)
 		if err != nil {
 			return err
+		}
+		partitions, err := fullApi.StateMinerPartitions(ctx, act, di.Index, ts.Key())
+		if err != nil {
+			return errors.As(err)
+		}
+		if len(partitions) == 0 {
+			fmt.Println("No partitions")
+			return nil
 		}
 
 		buf := new(bytes.Buffer)
@@ -124,27 +114,29 @@ var testWdPoStCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err)
 		}
-		partitions, err := fullApi.StateMinerPartitions(ctx, act, di.Index, ts.Key())
-		if err != nil {
-			return errors.As(err)
-		}
+
 		mid, err := address.IDFromAddress(act)
 		if err != nil {
 			return errors.As(err)
 		}
 		var sinfos []abi.SectorInfo
+		var sectors = []abi.SectorID{}
 		for partIdx, partition := range partitions {
-			toProve, err := partition.ActiveSectors()
+			pSector := partition.Sectors
+			liveCount, err := pSector.Count()
 			if err != nil {
 				return errors.As(err)
 			}
-			sset, err := fullApi.StateMinerSectors(ctx, act, &toProve, false, ts.Key())
+			sset, err := fullApi.StateMinerSectors(ctx, act, &pSector, false, ts.Key())
 			if err != nil {
 				return errors.As(err, partIdx)
 			}
-			fmt.Printf("partition:%d,sset:%d\n", partIdx, len(sset))
+			fmt.Printf("partition:%d,sectors:%d, sset:%d\n", partIdx, liveCount, len(sset))
 			for _, sector := range sset {
-				// TODO: check bad
+				sectors = append(sectors, abi.SectorID{
+					Miner:  abi.ActorID(mid),
+					Number: sector.ID,
+				})
 				sinfos = append(sinfos, abi.SectorInfo{
 					SectorNumber: sector.ID,
 					SealedCID:    sector.Info.SealedCID,
@@ -152,8 +144,25 @@ var testWdPoStCmd = &cli.Command{
 				})
 			}
 		}
+		start := time.Now()
+		all, bad, err := CheckProvable(minerRepo, ssize, sectors, 3*time.Second)
+		if err != nil {
+			return errors.As(err)
+		}
 
-		if _, _, err := minerSealer.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, abi.PoStRandomness(rand)); err != nil {
+		toProvInfo := []abi.SectorInfo{}
+		for i, val := range all {
+			errStr := "nil"
+			if err := errors.ParseError(val.Err); err != nil {
+				errStr = err.Code()
+			} else {
+				toProvInfo = append(toProvInfo, sinfos[i])
+			}
+			fmt.Printf("s-t0%d-%d,%d,%s,%+v\n", val.ID.Miner, val.ID.Number, val.Used, val.Used.String(), errStr)
+		}
+		fmt.Printf("used:%s,all:%d, bad:%d\n", time.Now().Sub(start).String(), len(all), len(bad))
+
+		if _, _, err := minerSealer.GenerateWindowPoSt(ctx, abi.ActorID(mid), toProvInfo, abi.PoStRandomness(rand)); err != nil {
 			return errors.As(err)
 		}
 		return nil

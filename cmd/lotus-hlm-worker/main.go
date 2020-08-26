@@ -131,12 +131,12 @@ func main() {
 			&cli.StringFlag{
 				Name:    "repo",
 				EnvVars: []string{"LOTUS_WORKER_PATH", "WORKER_PATH"},
-				Value:   "/data/sdb/lotus-user-1/.lotus", // TODO: Consider XDG_DATA_HOME
+				Value:   "~/.lotus", // TODO: Consider XDG_DATA_HOME
 			},
 			&cli.StringFlag{
 				Name:    "miner-repo",
 				EnvVars: []string{"LOTUS_MINER_PATH", "LOTUS_STORAGE_PATH"},
-				Value:   "/data/sdb/lotus-user-1/.lotusstorage", // TODO: Consider XDG_DATA_HOME
+				Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
 			},
 			&cli.StringFlag{
 				Name:    "storage-repo",
