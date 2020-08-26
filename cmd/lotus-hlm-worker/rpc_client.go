@@ -39,7 +39,7 @@ func ConnectHlmWorker(ctx context.Context, fa api.Common, url string) (*rpcClien
 	}
 	rpcUrl := fmt.Sprintf("ws://%s:%s/rpc/v0", urlInfo[0], urlInfo[1])
 
-	wapi, closer, err := client.NewWorkerHlmRPC(rpcUrl, headers)
+	wapi, closer, err := client.NewWorkerHlmRPC(ctx, rpcUrl, headers)
 	if err != nil {
 		return nil, errors.New("creating jsonrpc client").As(err)
 	}

@@ -1067,8 +1067,7 @@ var clientListDeals = &cli.Command{
 			tablewriter.NewLineCol("Message"))
 
 		for _, d := range deals {
-			propcid := d.LocalDeal.ProposalCid.String()
-			propcid = "..." + propcid[len(propcid)-8:]
+			propcid := ellipsis(d.LocalDeal.ProposalCid.String(), 8)
 
 			onChain := "N"
 			if d.OnChainDealState.SectorStartEpoch != -1 {
@@ -1080,8 +1079,7 @@ var clientListDeals = &cli.Command{
 				slashed = fmt.Sprintf("Y (epoch %d)", d.OnChainDealState.SlashEpoch)
 			}
 
-			piece := d.LocalDeal.PieceCID.String()
-			piece = "..." + piece[len(piece)-8:]
+			piece := ellipsis(d.LocalDeal.PieceCID.String(), 8)
 
 			price := types.FIL(types.BigMul(d.LocalDeal.PricePerEpoch, types.NewInt(d.LocalDeal.Duration)))
 
@@ -1359,11 +1357,8 @@ func channelStatusString(useColor bool, status datatransfer.Status) string {
 }
 
 func toChannelOutput(useColor bool, otherPartyColumn string, channel lapi.DataTransferChannel) map[string]interface{} {
-	rootCid := channel.BaseCID.String()
-	rootCid = "..." + rootCid[len(rootCid)-8:]
-
-	otherParty := channel.OtherPeer.String()
-	otherParty = "..." + otherParty[len(otherParty)-8:]
+	rootCid := ellipsis(channel.BaseCID.String(), 8)
+	otherParty := ellipsis(channel.OtherPeer.String(), 8)
 
 	initiated := "N"
 	if channel.IsInitiator {
@@ -1372,7 +1367,7 @@ func toChannelOutput(useColor bool, otherPartyColumn string, channel lapi.DataTr
 
 	voucher := channel.Voucher
 	if len(voucher) > 40 {
-		voucher = "..." + voucher[len(voucher)-37:]
+		voucher = ellipsis(voucher, 37)
 	}
 
 	return map[string]interface{}{
@@ -1385,4 +1380,11 @@ func toChannelOutput(useColor bool, otherPartyColumn string, channel lapi.DataTr
 		"Voucher":        voucher,
 		"Message":        channel.Message,
 	}
+}
+
+func ellipsis(s string, length int) string {
+	if length > 0 && len(s) > length {
+		return "..." + s[len(s)-length:]
+	}
+	return s
 }
