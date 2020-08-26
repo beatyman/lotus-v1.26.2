@@ -170,7 +170,7 @@ func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo
 		}
 	}
 
-	log.Infof("checkCommit:%d,%+v", ffiwrapper.SectorName(m.minerSector(sector.SectorNumber)), sector.Proof)
+	log.Infof("checkCommit:%s,%+v", ffiwrapper.SectorName(m.minerSector(sector.SectorNumber)), sector.Proof)
 	if err := m.checkCommit(ctx.Context(), sector, sector.Proof, tok); err != nil {
 		switch err.(type) {
 		case *ErrApi:
