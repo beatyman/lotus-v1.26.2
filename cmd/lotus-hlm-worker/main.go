@@ -84,12 +84,9 @@ func GetNodeApi() (api.StorageMiner, error) {
 		return nodeApi, nil
 	}
 
-	ctx := lcli.ReqContext(nodeCCtx)
-	if nodeCCtx == nil {
-		panic("need init node cctx")
-	}
-
-	nApi, closer, err := lcli.GetStorageMinerAPI(nodeCCtx)
+	nApi, closer, err := lcli.GetStorageMinerAPI(nodeCCtx,
+		jsonrpc.WithNoReconnect(),
+		jsonrpc.WithTimeout(120*time.Second))
 	if err != nil {
 		closeNodeApi()
 		return nil, errors.As(err)
@@ -125,6 +122,7 @@ func main() {
 
 	local := []*cli.Command{
 		runCmd,
+		testCmd,
 	}
 
 	app := &cli.App{
@@ -135,7 +133,7 @@ func main() {
 			&cli.StringFlag{
 				Name:    "repo",
 				EnvVars: []string{"LOTUS_WORKER_PATH", "WORKER_PATH"},
-				Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
+				Value:   "~/.lotus", // TODO: Consider XDG_DATA_HOME
 			},
 			&cli.StringFlag{
 				Name:    "miner-repo",
@@ -369,7 +367,7 @@ var runCmd = &cli.Command{
 			storageCache: map[int64]database.StorageInfo{},
 		}
 		if workerCfg.WdPoStSrv || workerCfg.WdPoStSrv {
-			if err := workerApi.loadMinerStorage(ctx); err != nil {
+			if err := workerApi.loadMinerStorage(ctx, nodeApi); err != nil {
 				return errors.As(err)
 			}
 		}
@@ -416,13 +414,14 @@ var runCmd = &cli.Command{
 			r, sealedRepo, sealedMountedFile,
 			workerCfg,
 		); err != nil {
-			log.Warn(err)
-			ReleaseNodeApi(false)
-
 			if err := umountAllPush(sealedMountedFile); err != nil {
 				log.Warn(errors.As(err))
 			}
+
+			log.Warn(err)
+			ReleaseNodeApi(true)
 		}
+		log.Info("worker exit")
 		return nil
 	},
 }

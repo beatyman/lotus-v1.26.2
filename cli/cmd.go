@@ -12,7 +12,7 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/mitchellh/go-homedir"
 	"github.com/multiformats/go-multiaddr"
-	manet "github.com/multiformats/go-multiaddr-net"
+	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -215,7 +215,7 @@ func GetAPI(ctx *cli.Context) (api.Common, jsonrpc.ClientCloser, error) {
 		return nil, nil, err
 	}
 
-	return client.NewCommonRPC(addr, headers)
+	return client.NewCommonRPC(ctx.Context, addr, headers)
 }
 
 func GetFullNodeAPI(ctx *cli.Context) (api.FullNode, jsonrpc.ClientCloser, error) {
@@ -224,7 +224,7 @@ func GetFullNodeAPI(ctx *cli.Context) (api.FullNode, jsonrpc.ClientCloser, error
 		return nil, nil, err
 	}
 
-	return client.NewFullNodeRPC(addr, headers)
+	return client.NewFullNodeRPC(ctx.Context, addr, headers)
 }
 
 func GetStorageMinerAPI(ctx *cli.Context, opts ...jsonrpc.Option) (api.StorageMiner, jsonrpc.ClientCloser, error) {
@@ -233,7 +233,7 @@ func GetStorageMinerAPI(ctx *cli.Context, opts ...jsonrpc.Option) (api.StorageMi
 		return nil, nil, errors.As(err)
 	}
 
-	return client.NewStorageMinerRPC(addr, headers, opts...)
+	return client.NewStorageMinerRPC(ctx.Context, addr, headers, opts...)
 }
 
 func DaemonContext(cctx *cli.Context) context.Context {

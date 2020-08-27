@@ -79,7 +79,7 @@ func PrepareWorkerConn() (*WorkerInfo, error) {
 	mdblk.Lock()
 	defer mdblk.Unlock()
 	if err := database.QueryStruct(db, wInfo,
-		"SELECT * FROM worker_info WHERE online=1 ORDER BY svc_conn LIMIT 1",
+		"SELECT * FROM worker_info WHERE online=1 ORDER BY svc_conn,random() LIMIT 1",
 	); err != nil {
 		return nil, errors.As(err)
 	}

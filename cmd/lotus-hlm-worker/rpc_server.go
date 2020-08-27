@@ -35,15 +35,11 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector abi.SectorID, commit
 	return w.sb.SealCommit2(ctx, sector, commit1Out)
 }
 
-func (w *rpcServer) loadMinerStorage(ctx context.Context) error {
+func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.StorageMiner) error {
 	w.storageLk.Lock()
 	defer w.storageLk.Unlock()
 
 	// checksum
-	napi, err := GetNodeApi()
-	if err != nil {
-		return errors.As(err)
-	}
 	list, err := napi.ChecksumStorage(ctx, w.storageVer)
 	if err != nil {
 		return errors.As(err)
@@ -81,9 +77,12 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context) error {
 func (w *rpcServer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []abi.SectorInfo, randomness abi.PoStRandomness) ([]abi.PoStProof, error) {
 	log.Infof("GenerateWinningPoSt RPC in:%d", minerID)
 	defer log.Infof("GenerateWinningPoSt RPC out:%d", minerID)
-
+	napi, err := GetNodeApi()
+	if err != nil {
+		return nil, errors.As(err)
+	}
 	// load miner storage if not exist
-	if err := w.loadMinerStorage(ctx); err != nil {
+	if err := w.loadMinerStorage(ctx, napi); err != nil {
 		return nil, errors.As(err)
 	}
 
@@ -92,9 +91,12 @@ func (w *rpcServer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID
 func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []abi.SectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
 	log.Infof("GenerateWindowPoSt RPC in:%d", minerID)
 	defer log.Infof("GenerateWindowPoSt RPC out:%d", minerID)
-
+	napi, err := GetNodeApi()
+	if err != nil {
+		return api.WindowPoStResp{}, errors.As(err)
+	}
 	// load miner storage if not exist
-	if err := w.loadMinerStorage(ctx); err != nil {
+	if err := w.loadMinerStorage(ctx, napi); err != nil {
 		return api.WindowPoStResp{}, errors.As(err)
 	}
 

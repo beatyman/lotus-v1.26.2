@@ -49,11 +49,11 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 		}
 
 		if r.cfg.ParallelAddPiece+r.cfg.ParallelPrecommit1+r.cfg.ParallelPrecommit2+r.cfg.ParallelCommit1+r.cfg.ParallelCommit2 > 0 {
+			r.lock.Lock()
 			sealWorkerTotal++
 			if len(r.busyOnTasks) > 0 {
 				sealWorkerLocked++
 			}
-			r.lock.Lock()
 			for _, val := range r.busyOnTasks {
 				if val.Type%10 == 0 {
 					sealWorkerUsing++
@@ -159,6 +159,7 @@ func (sb *Sealer) DisableWorker(ctx context.Context, wid string, disable bool) e
 
 	r, ok := _remotes.Load(wid)
 	if ok {
+		// TODO: make sync?
 		r.(*remote).disable = disable
 	}
 	return nil
@@ -209,6 +210,9 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		return nil, errors.As(err, cfg)
 	}
 	_remotes.Store(cfg.ID, r)
+	if cfg.ParallelAddPiece == 0 && cfg.ParallelPrecommit1 > 0 {
+		_remoteMarket.Store(cfg.ID, r)
+	}
 
 	go sb.remoteWorker(ctx, r, cfg)
 
@@ -221,6 +225,8 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	var r *remote
 	_remotes.Range(func(key, val interface{}) bool {
 		_r := val.(*remote)
+		_r.lock.Lock()
+		defer _r.lock.Unlock()
 		switch task.Type {
 		case WorkerCommit2:
 			if !_r.cfg.Commit2Srv {
@@ -235,14 +241,14 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 				return true
 			}
 		}
-		if _r.LimitParallel(task.Type, true) {
+		if _r.limitParallel(task.Type, true) {
 			// r is nil
 			return true
 		}
+
 		r = _r
-		r.lock.Lock()
-		r.busyOnTasks[sid] = task
-		r.lock.Unlock()
+		r.busyOnTasks[sid] = task // make busy
+		// break range
 		return false
 	})
 	if r == nil {
@@ -391,6 +397,33 @@ func (sb *Sealer) toRemoteFree(task workerCall) {
 		sb.returnTask(task)
 		return
 	}
+	sent := false
+	// for market
+	_remoteMarket.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
+		r.lock.Lock()
+		if r.disable || len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
+			r.lock.Unlock()
+			return true
+		}
+		r.lock.Unlock()
+
+		switch task.task.Type {
+		case WorkerPreCommit1:
+			if int(r.precommit1Wait) < r.cfg.ParallelPrecommit1 {
+				sent = true
+				go sb.toRemoteChan(task, r)
+				return false
+			}
+		}
+		return true
+	})
+
+	if sent {
+		return
+	}
+
+	// for garbage
 	_remotes.Range(func(key, val interface{}) bool {
 		r := val.(*remote)
 		r.lock.Lock()
@@ -403,17 +436,22 @@ func (sb *Sealer) toRemoteFree(task workerCall) {
 		switch task.task.Type {
 		case WorkerPreCommit1:
 			if int(r.precommit1Wait) < r.cfg.ParallelPrecommit1 {
+				sent = true
 				go sb.toRemoteChan(task, r)
 				return false
 			}
 		case WorkerPreCommit2:
 			if int(r.precommit2Wait) < r.cfg.ParallelPrecommit2 {
+				sent = true
 				go sb.toRemoteChan(task, r)
 				return false
 			}
 		}
 		return true
 	})
+	if sent {
+		return
+	}
 	sb.returnTask(task)
 }
 
@@ -495,6 +533,7 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	defer log.Infof("remote worker out:%+v", cfg)
 
 	defer func() {
+		_remoteMarket.Delete(cfg.ID)
 		_remotes.Delete(cfg.ID)
 		// offline worker
 		if err := database.OfflineWorker(cfg.ID); err != nil {
@@ -696,7 +735,14 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			sb.returnTask(task)
 			return
 		}
+		// can be scheduled
 	case WorkerPreCommit1:
+		// schedule to market remotes
+		if len(task.task.WorkerID) == 0 && r.cfg.ParallelAddPiece > 0 && hasMarketRemotes() {
+			go sb.toRemoteFree(task)
+			return
+		}
+
 		// checking owner
 		if task.task.SectorStorage.SectorInfo.State < database.SECTOR_STATE_MOVE &&
 			task.task.WorkerID != r.cfg.ID &&
@@ -730,6 +776,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			go sb.toRemoteFree(task)
 			return
 		}
+		// can be scheduled
 	default:
 		// not the task owner
 		if (task.task.SectorStorage.SectorInfo.State < database.SECTOR_STATE_MOVE ||
@@ -744,6 +791,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			go sb.toRemoteFree(task)
 			return
 		}
+		// can be scheduled
 	}
 	// update status
 	if err := database.UpdateSectorState(ss.SectorInfo.ID, r.cfg.ID, "task in", int(task.task.Type)); err != nil {
@@ -823,8 +871,9 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	_remoteResultLk.Lock()
 	if _, ok := _remoteResult[taskKey]; ok {
 		_remoteResultLk.Unlock()
-		// should not reach here
-		panic(task)
+		// should not reach here, retry later.
+		log.Error(errors.New("Duplicate request").As(taskKey, r.cfg.ID, task))
+		return SealRes{}, true
 	}
 	_remoteResult[taskKey] = resCh
 	_remoteResultLk.Unlock()
