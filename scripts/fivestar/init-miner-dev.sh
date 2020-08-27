@@ -6,38 +6,15 @@ size=2048
 #size=536870912 # 512MB
 #size=34359738368 # 32G
 
-repodir=$1
-if [ -z "$repodir" ]; then
-    repodir=/data/sdb/lotus-user-1/.lotus
-fi
-miner_repodir=$2
-if [ -z "$miner_repodir" ]; then
-    miner_repodir=/data/sdb/lotus-user-1/.lotusstorage
-fi
-
-mkdir -p $repodir
-mkdir -p $miner_repodir
-
-walletAddr=$(../../lotus --repo=$repodir wallet new bls)
+walletAddr=$(./lotus.sh wallet new bls)
 echo $walletAddr
-mkresp=$(curl -s $host"/mkminer?sectorSize=$size&address="$walletAddr)
+./lotus.sh wallet export $walletAddr>$walletAddr.dat
 
-echo $mkresp
-f=$(echo $mkresp|awk -F 'a href="/wait.html\\?f=' '{print $2}'|awk -F '&amp;m=' '{print $1}')
-if [ -z "$f" ]; then
-    echo "f not found"
+resp=$(curl -s $host"/send?address="$walletAddr)
+./lotus.sh state wait-msg $resp
+if [ $? -ne 0 ]; then
+    echo "request failed: " $resp
     exit
 fi
-
-curl -s $host"/msgwait?cid="$f
-minerAddrJs=$(curl -s $host"/msgwaitaddr?cid="$f)
-minerAddr=$(echo $minerAddrJs|awk -F '"addr": "' '{print $2}'|awk -F '"}' '{print $1}')
-
-echo lotus-miner init --actor=$minerAddr --owner=$walletAddr
-../../lotus-miner --repo=$repodir --miner-repo=$miner_repodir init --actor=$minerAddr --owner=$walletAddr
-
-cp ./config-miner.toml $miner_repodir/config.toml
-netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.") # only support one eth card.
-echo "Set $netip to config.toml"
-sed -i "s/127.0.0.1/$netip/g" $miner_repodir/config.toml
-
+echo lotus-miner init --owner=$walletAddr --sector-size=$size
+#./miner.sh init --owner=$walletAddr --sector-size=$size
