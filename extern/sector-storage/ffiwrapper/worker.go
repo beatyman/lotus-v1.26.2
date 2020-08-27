@@ -827,7 +827,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	if _, ok := _remoteResult[taskKey]; ok {
 		_remoteResultLk.Unlock()
 		// should not reach here, retry later.
-		log.Error(errors.New("Duplicate request").As(taskKey))
+		log.Error(errors.New("Duplicate request").As(taskKey, r.cfg.ID, task))
 		return SealRes{}, true
 	}
 	_remoteResult[taskKey] = resCh
