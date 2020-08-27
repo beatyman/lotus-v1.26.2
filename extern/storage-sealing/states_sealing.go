@@ -87,7 +87,9 @@ func (m *Sealing) handlePreCommit1(ctx statemachine.Context, sector SectorInfo) 
 		case *ErrInvalidDeals:
 			return ctx.Send(SectorPackingFailed{xerrors.Errorf("invalid dealIDs in sector: %w", err)})
 		case *ErrExpiredDeals: // Probably not much we can do here, maybe re-pack the sector?
-			return ctx.Send(SectorPackingFailed{xerrors.Errorf("expired dealIDs in sector: %w", err)})
+			// return ctx.Send(SectorPackingFailed{xerrors.Errorf("expired dealIDs in sector: %w", err)})
+			// 2020-08-27T14:41:33.251-0400    ^[[33mWARN^[[0m sectors storage-sealing/fsm.go:415      sector 7783 got error event sealing.SectorPackingFailed: expired dealIDs in sector: piece 0 (of 10) of sector 7783 refers expired deal 11239 - should start at 6969, head 8243
+			log.Warn(xerrors.Errorf("expired dealIDs in sector, but we ignore this to continue: %w", err))
 		default:
 			return xerrors.Errorf("checkPieces sanity check error: %w", err)
 		}
