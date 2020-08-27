@@ -476,8 +476,13 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	return nil, nil, err
 }
 
+var selectCommit2ServiceLock = sync.Mutex{}
+
 // Need call sb.UnlockService to release the selected.
 func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*WorkerCfg, error) {
+	selectCommit2ServiceLock.Lock()
+	defer selectCommit2ServiceLock.Unlock()
+
 	task := WorkerTask{
 		Type:     WorkerCommit2,
 		SectorID: sector,

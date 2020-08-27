@@ -307,6 +307,10 @@ func (r *remote) fullTask() bool {
 func (r *remote) LimitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
+	return r.limitParallel(typ, isSrvCalled)
+}
+
+func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 
 	// no limit list
 	switch typ {

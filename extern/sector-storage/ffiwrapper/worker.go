@@ -49,11 +49,11 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 		}
 
 		if r.cfg.ParallelAddPiece+r.cfg.ParallelPrecommit1+r.cfg.ParallelPrecommit2+r.cfg.ParallelCommit1+r.cfg.ParallelCommit2 > 0 {
+			r.lock.Lock()
 			sealWorkerTotal++
 			if len(r.busyOnTasks) > 0 {
 				sealWorkerLocked++
 			}
-			r.lock.Lock()
 			for _, val := range r.busyOnTasks {
 				if val.Type%10 == 0 {
 					sealWorkerUsing++
@@ -222,6 +222,8 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	var r *remote
 	_remotes.Range(func(key, val interface{}) bool {
 		_r := val.(*remote)
+		_r.lock.Lock()
+		defer _r.lock.Unlock()
 		switch task.Type {
 		case WorkerCommit2:
 			if !_r.cfg.Commit2Srv {
@@ -236,14 +238,14 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 				return true
 			}
 		}
-		if _r.LimitParallel(task.Type, true) {
+		if _r.limitParallel(task.Type, true) {
 			// r is nil
 			return true
 		}
+
 		r = _r
-		r.lock.Lock()
-		r.busyOnTasks[sid] = task
-		r.lock.Unlock()
+		r.busyOnTasks[sid] = task // make busy
+		// break range
 		return false
 	})
 	if r == nil {
