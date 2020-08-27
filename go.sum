@@ -239,6 +239,8 @@ github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200818115924-6f194fb5f50c h1:an
 github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200818115924-6f194fb5f50c/go.mod h1:XBBpuKIMaXIIzeqzO1iucq4GvbF8CxmXRFoezRh+Cx4=
 github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200826070614-7ef1415d9aa6 h1:wJ/b1X4A6SlbPD0sZmTw2So0pEM+ZveRK+8OJPyoKZY=
 github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200826070614-7ef1415d9aa6/go.mod h1:XBBpuKIMaXIIzeqzO1iucq4GvbF8CxmXRFoezRh+Cx4=
+github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200827003423-8dafc6b4a581 h1:9u/3ziCGg4Uwdw7oSvCX/PO8MXh0AQ1JT31LwtPWD+Q=
+github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200827003423-8dafc6b4a581/go.mod h1:XBBpuKIMaXIIzeqzO1iucq4GvbF8CxmXRFoezRh+Cx4=
 github.com/filecoin-project/chain-validation v0.0.6-0.20200813000554-40c22fe26eef/go.mod h1:SMj5VK1pYgqC8FXVEtOBRTc+9AIrYu+C+K3tAXi2Rk8=
 github.com/filecoin-project/go-address v0.0.0-20200107215422-da8eea2842b5/go.mod h1:SAOwJoakQ8EPjwNIsiakIQKsoKdkcbx8U3IapgCg9R0=
 github.com/filecoin-project/go-address v0.0.2-0.20200218010043-eb9bb40ed5be/go.mod h1:SAOwJoakQ8EPjwNIsiakIQKsoKdkcbx8U3IapgCg9R0=
