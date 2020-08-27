@@ -180,9 +180,9 @@ var testWdPoStCmd = &cli.Command{
 			fmt.Printf("s-t0%d-%d,%d,%s,%+v\n", val.ID.Miner, val.ID.Number, val.Used, val.Used.String(), errStr)
 		}
 		fmt.Printf("used:%s,all:%d, bad:%d,toProve:%d\n", time.Now().Sub(start).String(), len(all), len(bad), len(toProvInfo))
-		for _, val := range toProvInfo {
-			fmt.Println(val.SectorNumber)
-		}
+		//	for _, val := range toProvInfo {
+		//		fmt.Println(val.SectorNumber)
+		//	}
 
 		if _, _, err := minerSealer.GenerateWindowPoSt(ctx, abi.ActorID(mid), toProvInfo, abi.PoStRandomness(rand)); err != nil {
 			return errors.As(err)
