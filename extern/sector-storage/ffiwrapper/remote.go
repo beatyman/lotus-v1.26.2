@@ -24,6 +24,7 @@ var (
 	_commit2Tasks    = make(chan workerCall)
 	_finalizeTasks   = make(chan workerCall)
 
+	_remoteMarket   = sync.Map{}
 	_remotes        = sync.Map{}
 	_remoteResultLk = sync.RWMutex{}
 	_remoteResult   = make(map[string]chan<- SealRes)
@@ -55,6 +56,26 @@ func nextSourceID() int64 {
 	defer sourceLk.Unlock()
 	sourceId++
 	return sourceId
+}
+
+func hasMarketRemotes() bool {
+	has := false
+	_remoteMarket.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
+		r.lock.Lock()
+		if r.disable || len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
+			r.lock.Unlock()
+			// continue range
+			return true
+		}
+		r.lock.Unlock()
+
+		has = true
+		// break range
+		return false
+	})
+
+	return has
 }
 
 func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
