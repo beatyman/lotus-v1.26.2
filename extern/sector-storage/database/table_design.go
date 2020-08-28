@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS sector_info (
 	worker_id TEXT NOT NULL DEFAULT 'default', /* who work on */
 	state INTEGER NOT NULL DEFAULT 0, /* 0: INIT, 0-99:working, 100:moving, 101:pushing, 200: success, 500: failed.*/
 	state_time DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')), /* state update time, design for state timeout.*/
-	state_msg TEXT NOT NULL DEFAULT '' /* msg for state */
+	state_msg TEXT NOT NULL DEFAULT '', /* msg for state */
+	state_times INT NOT NULL DEFAULT 0 /* count the state change event times, cause the sealing should be ran in a loop. */
 );
 CREATE INDEX IF NOT EXISTS sector_info_idx0 ON sector_info(storage_id);
 CREATE INDEX IF NOT EXISTS sector_info_idx1 ON sector_info(worker_id);
