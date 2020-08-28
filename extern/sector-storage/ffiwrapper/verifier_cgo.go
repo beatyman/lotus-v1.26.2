@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -21,7 +22,7 @@ import (
 
 func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []abi.SectorInfo, randomness abi.PoStRandomness) ([]abi.PoStProof, error) {
 	randomness[31] &= 0x3f
-	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
+	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +55,7 @@ type WindowPoStErrResp struct {
 
 func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []abi.SectorInfo, randomness abi.PoStRandomness) ([]abi.PoStProof, []abi.SectorID, error) {
 	randomness[31] &= 0x3f
-	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
+	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, abi.RegisteredSealProof.RegisteredWindowPoStProof)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("gathering sector info: %w", err)
 	}
@@ -86,10 +87,19 @@ func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	return sucProof, skipped, err
 }
 
-func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []abi.SectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, []abi.SectorID, func(), error) {
+func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []abi.SectorInfo, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, []abi.SectorID, func(), error) {
+	sectors := []abi.SectorID{}
+	for _, s := range sectorInfo {
+		sectors = append(sectors, abi.SectorID{Miner: mid, Number: s.SectorNumber})
+	}
+	_, skipped, err := CheckProvable(sb.sectors.RepoPath(), sb.ssize, sectors, 3*time.Second)
+	if err != nil {
+		return ffi.SortedPrivateSectorInfo{}, nil, nil, errors.As(err)
+	}
+
 	fmap := map[abi.SectorNumber]struct{}{}
-	for _, fault := range faults {
-		fmap[fault] = struct{}{}
+	for _, fault := range skipped {
+		fmap[fault.Number] = struct{}{}
 	}
 
 	var doneFuncs []func()
@@ -99,7 +109,6 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 		}
 	}
 
-	var skipped []abi.SectorID
 	var out []ffi.PrivateSectorInfo
 	for _, s := range sectorInfo {
 		if _, faulty := fmap[s.SectorNumber]; faulty {

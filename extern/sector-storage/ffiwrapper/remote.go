@@ -466,7 +466,7 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	}
 	result := make(chan resp, len(remotes))
 	retry := false
-	retryLock := sync.Mutxt{}
+	retryLock := sync.Mutex{}
 	for _, r := range remotes {
 		go func(req *req) {
 			ctx := context.TODO()
