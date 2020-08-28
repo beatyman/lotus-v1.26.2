@@ -465,6 +465,8 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		interrupt bool
 	}
 	result := make(chan resp, len(remotes))
+	retry := false
+	retryLock := sync.Mutxt{}
 	for _, r := range remotes {
 		go func(req *req) {
 			ctx := context.TODO()
@@ -472,6 +474,25 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 
 			// send to remote worker
 			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
+			if interrupt {
+				result <- resp{res, interrupt}
+				return
+			}
+			if res.GoErr == nil && len(res.Err) == 0 {
+				result <- resp{res, interrupt}
+				return
+			}
+
+			// got an error , do a retry for the fastest remote
+			retryLock.Lock()
+			if !retry {
+				retry = true
+				retryLock.Unlock()
+
+				res, interrupt = sb.TaskSend(ctx, req.remote, *req.task)
+			}
+			retryLock.Unlock()
+
 			result <- resp{res, interrupt}
 		}(r)
 	}
