@@ -93,12 +93,12 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check abi.BitFie
 		return bitfield.BitField{}, xerrors.Errorf("iterating over bitfield: %w", err)
 	}
 
-	_, bad, err := s.faultTracker.CheckProvable(ctx, spt, tocheck, timeout)
+	all, _, err := s.faultTracker.CheckProvable(ctx, spt, tocheck, timeout)
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
 	}
 	// bad
-	for _, val := range bad {
+	for _, val := range all {
 		if val.Err != nil {
 			log.Warnf("s-t0%d-%d,%d,%s,%s", val.ID.Miner, val.ID.Number, val.Used, val.Used.String(), errors.ParseError(val.Err))
 			delete(sectors, val.ID)
