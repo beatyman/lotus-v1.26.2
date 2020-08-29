@@ -490,8 +490,9 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 				retryLock.Unlock()
 
 				res, interrupt = sb.TaskSend(ctx, req.remote, *req.task)
+			} else {
+				retryLock.Unlock()
 			}
-			retryLock.Unlock()
 
 			result <- resp{res, interrupt}
 		}(r)
