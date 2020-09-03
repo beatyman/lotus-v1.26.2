@@ -106,7 +106,11 @@ var DaemonCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "import-chain",
-			Usage: "on first run, load chain from given file",
+			Usage: "on first run, load chain from given file and validate",
+		},
+		&cli.StringFlag{
+			Name:  "import-snapshot",
+			Usage: "import chain state from a given chain export file",
 		},
 		&cli.BoolFlag{
 			Name:  "halt-after-import",
@@ -197,13 +201,23 @@ var DaemonCmd = &cli.Command{
 		}
 
 		chainfile := cctx.String("import-chain")
-		if chainfile != "" {
+		snapshot := cctx.String("import-snapshot")
+		if chainfile != "" || snapshot != "" {
+			if chainfile != "" && snapshot != "" {
+				return fmt.Errorf("cannot specify both 'import-snapshot' and 'import-chain'")
+			}
+			var issnapshot bool
+			if chainfile == "" {
+				chainfile = snapshot
+				issnapshot = true
+			}
+
 			chainfile, err := homedir.Expand(chainfile)
 			if err != nil {
 				return err
 			}
 
-			if err := ImportChain(r, chainfile); err != nil {
+			if err := ImportChain(r, chainfile, issnapshot); err != nil {
 				return err
 			}
 			if cctx.Bool("halt-after-import") {
@@ -322,7 +336,7 @@ func importKey(ctx context.Context, api api.FullNode, f string) error {
 	return nil
 }
 
-func ImportChain(r repo.Repo, fname string) error {
+func ImportChain(r repo.Repo, fname string, snapshot bool) error {
 	fi, err := os.Open(fname)
 	if err != nil {
 		return err
@@ -367,9 +381,11 @@ func ImportChain(r repo.Repo, fname string) error {
 
 	stm := stmgr.NewStateManager(cst)
 
-	log.Infof("validating imported chain...")
-	if err := stm.ValidateChain(context.TODO(), ts); err != nil {
-		return xerrors.Errorf("chain validation failed: %w", err)
+	if !snapshot {
+		log.Infof("validating imported chain...")
+		if err := stm.ValidateChain(context.TODO(), ts); err != nil {
+			return xerrors.Errorf("chain validation failed: %w", err)
+		}
 	}
 
 	log.Info("accepting %s as new head", ts.Cids())
