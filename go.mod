@@ -15,6 +15,7 @@ require (
 	github.com/bsm/sarama-cluster v2.1.15+incompatible
 	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
 	github.com/coreos/go-systemd/v22 v22.0.0
+	github.com/dchest/blake2b v1.0.0
 	github.com/detailyang/go-fallocate v0.0.0-20180908115635-432fa640bd2e
 	github.com/dgraph-io/badger/v2 v2.0.3
 	github.com/docker/go-units v0.4.0
@@ -155,4 +156,4 @@ replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/g
 
 replace github.com/dgraph-io/badger/v2 => github.com/dgraph-io/badger/v2 v2.0.1-rc1.0.20200716180832-3ab515320794
 
-//replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
+replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
