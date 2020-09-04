@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 
@@ -307,6 +308,25 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 }
 
 func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet, cb ExecCallback) (cid.Cid, cid.Cid, error) {
+	tsHeight := ts.Height()
+	computeStart := build.Clock.Now()
+	var (
+		computeGetBlockStart           = time.Time{}
+		computeNewChainRandStart       = time.Time{}
+		computeBlockMsgsForTipsetStart = time.Time{}
+		computeBlockApplyBlocksStart   = time.Time{}
+	)
+	defer func() {
+		computeEnd := build.Clock.Now()
+		log.Infow("StateManager.computeTipSetState",
+			"took", computeEnd.Sub(computeStart),
+			"height", tsHeight,
+			"computeGetBlock", computeNewChainRandStart.Sub(computeGetBlockStart),
+			"computeNewChanRand", computeBlockMsgsForTipsetStart.Sub(computeNewChainRandStart),
+			"computeBlockMsgsForTipset", computeBlockApplyBlocksStart.Sub(computeBlockMsgsForTipsetStart),
+			"computeBlockApplyBlocks", computeEnd.Sub(computeBlockApplyBlocksStart),
+		)
+	}()
 	ctx, span := trace.StartSpan(ctx, "computeTipSetState")
 	defer span.End()
 
@@ -322,6 +342,7 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 		}
 	}
 
+	computeGetBlockStart = build.Clock.Now()
 	var parentEpoch abi.ChainEpoch
 	pstate := blks[0].ParentStateRoot
 	if blks[0].Height > 0 {
@@ -338,8 +359,10 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 		cids[i] = v.Cid()
 	}
 
+	computeNewChainRandStart = build.Clock.Now()
 	r := store.NewChainRand(sm.cs, cids)
 
+	computeBlockMsgsForTipsetStart = build.Clock.Now()
 	blkmsgs, err := sm.cs.BlockMsgsForTipset(ts)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("getting block messages for tipset: %w", err)
@@ -347,6 +370,7 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 
 	baseFee := blks[0].ParentBaseFee
 
+	computeBlockApplyBlocksStart = build.Clock.Now()
 	return sm.ApplyBlocks(ctx, parentEpoch, pstate, blkmsgs, blks[0].Height, r, cb, baseFee)
 }
 
