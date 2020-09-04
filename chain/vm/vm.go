@@ -203,6 +203,26 @@ type ApplyRet struct {
 
 func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 	gasCharge *GasCharge, start time.Time) ([]byte, aerrors.ActorError, *Runtime) {
+	sendStart := build.Clock.Now()
+	var (
+		makeRunTimeStart           = time.Time{}
+		gasChargeStart             = time.Time{}
+		retStart                   = time.Time{}
+		retChargeGasSafeStart      = time.Time{}
+		retMsgMethodStart          = time.Time{}
+		retDeferChargeGasSafeStart = time.Time{}
+	)
+	defer func() {
+		sendEnd := build.Clock.Now()
+		log.Infow("vm.send",
+			"took", sendEnd.Sub(sendStart),
+			"makeRunTime", gasChargeStart.Sub(makeRunTimeStart),
+			"gasCharge", retStart.Sub(gasChargeStart),
+			"retChargeGasSafe", retMsgMethodStart.Sub(retChargeGasSafeStart),
+			"retMsgMethod", retDeferChargeGasSafeStart.Sub(retMsgMethodStart),
+			"retDeferChargeGasSafe", sendEnd.Sub(retDeferChargeGasSafeStart),
+		)
+	}()
 
 	st := vm.cstate
 
@@ -217,6 +237,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		nac = parent.numActorsCreated
 	}
 
+	makeRunTimeStart = build.Clock.Now()
 	rt := vm.makeRuntime(ctx, msg, origin, on, gasUsed, nac)
 	rt.lastGasChargeTime = start
 	if parent != nil {
@@ -228,6 +249,8 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 			parent.lastGasCharge = rt.lastGasCharge
 		}()
 	}
+
+	gasChargeStart = build.Clock.Now()
 	if gasCharge != nil {
 		if err := rt.chargeGasSafe(*gasCharge); err != nil {
 			// this should never happen
@@ -235,6 +258,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		}
 	}
 
+	retStart = build.Clock.Now()
 	ret, err := func() ([]byte, aerrors.ActorError) {
 		_ = rt.chargeGasSafe(newGasCharge("OnGetActor", 0, 0))
 		toActor, err := st.GetActor(msg.To)
@@ -250,6 +274,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 			}
 		}
 
+		retChargeGasSafeStart = build.Clock.Now()
 		if aerr := rt.chargeGasSafe(rt.Pricelist().OnMethodInvocation(msg.Value, msg.Method)); aerr != nil {
 			return nil, aerrors.Wrap(aerr, "not enough gas for method invocation")
 		}
@@ -264,12 +289,15 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 			}
 		}
 
+		retMsgMethodStart = build.Clock.Now()
 		if msg.Method != 0 {
 			var ret []byte
 			_ = rt.chargeGasSafe(gasOnActorExec)
 			ret, err := vm.Invoke(toActor, rt, msg.Method, msg.Params)
 			return ret, err
 		}
+
+		retDeferChargeGasSafeStart = build.Clock.Now()
 		return nil, nil
 	}()
 
