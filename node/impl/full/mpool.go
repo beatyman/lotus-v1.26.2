@@ -172,7 +172,7 @@ func (a *MpoolAPI) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, error)
 }
 
 func (a *MpoolAPI) MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error {
-	a.Mpool.Remove(from, nonce)
+	a.Mpool.Remove(from, nonce, false)
 	return nil
 }
 
