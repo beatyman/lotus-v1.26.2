@@ -324,7 +324,7 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 			"computeGetBlock", computeNewChainRandStart.Sub(computeGetBlockStart),
 			"computeNewChanRand", computeBlockMsgsForTipsetStart.Sub(computeNewChainRandStart),
 			"computeBlockMsgsForTipset", computeApplyBlocksStart.Sub(computeBlockMsgsForTipsetStart),
-			"computeBlockApplyBlocks", computeEnd.Sub(computeApplyBlocksStart),
+			"computeApplyBlocks", computeEnd.Sub(computeApplyBlocksStart),
 		)
 	}()
 	ctx, span := trace.StartSpan(ctx, "computeTipSetState")
