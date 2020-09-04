@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/filecoin-project/specs-actors/actors/builtin/account"
 	"github.com/filecoin-project/specs-actors/actors/builtin/verifreg"
@@ -72,7 +73,24 @@ func (inv *Invoker) Invoke(codeCid cid.Cid, rt runtime.Runtime, method abi.Metho
 	if method >= abi.MethodNum(len(code)) || code[method] == nil {
 		return nil, aerrors.Newf(exitcode.SysErrInvalidMethod, "no method %d on actor", method)
 	}
-	return code[method](rt, params)
+	fn := code[method]
+	fnType := reflect.TypeOf(fn)
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		took := end.Sub(start)
+		if took > 1e9 {
+			log.Infow("Invoke",
+				"took", took,
+				"fnName", fnType.Name(),
+				"fnPkgPath", fnType.PkgPath(),
+				"fnString", fnType.String(),
+				"method", method,
+				"cid", codeCid,
+			)
+		}
+	}()
+	return fn(rt, params)
 
 }
 
