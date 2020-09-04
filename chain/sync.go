@@ -658,35 +658,104 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	}
 
 	validationStart := build.Clock.Now()
+	var (
+		validationBlockSanityChecksStart         = time.Time{}
+		validationLoadTipSetStart                = time.Time{}
+		validationGetLookbackTipSetForRoundStart = time.Time{}
+		validationTipSetStateStart               = time.Time{}
+		validationGetLatestBeaconEntryStart      = time.Time{}
+		validationTipSetState1Start              = time.Time{}
+		validationMessageForTipsetStart          = time.Time{}
+		validationGetMinerWorkerRawStart         = time.Time{}
+		validationMarkBlockAsValidatedStart      = time.Time{}
+
+		msgsCheckStart                         = time.Time{}
+		msgsCheckEnd                           = time.Time{}
+		minerCheckStart                        = time.Time{}
+		minerCheckEnd                          = time.Time{}
+		baseFeeCheckStart                      = time.Time{}
+		baseFeeCheckEnd                        = time.Time{}
+		winnerCheckStart                       = time.Time{}
+		winnerCheck_MinerHasMinerPowerStart    = time.Time{}
+		winnerCheck_DrawRandomnessStart        = time.Time{}
+		winnerCheck_VerifyElectionPoStVRFStart = time.Time{}
+		winnerCheck_GetMinerSlashedStart       = time.Time{}
+		winnerCheck_GetPowerRawStart           = time.Time{}
+		winnerCheck_ComputeWinCountStart       = time.Time{}
+		winnerCheckEnd                         = time.Time{}
+		blockSigCheckStart                     = time.Time{}
+		blockSigCheckEnd                       = time.Time{}
+		beaconValuesCheckStart                 = time.Time{}
+		beaconValuesCheckEnd                   = time.Time{}
+		tktsCheckStart                         = time.Time{}
+		tktsCheck_DrawRandomnessStart          = time.Time{}
+		tktsCheck_VerifyElectionPoStVRFStart   = time.Time{}
+		tktsCheckEnd                           = time.Time{}
+		wproofCheckStart                       = time.Time{}
+		wproofCheckEnd                         = time.Time{}
+	)
 	defer func() {
 		stats.Record(ctx, metrics.BlockValidationDurationMilliseconds.M(metrics.SinceInMilliseconds(validationStart)))
-		log.Infow("block validation", "took", time.Since(validationStart), "height", b.Header.Height, "age", time.Since(time.Unix(int64(b.Header.Timestamp), 0)))
+		log.Infow("block validation",
+			"took", time.Since(validationStart),
+			"height", b.Header.Height,
+			"age", time.Since(time.Unix(int64(b.Header.Timestamp), 0)),
+			"validationBlockSanityCheck", validationLoadTipSetStart.Sub(validationBlockSanityChecksStart),
+			"validationLoadTipSet", validationGetLookbackTipSetForRoundStart.Sub(validationLoadTipSetStart),
+			"validationGetLookbackTipSetForRound", validationTipSetStateStart.Sub(validationGetLookbackTipSetForRoundStart),
+			"validationTipSetState", validationGetLatestBeaconEntryStart.Sub(validationTipSetStateStart),
+			"validationGetLatestBeaconEntry", validationTipSetState1Start.Sub(validationGetLatestBeaconEntryStart),
+			"validationTipSetState1", validationMessageForTipsetStart.Sub(validationTipSetState1Start),
+			"validationMessageForTipset", validationGetMinerWorkerRawStart.Sub(validationMessageForTipsetStart),
+			"validationGetMinerWorkerRaw", validationMarkBlockAsValidatedStart.Sub(validationGetMinerWorkerRawStart),
+			"msgsCheck", msgsCheckEnd.Sub(msgsCheckStart),
+			"minerCheck", minerCheckEnd.Sub(minerCheckStart),
+			"baseFeeCheck", baseFeeCheckEnd.Sub(baseFeeCheckStart),
+			"winnerCheck", winnerCheckEnd.Sub(winnerCheckStart),
+			"winnerCheck_MinerHasMinerPower", winnerCheck_DrawRandomnessStart.Sub(winnerCheck_MinerHasMinerPowerStart),
+			"winnerCheck_DrawRandomness", winnerCheck_VerifyElectionPoStVRFStart.Sub(winnerCheck_DrawRandomnessStart),
+			"winnerCheck_VerifyElectionPoStVRF", winnerCheck_GetMinerSlashedStart.Sub(winnerCheck_VerifyElectionPoStVRFStart),
+			"winnerCheck_GetMinerSlashed", winnerCheck_GetPowerRawStart.Sub(winnerCheck_GetMinerSlashedStart),
+			"winnerCheck_GetPowerRaw", winnerCheck_ComputeWinCountStart.Sub(winnerCheck_GetPowerRawStart),
+			"winnerCheck_ComputeWinCount", winnerCheckEnd.Sub(winnerCheck_ComputeWinCountStart),
+			"blockSigCheck", blockSigCheckEnd.Sub(blockSigCheckStart),
+			"beaconValuesCheck", beaconValuesCheckEnd.Sub(beaconValuesCheckStart),
+			"tktsCheck", tktsCheckEnd.Sub(tktsCheckStart),
+			"tktsCheck_DrawRandomness", tktsCheck_VerifyElectionPoStVRFStart.Sub(tktsCheck_DrawRandomnessStart),
+			"tktsCheck_VerifyElectionPoStVRF", tktsCheckEnd.Sub(tktsCheck_VerifyElectionPoStVRFStart),
+			"wproofCheck", wproofCheckEnd.Sub(wproofCheckStart),
+		)
 	}()
 
 	ctx, span := trace.StartSpan(ctx, "validateBlock")
 	defer span.End()
 
+	validationBlockSanityChecksStart = build.Clock.Now()
 	if err := blockSanityChecks(b.Header); err != nil {
 		return xerrors.Errorf("incoming header failed basic sanity checks: %w", err)
 	}
 
 	h := b.Header
 
+	validationLoadTipSetStart = build.Clock.Now()
 	baseTs, err := syncer.store.LoadTipSet(types.NewTipSetKey(h.Parents...))
 	if err != nil {
 		return xerrors.Errorf("load parent tipset failed (%s): %w", h.Parents, err)
 	}
 
+	validationGetLookbackTipSetForRoundStart = build.Clock.Now()
 	lbts, err := stmgr.GetLookbackTipSetForRound(ctx, syncer.sm, baseTs, h.Height)
 	if err != nil {
 		return xerrors.Errorf("failed to get lookback tipset for block: %w", err)
 	}
 
+	validationTipSetStateStart = build.Clock.Now()
 	lbst, _, err := syncer.sm.TipSetState(ctx, lbts)
 	if err != nil {
 		return xerrors.Errorf("failed to compute lookback tipset state: %w", err)
 	}
 
+	validationGetLatestBeaconEntryStart = build.Clock.Now()
 	prevBeacon, err := syncer.store.GetLatestBeaconEntry(baseTs)
 	if err != nil {
 		return xerrors.Errorf("failed to get latest beacon entry: %w", err)
@@ -707,6 +776,10 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	}
 
 	msgsCheck := async.Err(func() error {
+		msgsCheckStart = build.Clock.Now()
+		defer func() {
+			msgsCheckEnd = build.Clock.Now()
+		}()
 		if err := syncer.checkBlockMessages(ctx, b, baseTs); err != nil {
 			return xerrors.Errorf("block had invalid messages: %w", err)
 		}
@@ -714,6 +787,10 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	})
 
 	minerCheck := async.Err(func() error {
+		minerCheckStart = build.Clock.Now()
+		defer func() {
+			minerCheckEnd = build.Clock.Now()
+		}()
 		if err := syncer.minerIsValid(ctx, h.Miner, baseTs); err != nil {
 			return xerrors.Errorf("minerIsValid failed: %w", err)
 		}
@@ -721,6 +798,10 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	})
 
 	baseFeeCheck := async.Err(func() error {
+		baseFeeCheckStart = build.Clock.Now()
+		defer func() {
+			baseFeeCheckEnd = build.Clock.Now()
+		}()
 		baseFee, err := syncer.store.ComputeBaseFee(ctx, baseTs)
 		if err != nil {
 			return xerrors.Errorf("computing base fee: %w", err)
@@ -741,12 +822,14 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 			b.Header.ParentWeight, pweight)
 	}
 
+	validationTipSetState1Start = build.Clock.Now()
 	// Stuff that needs stateroot / worker address
 	stateroot, precp, err := syncer.sm.TipSetState(ctx, baseTs)
 	if err != nil {
 		return xerrors.Errorf("get tipsetstate(%d, %s) failed: %w", h.Height, h.Parents, err)
 	}
 
+	validationMessageForTipsetStart = build.Clock.Now()
 	if stateroot != h.ParentStateRoot {
 		msgs, err := syncer.store.MessagesForTipset(baseTs)
 		if err != nil {
@@ -766,16 +849,22 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 		return xerrors.Errorf("parent receipts root did not match computed value (%s != %s)", precp, h.ParentMessageReceipts)
 	}
 
+	validationGetMinerWorkerRawStart = build.Clock.Now()
 	waddr, err := stmgr.GetMinerWorkerRaw(ctx, syncer.sm, lbst, h.Miner)
 	if err != nil {
 		return xerrors.Errorf("GetMinerWorkerRaw failed: %w", err)
 	}
 
 	winnerCheck := async.Err(func() error {
+		winnerCheckStart = build.Clock.Now()
+		defer func() {
+			winnerCheckEnd = build.Clock.Now()
+		}()
 		if h.ElectionProof.WinCount < 1 {
 			return xerrors.Errorf("block is not claiming to be a winner")
 		}
 
+		winnerCheck_MinerHasMinerPowerStart = build.Clock.Now()
 		hp, err := stmgr.MinerHasMinPower(ctx, syncer.sm, h.Miner, lbts)
 		if err != nil {
 			return xerrors.Errorf("determining if miner has min power failed: %w", err)
@@ -794,15 +883,18 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 			return xerrors.Errorf("failed to marshal miner address to cbor: %w", err)
 		}
 
+		winnerCheck_DrawRandomnessStart = build.Clock.Now()
 		vrfBase, err := store.DrawRandomness(rBeacon.Data, crypto.DomainSeparationTag_ElectionProofProduction, h.Height, buf.Bytes())
 		if err != nil {
 			return xerrors.Errorf("could not draw randomness: %w", err)
 		}
 
+		winnerCheck_VerifyElectionPoStVRFStart = build.Clock.Now()
 		if err := VerifyElectionPoStVRF(ctx, waddr, vrfBase, h.ElectionProof.VRFProof); err != nil {
 			return xerrors.Errorf("validating block election proof failed: %w", err)
 		}
 
+		winnerCheck_GetMinerSlashedStart = build.Clock.Now()
 		slashed, err := stmgr.GetMinerSlashed(ctx, syncer.sm, baseTs, h.Miner)
 		if err != nil {
 			return xerrors.Errorf("failed to check if block miner was slashed: %w", err)
@@ -812,11 +904,13 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 			return xerrors.Errorf("received block was from slashed or invalid miner")
 		}
 
+		winnerCheck_GetPowerRawStart = build.Clock.Now()
 		mpow, tpow, err := stmgr.GetPowerRaw(ctx, syncer.sm, lbst, h.Miner)
 		if err != nil {
 			return xerrors.Errorf("failed getting power: %w", err)
 		}
 
+		winnerCheck_ComputeWinCountStart = build.Clock.Now()
 		j := h.ElectionProof.ComputeWinCount(mpow.QualityAdjPower, tpow.QualityAdjPower)
 		if h.ElectionProof.WinCount != j {
 			return xerrors.Errorf("miner claims wrong number of wins: miner: %d, computed: %d", h.ElectionProof.WinCount, j)
@@ -826,6 +920,10 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	})
 
 	blockSigCheck := async.Err(func() error {
+		blockSigCheckStart = build.Clock.Now()
+		defer func() {
+			blockSigCheckEnd = build.Clock.Now()
+		}()
 		if err := sigs.CheckBlockSignature(ctx, h, waddr); err != nil {
 			return xerrors.Errorf("check block signature failed: %w", err)
 		}
@@ -833,6 +931,10 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	})
 
 	beaconValuesCheck := async.Err(func() error {
+		beaconValuesCheckStart = build.Clock.Now()
+		defer func() {
+			beaconValuesCheckEnd = build.Clock.Now()
+		}()
 		if os.Getenv("LOTUS_IGNORE_DRAND") == "_yes_" {
 			return nil
 		}
@@ -844,6 +946,11 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	})
 
 	tktsCheck := async.Err(func() error {
+		tktsCheckStart = build.Clock.Now()
+		defer func() {
+			tktsCheckEnd = build.Clock.Now()
+		}()
+
 		buf := new(bytes.Buffer)
 		if err := h.Miner.MarshalCBOR(buf); err != nil {
 			return xerrors.Errorf("failed to marshal miner address to cbor: %w", err)
@@ -856,11 +963,13 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 			beaconBase = h.BeaconEntries[len(h.BeaconEntries)-1]
 		}
 
+		tktsCheck_DrawRandomnessStart = build.Clock.Now()
 		vrfBase, err := store.DrawRandomness(beaconBase.Data, crypto.DomainSeparationTag_TicketProduction, h.Height-build.TicketRandomnessLookback, buf.Bytes())
 		if err != nil {
 			return xerrors.Errorf("failed to compute vrf base for ticket: %w", err)
 		}
 
+		tktsCheck_VerifyElectionPoStVRFStart = build.Clock.Now()
 		err = VerifyElectionPoStVRF(ctx, waddr, vrfBase, h.Ticket.VRFProof)
 		if err != nil {
 			return xerrors.Errorf("validating block tickets failed: %w", err)
@@ -869,6 +978,11 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	})
 
 	wproofCheck := async.Err(func() error {
+		wproofCheckStart = build.Clock.Now()
+		defer func() {
+			wproofCheckEnd = build.Clock.Now()
+		}()
+
 		if err := syncer.VerifyWinningPoStProof(ctx, h, *prevBeacon, lbst, waddr); err != nil {
 			return xerrors.Errorf("invalid election post: %w", err)
 		}
@@ -911,6 +1025,7 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 		return mulErr
 	}
 
+	validationMarkBlockAsValidatedStart = build.Clock.Now()
 	if err := syncer.store.MarkBlockAsValidated(ctx, b.Cid()); err != nil {
 		return xerrors.Errorf("caching block validation %s: %w", b.Cid(), err)
 	}

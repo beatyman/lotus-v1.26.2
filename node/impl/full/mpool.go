@@ -8,9 +8,6 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
-
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/store"
@@ -115,27 +112,6 @@ func (a *MpoolAPI) MpoolPush(ctx context.Context, smsg *types.SignedMessage) (ci
 	return a.Mpool.Push(smsg)
 }
 
-func capGasFee(msg *types.Message, maxFee abi.TokenAmount) {
-	if maxFee.Equals(big.Zero()) {
-		return
-	}
-
-	gl := types.NewInt(uint64(msg.GasLimit))
-	totalFee := types.BigMul(msg.GasFeeCap, gl)
-	minerFee := types.BigMul(msg.GasPremium, gl)
-
-	if totalFee.LessThanEqual(maxFee) {
-		return
-	}
-
-	// scale chain/miner fee down proportionally to fit in our budget
-	// TODO: there are probably smarter things we can do here to optimize
-	//  message inclusion latency
-
-	msg.GasFeeCap = big.Div(maxFee, gl)
-	msg.GasPremium = big.Div(big.Div(big.Mul(minerFee, maxFee), totalFee), gl)
-}
-
 func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
 	{
 		fromA, err := a.Stmgr.ResolveToKeyAddress(ctx, msg.From, nil)
@@ -196,7 +172,7 @@ func (a *MpoolAPI) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, error)
 }
 
 func (a *MpoolAPI) MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error {
-	a.Mpool.Remove(from, nonce)
+	a.Mpool.Remove(from, nonce, false)
 	return nil
 }
 
