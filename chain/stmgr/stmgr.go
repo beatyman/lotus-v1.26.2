@@ -314,7 +314,7 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 		computeGetBlockStart           = time.Time{}
 		computeNewChainRandStart       = time.Time{}
 		computeBlockMsgsForTipsetStart = time.Time{}
-		computeBlockApplyBlocksStart   = time.Time{}
+		computeApplyBlocksStart        = time.Time{}
 	)
 	defer func() {
 		computeEnd := build.Clock.Now()
@@ -323,8 +323,8 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 			"height", tsHeight,
 			"computeGetBlock", computeNewChainRandStart.Sub(computeGetBlockStart),
 			"computeNewChanRand", computeBlockMsgsForTipsetStart.Sub(computeNewChainRandStart),
-			"computeBlockMsgsForTipset", computeBlockApplyBlocksStart.Sub(computeBlockMsgsForTipsetStart),
-			"computeBlockApplyBlocks", computeEnd.Sub(computeBlockApplyBlocksStart),
+			"computeBlockMsgsForTipset", computeApplyBlocksStart.Sub(computeBlockMsgsForTipsetStart),
+			"computeBlockApplyBlocks", computeEnd.Sub(computeApplyBlocksStart),
 		)
 	}()
 	ctx, span := trace.StartSpan(ctx, "computeTipSetState")
@@ -370,7 +370,7 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 
 	baseFee := blks[0].ParentBaseFee
 
-	computeBlockApplyBlocksStart = build.Clock.Now()
+	computeApplyBlocksStart = build.Clock.Now()
 	return sm.ApplyBlocks(ctx, parentEpoch, pstate, blkmsgs, blks[0].Height, r, cb, baseFee)
 }
 
