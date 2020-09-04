@@ -301,6 +301,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 			var ret []byte
 			_ = rt.chargeGasSafe(gasOnActorExec)
 			ret, err := vm.Invoke(toActor, rt, msg.Method, msg.Params)
+			retDeferChargeGasSafeStart = build.Clock.Now()
 			return ret, err
 		}
 
