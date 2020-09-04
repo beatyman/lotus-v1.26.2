@@ -209,6 +209,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		gasChargeStart             = time.Time{}
 		retStart                   = time.Time{}
 		retChargeGasSafeStart      = time.Time{}
+		retTransferStart           = time.Time{}
 		retMsgMethodStart          = time.Time{}
 		retDeferChargeGasSafeStart = time.Time{}
 	)
@@ -218,7 +219,8 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 			"took", sendEnd.Sub(sendStart),
 			"makeRunTime", gasChargeStart.Sub(makeRunTimeStart),
 			"gasCharge", retStart.Sub(gasChargeStart),
-			"retChargeGasSafe", retMsgMethodStart.Sub(retChargeGasSafeStart),
+			"retChargeGasSafe", retTransferStart.Sub(retChargeGasSafeStart),
+			"retTransfer", retMsgMethodStart.Sub(retTransferStart),
 			"retMsgMethod", retDeferChargeGasSafeStart.Sub(retMsgMethodStart),
 			"retDeferChargeGasSafe", sendEnd.Sub(retDeferChargeGasSafeStart),
 		)
@@ -283,6 +285,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		//nolint:errcheck
 		defer rt.chargeGasSafe(newGasCharge("OnMethodInvocationDone", 0, 0))
 
+		retTransferStart = build.Clock.Now()
 		if types.BigCmp(msg.Value, types.NewInt(0)) != 0 {
 			if err := vm.transfer(msg.From, msg.To, msg.Value); err != nil {
 				return nil, aerrors.Wrap(err, "failed to transfer funds")
