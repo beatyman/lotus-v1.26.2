@@ -212,21 +212,27 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		retChargeGasSafeStart      = time.Time{}
 		retTransferStart           = time.Time{}
 		retMsgMethodStart          = time.Time{}
+		retInvokeStart             = time.Time{}
 		retDeferChargeGasSafeStart = time.Time{}
 	)
 	defer func() {
 		sendEnd := build.Clock.Now()
-		log.Infow("vm.send",
-			"took", sendEnd.Sub(sendStart),
-			"makeRunTime", gasChargeStart.Sub(makeRunTimeStart),
-			"gasCharge", retStart.Sub(gasChargeStart),
-			"retOnGetActor", retToActorStart.Sub(retStart),
-			"retToActor", retChargeGasSafeStart.Sub(retToActorStart),
-			"retChargeGasSafe", retTransferStart.Sub(retChargeGasSafeStart),
-			"retTransfer", retMsgMethodStart.Sub(retTransferStart),
-			"retMsgMethod", retDeferChargeGasSafeStart.Sub(retMsgMethodStart),
-			"retDeferChargeGasSafe", sendEnd.Sub(retDeferChargeGasSafeStart),
-		)
+		took := sendEnd.Sub(sendStart)
+		if took > 1e9 {
+			log.Infow("vm.send",
+				"took", sendEnd.Sub(sendStart),
+				"makeRunTime", gasChargeStart.Sub(makeRunTimeStart),
+				"gasCharge", retStart.Sub(gasChargeStart),
+				"retOnGetActor", retToActorStart.Sub(retStart),
+				"retToActor", retChargeGasSafeStart.Sub(retToActorStart),
+				"retChargeGasSafe", retTransferStart.Sub(retChargeGasSafeStart),
+				"retTransfer", retMsgMethodStart.Sub(retTransferStart),
+				"retMsgMethod", retInvokeStart.Sub(retMsgMethodStart),
+				"retInvoke", retDeferChargeGasSafeStart.Sub(retInvokeStart),
+				"retDeferChargeGasSafe", sendEnd.Sub(retDeferChargeGasSafeStart),
+				"msg", msg.String(),
+			)
+		}
 	}()
 
 	st := vm.cstate
@@ -300,11 +306,13 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		if msg.Method != 0 {
 			var ret []byte
 			_ = rt.chargeGasSafe(gasOnActorExec)
+			retInvokeStart = build.Clock.Now()
 			ret, err := vm.Invoke(toActor, rt, msg.Method, msg.Params)
 			retDeferChargeGasSafeStart = build.Clock.Now()
 			return ret, err
 		}
 
+		retInvokeStart = build.Clock.Now()
 		retDeferChargeGasSafeStart = build.Clock.Now()
 		return nil, nil
 	}()
