@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	stdbig "math/big"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -1084,6 +1085,26 @@ type statBucket struct {
 
 func (mp *MessagePool) MessagesForBlocks(blks []*types.BlockHeader) ([]*types.SignedMessage, error) {
 	out := make([]*types.SignedMessage, 0)
+	outSync := sync.Mutex{}
+
+	cpuNums := runtime.NumCPU()
+	limit := make(chan int, cpuNums)
+	recoverSigFailed := []cid.Cid{}
+	recoverSig := func(msg *types.Message) {
+		limit <- 1
+		defer func() {
+			<-limit
+		}()
+		smsg := mp.RecoverSig(msg)
+		if smsg != nil {
+			outSync.Lock()
+			out = append(out, smsg)
+			outSync.Unlock()
+		} else {
+			//log.Warnf("could not recover signature for bls message %s", msg.Cid())
+			recoverSigFailed = append(recoverSigFailed, msg.Cid())
+		}
+	}
 
 	for _, b := range blks {
 		bmsgs, smsgs, err := mp.api.MessagesForBlock(b)
@@ -1093,13 +1114,11 @@ func (mp *MessagePool) MessagesForBlocks(blks []*types.BlockHeader) ([]*types.Si
 		out = append(out, smsgs...)
 
 		for _, msg := range bmsgs {
-			smsg := mp.RecoverSig(msg)
-			if smsg != nil {
-				out = append(out, smsg)
-			} else {
-				log.Warnf("could not recover signature for bls message %s", msg.Cid())
-			}
+			go recoverSig(msg)
 		}
+	}
+	if len(recoverSigFailed) > 0 {
+		log.Warnf("could not recover signature for bls message len:%d", len(recoverSigFailed))
 	}
 
 	return out, nil
