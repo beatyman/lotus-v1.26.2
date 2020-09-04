@@ -147,6 +147,31 @@ func (sm *StateManager) ExecutionTrace(ctx context.Context, ts *types.TipSet) (c
 type ExecCallback func(cid.Cid, *types.Message, *vm.ApplyRet) error
 
 func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEpoch, pstate cid.Cid, bms []store.BlockMessages, epoch abi.ChainEpoch, r vm.Rand, cb ExecCallback, baseFee abi.TokenAmount) (cid.Cid, cid.Cid, error) {
+	applyBlocksStart := build.Clock.Now()
+	var (
+		handleStateForksStart     = time.Time{}
+		processedMsgsStart        = time.Time{}
+		serializeParamsStart      = time.Time{}
+		sysActStart               = time.Time{}
+		applyImplicitMessageStart = time.Time{}
+		runCronStart              = time.Time{}
+		flushStart                = time.Time{}
+	)
+	defer func() {
+		applyBlocksEnd := build.Clock.Now()
+		log.Infow("ApplyBlocks",
+			"took", applyBlocksEnd.Sub(applyBlocksStart),
+			"height", epoch,
+			"newVM", handleStateForksStart.Sub(applyBlocksStart),
+			"handleStateForks", processedMsgsStart.Sub(handleStateForksStart),
+			"processedMsgs", serializeParamsStart.Sub(processedMsgsStart),
+			"serializeParams", sysActStart.Sub(serializeParamsStart),
+			"sysAct", applyImplicitMessageStart.Sub(sysActStart),
+			"applyImplicitMessage", runCronStart.Sub(applyImplicitMessageStart),
+			"runCron", flushStart.Sub(runCronStart),
+			"flush", applyBlocksEnd.Sub(flushStart),
+		)
+	}()
 
 	vmopt := &vm.VMOpts{
 		StateBase:      pstate,
@@ -197,6 +222,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		return nil
 	}
 
+	handleStateForksStart = build.Clock.Now()
 	for i := parentEpoch; i < epoch; i++ {
 		// handle state forks
 		err = sm.handleStateForks(ctx, vmi.StateTree(), i)
@@ -214,6 +240,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		vmi.SetBlockHeight(i + 1)
 	}
 
+	processedMsgsStart = build.Clock.Now()
 	var receipts []cbg.CBORMarshaler
 	processedMsgs := map[cid.Cid]bool{}
 	for _, b := range bms {
@@ -242,6 +269,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 			processedMsgs[m.Cid()] = true
 		}
 
+		serializeParamsStart = build.Clock.Now()
 		var err error
 		params, err := actors.SerializeParams(&reward.AwardBlockRewardParams{
 			Miner:     b.Miner,
@@ -253,11 +281,13 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 			return cid.Undef, cid.Undef, xerrors.Errorf("failed to serialize award params: %w", err)
 		}
 
+		sysActStart = build.Clock.Now()
 		sysAct, err := vmi.StateTree().GetActor(builtin.SystemActorAddr)
 		if err != nil {
 			return cid.Undef, cid.Undef, xerrors.Errorf("failed to get system actor: %w", err)
 		}
 
+		applyImplicitMessageStart = build.Clock.Now()
 		rwMsg := &types.Message{
 			From:       builtin.SystemActorAddr,
 			To:         builtin.RewardActorAddr,
@@ -284,6 +314,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		}
 	}
 
+	runCronStart = build.Clock.Now()
 	if err := runCron(); err != nil {
 		return cid.Cid{}, cid.Cid{}, err
 	}
@@ -299,6 +330,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		return cid.Undef, cid.Undef, xerrors.Errorf("failed to build receipts amt: %w", err)
 	}
 
+	flushStart = build.Clock.Now()
 	st, err := vmi.Flush(ctx)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("vm flush failed: %w", err)
