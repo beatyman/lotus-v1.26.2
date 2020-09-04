@@ -208,6 +208,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		makeRunTimeStart           = time.Time{}
 		gasChargeStart             = time.Time{}
 		retStart                   = time.Time{}
+		retToActorStart            = time.Time{}
 		retChargeGasSafeStart      = time.Time{}
 		retTransferStart           = time.Time{}
 		retMsgMethodStart          = time.Time{}
@@ -219,6 +220,8 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 			"took", sendEnd.Sub(sendStart),
 			"makeRunTime", gasChargeStart.Sub(makeRunTimeStart),
 			"gasCharge", retStart.Sub(gasChargeStart),
+			"retOnGetActor", retToActorStart.Sub(retStart),
+			"retToActor", retChargeGasSafeStart.Sub(retToActorStart),
 			"retChargeGasSafe", retTransferStart.Sub(retChargeGasSafeStart),
 			"retTransfer", retMsgMethodStart.Sub(retTransferStart),
 			"retMsgMethod", retDeferChargeGasSafeStart.Sub(retMsgMethodStart),
@@ -263,6 +266,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 	retStart = build.Clock.Now()
 	ret, err := func() ([]byte, aerrors.ActorError) {
 		_ = rt.chargeGasSafe(newGasCharge("OnGetActor", 0, 0))
+		retToActorStart = build.Clock.Now()
 		toActor, err := st.GetActor(msg.To)
 		if err != nil {
 			if xerrors.Is(err, types.ErrActorNotFound) {
