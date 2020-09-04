@@ -140,7 +140,8 @@ SET
 	worker_id=?,
 	state=?,
 	state_time=?,
-	state_msg=?
+	state_msg=?,
+	state_times=state_times+1
 WHERE
 	id=?
 	
