@@ -203,6 +203,37 @@ type ApplyRet struct {
 
 func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 	gasCharge *GasCharge, start time.Time) ([]byte, aerrors.ActorError, *Runtime) {
+	sendStart := build.Clock.Now()
+	var (
+		makeRunTimeStart           = time.Time{}
+		gasChargeStart             = time.Time{}
+		retStart                   = time.Time{}
+		retToActorStart            = time.Time{}
+		retChargeGasSafeStart      = time.Time{}
+		retTransferStart           = time.Time{}
+		retMsgMethodStart          = time.Time{}
+		retInvokeStart             = time.Time{}
+		retDeferChargeGasSafeStart = time.Time{}
+	)
+	defer func() {
+		sendEnd := build.Clock.Now()
+		took := sendEnd.Sub(sendStart)
+		if took > 1e9 {
+			log.Infow("vm.send",
+				"took", sendEnd.Sub(sendStart),
+				"makeRunTime", gasChargeStart.Sub(makeRunTimeStart),
+				"gasCharge", retStart.Sub(gasChargeStart),
+				"retOnGetActor", retToActorStart.Sub(retStart),
+				"retToActor", retChargeGasSafeStart.Sub(retToActorStart),
+				"retChargeGasSafe", retTransferStart.Sub(retChargeGasSafeStart),
+				"retTransfer", retMsgMethodStart.Sub(retTransferStart),
+				"retMsgMethod", retInvokeStart.Sub(retMsgMethodStart),
+				"retInvoke", retDeferChargeGasSafeStart.Sub(retInvokeStart),
+				"retDeferChargeGasSafe", sendEnd.Sub(retDeferChargeGasSafeStart),
+				"msg", msg.String(),
+			)
+		}
+	}()
 
 	st := vm.cstate
 
@@ -217,6 +248,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		nac = parent.numActorsCreated
 	}
 
+	makeRunTimeStart = build.Clock.Now()
 	rt := vm.makeRuntime(ctx, msg, origin, on, gasUsed, nac)
 	rt.lastGasChargeTime = start
 	if parent != nil {
@@ -228,6 +260,8 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 			parent.lastGasCharge = rt.lastGasCharge
 		}()
 	}
+
+	gasChargeStart = build.Clock.Now()
 	if gasCharge != nil {
 		if err := rt.chargeGasSafe(*gasCharge); err != nil {
 			// this should never happen
@@ -235,8 +269,10 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		}
 	}
 
+	retStart = build.Clock.Now()
 	ret, err := func() ([]byte, aerrors.ActorError) {
 		_ = rt.chargeGasSafe(newGasCharge("OnGetActor", 0, 0))
+		retToActorStart = build.Clock.Now()
 		toActor, err := st.GetActor(msg.To)
 		if err != nil {
 			if xerrors.Is(err, types.ErrActorNotFound) {
@@ -250,6 +286,7 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 			}
 		}
 
+		retChargeGasSafeStart = build.Clock.Now()
 		if aerr := rt.chargeGasSafe(rt.Pricelist().OnMethodInvocation(msg.Value, msg.Method)); aerr != nil {
 			return nil, aerrors.Wrap(aerr, "not enough gas for method invocation")
 		}
@@ -258,18 +295,25 @@ func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
 		//nolint:errcheck
 		defer rt.chargeGasSafe(newGasCharge("OnMethodInvocationDone", 0, 0))
 
+		retTransferStart = build.Clock.Now()
 		if types.BigCmp(msg.Value, types.NewInt(0)) != 0 {
 			if err := vm.transfer(msg.From, msg.To, msg.Value); err != nil {
 				return nil, aerrors.Wrap(err, "failed to transfer funds")
 			}
 		}
 
+		retMsgMethodStart = build.Clock.Now()
 		if msg.Method != 0 {
 			var ret []byte
 			_ = rt.chargeGasSafe(gasOnActorExec)
+			retInvokeStart = build.Clock.Now()
 			ret, err := vm.Invoke(toActor, rt, msg.Method, msg.Params)
+			retDeferChargeGasSafeStart = build.Clock.Now()
 			return ret, err
 		}
+
+		retInvokeStart = build.Clock.Now()
+		retDeferChargeGasSafeStart = build.Clock.Now()
 		return nil, nil
 	}()
 

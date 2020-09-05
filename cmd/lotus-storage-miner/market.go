@@ -373,7 +373,6 @@ var dealsListCmd = &cli.Command{
 		}
 
 		isJsonOutPut := cctx.Bool("json")
-
 		if isJsonOutPut {
 			data, err := json.MarshalIndent(deals, "", "  ")
 			if err != nil {
@@ -388,6 +387,7 @@ var dealsListCmd = &cli.Command{
 		sort.Slice(deals, func(i, j int) bool {
 			return deals[i].CreationTime.Time().Before(deals[j].CreationTime.Time())
 		})
+
 		verbose := cctx.Bool("verbose")
 		watch := cctx.Bool("watch")
 
