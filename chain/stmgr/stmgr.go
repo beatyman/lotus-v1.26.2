@@ -159,18 +159,21 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 	)
 	defer func() {
 		applyBlocksEnd := build.Clock.Now()
-		log.Infow("ApplyBlocks",
-			"took", applyBlocksEnd.Sub(applyBlocksStart),
-			"height", epoch,
-			"newVM", handleStateForksStart.Sub(applyBlocksStart),
-			"handleStateForks", processedMsgsStart.Sub(handleStateForksStart),
-			"processedMsgs", serializeParamsStart.Sub(processedMsgsStart),
-			"serializeParams", sysActStart.Sub(serializeParamsStart),
-			"sysAct", applyImplicitMessageStart.Sub(sysActStart),
-			"applyImplicitMessage", runCronStart.Sub(applyImplicitMessageStart),
-			"runCron", flushStart.Sub(runCronStart),
-			"flush", applyBlocksEnd.Sub(flushStart),
-		)
+		took := applyBlocksEnd.Sub(applyBlocksStart)
+		if took > 1e9 {
+			log.Infow("ApplyBlocks",
+				"took", took,
+				"height", epoch,
+				"newVM", handleStateForksStart.Sub(applyBlocksStart),
+				"handleStateForks", processedMsgsStart.Sub(handleStateForksStart),
+				"processedMsgs", serializeParamsStart.Sub(processedMsgsStart),
+				"serializeParams", sysActStart.Sub(serializeParamsStart),
+				"sysAct", applyImplicitMessageStart.Sub(sysActStart),
+				"applyImplicitMessage", runCronStart.Sub(applyImplicitMessageStart),
+				"runCron", flushStart.Sub(runCronStart),
+				"flush", applyBlocksEnd.Sub(flushStart),
+			)
+		}
 	}()
 
 	vmopt := &vm.VMOpts{
