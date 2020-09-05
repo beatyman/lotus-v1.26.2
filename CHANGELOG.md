@@ -1,5 +1,141 @@
 # Lotus changelog
 
+# 0.5.10 / 2020-09-03
+
+This patch includes a crucial fix to the message pool selection logic, strongly disfavouring messages that might cause a miner penalty.
+
+## Changes
+
+- Fix calculation of GasReward in messagepool (https://github.com/filecoin-project/lotus/pull/3528)
+
+# 0.5.9 / 2020-09-03
+
+This patch includes a hotfix to the `GasEstimateFeeCap` method, capping the estimated fee to a reasonable level by default.
+
+## Changes 
+
+- Added target height to sync wait (https://github.com/filecoin-project/lotus/pull/3502)
+- Disable codecov annotations (https://github.com/filecoin-project/lotus/pull/3514)
+- Cap fees to reasonable level by default (https://github.com/filecoin-project/lotus/pull/3516)
+- Add APIs and command to inspect bandwidth usage (https://github.com/filecoin-project/lotus/pull/3497)
+- Track expected nonce in mpool, ignore messages with large nonce gaps (https://github.com/filecoin-project/lotus/pull/3450)
+
+# 0.5.8 / 2020-09-02
+
+This patch includes some bugfixes to the sector sealing process, and updates go-fil-markets. It also improves the performance of blocksync, adds a method to export chain state trees, and improves chainwatch.
+
+## Changes
+
+- Upgrade markets to v0.5.9 (https://github.com/filecoin-project/lotus/pull/3496)
+- Improve blocksync to load fewer messages: (https://github.com/filecoin-project/lotus/pull/3494)
+- Fix a panic in the ffi-wrapper's `ReadPiece` (https://github.com/filecoin-project/lotus/pull/3492/files)
+- Fix a deadlock in the sealing scheduler (https://github.com/filecoin-project/lotus/pull/3489)
+- Add test vectors for tipset tests (https://github.com/filecoin-project/lotus/pull/3485/files)
+- Improve the advance-block debug command (https://github.com/filecoin-project/lotus/pull/3476)
+- Add toggle for message processing to Lotus PCR (https://github.com/filecoin-project/lotus/pull/3470)
+- Allow exporting recent chain state trees (https://github.com/filecoin-project/lotus/pull/3463)
+- Remove height from chain rand (https://github.com/filecoin-project/lotus/pull/3458)
+- Disable GC on chain badger datastore (https://github.com/filecoin-project/lotus/pull/3457)
+- Account for `GasPremium` in `GasEstimateFeeCap` (https://github.com/filecoin-project/lotus/pull/3456)
+- Update go-libp2p-pubsub to `master` (https://github.com/filecoin-project/lotus/pull/3455)
+- Chainwatch improvements (https://github.com/filecoin-project/lotus/pull/3442)
+
+# 0.5.7 / 2020-08-31
+
+This patch release includes some bugfixes and enhancements to the sector lifecycle and message pool logic. 
+
+## Changes
+
+- Rebuild unsealed infos on miner restart (https://github.com/filecoin-project/lotus/pull/3401)
+- CLI to attach storage paths to workers (https://github.com/filecoin-project/lotus/pull/3405)
+- Do not select negative performing message chains for inclusion (https://github.com/filecoin-project/lotus/pull/3392)
+- Remove a redundant error-check (https://github.com/filecoin-project/lotus/pull/3421)
+- Correctly move unsealed sectors in `FinalizeSectors` (https://github.com/filecoin-project/lotus/pull/3424)
+- Improve worker selection logic (https://github.com/filecoin-project/lotus/pull/3425)
+- Don't use context to close bitswap (https://github.com/filecoin-project/lotus/pull/3430)
+- Correctly estimate gas premium when there is only one message on chain (https://github.com/filecoin-project/lotus/pull/3428)
+
+# 0.5.6 / 2020-08-29
+
+Hotfix release that fixes a panic in the sealing scheduler (https://github.com/filecoin-project/lotus/pull/3389).
+
+# 0.5.5
+
+This patch release introduces a large number of improvements to the sealing process.
+It also updates go-fil-markets to 
+[version 0.5.8](https://github.com/filecoin-project/go-fil-markets/releases/tag/v0.5.8),
+and go-libp2p-pubsub to [v0.3.5](https://github.com/libp2p/go-libp2p-pubsub/releases/tag/v0.3.5).
+
+#### Downstream upgrades
+
+- Upgrades markets to v0.5.8 (https://github.com/filecoin-project/lotus/pull/3384)
+- Upgrades go-libp2p-pubsub to v0.3.5 (https://github.com/filecoin-project/lotus/pull/3305)
+
+#### Sector sealing
+
+- The following improvements were introduced in https://github.com/filecoin-project/lotus/pull/3350.
+
+    - Allow `lotus-miner sectors remove` to remove a sector in any state.
+    - Create a separate state in the storage FSM dedicated to submitting the Commit message.
+    - Recovery for when the Deal IDs of deals in a sector get changed in a reorg.
+    - Auto-retry sending Precommit and Commit messages if they run out of gas
+    - Auto-retry sector remove tasks when they fail
+    - Compact worker windows, and allow their tasks to be executed in any order
+
+- Don't simply skip PoSt for bad sectors (https://github.com/filecoin-project/lotus/pull/3323)
+
+#### Message Pool 
+
+- Spam Protection: Track required funds for pending messages (https://github.com/filecoin-project/lotus/pull/3313)
+
+#### Chainwatch
+
+- Add more power and reward metrics (https://github.com/filecoin-project/lotus/pull/3367)
+- Fix raciness in sector deal table (https://github.com/filecoin-project/lotus/pull/3275)
+- Parallelize miner processing (https://github.com/filecoin-project/lotus/pull/3380)
+- Accept Lotus API and token (https://github.com/filecoin-project/lotus/pull/3337)
+
+# 0.5.4
+
+A patch release, containing a few nice bugfixes and improvements:
+
+- Fix parsing of peer ID in `lotus-miner actor set-peer-id` (@whyrusleeping)
+- Update dependencies, fixing several bugs (@Stebalien)
+- Fix remaining linter warnings (@Stebalien)
+- Use safe string truncation (@Ingar)
+- Allow tweaking of blocksync message window size (@whyrusleeping)
+- Add some additional gas stats to metrics (@Kubuxu)
+- Fix an edge case bug in message selection, add many tests (@vyzo)
+
+# 0.5.3
+
+Yet another hotfix release. 
+A lesson for readers, having people who have been awake for 12+ hours review
+your hotfix PR is not a good idea. Find someone who has enough slept recently
+enough to give you good code review, otherwise you'll end up quickly bumping
+versions again.
+
+- Fixed a bug in the mempool that was introduced in v0.5.2
+
+# 0.5.2 / 2020-08-24
+
+This is a hotfix release.
+
+- Fix message selection to not include messages that are invalid for block
+  inclusion.
+- Improve SelectMessage handling of the case where the message pools tipset
+  differs from our mining base.
+
+# 0.5.1 / 2020-08-24
+
+The Space Race release! 
+This release contains the genesis car file and bootstrap peers for the space
+race network. 
+
+Additionally, we included two small fixes to genesis creation:
+- Randomize ticket value in genesis generation
+- Correctly set t099 (burnt funds actor) to have valid account actor state
+
 # 0.5.0 / 2020-08-20
 
 This version of Lotus will be used for the incentivized testnet Space Race competition,

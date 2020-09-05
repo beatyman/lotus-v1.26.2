@@ -24,6 +24,7 @@ var (
 	_commit2Tasks    = make(chan workerCall)
 	_finalizeTasks   = make(chan workerCall)
 
+	_remoteMarket   = sync.Map{}
 	_remotes        = sync.Map{}
 	_remoteResultLk = sync.RWMutex{}
 	_remoteResult   = make(map[string]chan<- SealRes)
@@ -55,6 +56,26 @@ func nextSourceID() int64 {
 	defer sourceLk.Unlock()
 	sourceId++
 	return sourceId
+}
+
+func hasMarketRemotes() bool {
+	has := false
+	_remoteMarket.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
+		r.lock.Lock()
+		if r.disable || len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
+			r.lock.Unlock()
+			// continue range
+			return true
+		}
+		r.lock.Unlock()
+
+		has = true
+		// break range
+		return false
+	})
+
+	return has
 }
 
 func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
@@ -444,6 +465,8 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		interrupt bool
 	}
 	result := make(chan resp, len(remotes))
+	retry := false
+	retryLock := sync.Mutex{}
 	for _, r := range remotes {
 		go func(req *req) {
 			ctx := context.TODO()
@@ -451,6 +474,26 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 
 			// send to remote worker
 			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
+			if interrupt {
+				result <- resp{res, interrupt}
+				return
+			}
+			if res.GoErr == nil && len(res.Err) == 0 {
+				result <- resp{res, interrupt}
+				return
+			}
+
+			// got an error , do a retry for the fastest remote
+			retryLock.Lock()
+			if !retry {
+				retry = true
+				retryLock.Unlock()
+
+				res, interrupt = sb.TaskSend(ctx, req.remote, *req.task)
+			} else {
+				retryLock.Unlock()
+			}
+
 			result <- resp{res, interrupt}
 		}(r)
 	}
@@ -476,8 +519,13 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	return nil, nil, err
 }
 
+var selectCommit2ServiceLock = sync.Mutex{}
+
 // Need call sb.UnlockService to release the selected.
 func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*WorkerCfg, error) {
+	selectCommit2ServiceLock.Lock()
+	defer selectCommit2ServiceLock.Unlock()
+
 	task := WorkerTask{
 		Type:     WorkerCommit2,
 		SectorID: sector,

@@ -93,12 +93,12 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check abi.BitFie
 		return bitfield.BitField{}, xerrors.Errorf("iterating over bitfield: %w", err)
 	}
 
-	_, bad, err := s.faultTracker.CheckProvable(ctx, spt, tocheck, timeout)
+	all, _, err := s.faultTracker.CheckProvable(ctx, spt, tocheck, timeout)
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
 	}
 	// bad
-	for _, val := range bad {
+	for _, val := range all {
 		if val.Err != nil {
 			log.Warnf("s-t0%d-%d,%d,%s,%s", val.ID.Miner, val.ID.Number, val.Used, val.Used.String(), errors.ParseError(val.Err))
 			delete(sectors, val.ID)
@@ -356,95 +356,68 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di miner
 	sidToPart := map[abi.SectorNumber]uint64{}
 	skipCount := uint64(0)
 	done := make(chan error, len(partitions))
+	parallelDo := func(partIdx int, partition *miner.Partition) {
+		var gErr error
+		defer func() {
+			done <- gErr
+		}()
+		// TODO: Can do this in parallel
+		toProve, err := partition.ActiveSectors()
+		if err != nil {
+			gErr = errors.As(err, partIdx)
+			return
+		}
+
+		toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
+		if err != nil {
+			gErr = errors.As(err, partIdx)
+			return
+		}
+
+		good, err := s.checkSectors(ctx, toProve, 3*time.Second) // spec, if it need a quick read for running proving, so, just have 3 seconds for timeout to detect the file
+		if err != nil {
+			gErr = errors.As(err, partIdx)
+			return
+		}
+
+		skipped, err := bitfield.SubtractBitField(toProve, good)
+		if err != nil {
+			gErr = errors.As(err, partIdx)
+			return
+		}
+
+		sc, err := skipped.Count()
+		if err != nil {
+			gErr = errors.As(err, partIdx)
+			return
+		}
+
+		skipCount += sc
+
+		ssi, err := s.sectorsForProof(ctx, good, partition.Sectors, ts)
+		if err != nil {
+			gErr = xerrors.Errorf("getting sorted sector info: %w", err)
+			return
+		}
+
+		if len(ssi) == 0 {
+			return
+		}
+
+		sinfosLk.Lock()
+		sinfos = append(sinfos, ssi...)
+		for _, si := range ssi {
+			sidToPart[si.SectorNumber] = uint64(partIdx)
+		}
+
+		params.Partitions = append(params.Partitions, miner.PoStPartition{
+			Index:   uint64(partIdx),
+			Skipped: skipped,
+		})
+		sinfosLk.Unlock()
+	}
 	for partIdx, partition := range partitions {
-		go func(partIdx int, partition *miner.Partition) {
-			var gErr error
-			defer func() {
-				done <- gErr
-			}()
-			// TODO: Can do this in parallel
-			toProve, err := partition.ActiveSectors()
-			if err != nil {
-				gErr = errors.As(err, partIdx)
-				return
-			}
-			toProveCount, err := toProve.Count()
-			if err != nil {
-				log.Warn(err)
-			}
-			recoverCount, err := partition.Recoveries.Count()
-			if err != nil {
-				log.Warn(err)
-			}
-
-			tsc, err := partition.Sectors.Count()
-			if err != nil {
-				log.Warn(err)
-			}
-			tfc, err := partition.Faults.Count()
-			if err != nil {
-				log.Warn(err)
-			}
-			ttc, err := partition.Terminated.Count()
-			if err != nil {
-				log.Warn(err)
-			}
-
-			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,toProve:%d, recovers:%d,tsc:%d,tfc:%d,ttc:%d", partIdx, toProveCount, recoverCount, tsc, tfc, ttc)
-
-			toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
-			if err != nil {
-				gErr = errors.As(err, partIdx)
-				return
-			}
-
-			good, err := s.checkSectors(ctx, toProve, 3*time.Second) // spec, if it need a quick read for running proving, so, just have 3 seconds for timeout to detect the file
-			if err != nil {
-				gErr = errors.As(err, partIdx)
-				return
-			}
-			goodCount, _ := good.Count()
-			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,good:%d", partIdx, goodCount)
-
-			skipped, err := bitfield.SubtractBitField(toProve, good)
-			if err != nil {
-				gErr = errors.As(err, partIdx)
-				return
-			}
-			skippedCount, _ := skipped.Count()
-			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,skipped:%d", partIdx, skippedCount)
-
-			sc, err := skipped.Count()
-			if err != nil {
-				gErr = errors.As(err, partIdx)
-				return
-			}
-
-			skipCount += sc
-
-			ssi, err := s.sectorInfo(ctx, good, ts)
-			if err != nil {
-				gErr = errors.As(err, partIdx)
-				return
-			}
-			log.Infof("DEBUG doPost StateMinerPartitions, index:%d,len ssi:%d", partIdx, len(ssi))
-
-			if len(ssi) == 0 {
-				return
-			}
-
-			sinfosLk.Lock()
-			sinfos = append(sinfos, ssi...)
-			for _, si := range ssi {
-				sidToPart[si.SectorNumber] = uint64(partIdx)
-			}
-
-			params.Partitions = append(params.Partitions, miner.PoStPartition{
-				Index:   uint64(partIdx),
-				Skipped: skipped,
-			})
-			sinfosLk.Unlock()
-		}(partIdx, partition)
+		go parallelDo(partIdx, partition)
 	}
 	for waits := len(partitions); waits > 0; waits-- {
 		err := <-done
@@ -467,8 +440,6 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di miner
 		"skipped", skipCount)
 
 	tsStart := build.Clock.Now()
-
-	log.Infow("generating windowPost", "sectors", len(sinfos))
 
 	mid, err := address.IDFromAddress(s.actor)
 	if err != nil {
@@ -505,22 +476,44 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di miner
 	return params, nil
 }
 
-func (s *WindowPoStScheduler) sectorInfo(ctx context.Context, deadlineSectors abi.BitField, ts *types.TipSet) ([]abi.SectorInfo, error) {
-	sset, err := s.api.StateMinerSectors(ctx, s.actor, &deadlineSectors, false, ts.Key())
+func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, allSectors abi.BitField, ts *types.TipSet) ([]abi.SectorInfo, error) {
+	sset, err := s.api.StateMinerSectors(ctx, s.actor, &goodSectors, false, ts.Key())
 	if err != nil {
 		return nil, err
 	}
 
-	sbsi := make([]abi.SectorInfo, len(sset))
-	for k, sector := range sset {
-		sbsi[k] = abi.SectorInfo{
+	if len(sset) == 0 {
+		return nil, nil
+	}
+
+	substitute := abi.SectorInfo{
+		SectorNumber: sset[0].ID,
+		SealedCID:    sset[0].Info.SealedCID,
+		SealProof:    sset[0].Info.SealProof,
+	}
+
+	sectorByID := make(map[uint64]abi.SectorInfo, len(sset))
+	for _, sector := range sset {
+		sectorByID[uint64(sector.ID)] = abi.SectorInfo{
 			SectorNumber: sector.ID,
 			SealedCID:    sector.Info.SealedCID,
 			SealProof:    sector.Info.SealProof,
 		}
 	}
 
-	return sbsi, nil
+	proofSectors := make([]abi.SectorInfo, 0, len(sset))
+	if err := allSectors.ForEach(func(sectorNo uint64) error {
+		if info, found := sectorByID[sectorNo]; found {
+			proofSectors = append(proofSectors, info)
+		} else {
+			proofSectors = append(proofSectors, substitute)
+		}
+		return nil
+	}); err != nil {
+		return nil, xerrors.Errorf("iterating partition sector bitmap: %w", err)
+	}
+
+	return proofSectors, nil
 }
 
 func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.SubmitWindowedPoStParams) error {

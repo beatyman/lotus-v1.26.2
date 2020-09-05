@@ -436,8 +436,12 @@ func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector abi.Se
 	maxPieceSize := abi.PaddedPieceSize(sb.ssize)
 
 	pf, err := openPartialFile(maxPieceSize, path.Unsealed)
-	if xerrors.Is(err, os.ErrNotExist) {
-		return false, errors.As(err, "opening partial file", path.Unsealed)
+	if err != nil {
+		if xerrors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+
+		return false, xerrors.Errorf("opening partial file: %w", err)
 	}
 
 	ok, err := pf.HasAllocated(offset, size)
