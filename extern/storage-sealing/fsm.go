@@ -159,13 +159,6 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 }
 
 func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(statemachine.Context, SectorInfo) error, uint64, error) {
-	// checking the sector state in hlm miner
-	if sInfo, err := database.GetSectorInfo(ffiwrapper.SectorName(m.minerSector(state.SectorNumber))); err != nil {
-		log.Warn(errors.As(err))
-	} else if state.SectorNumber > 0 && sInfo.State > database.SECTOR_STATE_DONE {
-		log.Infof("sector(%s,%d) state(%d,%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
-		return nil, 0, nil
-	}
 	/////
 	// First process all events
 
@@ -210,6 +203,13 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 		return nil, 0, xerrors.Errorf("running planner for state %s failed: %w", state.State, err)
 	}
 
+	// checking the sector state in hlm miner
+	if sInfo, err := database.GetSectorInfo(ffiwrapper.SectorName(m.minerSector(state.SectorNumber))); err != nil {
+		log.Warn(errors.As(err))
+	} else if state.SectorNumber > 0 && sInfo.State > database.SECTOR_STATE_DONE {
+		log.Infof("sector(%s,%d) state(%d,%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
+		return nil, processed, nil
+	}
 	/////
 	// Now decide what to do next
 
