@@ -459,7 +459,7 @@ func (sb *Sealer) toRemoteOwner(task workerCall) {
 	r, ok := _remotes.Load(task.task.WorkerID)
 	if !ok {
 		log.Warnf(
-			"no worker(%s,%s) toOwner, return task:%s",
+			"no worker(%s,%s) for toOwner, return task:%s",
 			task.task.WorkerID, task.task.SectorStorage.WorkerInfo.Ip, task.task.Key(),
 		)
 		sb.returnTask(task)
