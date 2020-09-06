@@ -174,7 +174,14 @@ func (m *Sealing) AddPieceToAnySector(ctx context.Context, size abi.UnpaddedPiec
 		return 0, 0, xerrors.Errorf("adding piece to sector: %w", err)
 	}
 
-	startPacking := m.unsealedInfoMap.infos[sid].numDeals >= getDealPerSectorLimit(m.sealer.SectorSize())
+	cfg, err := m.getConfig()
+	if err != nil {
+		return 0, 0, xerrors.Errorf("getting config: %w", err)
+	}
+	startPacking := cfg.MaxDealsPerSector > 0 && m.unsealedInfoMap.infos[sid].numDeals >= cfg.MaxDealsPerSector
+	if m.unsealedInfoMap.infos[sid].numDeals >= getDealPerSectorLimit(m.sealer.SectorSize()) {
+		startPacking = true
+	}
 
 	m.unsealedInfoMap.lk.Unlock()
 

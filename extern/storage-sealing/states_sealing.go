@@ -19,6 +19,11 @@ import (
 var DealSectorPriority = 1024
 
 func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) error {
+	// need to delete the unseal map when force to Packing
+	m.unsealedInfoMap.lk.Lock()
+	delete(m.unsealedInfoMap.infos, sector.SectorNumber)
+	m.unsealedInfoMap.lk.Unlock()
+
 	log.Infow("performing filling up rest of the sector...", "sector", sector.SectorNumber)
 
 	var allocated abi.UnpaddedPieceSize
