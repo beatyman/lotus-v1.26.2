@@ -144,7 +144,7 @@ func DefaultStorageMiner() *StorageMiner {
 		Common: defCommon(),
 
 		Sealing: SealingConfig{
-			MaxWaitDealsSectors:       2, // 64G with 32G sectors
+			MaxWaitDealsSectors:       0, // 64G with 32G sectors
 			MaxSealingSectors:         0,
 			MaxSealingSectorsForDeals: 0,
 			WaitDealsDelay:            Duration(time.Hour),
