@@ -80,9 +80,9 @@ func (mp *MessagePool) selectMessagesOptimal(curTs, ts *types.TipSet, tq float64
 	result, gasLimit := mp.selectPriorityMessages(pending, baseFee, ts)
 
 	// have we filled the block?
-	//if gasLimit < minGas {
-	//	return result, nil
-	//}
+	if gasLimit < minGas {
+		return result, nil
+	}
 
 	// 1. Create a list of dependent message chains with maximal gas reward per limit consumed
 	startChains := time.Now()
@@ -329,9 +329,9 @@ func (mp *MessagePool) selectMessagesGreedy(curTs, ts *types.TipSet) ([]*types.S
 	result, gasLimit := mp.selectPriorityMessages(pending, baseFee, ts)
 
 	// have we filled the block?
-	//if gasLimit < minGas {
-	//	return result, nil
-	//}
+	if gasLimit < minGas {
+		return result, nil
+	}
 
 	// 1. Create a list of dependent message chains with maximal gas reward per limit consumed
 	startChains := time.Now()
@@ -469,12 +469,6 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 	sort.Slice(chains, func(i, j int) bool {
 		return chains[i].Before(chains[j])
 	})
-
-	// implements by hlm, package all priority messages.
-	for _, chain := range chains {
-		result = append(result, chain.msgs...)
-	}
-	return result, 0
 
 	if len(chains) != 0 && chains[0].gasPerf < 0 {
 		log.Warnw("all priority messages in mpool have negative gas performance", "bestGasPerf", chains[0].gasPerf)
