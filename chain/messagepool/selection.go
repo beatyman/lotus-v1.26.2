@@ -471,7 +471,7 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 	})
 
 	if len(chains) != 0 && chains[0].gasPerf < 0 {
-		log.Warnw("all priority messages in mpool have negative gas performance", "bestGasPerf", chains[0].gasPerf)
+		log.Warnw("all priority messages in mpool have negative gas performance", "bestGasPerf", chains[0].gasPerf, "gasRewrad", chains[0].gasReward)
 		return nil, gasLimit
 	}
 
