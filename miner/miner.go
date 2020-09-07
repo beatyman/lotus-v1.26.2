@@ -240,14 +240,14 @@ func (m *Miner) mine(ctx context.Context) {
 
 			if err := m.sf.MinedBlock(b.Header, lastBase.TipSet.Height()+lastBase.NullRounds); err != nil {
 				log.Errorf("<!!> SLASH FILTER ERROR: %s", err)
-				//continue
+				continue
 			}
 
 			blkKey := fmt.Sprintf("%d", b.Header.Height)
 			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
 				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
 				// in case for nullRound, it will happend the same block.
-				//continue
+				continue
 			}
 
 			m.minedBlockHeights.Add(blkKey, true)
