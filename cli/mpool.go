@@ -161,7 +161,7 @@ var mpoolFix = &cli.Command{
 		&cli.StringFlag{
 			Name:  "limit-gas",
 			Usage: "limit the gas. default is 100FIL in max",
-			Value: "1000000000000000000000",
+			Value: "100000000000000000000",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
