@@ -231,7 +231,7 @@ var mpoolFix = &cli.Command{
 			}
 			gasUsed = types.BigAdd(gasUsed, types.BigMul(newMsg.GasFeeCap, types.NewInt(uint64(newMsg.GasLimit))))
 			if types.BigCmp(gasUsed, limitGas) >= 0 {
-				return fmt.Errorf("gas out of limit:%s", gasUsed)
+				return fmt.Errorf("gas out of limit: base:%s,used:%s", baseFee, gasUsed)
 			}
 
 			smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
