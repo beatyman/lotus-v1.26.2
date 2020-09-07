@@ -231,6 +231,7 @@ func (m *Sealing) Remove(ctx context.Context, sid abi.SectorNumber) error {
 
 // Caller should NOT hold m.unsealedInfoMap.lk
 func (m *Sealing) StartPacking(sectorID abi.SectorNumber) error {
+	log.Infof("Starting packing sector %d", sectorID)
 	// locking here ensures that when the SectorStartPacking event is sent, the sector won't be picked up anywhere else
 	m.unsealedInfoMap.lk.Lock()
 	defer m.unsealedInfoMap.lk.Unlock()
@@ -240,7 +241,6 @@ func (m *Sealing) StartPacking(sectorID abi.SectorNumber) error {
 		log.Warnf("call start packing, but sector %v not in unsealedInfoMap.infos, maybe have called", sectorID)
 		return nil
 	}
-	log.Infof("Starting packing sector %d", sectorID)
 	err := m.sectors.Send(uint64(sectorID), SectorStartPacking{})
 	if err != nil {
 		return err

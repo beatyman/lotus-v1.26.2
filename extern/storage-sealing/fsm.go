@@ -413,27 +413,15 @@ func (m *Sealing) restartSectors(ctx context.Context) error {
 				m.unsealedInfoMap.infos[sector.SectorNumber] = ui
 			}
 
-			startPacking := cfg.MaxDealsPerSector > 0 && m.unsealedInfoMap.infos[sector.SectorNumber].numDeals >= cfg.MaxDealsPerSector
-			if m.unsealedInfoMap.infos[sector.SectorNumber].numDeals >= getDealPerSectorLimit(m.sealer.SectorSize()) {
-				startPacking = true
-			}
-			if startPacking {
-				go func(sid abi.SectorNumber) {
-					if err := m.StartPacking(sid); err != nil {
-						log.Warn(xerrors.Errorf("start packing: %w", err))
+			// start a fresh timer for the sector
+			if cfg.WaitDealsDelay > 0 {
+				timer := time.NewTimer(cfg.WaitDealsDelay)
+				go func() {
+					<-timer.C
+					if err := m.StartPacking(sector.SectorNumber); err != nil {
+						log.Errorf("starting sector %d: %+v", sector.SectorNumber, err)
 					}
-				}(sector.SectorNumber)
-			} else {
-				// start a fresh timer for the sector
-				if cfg.WaitDealsDelay > 0 {
-					timer := time.NewTimer(cfg.WaitDealsDelay)
-					go func() {
-						<-timer.C
-						if err := m.StartPacking(sector.SectorNumber); err != nil {
-							log.Errorf("starting sector %d: %+v", sector.SectorNumber, err)
-						}
-					}()
-				}
+				}()
 			}
 		}
 	}
