@@ -154,9 +154,14 @@ var mpoolFix = &cli.Command{
 			Value: 0,
 		},
 		&cli.Uint64Flag{
-			Name:  "limit",
+			Name:  "limit-msg",
 			Usage: "limit the message. 0 is ignored",
 			Value: 0,
+		},
+		&cli.StringFlag{
+			Name:  "limit-gas",
+			Usage: "limit the gas. default is 100FIL in max",
+			Value: "1000000000000000000000",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -188,11 +193,16 @@ var mpoolFix = &cli.Command{
 		if err != nil {
 			return err
 		}
-		limit := cctx.Uint64("limit")
+		limitGas, err := types.BigFromString(cctx.String("limit-gas"))
+		if err != nil {
+			return err
+		}
+		limitMsg := cctx.Uint64("limit-msg")
 		nonce := cctx.Uint64("nonce")
 		rate := cctx.Uint64("rate")
 
 		fixedNum := uint64(0)
+		gasUsed := types.NewInt(0)
 		for idx, msg := range msgs {
 			if _, has := filter[msg.Message.From]; !has {
 				continue
@@ -200,7 +210,7 @@ var mpoolFix = &cli.Command{
 			if nonce > 0 && nonce != msg.Message.Nonce {
 				continue
 			}
-			if limit > 0 && fixedNum > limit {
+			if limitMsg > 0 && fixedNum > limitMsg {
 				continue
 			}
 			fixedNum++
@@ -218,6 +228,10 @@ var mpoolFix = &cli.Command{
 			// ERROR: failed to push new message to mempool: message will not be included in a block: 'GasFeeCap' less than 'GasPremium'
 			if types.BigCmp(newMsg.GasFeeCap, newMsg.GasPremium) < 0 {
 				newMsg.GasFeeCap = newMsg.GasPremium
+			}
+			gasUsed = types.BigAdd(gasUsed, types.BigMul(newMsg.GasFeeCap, types.NewInt(uint64(newMsg.GasLimit))))
+			if types.BigCmp(gasUsed, limitGas) >= 0 {
+				return fmt.Errorf("gas out of limit:%s", gasUsed)
 			}
 
 			smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
