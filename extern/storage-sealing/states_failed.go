@@ -35,10 +35,12 @@ func failedCooldown(ctx statemachine.Context, sector SectorInfo) error {
 }
 
 func (m *Sealing) checkPreCommitted(ctx statemachine.Context, sector SectorInfo) (*miner.SectorPreCommitOnChainInfo, bool) {
+errApiLoop:
 	tok, _, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
 		log.Errorf("handleSealPrecommit1Failed(%d): temp error: %+v", sector.SectorNumber, err)
-		return nil, true
+		time.Sleep(10e9)
+		goto errApiLoop
 	}
 
 	info, err := m.api.StateSectorPreCommitInfo(ctx.Context(), m.maddr, sector.SectorNumber, tok)
@@ -71,10 +73,12 @@ func (m *Sealing) handleSealPrecommit2Failed(ctx statemachine.Context, sector Se
 }
 
 func (m *Sealing) handlePreCommitFailed(ctx statemachine.Context, sector SectorInfo) error {
+errApiLoop:
 	tok, height, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
 		log.Errorf("handlePreCommitFailed: api error, not proceeding: %+v", err)
-		return nil
+		time.Sleep(10e9)
+		goto errApiLoop
 	}
 
 	if err := checkPrecommit(ctx.Context(), m.Address(), sector, tok, height, m.api); err != nil {
@@ -154,10 +158,12 @@ func (m *Sealing) handleComputeProofFailed(ctx statemachine.Context, sector Sect
 }
 
 func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo) error {
+errApiLoop:
 	tok, height, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
 		log.Errorf("handleCommitting: api error, not proceeding: %+v", err)
-		return nil
+		time.Sleep(10e9)
+		goto errApiLoop
 	}
 
 	if err := checkPrecommit(ctx.Context(), m.maddr, sector, tok, height, m.api); err != nil {
@@ -276,9 +282,12 @@ func (m *Sealing) handleDealsExpired(ctx statemachine.Context, sector SectorInfo
 }
 
 func (m *Sealing) handleRecoverDealIDs(ctx statemachine.Context, sector SectorInfo) error {
+errApiLoop:
 	tok, height, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
-		return xerrors.Errorf("getting chain head: %w", err)
+		log.Error(xerrors.Errorf("getting chain head: %w", err))
+		time.Sleep(10e9)
+		goto errApiLoop
 	}
 
 	var toFix []int
