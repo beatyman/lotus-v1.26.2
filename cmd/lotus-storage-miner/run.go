@@ -28,9 +28,9 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 
-	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/gwaylib/errors"
 )
 
@@ -117,19 +117,23 @@ var runCmd = &cli.Command{
 		// implement by hlm
 		// init storage database
 		database.InitDB(minerRepoPath)
+		log.Info("Mount all storage")
 		// mount nfs storage node
 		if err := database.MountAllStorage(false); err != nil {
 			return errors.As(err)
 		}
+		log.Info("Clean storage worker")
 		// clean storage cur_work cause by no worker on starting.
 		if err := database.ClearStorageWork(); err != nil {
 			return errors.As(err)
 		}
+		log.Info("Check sealed")
 		// checking sealed for proof
 		if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
 			return errors.As(err)
 		}
 		// implement by hlm end.
+		log.Info("Check done")
 
 		shutdownChan := make(chan struct{})
 
