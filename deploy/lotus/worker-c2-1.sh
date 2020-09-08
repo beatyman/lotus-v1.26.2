@@ -9,7 +9,12 @@ export worker_id_file="~/.lotusworker/worker-c2-1.id"
 
 # Special configuration for lianpai
 export C2_FFT_PARA_NUM=4
-export C2_GPU_GROUP=0
+gpu_num=`nvidia-smi  -L |wc -l`
+if [ $gpu_num -le 4 ]; then
+    export C2_GPU_GROUP=-1
+else
+    export C2_GPU_GROUP=0
+fi
 
 # checking gpu
 gpu=""
