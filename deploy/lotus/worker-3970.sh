@@ -86,7 +86,7 @@ fi
 
 
 netip=$(ip a | grep -Po '(?<=inet ).*(?=\/)'|grep -E "10\.") # only support one eth card.
-RUST_LOG=info RUST_BACKTRACE=1 NETIP=$netip ./lotus-worker --repo=$repo --miner-repo=$miner_repo --storage-repo=$storage_repo --id-file="$worker_id_file" --listen-addr="$netip:1281" --parallel-precommit1=2 --parallel-commit2=0 run &
+RUST_LOG=info RUST_BACKTRACE=1 NETIP=$netip ./lotus-worker --repo=$repo --miner-repo=$miner_repo --storage-repo=$storage_repo --id-file="$worker_id_file" --max-tasks=3 --parallel-addpiece=3 --parallel-precommit1=3 --parallel-commit2=0 run &
 pid=$!
 
 # set ulimit for process
