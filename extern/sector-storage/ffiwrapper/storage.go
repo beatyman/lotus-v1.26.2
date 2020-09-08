@@ -27,13 +27,13 @@ func CheckSealed(repo string) error {
 	result := make(chan *Result, len(list))
 	for _, info := range list {
 		go func(s database.SectorInfo) {
-			start := time.Now()
 			// limit the concurrency
 			routines <- true
 			defer func() {
 				<-routines
 			}()
 
+			start := time.Now()
 			sealedFile := filepath.Join(repo, "sealed", s.ID)
 			if _, err := os.Stat(sealedFile); err != nil {
 				if os.IsNotExist(err) {
