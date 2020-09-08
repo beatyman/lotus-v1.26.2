@@ -21,6 +21,7 @@ func CheckSealed(repo string) error {
 	var hasErr error
 	for _, s := range list {
 		sealedFile := filepath.Join(repo, "sealed", s.ID)
+		log.Infof("check file:%s", sealedFile)
 		if _, err := os.Stat(sealedFile); err != nil {
 			if os.IsNotExist(err) {
 				cacheFile := filepath.Join(repo, "cache", s.ID)

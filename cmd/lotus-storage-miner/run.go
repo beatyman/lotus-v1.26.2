@@ -128,14 +128,12 @@ var runCmd = &cli.Command{
 			return errors.As(err)
 		}
 		log.Info("Check sealed")
-		go func() {
-			// checking sealed for proof
-			if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
-				log.Error(errors.As(err))
-			}
-			// implement by hlm end.
-			log.Info("Check done")
-		}()
+		// checking sealed for proof
+		if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
+			return errors.As(err)
+		}
+		// implement by hlm end.
+		log.Info("Check done")
 
 		shutdownChan := make(chan struct{})
 
