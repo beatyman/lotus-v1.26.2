@@ -131,7 +131,7 @@ var runCmd = &cli.Command{
 		go func() {
 			// checking sealed for proof
 			if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
-				log.Warn(errors.As(err))
+				log.Error(errors.As(err))
 			}
 			// implement by hlm end.
 			log.Info("Check done")
