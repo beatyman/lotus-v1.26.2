@@ -29,7 +29,6 @@ import (
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/gwaylib/errors"
 )
@@ -128,11 +127,11 @@ var runCmd = &cli.Command{
 			return errors.As(err)
 		}
 		log.Info("Check sealed")
-		// TODO: fix
+		// TODO: Move to window post
 		// checking sealed for proof
-		if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
-			return errors.As(err)
-		}
+		//if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
+		//	return errors.As(err)
+		//}
 		// implement by hlm end.
 		log.Info("Check done")
 
