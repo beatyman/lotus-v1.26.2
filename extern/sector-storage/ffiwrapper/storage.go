@@ -19,9 +19,15 @@ func CheckSealed(repo string) error {
 	}
 	log.Infof("Get all secotrs done, len:%d", len(list))
 	routines := make(chan bool, 1024) // limit the gorouting to checking the bad, the sectors would be lot.
-	result := make(chan error, len(list))
+	type Result struct {
+		path string
+		err  error
+		used time.Duration
+	}
+	result := make(chan *Result, len(list))
 	for _, info := range list {
 		go func(s database.SectorInfo) {
+			start := time.Now()
 			// limit the concurrency
 			routines <- true
 			defer func() {
@@ -29,7 +35,6 @@ func CheckSealed(repo string) error {
 			}()
 
 			sealedFile := filepath.Join(repo, "sealed", s.ID)
-			log.Infof("check file:%s", sealedFile)
 			if _, err := os.Stat(sealedFile); err != nil {
 				if os.IsNotExist(err) {
 					cacheFile := filepath.Join(repo, "cache", s.ID)
@@ -38,20 +43,35 @@ func CheckSealed(repo string) error {
 					log.Infof("ln -s %s %s", nfsCacheFile, cacheFile)
 					if err := database.Symlink(nfsCacheFile, cacheFile); err != nil {
 						log.Info(errors.As(err, s.ID))
-						result <- err
+						result <- &Result{
+							path: sealedFile,
+							err:  err,
+							used: time.Now().Sub(start),
+						}
 						return
 					}
 					nfsSealedFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "sealed", s.ID)
 					log.Infof("ln -s %s %s", nfsSealedFile, sealedFile)
 					if err := database.Symlink(nfsSealedFile, sealedFile); err != nil {
 						log.Info(errors.As(err, s.ID))
-						result <- err
+						result <- &Result{
+							path: sealedFile,
+							err:  err,
+							used: time.Now().Sub(start),
+						}
 						return
 					}
-					result <- nil
+					result <- &Result{
+						path: sealedFile,
+						used: time.Now().Sub(start),
+					}
 					return
 				} else {
-					result <- err
+					result <- &Result{
+						path: sealedFile,
+						err:  err,
+						used: time.Now().Sub(start),
+					}
 					log.Info(errors.As(err, "file os failed, try umount", s.ID, s.StorageId))
 					if _, err := database.Umount(filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId))); err != nil {
 						log.Warn(errors.As(err))
@@ -63,9 +83,12 @@ func CheckSealed(repo string) error {
 	}
 	var hasErr error
 	for waits := len(list); waits > 0; waits-- {
-		err := <-result
-		if hasErr == nil && err != nil {
-			hasErr = err
+		r := <-result
+		if hasErr == nil && r.err != nil {
+			hasErr = r.err
+		}
+		if r.used > time.Second {
+			log.Warnf("check filed using a long time:%s,%s", r.path, r.used)
 		}
 	}
 	return hasErr
