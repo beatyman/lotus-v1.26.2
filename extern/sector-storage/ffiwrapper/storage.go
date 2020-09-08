@@ -17,6 +17,7 @@ func CheckSealed(repo string) error {
 	if err != nil {
 		return errors.As(err)
 	}
+	log.Infof("Get all secotrs done, len:%d", len(list))
 	var hasErr error
 	for _, s := range list {
 		sealedFile := filepath.Join(repo, "sealed", s.ID)
