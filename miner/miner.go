@@ -163,8 +163,12 @@ func (m *Miner) mine(ctx context.Context) {
 			m.niceSleep(time.Second * 1)
 			continue
 		}
+		miningHeight := prebase.TipSet.Height() + 1
+		if lastBase.TipSet != nil && lastBase.TipSet.Height()+lastBase.NullRounds > prebase.TipSet.Height() {
+			miningHeight = lastBase.TipSet.Height() + lastBase.NullRounds + 1
+		}
 		// just wait for the beacon entry to become available before we select our final mining base
-		_, err = m.api.BeaconGetEntry(ctx, prebase.TipSet.Height()+prebase.NullRounds+1)
+		_, err = m.api.BeaconGetEntry(ctx, miningHeight)
 		if err != nil {
 			log.Errorf("failed getting beacon entry: %s", err)
 			m.niceSleep(time.Second * 1)
@@ -178,12 +182,14 @@ func (m *Miner) mine(ctx context.Context) {
 			log.Infof("Waiting PropagationDelay time: %s", delay)
 			if delay > 0 && now.Sub(nextRound) > 0 {
 				time.Sleep(delay + time.Second)
+				// update the parent weight
+				base, err = m.GetBestMiningCandidate(ctx)
+				if err != nil {
+					log.Errorf("failed to get best mining candidate: %s", err)
+					continue
+				}
 			}
-			base, err = m.GetBestMiningCandidate(ctx)
-			if err != nil {
-				log.Errorf("failed to get best mining candidate: %s", err)
-				continue
-			}
+
 			log.Infof("Update base to:%d", base.TipSet.Height())
 
 			nextRound = nextRoundTime(base)
