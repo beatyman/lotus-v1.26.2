@@ -18,36 +18,54 @@ func CheckSealed(repo string) error {
 		return errors.As(err)
 	}
 	log.Infof("Get all secotrs done, len:%d", len(list))
-	var hasErr error
-	for _, s := range list {
-		sealedFile := filepath.Join(repo, "sealed", s.ID)
-		log.Infof("check file:%s", sealedFile)
-		if _, err := os.Stat(sealedFile); err != nil {
-			if os.IsNotExist(err) {
-				cacheFile := filepath.Join(repo, "cache", s.ID)
-				// make a new link
-				nfsCacheFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "cache", s.ID)
-				log.Infof("ln -s %s %s", nfsCacheFile, cacheFile)
-				if err := database.Symlink(nfsCacheFile, cacheFile); err != nil {
-					log.Info(errors.As(err, s.ID))
-					hasErr = err
-					continue
+	routines := make(chan bool, 1024) // limit the gorouting to checking the bad, the sectors would be lot.
+	result := make(chan error, len(list))
+	for _, info := range list {
+		go func(s database.SectorInfo) {
+			// limit the concurrency
+			routines <- true
+			defer func() {
+				<-routines
+			}()
+
+			sealedFile := filepath.Join(repo, "sealed", s.ID)
+			log.Infof("check file:%s", sealedFile)
+			if _, err := os.Stat(sealedFile); err != nil {
+				if os.IsNotExist(err) {
+					cacheFile := filepath.Join(repo, "cache", s.ID)
+					// make a new link
+					nfsCacheFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "cache", s.ID)
+					log.Infof("ln -s %s %s", nfsCacheFile, cacheFile)
+					if err := database.Symlink(nfsCacheFile, cacheFile); err != nil {
+						log.Info(errors.As(err, s.ID))
+						result <- err
+						return
+					}
+					nfsSealedFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "sealed", s.ID)
+					log.Infof("ln -s %s %s", nfsSealedFile, sealedFile)
+					if err := database.Symlink(nfsSealedFile, sealedFile); err != nil {
+						log.Info(errors.As(err, s.ID))
+						result <- err
+						return
+					}
+					result <- nil
+					return
+				} else {
+					result <- err
+					log.Info(errors.As(err, "file os failed, try umount", s.ID, s.StorageId))
+					if _, err := database.Umount(filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId))); err != nil {
+						log.Warn(errors.As(err))
+					}
+					return
 				}
-				nfsSealedFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "sealed", s.ID)
-				log.Infof("ln -s %s %s", nfsSealedFile, sealedFile)
-				if err := database.Symlink(nfsSealedFile, sealedFile); err != nil {
-					log.Info(errors.As(err, s.ID))
-					hasErr = err
-					continue
-				}
-			} else {
-				hasErr = err
-				log.Info(errors.As(err, "file os failed, try umount", s.ID, s.StorageId))
-				if _, err := database.Umount(filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId))); err != nil {
-					log.Warn(errors.As(err))
-				}
-				continue
 			}
+		}(info)
+	}
+	var hasErr error
+	for waits := len(list); waits > 0; waits-- {
+		err := <-result
+		if hasErr == nil && err != nil {
+			hasErr = err
 		}
 	}
 	return hasErr
