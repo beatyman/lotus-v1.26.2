@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/specs-actors/actors/abi"
+	abi "github.com/filecoin-project/go-state-types/abi"
 	xerrors "golang.org/x/xerrors"
 
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"

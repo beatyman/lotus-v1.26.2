@@ -6,7 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/ipfs/go-cid"
 
@@ -190,7 +191,7 @@ type WorkerTask struct {
 	Commit1Out storage.Commit1Out
 
 	// winning PoSt
-	SectorInfo []abi.SectorInfo
+	SectorInfo []proof.SectorInfo
 	Randomness abi.PoStRandomness
 
 	// window PoSt
@@ -463,9 +464,9 @@ type SealRes struct {
 	Commit1Out    storage.Commit1Out
 	Commit2Out    storage.Proof
 
-	WinningPoStProofOut []abi.PoStProof
+	WinningPoStProofOut []proof.PoStProof
 
-	WindowPoStProofOut   []abi.PoStProof
+	WindowPoStProofOut   []proof.PoStProof
 	WindowPoStIgnSectors []abi.SectorID
 }
 

@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/crypto"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
+	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
@@ -128,7 +129,7 @@ var testWdPoStCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err)
 		}
-		var sinfos []abi.SectorInfo
+		var sinfos []proof.SectorInfo
 		var sectors = []abi.SectorID{}
 		for partIdx, partition := range partitions {
 			pSector := partition.Sectors
@@ -146,7 +147,7 @@ var testWdPoStCmd = &cli.Command{
 					Miner:  abi.ActorID(mid),
 					Number: sector.ID,
 				})
-				sinfos = append(sinfos, abi.SectorInfo{
+				sinfos = append(sinfos, proof.SectorInfo{
 					SectorNumber: sector.ID,
 					SealedCID:    sector.Info.SealedCID,
 					SealProof:    sector.Info.SealProof,
@@ -159,7 +160,7 @@ var testWdPoStCmd = &cli.Command{
 			return errors.As(err)
 		}
 
-		toProvInfo := []abi.SectorInfo{}
+		toProvInfo := []proof.SectorInfo{}
 		for _, val := range all {
 			errStr := "nil"
 			if err := errors.ParseError(val.Err); err != nil {

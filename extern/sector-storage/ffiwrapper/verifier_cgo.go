@@ -8,21 +8,23 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
+
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/gwaylib/errors"
+	"github.com/filecoin-project/go-state-types/abi"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 
+	"github.com/gwaylib/errors"
 	"go.opencensus.io/trace"
 )
 
-func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []abi.SectorInfo, randomness abi.PoStRandomness) ([]abi.PoStProof, error) {
+func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.SectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	randomness[31] &= 0x3f
-	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
+	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
 	if err != nil {
 		return nil, err
 	}
@@ -53,20 +55,20 @@ type WindowPoStErrResp struct {
 	Sid  int64  `json:"sid"`
 }
 
-func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []abi.SectorInfo, randomness abi.PoStRandomness) ([]abi.PoStProof, []abi.SectorID, error) {
+func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.SectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
 	randomness[31] &= 0x3f
-	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, abi.RegisteredSealProof.RegisteredWindowPoStProof)
+	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("gathering sector info: %w", err)
 	}
 	defer done()
 
-	proof, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
+	proofs, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
 	if err != nil {
-		return proof, skipped, err
+		return proofs, skipped, err
 	}
-	sucProof := []abi.PoStProof{}
-	for _, p := range proof {
+	sucProof := []proof.PoStProof{}
+	for _, p := range proofs {
 		if p.PoStProof >= 0 {
 			sucProof = append(sucProof, p)
 			continue
@@ -75,7 +77,7 @@ func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		case -100:
 			resp := WindowPoStErrResp{}
 			if err := json.Unmarshal(p.ProofBytes, &resp); err != nil {
-				return proof, skipped, errors.As(err, "Unexpecte protocal", string(p.ProofBytes))
+				return proofs, skipped, errors.As(err, "Unexpecte protocal", string(p.ProofBytes))
 			}
 			skipped = append(skipped, abi.SectorID{
 				Miner:  minerID,
@@ -87,7 +89,7 @@ func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	return sucProof, skipped, err
 }
 
-func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []abi.SectorInfo, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, []abi.SectorID, func(), error) {
+func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []proof.SectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, []abi.SectorID, func(), error) {
 	sectors := []abi.SectorID{}
 	for _, s := range sectorInfo {
 		sectors = append(sectors, abi.SectorID{Miner: mid, Number: s.SectorNumber})
@@ -157,11 +159,11 @@ type proofVerifier struct{}
 
 var ProofVerifier = proofVerifier{}
 
-func (proofVerifier) VerifySeal(info abi.SealVerifyInfo) (bool, error) {
+func (proofVerifier) VerifySeal(info proof.SealVerifyInfo) (bool, error) {
 	return ffi.VerifySeal(info)
 }
 
-func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info abi.WinningPoStVerifyInfo) (bool, error) {
+func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info proof.WinningPoStVerifyInfo) (bool, error) {
 	info.Randomness[31] &= 0x3f
 	_, span := trace.StartSpan(ctx, "VerifyWinningPoSt")
 	defer span.End()
@@ -169,7 +171,7 @@ func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info abi.WinningPoSt
 	return ffi.VerifyWinningPoSt(info)
 }
 
-func (proofVerifier) VerifyWindowPoSt(ctx context.Context, info abi.WindowPoStVerifyInfo) (bool, error) {
+func (proofVerifier) VerifyWindowPoSt(ctx context.Context, info proof.WindowPoStVerifyInfo) (bool, error) {
 	info.Randomness[31] &= 0x3f
 	_, span := trace.StartSpan(ctx, "VerifyWindowPoSt")
 	defer span.End()

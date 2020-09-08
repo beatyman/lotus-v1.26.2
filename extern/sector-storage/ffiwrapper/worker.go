@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/go-state-types/abi"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
@@ -942,6 +942,6 @@ func (sb *Sealer) TaskWorkingById(sid []string) (database.WorkingSectors, error)
 }
 
 // just implement the interface
-func (sb *Sealer) CheckProvable(ctx context.Context, spt abi.RegisteredProof, sectors []abi.SectorID) ([]abi.SectorID, error) {
+func (sb *Sealer) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID) ([]abi.SectorID, error) {
 	panic("Should not call at here")
 }

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/filecoin-project/go-state-types/crypto"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"github.com/urfave/cli/v2"
 )
 
