@@ -148,7 +148,7 @@ func (sm *StateManager) ExecutionTrace(ctx context.Context, ts *types.TipSet) (c
 
 type ExecCallback func(cid.Cid, *types.Message, *vm.ApplyRet) error
 
-func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEpoch, pstate cid.Cid, bms []store.BlockMessages, epoch abi.ChainEpoch, r vm.Rand, cb ExecCallback, baseFee abi.TokenAmount) (cid.Cid, cid.Cid, error) {
+func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEpoch, pstate cid.Cid, bms []store.BlockMessages, epoch abi.ChainEpoch, r vm.Rand, cb ExecCallback, baseFee abi.TokenAmount, ts *types.TipSet) (cid.Cid, cid.Cid, error) {
 	applyBlocksStart := build.Clock.Now()
 	var (
 		handleStateForksStart     = time.Time{}
@@ -231,7 +231,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 	handleStateForksStart = build.Clock.Now()
 	for i := parentEpoch; i < epoch; i++ {
 		// handle state forks
-		err = sm.handleStateForks(ctx, vmi.StateTree(), i)
+		err = sm.handleStateForks(ctx, vmi.StateTree(), i, ts)
 		if err != nil {
 			return cid.Undef, cid.Undef, xerrors.Errorf("error handling state forks: %w", err)
 		}
@@ -409,7 +409,7 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 	baseFee := blks[0].ParentBaseFee
 
 	computeApplyBlocksStart = build.Clock.Now()
-	return sm.ApplyBlocks(ctx, parentEpoch, pstate, blkmsgs, blks[0].Height, r, cb, baseFee)
+	return sm.ApplyBlocks(ctx, parentEpoch, pstate, blkmsgs, blks[0].Height, r, cb, baseFee, ts)
 }
 
 func (sm *StateManager) parentState(ts *types.TipSet) cid.Cid {

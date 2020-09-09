@@ -241,24 +241,8 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector abi.Sect
 		return xerrors.Errorf("read piece: checking for already existing unsealed sector: %w", err)
 	}
 
-	//var selector WorkerSelector
-	//if len(best) == 0 { // new
-	//	selector = newAllocSelector(m.index, stores.FTUnsealed, stores.PathSealing)
-	//} else { // append to existing
-	//	selector = newExistingSelector(m.index, sector, stores.FTUnsealed, false)
-	//}
-
 	var readOk bool
-
 	if len(best) > 0 {
-		// There is unsealed sector, see if we can read from it
-
-		//	selector = newExistingSelector(m.index, sector, stores.FTUnsealed, false)
-
-		//	err = m.sched.Schedule(ctx, sector, sealtasks.TTReadUnsealed, selector, schedFetch(sector, stores.FTUnsealed, stores.PathSealing, stores.AcquireMove), func(ctx context.Context, w Worker) error {
-		//		readOk, err = w.ReadPiece(ctx, sink, sector, offset, size)
-		//		return err
-		//	})
 		readOk, err := m.w.ReadPiece(ctx, sink, sector, offset, size)
 		if err != nil {
 			return xerrors.Errorf("reading piece from sealed sector: %w", err)
@@ -269,25 +253,6 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector abi.Sect
 		}
 	}
 
-	//unsealFetch := func(ctx context.Context, worker Worker) error {
-	//	if err := worker.Fetch(ctx, sector, stores.FTSealed|stores.FTCache, stores.PathSealing, stores.AcquireCopy); err != nil {
-	//		return xerrors.Errorf("copy sealed/cache sector data: %w", err)
-	//	}
-	//
-	//	if len(best) > 0 {
-	//		if err := worker.Fetch(ctx, sector, stores.FTUnsealed, stores.PathSealing, stores.AcquireMove); err != nil {
-	//			return xerrors.Errorf("copy unsealed sector data: %w", err)
-	//		}
-	//	}
-	//	return nil
-	//}
-
-	//err = m.sched.Schedule(ctx, sector, sealtasks.TTUnseal, selector, unsealFetch, func(ctx context.Context, w Worker) error {
-	//	return w.UnsealPiece(ctx, sector, offset, size, ticket, unsealed)
-	//})
-	//if err != nil {
-	//	return err
-	//}
 	if err := m.w.UnsealPiece(ctx, sector, offset, size, ticket, unsealed); err != nil {
 		return err
 	}
@@ -303,7 +268,7 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector abi.Sect
 		return xerrors.Errorf("reading piece from sealed sector: %w", err)
 	}
 
-	if readOk {
+	if !readOk {
 		return xerrors.Errorf("failed to read unsealed piece")
 	}
 

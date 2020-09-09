@@ -8,16 +8,19 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/libp2p/go-libp2p-core/peer"
-	protocol "github.com/libp2p/go-libp2p-core/protocol"
-
 	"github.com/dustin/go-humanize"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
+
+	"github.com/libp2p/go-libp2p-core/peer"
+	protocol "github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/multiformats/go-multiaddr"
+
+	"github.com/filecoin-project/go-address"
 
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/addrutil"
-
-	"github.com/gwaylib/errors"
 )
 
 var netCmd = &cli.Command{
@@ -144,7 +147,14 @@ var NetListen = &cli.Command{
 var netConnect = &cli.Command{
 	Name:      "connect",
 	Usage:     "Connect to a peer",
-	ArgsUsage: "[peerMultiaddr]/boostrap",
+	ArgsUsage: "[peerMultiaddr|minerActorAddress]",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "boostrap",
+			Value: false,
+			Usage: "Also connect boostrap",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetAPI(cctx)
 		if err != nil {
@@ -152,24 +162,59 @@ var netConnect = &cli.Command{
 		}
 		defer closer()
 		ctx := ReqContext(cctx)
-		pis := []peer.AddrInfo{}
-		args := cctx.Args()
-		if args.Len() == 0 {
-			return errors.New("need input [peerMultiaddr]/boostrap")
-		}
-		if args.Len() > 0 && args.First() == "boostrap" {
-			pis, err = build.BuiltinBootstrap()
+		allPis := []peer.AddrInfo{}
+
+		if cctx.Bool("boostrap") {
+			pis, err := build.BuiltinBootstrap()
 			if err != nil {
 				return err
 			}
+			allPis = append(allPis, pis...)
 		} else {
-			pis, err = addrutil.ParseAddresses(ctx, cctx.Args().Slice())
+			pis, err := addrutil.ParseAddresses(ctx, cctx.Args().Slice())
 			if err != nil {
-				return err
+				a, perr := address.NewFromString(cctx.Args().First())
+				if perr != nil {
+					return err
+				}
+
+				na, fc, err := GetFullNodeAPI(cctx)
+				if err != nil {
+					return err
+				}
+				defer fc()
+
+				mi, err := na.StateMinerInfo(ctx, a, types.EmptyTSK)
+				if err != nil {
+					return xerrors.Errorf("getting miner info: %w", err)
+				}
+
+				if mi.PeerId == nil {
+					return xerrors.Errorf("no PeerID for miner")
+				}
+				multiaddrs := make([]multiaddr.Multiaddr, 0, len(mi.Multiaddrs))
+				for i, a := range mi.Multiaddrs {
+					maddr, err := multiaddr.NewMultiaddrBytes(a)
+					if err != nil {
+						log.Warnf("parsing multiaddr %d (%x): %s", i, a, err)
+						continue
+					}
+					multiaddrs = append(multiaddrs, maddr)
+				}
+
+				pi := peer.AddrInfo{
+					ID:    *mi.PeerId,
+					Addrs: multiaddrs,
+				}
+
+				fmt.Printf("%s -> %s\n", a, pi)
+
+				pis = append(pis, pi)
 			}
+			allPis = append(allPis, pis...)
 		}
 
-		for _, pi := range pis {
+		for _, pi := range allPis {
 			fmt.Printf("connect %s: ", pi.ID.Pretty())
 			err := api.NetConnect(ctx, pi)
 			if err != nil {
