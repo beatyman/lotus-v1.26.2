@@ -43,6 +43,11 @@ var testWdPoStCmd = &cli.Command{
 			Value: false,
 			Usage: "mount storage node from miner",
 		},
+		&cli.BoolFlag{
+			Name:  "do-wdpost",
+			Value: true,
+			Usage: "running window post, false only check sectors files",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		minerRepo, err := homedir.Expand(cctx.String("miner-repo"))
@@ -154,6 +159,7 @@ var testWdPoStCmd = &cli.Command{
 				})
 			}
 		}
+		fmt.Println("Start CheckProvable")
 		start := time.Now()
 		all, bad, err := ffiwrapper.CheckProvable(minerRepo, ssize, sectors, 3*time.Second)
 		if err != nil {
@@ -179,6 +185,9 @@ var testWdPoStCmd = &cli.Command{
 		//	for _, val := range toProvInfo {
 		//		fmt.Println(val.SectorNumber)
 		//	}
+		if !cctx.Bool("do-wdpost") {
+			return nil
+		}
 
 		if _, _, err := minerSealer.GenerateWindowPoSt(ctx, abi.ActorID(mid), toProvInfo, abi.PoStRandomness(rand)); err != nil {
 			return errors.As(err)
