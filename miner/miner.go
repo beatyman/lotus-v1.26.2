@@ -9,11 +9,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
+
 	"github.com/filecoin-project/lotus/chain/gen/slashfilter"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/crypto"
 	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/filecoin-project/lotus/api"
@@ -161,8 +163,12 @@ func (m *Miner) mine(ctx context.Context) {
 			m.niceSleep(time.Second * 1)
 			continue
 		}
+		miningHeight := prebase.TipSet.Height() + 1
+		if lastBase.TipSet != nil && lastBase.TipSet.Height()+lastBase.NullRounds > prebase.TipSet.Height() {
+			miningHeight = lastBase.TipSet.Height() + lastBase.NullRounds + 1
+		}
 		// just wait for the beacon entry to become available before we select our final mining base
-		_, err = m.api.BeaconGetEntry(ctx, prebase.TipSet.Height()+prebase.NullRounds+1)
+		_, err = m.api.BeaconGetEntry(ctx, miningHeight)
 		if err != nil {
 			log.Errorf("failed getting beacon entry: %s", err)
 			m.niceSleep(time.Second * 1)
@@ -176,12 +182,14 @@ func (m *Miner) mine(ctx context.Context) {
 			log.Infof("Waiting PropagationDelay time: %s", delay)
 			if delay > 0 && now.Sub(nextRound) > 0 {
 				time.Sleep(delay + time.Second)
+				// update the parent weight
+				base, err = m.GetBestMiningCandidate(ctx)
+				if err != nil {
+					log.Errorf("failed to get best mining candidate: %s", err)
+					continue
+				}
 			}
-			base, err = m.GetBestMiningCandidate(ctx)
-			if err != nil {
-				log.Errorf("failed to get best mining candidate: %s", err)
-				continue
-			}
+
 			log.Infof("Update base to:%d", base.TipSet.Height())
 
 			nextRound = nextRoundTime(base)
@@ -240,14 +248,14 @@ func (m *Miner) mine(ctx context.Context) {
 
 			if err := m.sf.MinedBlock(b.Header, lastBase.TipSet.Height()+lastBase.NullRounds); err != nil {
 				log.Errorf("<!!> SLASH FILTER ERROR: %s", err)
-				//continue
+				continue
 			}
 
 			blkKey := fmt.Sprintf("%d", b.Header.Height)
 			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
 				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
 				// in case for nullRound, it will happend the same block.
-				//continue
+				continue
 			}
 
 			m.minedBlockHeights.Add(blkKey, true)
@@ -484,7 +492,7 @@ func (m *Miner) computeTicket(ctx context.Context, brand *types.BeaconEntry, bas
 }
 
 func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket,
-	eproof *types.ElectionProof, bvals []types.BeaconEntry, wpostProof []abi.PoStProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
+	eproof *types.ElectionProof, bvals []types.BeaconEntry, wpostProof []proof.PoStProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
 	uts := base.TipSet.MinTimestamp() + build.BlockDelaySecs*(uint64(base.NullRounds)+1)
 
 	nheight := base.TipSet.Height() + base.NullRounds + 1

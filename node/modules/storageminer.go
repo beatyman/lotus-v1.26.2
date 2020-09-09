@@ -41,8 +41,8 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-multistore"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-storedcounter"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
@@ -601,6 +601,7 @@ func NewSetSealConfigFunc(r repo.LockedRepo) (dtypes.SetSealingConfigFunc, error
 			c.Sealing = config.SealingConfig{
 				MaxWaitDealsSectors: cfg.MaxWaitDealsSectors,
 				MaxSealingSectors:   cfg.MaxSealingSectors,
+				MaxDealsPerSector:   cfg.MaxDealsPerSector,
 				WaitDealsDelay:      config.Duration(cfg.WaitDealsDelay),
 			}
 		})
@@ -615,6 +616,7 @@ func NewGetSealConfigFunc(r repo.LockedRepo) (dtypes.GetSealingConfigFunc, error
 				MaxWaitDealsSectors:       cfg.Sealing.MaxWaitDealsSectors,
 				MaxSealingSectors:         cfg.Sealing.MaxSealingSectors,
 				MaxSealingSectorsForDeals: cfg.Sealing.MaxSealingSectorsForDeals,
+				MaxDealsPerSector:         cfg.Sealing.MaxDealsPerSector,
 				WaitDealsDelay:            time.Duration(cfg.Sealing.WaitDealsDelay),
 			}
 		})

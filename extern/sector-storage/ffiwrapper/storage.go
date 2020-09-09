@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gwaylib/errors"
 )
 
@@ -17,35 +17,78 @@ func CheckSealed(repo string) error {
 	if err != nil {
 		return errors.As(err)
 	}
-	var hasErr error
-	for _, s := range list {
-		sealedFile := filepath.Join(repo, "sealed", s.ID)
-		if _, err := os.Stat(sealedFile); err != nil {
-			if os.IsNotExist(err) {
-				cacheFile := filepath.Join(repo, "cache", s.ID)
-				// make a new link
-				nfsCacheFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "cache", s.ID)
-				log.Infof("ln -s %s %s", nfsCacheFile, cacheFile)
-				if err := database.Symlink(nfsCacheFile, cacheFile); err != nil {
-					log.Info(errors.As(err, s.ID))
-					hasErr = err
-					continue
+	log.Infof("Get all secotrs done, len:%d", len(list))
+	routines := make(chan bool, 1024) // limit the gorouting to checking the bad, the sectors would be lot.
+	type Result struct {
+		path string
+		err  error
+		used time.Duration
+	}
+	result := make(chan *Result, len(list))
+	for _, info := range list {
+		go func(s database.SectorInfo) {
+			// limit the concurrency
+			routines <- true
+			defer func() {
+				<-routines
+			}()
+
+			start := time.Now()
+			sealedFile := filepath.Join(repo, "sealed", s.ID)
+			if _, err := os.Stat(sealedFile); err != nil {
+				if os.IsNotExist(err) {
+					cacheFile := filepath.Join(repo, "cache", s.ID)
+					// make a new link
+					nfsCacheFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "cache", s.ID)
+					log.Infof("ln -s %s %s", nfsCacheFile, cacheFile)
+					if err := database.Symlink(nfsCacheFile, cacheFile); err != nil {
+						log.Info(errors.As(err, s.ID))
+						result <- &Result{
+							path: sealedFile,
+							err:  err,
+							used: time.Now().Sub(start),
+						}
+						return
+					}
+					nfsSealedFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "sealed", s.ID)
+					log.Infof("ln -s %s %s", nfsSealedFile, sealedFile)
+					if err := database.Symlink(nfsSealedFile, sealedFile); err != nil {
+						log.Info(errors.As(err, s.ID))
+						result <- &Result{
+							path: sealedFile,
+							err:  err,
+							used: time.Now().Sub(start),
+						}
+						return
+					}
+					result <- &Result{
+						path: sealedFile,
+						used: time.Now().Sub(start),
+					}
+					return
+				} else {
+					result <- &Result{
+						path: sealedFile,
+						err:  err,
+						used: time.Now().Sub(start),
+					}
+					log.Info(errors.As(err, "file os failed, try umount", s.ID, s.StorageId))
+					if _, err := database.Umount(filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId))); err != nil {
+						log.Warn(errors.As(err))
+					}
+					return
 				}
-				nfsSealedFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "sealed", s.ID)
-				log.Infof("ln -s %s %s", nfsSealedFile, sealedFile)
-				if err := database.Symlink(nfsSealedFile, sealedFile); err != nil {
-					log.Info(errors.As(err, s.ID))
-					hasErr = err
-					continue
-				}
-			} else {
-				hasErr = err
-				log.Info(errors.As(err, "file os failed, try umount", s.ID, s.StorageId))
-				if _, err := database.Umount(filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId))); err != nil {
-					log.Warn(errors.As(err))
-				}
-				continue
 			}
+		}(info)
+	}
+	var hasErr error
+	for waits := len(list); waits > 0; waits-- {
+		r := <-result
+		if hasErr == nil && r.err != nil {
+			hasErr = r.err
+		}
+		if r.used > time.Second {
+			log.Warnf("check filed using a long time:%s,%s", r.path, r.used)
 		}
 	}
 	return hasErr

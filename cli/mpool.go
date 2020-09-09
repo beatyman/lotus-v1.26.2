@@ -13,7 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/go-state-types/abi"
 
 	"github.com/filecoin-project/lotus/chain/types"
 )
@@ -143,6 +143,26 @@ var mpoolFix = &cli.Command{
 			Name:  "really-do-it",
 			Usage: "fix local message with hard code, the logic need to see the source code",
 		},
+		&cli.Uint64Flag{
+			Name:  "rate",
+			Usage: "0<rate, will be divide 100",
+			Value: 50,
+		},
+		&cli.Uint64Flag{
+			Name:  "nonce",
+			Usage: "message nonce. 0 is ignored",
+			Value: 0,
+		},
+		&cli.Uint64Flag{
+			Name:  "limit-msg",
+			Usage: "limit the message. 0 is ignored",
+			Value: 0,
+		},
+		&cli.StringFlag{
+			Name:  "limit-gas",
+			Usage: "limit the gas. default is 100FIL in max",
+			Value: "100000000000000000000",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() < 1 {
@@ -173,24 +193,45 @@ var mpoolFix = &cli.Command{
 		if err != nil {
 			return err
 		}
+		limitGas, err := types.BigFromString(cctx.String("limit-gas"))
+		if err != nil {
+			return err
+		}
+		limitMsg := cctx.Uint64("limit-msg")
+		nonce := cctx.Uint64("nonce")
+		rate := cctx.Uint64("rate")
 
+		fixedNum := uint64(0)
+		gasUsed := types.NewInt(0)
 		for idx, msg := range msgs {
 			if _, has := filter[msg.Message.From]; !has {
 				continue
 			}
+			if nonce > 0 && nonce != msg.Message.Nonce {
+				continue
+			}
+			if limitMsg > 0 && fixedNum > limitMsg {
+				continue
+			}
+			fixedNum++
+
 			// fix with replace
 			newMsg := msg.Message
 			newMsg.GasPremium = types.BigAdd(
 				newMsg.GasPremium,
-				types.BigDiv(types.BigMul(newMsg.GasPremium, types.NewInt(50)), types.NewInt(100)),
+				types.BigDiv(types.BigMul(newMsg.GasPremium, types.NewInt(rate)), types.NewInt(100)),
 			)
 			newMsg.GasFeeCap = types.BigAdd(
 				baseFee,
-				types.BigDiv(types.BigMul(baseFee, types.NewInt(50)), types.NewInt(100)),
+				types.BigDiv(types.BigMul(baseFee, types.NewInt(rate)), types.NewInt(100)),
 			)
 			// ERROR: failed to push new message to mempool: message will not be included in a block: 'GasFeeCap' less than 'GasPremium'
 			if types.BigCmp(newMsg.GasFeeCap, newMsg.GasPremium) < 0 {
 				newMsg.GasFeeCap = newMsg.GasPremium
+			}
+			gasUsed = types.BigAdd(gasUsed, types.BigMul(newMsg.GasFeeCap, types.NewInt(uint64(newMsg.GasLimit))))
+			if types.BigCmp(gasUsed, limitGas) >= 0 {
+				return fmt.Errorf("gas out of limit: base:%s,used:%s", baseFee, gasUsed)
 			}
 
 			smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
@@ -201,7 +242,7 @@ var mpoolFix = &cli.Command{
 			if err != nil {
 				return fmt.Errorf("failed to push new message to mempool: %w", err)
 			}
-			fmt.Printf("new message cid %s, %d \n", cid, idx)
+			fmt.Printf("idx:%d, newCid:%s, newMsg:%s,oldMsg:%s \n", idx, cid, newMsg.String(), msg.Message.String())
 		}
 
 		return nil
