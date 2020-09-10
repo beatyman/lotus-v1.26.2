@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,24 +9,33 @@ import (
 	"sync"
 	"time"
 
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gwaylib/errors"
 	"github.com/gwaylib/log"
 )
 
+var (
+	startFlag = flag.Int64("start", 0, "the sector started")
+	endFlag   = flag.Int64("end", 2300, "the sector ended")
+	minerId   = flag.Int64("miner-id", 1003, "the int of miner id")
+	repoFlag  = flag.String("repo", "/data/sdb/lotus-user-1/.lotusstorage", "the miner repo")
+)
+
 func main() {
+	flag.Parse()
+	fmt.Printf("miner:%d,start:%d,end:%d\n", minerId, startFlag, endFlag)
 	// TODO: get sectors from partitions
 	sectors := []abi.SectorID{}
-	for i := 0; i < 2300; i++ {
+	for i := *startFlag; i <= *endFlag; i++ {
 		sectors = append(sectors, abi.SectorID{
-			Miner:  1680,
+			Miner:  abi.ActorID(*minerId),
 			Number: abi.SectorNumber(i),
 		})
 	}
 
-	repo := "/data/sdb/lotus-user-1/.lotusstorage"
+	repo := *repoFlag
 	ssize := abi.SectorSize(32 << 30)
 	start := time.Now()
 	all, bad, err := CheckProvable(repo, ssize, sectors, 3*time.Second)
@@ -38,7 +48,7 @@ func main() {
 		if err := errors.ParseError(val.Err); err != nil {
 			errStr = err.Code()
 		}
-		fmt.Printf("s-t01680-%d,%d,%s,%+v\n", val.ID.Number, val.Used, val.Used.String(), errStr)
+		fmt.Printf("s-t0%d-%d,%d,%s,%+v\n", *minerId, val.ID.Number, val.Used, val.Used.String(), errStr)
 	}
 	fmt.Printf("used:%s, bad:%d\n", time.Now().Sub(start).String(), len(bad))
 }
