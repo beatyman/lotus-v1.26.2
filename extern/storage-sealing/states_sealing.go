@@ -3,6 +3,8 @@ package sealing
 import (
 	"bytes"
 	"context"
+	"sync/atomic"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-statemachine"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
+	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-storage/storage"
 )
 
@@ -350,6 +353,11 @@ func (m *Sealing) handleCommitting(ctx statemachine.Context, sector SectorInfo) 
 	})
 }
 
+var (
+	// issue: vmctx send failed: to: t04, method: 8: ret: [], err: miner t03176 attempting to prove commit over 200 sectors in epoch (RetCode=32)
+	submitCommits = int32(0) // need atomic
+)
+
 func (m *Sealing) handleSubmitCommit(ctx statemachine.Context, sector SectorInfo) error {
 	tok, _, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
@@ -395,6 +403,16 @@ func (m *Sealing) handleSubmitCommit(ctx statemachine.Context, sector SectorInfo
 		collateral = big.Zero()
 	}
 
+	// TODO: check limits
+retry:
+	limit := atomic.LoadInt32(&submitCommits)
+	if limit >= power.MaxMinerProveCommitsPerEpoch {
+		log.Warnf("attempting to prove commit over %d(%d) sectors, retry commit(%v) submit 10s later",
+			power.MaxMinerProveCommitsPerEpoch, limit, sector.SectorNumber)
+		time.Sleep(10e9)
+		goto retry
+	}
+
 	// TODO: check seed / ticket / deals are up to date
 	mcid, err := m.api.SendMsg(ctx.Context(), waddr, m.maddr, builtin.MethodsMiner.ProveCommitSector, collateral, m.feeCfg.MaxCommitGasFee, enc.Bytes())
 	if err != nil {
@@ -411,6 +429,11 @@ func (m *Sealing) handleCommitWait(ctx statemachine.Context, sector SectorInfo) 
 		log.Errorf("sector %d entered commit wait state without a message cid", sector.SectorNumber)
 		return ctx.Send(SectorCommitFailed{xerrors.Errorf("entered commit wait with no commit cid")})
 	}
+
+	atomic.AddInt32(&submitCommits, 1)
+	defer func() {
+		atomic.AddInt32(&submitCommits, -1)
+	}()
 
 	mw, err := m.api.StateWaitMsg(ctx.Context(), *sector.CommitMessage)
 	if err != nil {

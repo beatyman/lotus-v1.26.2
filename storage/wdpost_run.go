@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/filecoin-project/go-state-types/dline"
+
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 
 	"github.com/filecoin-project/go-bitfield"
@@ -29,7 +31,7 @@ import (
 
 var errNoPartitions = errors.New("no partitions")
 
-func (s *WindowPoStScheduler) failPost(deadline *miner.DeadlineInfo) {
+func (s *WindowPoStScheduler) failPost(deadline *dline.Info) {
 	log.Errorf("TODO")
 	/*s.failLk.Lock()
 	if eps > s.failed {
@@ -38,7 +40,7 @@ func (s *WindowPoStScheduler) failPost(deadline *miner.DeadlineInfo) {
 	s.failLk.Unlock()*/
 }
 
-func (s *WindowPoStScheduler) doPost(ctx context.Context, submit bool, deadline *miner.DeadlineInfo, ts *types.TipSet) {
+func (s *WindowPoStScheduler) doPost(ctx context.Context, submit bool, deadline *dline.Info, ts *types.TipSet) {
 	ctx, abort := context.WithCancel(ctx)
 
 	s.abort = abort
@@ -303,7 +305,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 	return nil
 }
 
-func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di miner.DeadlineInfo, ts *types.TipSet) (*miner.SubmitWindowedPoStParams, error) {
+func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di dline.Info, ts *types.TipSet) (*miner.SubmitWindowedPoStParams, error) {
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
 
