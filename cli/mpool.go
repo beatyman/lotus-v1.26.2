@@ -19,7 +19,6 @@ import (
 
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
-	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
@@ -147,12 +146,12 @@ var mpoolFix = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "really-do-it",
-			Usage: "fix local message with hard code, the logic need to see the source code",
+			Usage: "if you want to replace the message, please using really-do-it",
 		},
 		&cli.Uint64Flag{
 			Name:  "rate",
-			Usage: "0<rate, will be divide 100",
-			Value: 50,
+			Usage: "0<rate, will be divide 10000, default is 125%",
+			Value: 12500,
 		},
 		&cli.Uint64Flag{
 			Name:  "nonce",
@@ -166,8 +165,8 @@ var mpoolFix = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "limit-gas",
-			Usage: "limit the gas. default is 100FIL in max",
-			Value: "100000000000000000000",
+			Usage: "limit the gas. default is 1FIL in max",
+			Value: "1000000000000000000",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -206,6 +205,7 @@ var mpoolFix = &cli.Command{
 		limitMsg := cctx.Uint64("limit-msg")
 		nonce := cctx.Uint64("nonce")
 		rate := cctx.Uint64("rate")
+		do := cctx.Bool("really-do-it")
 
 		fixedNum := uint64(0)
 		gasUsed := types.NewInt(0)
@@ -223,32 +223,36 @@ var mpoolFix = &cli.Command{
 
 			// fix with replace
 			newMsg := msg.Message
-			newMsg.GasPremium = types.BigAdd(
-				newMsg.GasPremium,
-				types.BigDiv(types.BigMul(newMsg.GasPremium, types.NewInt(rate)), types.NewInt(100)),
-			)
-			newMsg.GasFeeCap = types.BigAdd(
-				baseFee,
-				types.BigDiv(types.BigMul(baseFee, types.NewInt(rate)), types.NewInt(100)),
-			)
-			// ERROR: failed to push new message to mempool: message will not be included in a block: 'GasFeeCap' less than 'GasPremium'
-			if types.BigCmp(newMsg.GasFeeCap, newMsg.GasPremium) < 0 {
-				newMsg.GasFeeCap = newMsg.GasPremium
+			retm, err := api.GasEstimateMessageGas(ctx, &newMsg, &lapi.MessageSendSpec{}, types.EmptyTSK)
+			if err != nil {
+				return errors.As(err)
 			}
+			newMsg.GasFeeCap = retm.GasFeeCap
+
+			// Kubuxu said: The formula is 1.25*oldPremium + 1attoFIL
+			newMsg.GasPremium = types.BigAdd(
+				types.BigDiv(types.BigMul(newMsg.GasPremium, types.NewInt(rate)), types.NewInt(10000)),
+				types.NewInt(1),
+			)
+			newMsg.GasPremium = big.Max(retm.GasPremium, newMsg.GasPremium)
 			gasUsed = types.BigAdd(gasUsed, types.BigMul(newMsg.GasFeeCap, types.NewInt(uint64(newMsg.GasLimit))))
 			if types.BigCmp(gasUsed, limitGas) >= 0 {
 				return fmt.Errorf("gas out of limit: base:%s,used:%s", baseFee, gasUsed)
 			}
 
-			smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
-			if err != nil {
-				return fmt.Errorf("failed to sign message: %w", err)
+			if do {
+				smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
+				if err != nil {
+					return fmt.Errorf("failed to sign message: %w", err)
+				}
+				cid, err := api.MpoolPush(ctx, smsg)
+				if err != nil {
+					return fmt.Errorf("failed to push new message to mempool: %w", err)
+				}
+				fmt.Printf("idx:%d, BaseFee:%d, newCid:%s\nnewMsg:%s\noldMsg:%s\n", idx, baseFee, cid, newMsg.String(), msg.Message.String())
+			} else {
+				fmt.Printf("if you want to replace, please using --really-do-it. \nidx:%d, BaseFee:%d\nnewMsg:%s\noldMsg:%s\n", idx, baseFee, newMsg.String(), msg.Message.String())
 			}
-			cid, err := api.MpoolPush(ctx, smsg)
-			if err != nil {
-				return fmt.Errorf("failed to push new message to mempool: %w", err)
-			}
-			fmt.Printf("idx:%d, newCid:%s, newMsg:%s,oldMsg:%s \n", idx, cid, newMsg.String(), msg.Message.String())
 		}
 
 		return nil
@@ -313,6 +317,10 @@ var mpoolClear = &cli.Command{
 	Name:  "clear",
 	Usage: "Clear all pending messages from the mpool (USE WITH CARE)",
 	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:  "nonce",
+			Usage: "clear one message",
+		},
 		&cli.BoolFlag{
 			Name:  "local",
 			Usage: "also clear local messages",
@@ -334,10 +342,18 @@ var mpoolClear = &cli.Command{
 			//nolint:golint
 			return fmt.Errorf("--really-do-it must be specified for this action to have an effect; you have been warned")
 		}
+		ctx := ReqContext(cctx)
+		nonce := cctx.Uint64("nonce")
+		if nonce > 0 {
+			fromAddr, err := address.NewFromString(cctx.Args().First())
+			if err != nil {
+				return errors.New("need input from address")
+			}
+			return api.MpoolRemove(ctx, fromAddr, nonce)
+		}
 
 		local := cctx.Bool("local")
 
-		ctx := ReqContext(cctx)
 		return api.MpoolClear(ctx, local)
 	},
 }
@@ -508,6 +524,10 @@ var mpoolReplaceCmd = &cli.Command{
 	Name:  "replace",
 	Usage: "replace a message in the mempool",
 	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "really-do-it",
+			Usage: "if you want to send the message, please using really-do-it",
+		},
 		&cli.StringFlag{
 			Name:  "gas-feecap",
 			Usage: "gas feecap for new message",
@@ -572,8 +592,13 @@ var mpoolReplaceCmd = &cli.Command{
 		}
 
 		msg := found.Message
+		do := cctx.Bool("really-do-it")
 
 		if cctx.Bool("auto") {
+			// Kubuxu said: The formula is 1.25*oldPremium + 1attoFIL
+			newGasPremium := types.BigAdd(
+				types.BigDiv(types.BigMul(msg.GasPremium, types.NewInt(125)), types.NewInt(100)),
+				types.NewInt(1))
 			// msg.GasLimit = 0 // TODO: need to fix the way we estimate gas limits to account for the messages already being in the mempool
 			msg.GasFeeCap = abi.NewTokenAmount(0)
 			msg.GasPremium = abi.NewTokenAmount(0)
@@ -583,8 +608,9 @@ var mpoolReplaceCmd = &cli.Command{
 			}
 			msg.GasFeeCap = retm.GasFeeCap
 
-			minRBF := messagepool.ComputeMinRBF(msg.GasPremium)
-			msg.GasPremium = big.Max(retm.GasPremium, minRBF)
+			//minRBF := messagepool.ComputeMinRBF(msg.GasPremium)
+			//msg.GasPremium = big.Max(retm.GasPremium, minRBF)
+			msg.GasPremium = big.Max(retm.GasPremium, newGasPremium)
 		} else {
 			msg.GasLimit = cctx.Int64("gas-limit")
 			msg.GasPremium, err = types.BigFromString(cctx.String("gas-premium"))
@@ -596,6 +622,10 @@ var mpoolReplaceCmd = &cli.Command{
 			if err != nil {
 				return fmt.Errorf("parsing gas-feecap: %w", err)
 			}
+		}
+		if !do {
+			fmt.Printf("if you want to send it out, please using --really-do-it. \nnewMsg:%s\n", msg.String())
+			return nil
 		}
 
 		smsg, err := api.WalletSignMessage(ctx, msg.From, &msg)

@@ -3,6 +3,7 @@ package full
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/ipfs/go-cid"
@@ -166,7 +167,8 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 again:
 	m, err = a.Mpool.PushWithNonce(ctx, msg.From, sign)
 	if err == messagepool.ErrTryAgain {
-		log.Debugf("temporary failure while pushing message: %s; retrying", err)
+		log.Warn("temporary failure while pushing message: %s; retrying", err)
+		time.Sleep(3e9)
 		goto again
 	}
 	return m, err
@@ -195,5 +197,4 @@ func (a *MpoolAPI) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey)
 		return types.NewInt(0), xerrors.Errorf("computing base fee at %s: %w", ts, err)
 	}
 	return baseFee, nil
-
 }

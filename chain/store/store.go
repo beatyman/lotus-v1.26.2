@@ -401,7 +401,7 @@ func (cs *ChainStore) takeHeaviestTipSet(ctx context.Context, ts *types.TipSet) 
 		)
 	}
 
-	log.Infof("New heaviest tipset! %s (height=%d), %+v", ts.Cids(), ts.Height(), heaviestMiners)
+	log.Infof("New heaviest tipset(height=%d)! %s, %+v", ts.Height(), ts.Cids(), heaviestMiners)
 	cs.heaviest = ts
 
 	if err := cs.writeHead(ts); err != nil {
