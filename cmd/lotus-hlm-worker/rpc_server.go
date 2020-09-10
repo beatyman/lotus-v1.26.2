@@ -26,7 +26,7 @@ type rpcServer struct {
 }
 
 func (w *rpcServer) Version(context.Context) (build.Version, error) {
-	return build.APIVersion, nil
+	return 0, nil
 }
 
 func (w *rpcServer) SealCommit2(ctx context.Context, sector abi.SectorID, commit1Out storage.Commit1Out) (storage.Proof, error) {

@@ -19,6 +19,7 @@ import (
 
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
@@ -595,10 +596,6 @@ var mpoolReplaceCmd = &cli.Command{
 		do := cctx.Bool("really-do-it")
 
 		if cctx.Bool("auto") {
-			// Kubuxu said: The formula is 1.25*oldPremium + 1attoFIL
-			newGasPremium := types.BigAdd(
-				types.BigDiv(types.BigMul(msg.GasPremium, types.NewInt(125)), types.NewInt(100)),
-				types.NewInt(1))
 			// msg.GasLimit = 0 // TODO: need to fix the way we estimate gas limits to account for the messages already being in the mempool
 			msg.GasFeeCap = abi.NewTokenAmount(0)
 			msg.GasPremium = abi.NewTokenAmount(0)
@@ -608,9 +605,8 @@ var mpoolReplaceCmd = &cli.Command{
 			}
 			msg.GasFeeCap = retm.GasFeeCap
 
-			//minRBF := messagepool.ComputeMinRBF(msg.GasPremium)
-			//msg.GasPremium = big.Max(retm.GasPremium, minRBF)
-			msg.GasPremium = big.Max(retm.GasPremium, newGasPremium)
+			minRBF := messagepool.ComputeMinRBF(msg.GasPremium)
+			msg.GasPremium = big.Max(retm.GasPremium, minRBF)
 		} else {
 			msg.GasLimit = cctx.Int64("gas-limit")
 			msg.GasPremium, err = types.BigFromString(cctx.String("gas-premium"))
