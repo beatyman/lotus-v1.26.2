@@ -361,6 +361,8 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	log.Infof("DEBUG:GenerateWiningPoSt in(remote:%t),%s", sb.remoteCfg.SealSector, minerID)
 	defer log.Infof("DEBUG:GenerateWinningPoSt out,%s", minerID)
 	if sb.remoteCfg.WinningPoSt < 1 {
+		// TODO: when the storage broken, it will be block here.
+		// TODO: make rust with a timeout mechanism
 		return sb.generateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 	}
 	type req = struct {
@@ -395,34 +397,42 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	}
 	result := make(chan resp, len(remotes))
 
+	workerCtx, workerCancel := context.WithCancel(ctx)
 	for _, r := range remotes {
 		go func(req *req) {
-			ctx := context.TODO()
-			defer sb.UnlockGPUService(ctx, req.remote.cfg.ID, req.task.Key())
+			defer sb.UnlockGPUService(workerCtx, req.remote.cfg.ID, req.task.Key())
 
 			// send to remote worker
-			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
+			res, interrupt := sb.TaskSend(workerCtx, req.remote, *req.task)
 			result <- resp{res, interrupt}
 		}(r)
 	}
 
+	timeout := time.After(20e9)
 	var err error
 	for i := len(remotes); i > 0; i-- {
-		resp := <-result
-		if resp.interrupt {
-			err = ErrTaskCancel.As(minerID)
-			continue
+		select {
+		case resp := <-result:
+			if resp.interrupt {
+				err = ErrTaskCancel.As(minerID)
+				continue
+			}
+			if resp.res.GoErr != nil {
+				err = errors.As(resp.res.GoErr)
+				continue
+			}
+			if len(resp.res.Err) > 0 {
+				err = errors.New(resp.res.Err)
+				continue
+			}
+			// only select the fastest result to return
+			return resp.res.WinningPoStProofOut, nil
+		case <-ctx.Done():
+			return nil, errors.New("cancel winning post")
+		case <-timeout:
+			workerCancel()
+			return nil, errors.New("worker timeout")
 		}
-		if resp.res.GoErr != nil {
-			err = errors.As(resp.res.GoErr)
-			continue
-		}
-		if len(resp.res.Err) > 0 {
-			err = errors.New(resp.res.Err)
-			continue
-		}
-		// only select the fastest result to return
-		return resp.res.WinningPoStProofOut, nil
 	}
 	return nil, err
 }
