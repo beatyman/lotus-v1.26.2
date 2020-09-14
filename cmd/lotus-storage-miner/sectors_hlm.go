@@ -105,7 +105,7 @@ var setHlmSectorStateCmd = &cli.Command{
 
 		sid := cctx.String("sector-id")
 		if len(sid) == 0 {
-			return errors.New("need input sector-id")
+			return errors.New("need input sector-id(s-t0xxxx-xxx")
 		}
 		memo := cctx.String("memo")
 		if len(memo) == 0 {
