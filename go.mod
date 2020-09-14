@@ -2,8 +2,6 @@ module github.com/filecoin-project/lotus
 
 go 1.14
 
-replace github.com/supranational/blst => github.com/supranational/blst v0.1.2-alpha.1
-
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.1.0
 	contrib.go.opencensus.io/exporter/prometheus v0.1.0
@@ -18,7 +16,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/dchest/blake2b v1.0.0
 	github.com/detailyang/go-fallocate v0.0.0-20180908115635-432fa640bd2e
-	github.com/dgraph-io/badger/v2 v2.0.3
+	github.com/dgraph-io/badger/v2 v2.2007.2
 	github.com/docker/go-units v0.4.0
 	github.com/drand/drand v1.1.2-0.20200905144319-79c957281b32
 	github.com/drand/kyber v1.1.2
@@ -32,7 +30,7 @@ require (
 	github.com/filecoin-project/go-crypto v0.0.0-20191218222705-effae4ea9f03
 	github.com/filecoin-project/go-data-transfer v0.6.3
 	github.com/filecoin-project/go-fil-commcid v0.0.0-20200716160307-8f644712406f
-	github.com/filecoin-project/go-fil-markets v0.6.0
+	github.com/filecoin-project/go-fil-markets v0.6.1-0.20200911011457-2959ccca6a3c
 	github.com/filecoin-project/go-jsonrpc v0.1.2-0.20200822201400-474f4fdccc52
 	github.com/filecoin-project/go-multistore v0.0.3
 	github.com/filecoin-project/go-padreader v0.0.0-20200903213702-ed5fae088b20
@@ -158,6 +156,8 @@ replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/g
 
 //replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
 
-replace github.com/dgraph-io/badger/v2 => github.com/dgraph-io/badger/v2 v2.0.1-rc1.0.20200716180832-3ab515320794
-
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
+
+replace github.com/supranational/blst => ./extern/fil-blst/blst
+
+replace github.com/filecoin-project/fil-blst => ./extern/fil-blst

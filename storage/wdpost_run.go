@@ -357,7 +357,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di dline
 
 	var sinfos []proof.SectorInfo
 	var sinfosLk = sync.Mutex{}
-	sidToPart := map[abi.SectorNumber]uint64{}
+	sidToPart := map[abi.SectorNumber]int{}
 	skipCount := uint64(0)
 	done := make(chan error, len(partitions))
 	parallelDo := func(partIdx int, partition *miner.Partition) {
@@ -365,62 +365,65 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di dline
 		defer func() {
 			done <- gErr
 		}()
-		// TODO: Can do this in parallel
-		toProve, err := partition.ActiveSectors()
-		if err != nil {
-			gErr = errors.As(err, partIdx)
-			return
+		// format for vimdiff
+		{
+			toProve, err := partition.ActiveSectors()
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+
+			toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+
+			good, err := s.checkSectors(ctx, toProve, 3*time.Second) // spec, if it need a quick read for running proving, so, just have 3 seconds for timeout to detect the file
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+
+			skipped, err := bitfield.SubtractBitField(toProve, good)
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+
+			sc, err := skipped.Count()
+			if err != nil {
+				gErr = errors.As(err, partIdx)
+				return
+			}
+
+			skipCount += sc
+
+			ssi, err := s.sectorsForProof(ctx, good, partition.Sectors, ts)
+			if err != nil {
+				gErr = xerrors.Errorf("getting sorted sector info: %w", err)
+				return
+			}
+
+			if len(ssi) == 0 {
+				return
+			}
+
+			sinfosLk.Lock()
+			sinfos = append(sinfos, ssi...)
+			for _, si := range ssi {
+				sidToPart[si.SectorNumber] = partIdx
+			}
+
+			params.Partitions = append(params.Partitions, miner.PoStPartition{
+				Index:   uint64(partIdx),
+				Skipped: skipped,
+			})
+			sinfosLk.Unlock()
 		}
-
-		toProve, err = bitfield.MergeBitFields(toProve, partition.Recoveries)
-		if err != nil {
-			gErr = errors.As(err, partIdx)
-			return
-		}
-
-		good, err := s.checkSectors(ctx, toProve, 3*time.Second) // spec, if it need a quick read for running proving, so, just have 3 seconds for timeout to detect the file
-		if err != nil {
-			gErr = errors.As(err, partIdx)
-			return
-		}
-
-		skipped, err := bitfield.SubtractBitField(toProve, good)
-		if err != nil {
-			gErr = errors.As(err, partIdx)
-			return
-		}
-
-		sc, err := skipped.Count()
-		if err != nil {
-			gErr = errors.As(err, partIdx)
-			return
-		}
-
-		skipCount += sc
-
-		ssi, err := s.sectorsForProof(ctx, good, partition.Sectors, ts)
-		if err != nil {
-			gErr = xerrors.Errorf("getting sorted sector info: %w", err)
-			return
-		}
-
-		if len(ssi) == 0 {
-			return
-		}
-
-		sinfosLk.Lock()
-		sinfos = append(sinfos, ssi...)
-		for _, si := range ssi {
-			sidToPart[si.SectorNumber] = uint64(partIdx)
-		}
-
-		params.Partitions = append(params.Partitions, miner.PoStPartition{
-			Index:   uint64(partIdx),
-			Skipped: skipped,
-		})
-		sinfosLk.Unlock()
 	}
 	for partIdx, partition := range partitions {
+		//  Can do this in parallel
 		go parallelDo(partIdx, partition)
 	}
 	for waits := len(partitions); waits > 0; waits-- {
@@ -431,6 +434,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di dline
 		}
 	}
 
+	// format for vimdiff
 	if len(sinfos) == 0 {
 		log.Info("NoPartitions")
 		// nothing to prove..
@@ -456,7 +460,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di dline
 	}
 
 	if len(postOut) == 0 {
-		return nil, xerrors.Errorf("received proofs back from generate window post")
+		return nil, xerrors.Errorf("received no proofs back from generate window post")
 	}
 
 	params.Proofs = postOut
@@ -464,8 +468,6 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di dline
 	for _, sector := range postSkipped {
 		params.Partitions[sidToPart[sector.Number]].Skipped.Set(uint64(sector.Number))
 	}
-
-	elapsed := time.Since(tsStart)
 
 	commEpoch := di.Open
 	commRand, err := s.api.ChainGetRandomnessFromTickets(ctx, ts.Key(), crypto.DomainSeparationTag_PoStChainCommit, commEpoch, nil)
@@ -475,6 +477,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di dline
 	params.ChainCommitEpoch = commEpoch
 	params.ChainCommitRand = commRand
 
+	elapsed := time.Since(tsStart)
 	log.Infow("submitting window PoSt", "deadline", di.Index, "elapsed", elapsed)
 
 	return params, nil
