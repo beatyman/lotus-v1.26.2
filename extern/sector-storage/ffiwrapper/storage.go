@@ -77,32 +77,21 @@ func (sb *Sealer) UMountStorage(ctx context.Context, id int64) error {
 	return nil
 }
 func (sb *Sealer) RelinkStorage(ctx context.Context, id int64) error {
-	if id > 0 {
-		return sb.relinkStorageByStorageId(id)
-	}
-
-	// do relink all
-	storageList, err := database.GetAllStorageInfo()
-	if err != nil {
-		return err
-	}
-	for _, storageInfo := range storageList {
-		sb.relinkStorageByStorageId(storageInfo.ID)
-	}
-	return nil
+	return sb.relinkStorageByStorageId(id)
 }
 func (sb *Sealer) ReplaceStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error {
 	storageInfo, err := database.GetStorageInfo(id)
 	if err != nil {
 		return err
 	}
-	if _, err := database.Umount(storageInfo.MountDir); err != nil {
-		log.Info(errors.As(err))
-	}
 	storageInfo.MountSignalUri = signalUri
 	storageInfo.MountTransfUri = transfUri
-	storageInfo.MountType = mountType
-	storageInfo.MountOpt = mountOpt
+	if len(mountType) > 0 {
+		storageInfo.MountType = mountType
+	}
+	if len(mountOpt) > 0 {
+		storageInfo.MountOpt = mountOpt
+	}
 	storageInfo.Version = time.Now().UnixNano() //  upgrade the data version
 	if err := database.Mount(mountType, signalUri,
 		filepath.Join(storageInfo.MountDir, fmt.Sprintf("%d", storageInfo.ID)),

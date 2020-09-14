@@ -19,7 +19,6 @@ var hlmStorageCmd = &cli.Command{
 		disableHLMStorageCmd,
 		enableHLMStorageCmd,
 		mountHLMStorageCmd,
-		umountHLMStorageCmd,
 		relinkHLMStorageCmd,
 		scaleHLMStorageCmd,
 	},
@@ -123,7 +122,7 @@ var addHLMStorageCmd = &cli.Command{
 
 var disableHLMStorageCmd = &cli.Command{
 	Name:      "disable",
-	Usage:     "Disable a storage node to stop allocating",
+	Usage:     "Disable a storage node to stop allocating for only read",
 	ArgsUsage: "id",
 	Action: func(cctx *cli.Context) error {
 		args := cctx.Args()
@@ -145,7 +144,7 @@ var disableHLMStorageCmd = &cli.Command{
 }
 var enableHLMStorageCmd = &cli.Command{
 	Name:      "enable",
-	Usage:     "Enable a storage node to recover allocating",
+	Usage:     "Enable a storage node to recover allocating for write",
 	ArgsUsage: "id",
 	Action: func(cctx *cli.Context) error {
 		fmt.Println("TODO")
@@ -154,7 +153,7 @@ var enableHLMStorageCmd = &cli.Command{
 }
 var mountHLMStorageCmd = &cli.Command{
 	Name:      "mount",
-	Usage:     "Mount a storage by node id",
+	Usage:     "Mount a storage by node id, if exist, will remount it.",
 	ArgsUsage: "id",
 	Action: func(cctx *cli.Context) error {
 		args := cctx.Args()
@@ -175,39 +174,10 @@ var mountHLMStorageCmd = &cli.Command{
 	},
 }
 
-var umountHLMStorageCmd = &cli.Command{
-	Name:      "umount",
-	Usage:     "umount a storage by node id or umont all storage",
-	ArgsUsage: "[id/all] -- id for one sector, all for all sectors",
-	Action: func(cctx *cli.Context) error {
-		args := cctx.Args()
-		if args.Len() == 0 {
-			return errors.New("need input id OR all")
-		}
-		firstArg := args.First()
-		id := int64(0)
-		if firstArg != "all" {
-			stroageId, err := strconv.ParseInt(firstArg, 10, 64)
-			if err != nil {
-				return err
-			}
-			id = stroageId
-		}
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-		ctx := lcli.ReqContext(cctx)
-
-		return nodeApi.UMountHLMStorage(ctx, id)
-	},
-}
-
 var relinkHLMStorageCmd = &cli.Command{
 	Name:      "relink",
-	Usage:     "Relink the cache and sealed to the storage node",
-	ArgsUsage: "[id/all] -- id for one sector, all for all sectors",
+	Usage:     "Relink(ln -s) the cache and sealed to the storage node",
+	ArgsUsage: "id -- storage id",
 	Action: func(cctx *cli.Context) error {
 		args := cctx.Args()
 		if args.Len() == 0 {

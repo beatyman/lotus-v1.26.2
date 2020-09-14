@@ -110,10 +110,6 @@ func (sm *StorageMinerAPI) MountHLMStorage(ctx context.Context, id int64) error 
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).MountStorage(ctx, id)
 }
 
-func (sm *StorageMinerAPI) UMountHLMStorage(ctx context.Context, id int64) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UMountStorage(ctx, id)
-}
-
 func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id)
 }
