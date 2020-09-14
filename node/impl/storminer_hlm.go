@@ -10,9 +10,6 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
-	"github.com/filecoin-project/specs-storage/storage"
-
-	"github.com/gwaylib/errors"
 )
 
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
@@ -29,16 +26,8 @@ func (sm *StorageMinerAPI) StopPledgeSector(ctx context.Context) error {
 	return sm.Miner.ExitPledgeSector()
 }
 
-func (sm *StorageMinerAPI) HlmSectorSetState(ctx context.Context, sid, memo string, state int) error {
+func (sm *StorageMinerAPI) HlmSectorSetState(ctx context.Context, sid, memo string, state int) (bool, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, state)
-}
-
-func (sm *StorageMinerAPI) HlmSectorFinalize(ctx context.Context, sid string) error {
-	id, err := ffiwrapper.ParseSectorID(sid)
-	if err != nil {
-		return errors.As(err, sid)
-	}
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).FinalizeSector(ctx, id, []storage.Range{})
 }
 
 // Message communication

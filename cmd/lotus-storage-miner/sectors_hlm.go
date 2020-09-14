@@ -111,30 +111,13 @@ var setHlmSectorStateCmd = &cli.Command{
 		if len(memo) == 0 {
 			return errors.New("need input memo")
 		}
-		return nodeApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"))
-	},
-}
-var finalizeHlmSectorCmd = &cli.Command{
-	Name:  "finalize",
-	Usage: "will call the finalize to trigger the remote do finalize",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "sector-id",
-			Usage: "sector id which want to set",
-		},
-	},
-	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		working, err := nodeApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"))
 		if err != nil {
 			return err
 		}
-		defer closer()
-		ctx := lcli.ReqContext(cctx)
-
-		sid := cctx.String("sector-id")
-		if len(sid) == 0 {
-			return errors.New("need input sector-id")
+		if working {
+			fmt.Println("state has set, but the working still in working, please restart the worker or wait the next retry of seal event.")
 		}
-		return nodeApi.HlmSectorFinalize(ctx, sid)
+		return nil
 	},
 }
