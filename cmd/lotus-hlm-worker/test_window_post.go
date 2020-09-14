@@ -9,11 +9,11 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
+	"github.com/filecoin-project/go-state-types/dline"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
@@ -104,7 +104,7 @@ var testWdPoStCmd = &cli.Command{
 			}
 		}
 
-		di := miner.DeadlineInfo{
+		di := dline.Info{
 			Index: cctx.Uint64("index"), // TODO: get from params
 		}
 		ts, err := fullApi.ChainHead(ctx)

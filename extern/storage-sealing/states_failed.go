@@ -66,7 +66,7 @@ func (m *Sealing) handleSealPrecommit2Failed(ctx statemachine.Context, sector Se
 		return err
 	}
 
-	if sector.PreCommit2Fails > 1 {
+	if sector.PreCommit2Fails > 3 {
 		return ctx.Send(SectorRetrySealPreCommit1{})
 	}
 
