@@ -5,15 +5,14 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	"io"
+	"sync"
+
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
 	"github.com/ipfs/go-datastore/query"
 	dshelp "github.com/ipfs/go-ipfs-ds-help"
-	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
-	"io"
-	"sync"
 
 	cborutil "github.com/filecoin-project/go-cbor-util"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -22,10 +21,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/storage"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
 )
-
-var log = logging.Logger("storageminer")
 
 type SealSerialization uint8
 

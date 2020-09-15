@@ -687,6 +687,9 @@ func (mp *MessagePool) addLocked(m *types.SignedMessage, strict bool) error {
 }
 
 func (mp *MessagePool) GetNonce(addr address.Address) (uint64, error) {
+	mp.curTsLk.Lock()
+	defer mp.curTsLk.Unlock()
+
 	mp.lk.Lock()
 	defer mp.lk.Unlock()
 

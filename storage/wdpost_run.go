@@ -55,7 +55,6 @@ func (s *WindowPoStScheduler) doPost(ctx context.Context, submit bool, deadline 
 		proof, err := s.runPost(ctx, submit, *deadline, ts)
 		switch err {
 		case errNoPartitions:
-			log.Info("NoPartitions")
 			return
 		case nil:
 			if err := s.submitPost(ctx, proof); err != nil {
