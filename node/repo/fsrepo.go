@@ -20,10 +20,13 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/sector-storage/stores"
+	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
+	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/config"
+
+	"github.com/gwaylib/errors"
 )
 
 const (
@@ -160,9 +163,9 @@ func (fsr *FsRepo) APIEndpoint() (multiaddr.Multiaddr, error) {
 
 	f, err := os.Open(p)
 	if os.IsNotExist(err) {
-		return nil, ErrNoAPIEndpoint
+		return nil, errors.As(ErrNoAPIEndpoint, p)
 	} else if err != nil {
-		return nil, err
+		return nil, errors.As(err, p)
 	}
 	defer f.Close() //nolint: errcheck // Read only op
 
@@ -175,7 +178,7 @@ func (fsr *FsRepo) APIEndpoint() (multiaddr.Multiaddr, error) {
 
 	apima, err := multiaddr.NewMultiaddr(strma)
 	if err != nil {
-		return nil, err
+		return nil, errors.As(err, strma)
 	}
 	return apima, nil
 }
@@ -225,7 +228,7 @@ type fsLockedRepo struct {
 	repoType RepoType
 	closer   io.Closer
 
-	ds     datastore.Batching
+	ds     map[string]datastore.Batching
 	dsErr  error
 	dsOnce sync.Once
 
@@ -244,8 +247,10 @@ func (fsr *fsLockedRepo) Close() error {
 		return xerrors.Errorf("could not remove API file: %w", err)
 	}
 	if fsr.ds != nil {
-		if err := fsr.ds.Close(); err != nil {
-			return xerrors.Errorf("could not close datastore: %w", err)
+		for _, ds := range fsr.ds {
+			if err := ds.Close(); err != nil {
+				return xerrors.Errorf("could not close datastore: %w", err)
+			}
 		}
 	}
 
@@ -340,8 +345,16 @@ func (fsr *fsLockedRepo) SetStorage(c func(*stores.StorageConfig)) error {
 	return config.WriteStorageFile(fsr.join(fsStorageConfig), sc)
 }
 
-func (fsr *fsLockedRepo) Stat(path string) (stores.FsStat, error) {
-	return stores.Stat(path)
+func (fsr *fsLockedRepo) Stat(path string) (fsutil.FsStat, error) {
+	return fsutil.Statfs(path)
+}
+
+func (fsr *fsLockedRepo) DiskUsage(path string) (int64, error) {
+	si, err := fsutil.FileSize(path)
+	if err != nil {
+		return 0, err
+	}
+	return si.OnDisk, nil
 }
 
 func (fsr *fsLockedRepo) SetAPIEndpoint(ma multiaddr.Multiaddr) error {
@@ -379,6 +392,7 @@ func (fsr *fsLockedRepo) List() ([]string, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("opening dir to list keystore: %w", err)
 	}
+	defer dir.Close() //nolint:errcheck
 	files, err := dir.Readdir(-1)
 	if err != nil {
 		return nil, xerrors.Errorf("reading keystore dir: %w", err)

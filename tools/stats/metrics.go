@@ -1,10 +1,11 @@
-package main
+package stats
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 	"time"
@@ -12,10 +13,12 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/util/adt"
+	"golang.org/x/xerrors"
 
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
@@ -25,7 +28,11 @@ import (
 	_ "github.com/influxdata/influxdb1-client"
 	models "github.com/influxdata/influxdb1-client/models"
 	client "github.com/influxdata/influxdb1-client/v2"
+
+	logging "github.com/ipfs/go-log/v2"
 )
+
+var log = logging.Logger("stats")
 
 type PointList struct {
 	points []models.Point
@@ -62,7 +69,7 @@ func NewInfluxWriteQueue(ctx context.Context, influx client.Client) *InfluxWrite
 				for i := 0; i < maxRetries; i++ {
 					if err := influx.Write(batch); err != nil {
 						log.Warnw("Failed to write batch", "error", err)
-						time.Sleep(time.Second * 15)
+						build.Clock.Sleep(15 * time.Second)
 						continue
 					}
 
@@ -100,7 +107,8 @@ func InfluxNewBatch() (client.BatchPoints, error) {
 }
 
 func NewPoint(name string, value interface{}) models.Point {
-	pt, _ := models.NewPoint(name, models.Tags{}, map[string]interface{}{"value": value}, time.Now())
+	pt, _ := models.NewPoint(name, models.Tags{},
+		map[string]interface{}{"value": value}, build.Clock.Now().UTC())
 	return pt
 }
 
@@ -125,16 +133,68 @@ func RecordTipsetPoints(ctx context.Context, api api.FullNode, pl *PointList, ti
 	p = NewPoint("chain.blocktime", tsTime.Unix())
 	pl.AddPoint(p)
 
+	totalGasLimit := int64(0)
+	totalUniqGasLimit := int64(0)
+	seen := make(map[cid.Cid]struct{})
 	for _, blockheader := range tipset.Blocks() {
 		bs, err := blockheader.Serialize()
 		if err != nil {
 			return err
 		}
-		p := NewPoint("chain.election", 1)
+		p := NewPoint("chain.election", blockheader.ElectionProof.WinCount)
 		p.AddTag("miner", blockheader.Miner.String())
 		pl.AddPoint(p)
 
 		p = NewPoint("chain.blockheader_size", len(bs))
+		pl.AddPoint(p)
+
+		msgs, err := api.ChainGetBlockMessages(ctx, blockheader.Cid())
+		if err != nil {
+			return xerrors.Errorf("ChainGetBlockMessages failed: %w", msgs)
+		}
+		for _, m := range msgs.BlsMessages {
+			c := m.Cid()
+			totalGasLimit += m.GasLimit
+			if _, ok := seen[c]; !ok {
+				totalUniqGasLimit += m.GasLimit
+				seen[c] = struct{}{}
+			}
+		}
+		for _, m := range msgs.SecpkMessages {
+			c := m.Cid()
+			totalGasLimit += m.Message.GasLimit
+			if _, ok := seen[c]; !ok {
+				totalUniqGasLimit += m.Message.GasLimit
+				seen[c] = struct{}{}
+			}
+		}
+	}
+	p = NewPoint("chain.gas_limit_total", totalGasLimit)
+	pl.AddPoint(p)
+	p = NewPoint("chain.gas_limit_uniq_total", totalUniqGasLimit)
+	pl.AddPoint(p)
+
+	{
+		baseFeeIn := tipset.Blocks()[0].ParentBaseFee
+		newBaseFee := store.ComputeNextBaseFee(baseFeeIn, totalUniqGasLimit, len(tipset.Blocks()), tipset.Height())
+
+		baseFeeRat := new(big.Rat).SetFrac(newBaseFee.Int, new(big.Int).SetUint64(build.FilecoinPrecision))
+		baseFeeFloat, _ := baseFeeRat.Float64()
+		p = NewPoint("chain.basefee", baseFeeFloat)
+		pl.AddPoint(p)
+
+		baseFeeChange := new(big.Rat).SetFrac(newBaseFee.Int, baseFeeIn.Int)
+		baseFeeChangeF, _ := baseFeeChange.Float64()
+		p = NewPoint("chain.basefee_change_log", math.Log(baseFeeChangeF)/math.Log(1.125))
+		pl.AddPoint(p)
+	}
+	{
+		blks := len(cids)
+		p = NewPoint("chain.gas_fill_ratio", float64(totalGasLimit)/float64(blks*build.BlockGasTarget))
+		pl.AddPoint(p)
+		p = NewPoint("chain.gas_capacity_ratio", float64(totalUniqGasLimit)/float64(blks*build.BlockGasTarget))
+		pl.AddPoint(p)
+		p = NewPoint("chain.gas_waste_ratio", float64(totalGasLimit-totalUniqGasLimit)/float64(blks*build.BlockGasTarget))
 		pl.AddPoint(p)
 	}
 
@@ -172,17 +232,18 @@ func (ht *apiIpldStore) Put(ctx context.Context, v interface{}) (cid.Cid, error)
 }
 
 func RecordTipsetStatePoints(ctx context.Context, api api.FullNode, pl *PointList, tipset *types.TipSet) error {
-	pc, err := api.StatePledgeCollateral(ctx, tipset.Key())
-	if err != nil {
-		return err
-	}
-
 	attoFil := types.NewInt(build.FilecoinPrecision).Int
 
-	pcFil := new(big.Rat).SetFrac(pc.Int, attoFil)
-	pcFilFloat, _ := pcFil.Float64()
-	p := NewPoint("chain.pledge_collateral", pcFilFloat)
-	pl.AddPoint(p)
+	//TODO: StatePledgeCollateral API is not implemented and is commented out - re-enable this block once the API is implemented again.
+	//pc, err := api.StatePledgeCollateral(ctx, tipset.Key())
+	//if err != nil {
+	//return err
+	//}
+
+	//pcFil := new(big.Rat).SetFrac(pc.Int, attoFil)
+	//pcFilFloat, _ := pcFil.Float64()
+	//p := NewPoint("chain.pledge_collateral", pcFilFloat)
+	//pl.AddPoint(p)
 
 	netBal, err := api.WalletBalance(ctx, builtin.RewardActorAddr)
 	if err != nil {
@@ -191,7 +252,7 @@ func RecordTipsetStatePoints(ctx context.Context, api api.FullNode, pl *PointLis
 
 	netBalFil := new(big.Rat).SetFrac(netBal.Int, attoFil)
 	netBalFilFloat, _ := netBalFil.Float64()
-	p = NewPoint("network.balance", netBalFilFloat)
+	p := NewPoint("network.balance", netBalFilFloat)
 	pl.AddPoint(p)
 
 	totalPower, err := api.StateMinerPower(ctx, address.Address{}, tipset.Key())
@@ -224,15 +285,12 @@ func RecordTipsetStatePoints(ctx context.Context, api api.FullNode, pl *PointLis
 		return err
 	}
 
-	err = mp.ForEach(nil, func(key string) error {
+	var claim power.Claim
+	err = mp.ForEach(&claim, func(key string) error {
 		addr, err := address.NewFromBytes([]byte(key))
 		if err != nil {
 			return err
 		}
-
-		var claim power.Claim
-		keyerAddr := adt.AddrKey(addr)
-		mp.Get(keyerAddr, &claim)
 
 		if claim.QualityAdjPower.Int64() == 0 {
 			return nil
@@ -275,8 +333,19 @@ func RecordTipsetMessagesPoints(ctx context.Context, api api.FullNode, pl *Point
 
 	msgn := make(map[msgTag][]cid.Cid)
 
+	totalGasUsed := int64(0)
+	for _, r := range recp {
+		totalGasUsed += r.GasUsed
+	}
+	p := NewPoint("chain.gas_used_total", totalGasUsed)
+	pl.AddPoint(p)
+
 	for i, msg := range msgs {
-		p := NewPoint("chain.message_gasprice", msg.Message.GasPrice.Int64())
+		// FIXME: use float so this doesn't overflow
+		// FIXME: this doesn't work as time points get overridden
+		p := NewPoint("chain.message_gaspremium", msg.Message.GasPremium.Int64())
+		pl.AddPoint(p)
+		p = NewPoint("chain.message_gasfeecap", msg.Message.GasFeeCap.Int64())
 		pl.AddPoint(p)
 
 		bs, err := msg.Message.Serialize()

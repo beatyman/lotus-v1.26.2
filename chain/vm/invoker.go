@@ -5,16 +5,18 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
+	"time"
 
+	"github.com/filecoin-project/go-state-types/exitcode"
 	"github.com/filecoin-project/specs-actors/actors/builtin/account"
 	"github.com/filecoin-project/specs-actors/actors/builtin/verifreg"
-	"github.com/filecoin-project/specs-actors/actors/runtime/exitcode"
 
 	"github.com/ipfs/go-cid"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/chain/actors/aerrors"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/cron"
 	init_ "github.com/filecoin-project/specs-actors/actors/builtin/init"
@@ -27,9 +29,6 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/builtin/system"
 	"github.com/filecoin-project/specs-actors/actors/runtime"
 	vmr "github.com/filecoin-project/specs-actors/actors/runtime"
-	"github.com/filecoin-project/specs-actors/actors/util/adt"
-
-	"github.com/filecoin-project/lotus/chain/actors/aerrors"
 )
 
 type Invoker struct {
@@ -47,7 +46,7 @@ func NewInvoker() *Invoker {
 	}
 
 	// add builtInCode using: register(cid, singleton)
-	inv.Register(builtin.SystemActorCodeID, system.Actor{}, adt.EmptyValue{})
+	inv.Register(builtin.SystemActorCodeID, system.Actor{}, abi.EmptyValue{})
 	inv.Register(builtin.InitActorCodeID, init_.Actor{}, init_.State{})
 	inv.Register(builtin.RewardActorCodeID, reward.Actor{}, reward.State{})
 	inv.Register(builtin.CronActorCodeID, cron.Actor{}, cron.State{})
@@ -72,7 +71,25 @@ func (inv *Invoker) Invoke(codeCid cid.Cid, rt runtime.Runtime, method abi.Metho
 	if method >= abi.MethodNum(len(code)) || code[method] == nil {
 		return nil, aerrors.Newf(exitcode.SysErrInvalidMethod, "no method %d on actor", method)
 	}
-	return code[method](rt, params)
+	fn := code[method]
+	fnType := reflect.TypeOf(fn)
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		took := end.Sub(start)
+		if took > 1e9 {
+			log.Infow("Invoke",
+				"took", took,
+				"fnName", fnType.Name(),
+				"fnPkgPath", fnType.PkgPath(),
+				"fnString", fnType.String(),
+				"method", method,
+				"cid", codeCid,
+				"actor", builtin.ActorNameByCode(codeCid),
+			)
+		}
+	}()
+	return fn(rt, params)
 
 }
 
@@ -116,7 +133,7 @@ func (*Invoker) transform(instance Invokee) (nativeCode, error) {
 			return nil, newErr("first arguemnt should be vmr.Runtime")
 		}
 		if t.In(1).Kind() != reflect.Ptr {
-			return nil, newErr("second argument should be Runtime")
+			return nil, newErr("second argument should be of kind reflect.Ptr")
 		}
 
 		if t.NumOut() != 1 {
@@ -130,6 +147,9 @@ func (*Invoker) transform(instance Invokee) (nativeCode, error) {
 	}
 	code := make(nativeCode, len(exports))
 	for id, m := range exports {
+		if m == nil {
+			continue
+		}
 		meth := reflect.ValueOf(m)
 		code[id] = reflect.MakeFunc(reflect.TypeOf((invokeFunc)(nil)),
 			func(in []reflect.Value) []reflect.Value {
@@ -193,7 +213,7 @@ func DumpActorState(code cid.Cid, b []byte) (interface{}, error) {
 	}
 
 	if err := um.UnmarshalCBOR(bytes.NewReader(b)); err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("unmarshaling actor state: %w", err)
 	}
 
 	return rv.Elem().Interface(), nil

@@ -3,22 +3,28 @@ package miner
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"sync"
 	"time"
 
-	address "github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/builtin/power"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
+	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
+
+	"github.com/filecoin-project/lotus/chain/gen/slashfilter"
+
+	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/crypto"
 	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/gen"
+	"github.com/filecoin-project/lotus/chain/messagepool/gasguess"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/chain/vm"
+	"github.com/filecoin-project/lotus/journal"
 
 	logging "github.com/ipfs/go-log/v2"
 	"go.opencensus.io/trace"
@@ -30,9 +36,17 @@ import (
 var log = logging.Logger("miner")
 
 // returns a callback reporting whether we mined a blocks in this round
-type waitFunc func(ctx context.Context, baseTime uint64) (func(bool), error)
+type waitFunc func(ctx context.Context, baseTime uint64) (func(bool, abi.ChainEpoch, error), abi.ChainEpoch, error)
 
-func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address) *Miner {
+func randTimeOffset(width time.Duration) time.Duration {
+	buf := make([]byte, 8)
+	rand.Reader.Read(buf) //nolint:errcheck
+	val := time.Duration(binary.BigEndian.Uint64(buf) % uint64(width))
+
+	return val - (width / 2)
+}
+
+func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address, sf *slashfilter.SlashFilter) *Miner {
 	arc, err := lru.NewARC(10000)
 	if err != nil {
 		panic(err)
@@ -42,13 +56,19 @@ func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address)
 		api:     api,
 		epp:     epp,
 		address: addr,
-		waitFunc: func(ctx context.Context, baseTime uint64) (func(bool), error) {
+		waitFunc: func(ctx context.Context, baseTime uint64) (func(bool, abi.ChainEpoch, error), abi.ChainEpoch, error) {
 			// Wait around for half the block time in case other parents come in
-			deadline := baseTime + build.PropagationDelay
-			time.Sleep(time.Until(time.Unix(int64(deadline), 0)))
+			deadline := baseTime + build.PropagationDelaySecs
+			baseT := time.Unix(int64(deadline), 0)
 
-			return func(bool) {}, nil
+			baseT = baseT.Add(randTimeOffset(time.Second))
+
+			build.Clock.Sleep(build.Clock.Until(baseT))
+
+			return func(bool, abi.ChainEpoch, error) {}, 0, nil
 		},
+
+		sf:                sf,
 		minedBlockHeights: arc,
 	}
 }
@@ -67,6 +87,7 @@ type Miner struct {
 
 	lastWork *MiningBase
 
+	sf                *slashfilter.SlashFilter
 	minedBlockHeights *lru.ARCCache
 }
 
@@ -90,11 +111,12 @@ func (m *Miner) Start(ctx context.Context) error {
 
 func (m *Miner) Stop(ctx context.Context) error {
 	m.lk.Lock()
-	defer m.lk.Unlock()
 
 	m.stopping = make(chan struct{})
 	stopping := m.stopping
 	close(m.stop)
+
+	m.lk.Unlock()
 
 	select {
 	case <-stopping:
@@ -106,14 +128,14 @@ func (m *Miner) Stop(ctx context.Context) error {
 
 func (m *Miner) niceSleep(d time.Duration) bool {
 	select {
-	case <-time.After(d):
+	case <-build.Clock.After(d):
 		return true
 	case <-m.stop:
 		return false
 	}
 }
 func nextRoundTime(base *MiningBase) time.Time {
-	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelay*(base.NullRounds+1)), 0)
+	return time.Unix(int64(base.TipSet.MinTimestamp())+int64(build.BlockDelaySecs)*int64((base.NullRounds+1)), 0)
 }
 func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
@@ -141,63 +163,46 @@ func (m *Miner) mine(ctx context.Context) {
 			m.niceSleep(time.Second * 1)
 			continue
 		}
-
-		//// Wait until propagation delay period after block we plan to mine on
-		//onDone, err := m.waitFunc(ctx, prebase.TipSet.MinTimestamp())
-		//if err != nil {
-		//	log.Error(err)
-		//	return
-		//}
-
-		//base, err := m.GetBestMiningCandidate(ctx)
-		//if err != nil {
-		//	log.Errorf("failed to get best mining candidate: %s", err)
-		//	continue
-		//}
-		//if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
-		//	log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
-		//	m.niceSleep(build.BlockDelay * time.Second)
-		//	continue
-		//}
-
+		miningHeight := prebase.TipSet.Height() + 1
+		if lastBase.TipSet != nil && lastBase.TipSet.Height()+lastBase.NullRounds > prebase.TipSet.Height() {
+			miningHeight = lastBase.TipSet.Height() + lastBase.NullRounds + 1
+		}
+		// just wait for the beacon entry to become available before we select our final mining base
+		_, err = m.api.BeaconGetEntry(ctx, miningHeight)
+		if err != nil {
+			log.Errorf("failed getting beacon entry: %s", err)
+			m.niceSleep(time.Second * 1)
+			continue
+		}
 		if !prebase.TipSet.Equals(lastBase.TipSet) {
 			base := prebase
-			// make auto clean for pending messages every round.
-			pending, err := m.api.MpoolPending(context.TODO(), base.TipSet.Key())
-			if err != nil {
-				log.Warn(xerrors.Errorf("failed to get pending messages: %w", err))
-				continue
-			}
-
-			// pre pending
-			log.Infof("prepending all msgs len:%d", len(pending))
-			if _, err := SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending}); err != nil {
-				log.Warn(xerrors.Errorf("message filtering failed: %w", err))
-				continue
-			}
-
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			now := time.Now()
-			delay := (build.PropagationDelay * time.Second) - now.Sub(nextRound)
+			delay := (time.Duration(build.PropagationDelaySecs) * time.Second) - now.Sub(nextRound)
 			log.Infof("Waiting PropagationDelay time: %s", delay)
 			if delay > 0 && now.Sub(nextRound) > 0 {
 				time.Sleep(delay + time.Second)
+				// update the parent weight
+				base, err = m.GetBestMiningCandidate(ctx)
+				if err != nil {
+					log.Errorf("failed to get best mining candidate: %s", err)
+					continue
+				}
 			}
-			base, err = m.GetBestMiningCandidate(ctx)
-			if err != nil {
-				log.Errorf("failed to get best mining candidate: %s", err)
-				continue
-			}
+
+			log.Infof("Update base to:%d", base.TipSet.Height())
+
 			nextRound = nextRoundTime(base)
 			lastBase = *base
 		} else {
 			now := time.Now()
 			// if the base was dead, make the nullRound++ step by round actually change.
 			// and in current round, checking the base by every 1 second until pass or round out.
-			if lastBase.TipSet == nil || (now.Unix()-nextRound.Unix())/build.BlockDelay == 0 {
+			if lastBase.TipSet == nil || (now.Unix() < nextRound.Unix()+int64(build.PropagationDelaySecs)) {
 				time.Sleep(1e9)
 				continue
 			}
+
 			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
 			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
@@ -206,34 +211,55 @@ func (m *Miner) mine(ctx context.Context) {
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
 			m.niceSleep(time.Second)
+			//onDone(false, 0, err)
 			continue
 		}
 		//lastBase = *base
 
-		//onDone(b != nil)
+		//var h abi.ChainEpoch
+		//if b != nil {
+		//	h = b.Header.Height
+		//}
+		//onDone(b != nil, h, nil)
 
 		if b != nil {
+			journal.Add("blockMined", map[string]interface{}{
+				"parents":   lastBase.TipSet.Cids(),
+				"nulls":     lastBase.NullRounds,
+				"epoch":     b.Header.Height,
+				"timestamp": b.Header.Timestamp,
+				"cid":       b.Header.Cid(),
+			})
+
 			btime := time.Unix(int64(b.Header.Timestamp), 0)
-			if time.Now().Before(btime) {
-				if !m.niceSleep(time.Until(btime)) {
+			now := build.Clock.Now()
+			switch {
+			case btime == now:
+				// block timestamp is perfectly aligned with time.
+			case btime.After(now):
+				if !m.niceSleep(build.Clock.Until(btime)) {
 					log.Warnf("received interrupt while waiting to broadcast block, will shutdown after block is sent out")
-					time.Sleep(time.Until(btime))
+					build.Clock.Sleep(build.Clock.Until(btime))
 				}
-			} else {
-				log.Warnw("mined block in the past", "block-time", btime,
-					"time", time.Now(), "duration", time.Since(btime))
+			default:
+				log.Warnw("mined block in the past",
+					"block-time", btime, "time", build.Clock.Now(), "difference", build.Clock.Since(btime))
 			}
 
-			// TODO: should do better 'anti slash' protection here
+			if err := m.sf.MinedBlock(b.Header, lastBase.TipSet.Height()+lastBase.NullRounds); err != nil {
+				log.Errorf("<!!> SLASH FILTER ERROR: %s", err)
+				continue
+			}
+
 			blkKey := fmt.Sprintf("%d", b.Header.Height)
 			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
 				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
-
 				// in case for nullRound, it will happend the same block.
-				//continue
+				continue
 			}
 
 			m.minedBlockHeights.Add(blkKey, true)
+
 			if err := m.api.SyncSubmitBlock(ctx, b); err != nil {
 				log.Errorf("failed to submit newly mined block: %s", err)
 			}
@@ -242,12 +268,12 @@ func (m *Miner) mine(ctx context.Context) {
 			// has enough time to form.
 			//
 			// See:  https://github.com/filecoin-project/lotus/issues/1845
-			//nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+uint64(build.BlockDelay*base.NullRounds))+int64(build.PropagationDelay), 0)
+			//nextRound := time.Unix(int64(base.TipSet.MinTimestamp()+build.BlockDelaySecs*uint64(base.NullRounds))+int64(build.PropagationDelaySecs), 0)
 
 			log.Info("mine next round at:", nextRound.Format(time.RFC3339))
 
 			select {
-			case <-time.After(time.Until(nextRound)):
+			case <-build.Clock.After(build.Clock.Until(nextRound)):
 			case <-m.stop:
 				stopping := m.stopping
 				m.stop = nil
@@ -298,24 +324,19 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 	return m.lastWork, nil
 }
 
-func (m *Miner) hasPower(ctx context.Context, addr address.Address, ts *types.TipSet) (bool, error) {
-	mpower, err := m.api.StateMinerPower(ctx, addr, ts.Key())
-	if err != nil {
-		return false, err
-	}
-
-	return mpower.MinerPower.QualityAdjPower.GreaterThanEqual(power.ConsensusMinerMinPower), nil
-}
-
-// mineOne mines a single block, and does so synchronously, if and only if we
-// have won the current round.
+// mineOne attempts to mine a single block, and does so synchronously, if and
+// only if we are eligible to mine.
 //
 // {hint/landmark}: This method coordinates all the steps involved in mining a
 // block, including the condition of whether mine or not at all depending on
 // whether we win the round or not.
+//
+// This method does the following:
+//
+//  1.
 func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.BlockMsg, error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
-	start := time.Now()
+	start := build.Clock.Now()
 
 	round := base.TipSet.Height() + base.NullRounds + 1
 
@@ -324,28 +345,21 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
-		base.NullRounds++
+		return nil, nil
+	}
+	if !mbi.HasMinPower {
+		// slashed or just have no power yet
 		return nil, nil
 	}
 
-	tMBI := time.Now()
+	tMBI := build.Clock.Now()
 
 	beaconPrev := mbi.PrevBeaconEntry
 
-	tDrand := time.Now()
+	tDrand := build.Clock.Now()
 	bvals := mbi.BeaconEntries
 
-	hasPower, err := m.hasPower(ctx, m.address, base.TipSet)
-	if err != nil {
-		return nil, xerrors.Errorf("checking if miner is slashed: %w", err)
-	}
-	if !hasPower {
-		// slashed or just have no power yet
-		base.NullRounds++
-		return nil, nil
-	}
-
-	tPowercheck := time.Now()
+	tPowercheck := build.Clock.Now()
 
 	preHeight := abi.ChainEpoch(0)
 	if oldbase.TipSet != nil {
@@ -354,7 +368,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	log.Infof(
 		"Time delta between now and our mining, base(%d|%d):%ds (nulls: %d), power(%s/%s)",
 		preHeight, base.TipSet.Height(),
-		uint64(time.Now().Unix())-base.TipSet.MinTimestamp(), base.NullRounds,
+		uint64(build.Clock.Now().Unix())-base.TipSet.MinTimestamp(), base.NullRounds,
 		mbi.MinerPower, mbi.NetworkPower,
 	)
 
@@ -363,7 +377,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		rbase = bvals[len(bvals)-1]
 	}
 
-	ticket, err := m.computeTicket(ctx, &rbase, base, len(bvals) > 0)
+	ticket, err := m.computeTicket(ctx, &rbase, base)
 	if err != nil {
 		return nil, xerrors.Errorf("scratching ticket failed: %w", err)
 	}
@@ -375,11 +389,10 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 
 	if winner == nil {
 		log.Info("Not Win")
-		base.NullRounds++
 		return nil, nil
 	}
 
-	tTicket := time.Now()
+	tTicket := build.Clock.Now()
 
 	buf := new(bytes.Buffer)
 	if err := m.address.MarshalCBOR(buf); err != nil {
@@ -393,7 +406,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 
 	prand := abi.PoStRandomness(rand)
 
-	tSeed := time.Now()
+	tSeed := build.Clock.Now()
 
 	postProof, err := m.epp.ComputeProof(ctx, mbi.Sectors, prand)
 	if err != nil {
@@ -402,51 +415,49 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	}
 
 	// get pending messages early,
-	pending, err := m.api.MpoolPending(context.TODO(), base.TipSet.Key())
+	msgs, err := m.api.MpoolSelect(context.TODO(), base.TipSet.Key(), ticket.Quality())
 	if err != nil {
-		return nil, xerrors.Errorf("failed to get pending messages: %w", err)
+		return nil, xerrors.Errorf("failed to select messages for block: %w", err)
 	}
-	log.Infof("all pending msgs len:%d", len(pending))
-	pending, err = SelectMessages(context.TODO(), m.api.StateGetActor, base.TipSet, &MsgPool{FromApi: m.api, Msgs: pending})
-	if err != nil {
-		return nil, xerrors.Errorf("message filtering failed: %w", err)
-	}
-	if len(pending) > build.BlockMessageLimit {
-		log.Error("SelectMessages returned too many messages: ", len(pending))
-		pending = pending[:build.BlockMessageLimit]
-	}
-	tPending := time.Now()
+
+	tPending := build.Clock.Now()
+
 	// TODO: winning post proof
-	b, err := m.createBlock(base, m.address, ticket, winner, bvals, postProof, pending)
+	b, err := m.createBlock(base, m.address, ticket, winner, bvals, postProof, msgs)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create block: %w", err)
 	}
 
-	tCreateBlock := time.Now()
+	tCreateBlock := build.Clock.Now()
 	dur := tCreateBlock.Sub(start)
+	parentMiners := make([]address.Address, len(base.TipSet.Blocks()))
+	for i, header := range base.TipSet.Blocks() {
+		parentMiners[i] = header.Miner
+	}
 	log.Infow("mined new block",
 		"cid", b.Cid(),
 		"height", b.Header.Height,
 		"weight", b.Header.ParentWeight,
 		"rounds", base.NullRounds,
 		"took", dur,
-		"submit", time.Unix(int64(base.TipSet.MinTimestamp()+(uint64(base.NullRounds)+1)*build.BlockDelay), 0).Format(time.RFC3339))
-	if dur > time.Second*build.BlockDelay {
-		log.Warn("CAUTION: block production took longer than the block delay. Your computer may not be fast enough to keep up")
-
-		log.Warnw("tMinerBaseInfo ", "duration", tMBI.Sub(start))
-		log.Warnw("tDrand ", "duration", tDrand.Sub(tMBI))
-		log.Warnw("tPowercheck ", "duration", tPowercheck.Sub(tDrand))
-		log.Warnw("tTicket ", "duration", tTicket.Sub(tPowercheck))
-		log.Warnw("tSeed ", "duration", tSeed.Sub(tTicket))
-		log.Warnw("tPending ", "duration", tPending.Sub(tSeed))
-		log.Warnw("tCreateBlock ", "duration", tCreateBlock.Sub(tPending))
+		"miner", b.Header.Miner,
+		"parents", parentMiners,
+		"submit", time.Unix(int64(base.TipSet.MinTimestamp()+(uint64(base.NullRounds)+1)*build.BlockDelaySecs), 0).Format(time.RFC3339))
+	if dur > time.Second*time.Duration(build.BlockDelaySecs) {
+		log.Warnw("CAUTION: block production took longer than the block delay. Your computer may not be fast enough to keep up",
+			"tMinerBaseInfo ", tMBI.Sub(start),
+			"tDrand ", tDrand.Sub(tMBI),
+			"tPowercheck ", tPowercheck.Sub(tDrand),
+			"tTicket ", tTicket.Sub(tPowercheck),
+			"tSeed ", tSeed.Sub(tTicket),
+			"tPending ", tPending.Sub(tSeed),
+			"tCreateBlock ", tCreateBlock.Sub(tPending))
 	}
 
 	return b, nil
 }
 
-func (m *Miner) computeTicket(ctx context.Context, brand *types.BeaconEntry, base *MiningBase, haveNewEntries bool) (*types.Ticket, error) {
+func (m *Miner) computeTicket(ctx context.Context, brand *types.BeaconEntry, base *MiningBase) (*types.Ticket, error) {
 	mi, err := m.api.StateMinerInfo(ctx, m.address, types.EmptyTSK)
 	if err != nil {
 		return nil, err
@@ -461,11 +472,12 @@ func (m *Miner) computeTicket(ctx context.Context, brand *types.BeaconEntry, bas
 		return nil, xerrors.Errorf("failed to marshal address to cbor: %w", err)
 	}
 
-	if !haveNewEntries {
+	round := base.TipSet.Height() + base.NullRounds + 1
+	if round > build.UpgradeSmokeHeight {
 		buf.Write(base.TipSet.MinTicket().VRFProof)
 	}
 
-	input, err := store.DrawRandomness(brand.Data, crypto.DomainSeparationTag_TicketProduction, base.TipSet.Height()+base.NullRounds+1-build.TicketRandomnessLookback, buf.Bytes())
+	input, err := store.DrawRandomness(brand.Data, crypto.DomainSeparationTag_TicketProduction, round-build.TicketRandomnessLookback, buf.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -481,8 +493,9 @@ func (m *Miner) computeTicket(ctx context.Context, brand *types.BeaconEntry, bas
 }
 
 func (m *Miner) createBlock(base *MiningBase, addr address.Address, ticket *types.Ticket,
-	eproof *types.ElectionProof, bvals []types.BeaconEntry, wpostProof []abi.PoStProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
-	uts := base.TipSet.MinTimestamp() + uint64(build.BlockDelay*(base.NullRounds+1))
+	eproof *types.ElectionProof, bvals []types.BeaconEntry, wpostProof []proof.PoStProof, msgs []*types.SignedMessage) (*types.BlockMsg, error) {
+	uts := base.TipSet.MinTimestamp() + build.BlockDelaySecs*(uint64(base.NullRounds)+1)
+
 	nheight := base.TipSet.Height() + base.NullRounds + 1
 
 	// why even return this? that api call could just submit it for us
@@ -507,7 +520,7 @@ type actCacheEntry struct {
 type cachedActorLookup struct {
 	tsk      types.TipSetKey
 	cache    map[address.Address]actCacheEntry
-	fallback ActorLookup
+	fallback gasguess.ActorLookup
 }
 
 func (c *cachedActorLookup) StateGetActor(ctx context.Context, a address.Address, tsk types.TipSetKey) (*types.Actor, error) {
@@ -528,133 +541,3 @@ func (c *cachedActorLookup) StateGetActor(ctx context.Context, a address.Address
 }
 
 type ActorLookup func(context.Context, address.Address, types.TipSetKey) (*types.Actor, error)
-
-func countFrom(msgs []*types.SignedMessage, from address.Address) (out int) {
-	for _, msg := range msgs {
-		if msg.Message.From == from {
-			out++
-		}
-	}
-	return out
-}
-
-type MsgPool struct {
-	FromApi api.FullNode
-	Msgs    []*types.SignedMessage
-}
-
-func (p *MsgPool) Remove(ctx context.Context, msg *types.SignedMessage) {
-	// TODO: remove fault message
-	//if err := p.FromApi.MpoolRemove(ctx, msg.Message.From, msg.Message.Nonce); err != nil {
-	//	log.Warn(errors.As(err))
-	//}
-}
-
-func SelectMessages(ctx context.Context, al ActorLookup, ts *types.TipSet, mpool *MsgPool) ([]*types.SignedMessage, error) {
-	al = (&cachedActorLookup{
-		tsk:      ts.Key(),
-		cache:    map[address.Address]actCacheEntry{},
-		fallback: al,
-	}).StateGetActor
-
-	out := make([]*types.SignedMessage, 0, build.BlockMessageLimit)
-	inclNonces := make(map[address.Address]uint64)
-	inclBalances := make(map[address.Address]types.BigInt)
-	inclCount := make(map[address.Address]int)
-
-	tooLowFundMsgs := 0
-	tooHighNonceMsgs := 0
-
-	start := time.Now()
-	vmValid := time.Duration(0)
-	getbal := time.Duration(0)
-
-	for _, msg := range mpool.Msgs {
-		vmstart := time.Now()
-
-		minGas := vm.PricelistByEpoch(ts.Height()).OnChainMessage(msg.ChainLength()) // TODO: really should be doing just msg.ChainLength() but the sync side of this code doesnt seem to have access to that
-		if err := msg.VMMessage().ValidForBlockInclusion(minGas.Total()); err != nil {
-			//log.Infof("invalid message in message pool: %s", err)
-			mpool.Remove(ctx, msg)
-			continue
-		}
-
-		vmValid += time.Since(vmstart)
-
-		// TODO: this should be in some more general 'validate message' call
-		if msg.Message.GasLimit > build.BlockGasLimit {
-			//log.Warnf("message in mempool had too high of a gas limit (%d)", msg.Message.GasLimit)
-			mpool.Remove(ctx, msg)
-			continue
-		}
-
-		if msg.Message.To == address.Undef {
-			//log.Warnf("message in mempool had bad 'To' address")
-			mpool.Remove(ctx, msg)
-			continue
-		}
-
-		from := msg.Message.From
-
-		getBalStart := time.Now()
-		if _, ok := inclNonces[from]; !ok {
-			act, err := al(ctx, from, ts.Key())
-			if err != nil {
-				//log.Warnf("failed to check message sender balance, skipping message: %+v", err)
-				mpool.Remove(ctx, msg)
-				continue
-			}
-
-			inclNonces[from] = act.Nonce
-			inclBalances[from] = act.Balance
-		}
-		getbal += time.Since(getBalStart)
-
-		if inclBalances[from].LessThan(msg.Message.RequiredFunds()) {
-			tooLowFundMsgs++
-			// todo: drop from mpool
-			mpool.Remove(ctx, msg)
-			continue
-		}
-
-		if msg.Message.Nonce > inclNonces[from] {
-			tooHighNonceMsgs++
-			mpool.Remove(ctx, msg)
-			continue
-		}
-
-		if msg.Message.Nonce < inclNonces[from] {
-			//log.Warnf("message in mempool has already used nonce (%d < %d), %s (%d pending for)", msg.Message.Nonce, inclNonces[from], msg.Message.String(), countFrom(mpool.Msgs, from))
-			mpool.Remove(ctx, msg)
-			continue
-		}
-
-		inclNonces[from] = msg.Message.Nonce + 1
-		inclBalances[from] = types.BigSub(inclBalances[from], msg.Message.RequiredFunds())
-		inclCount[from]++
-
-		out = append(out, msg)
-		if len(out) >= build.BlockMessageLimit {
-			break
-		}
-	}
-
-	if tooLowFundMsgs > 0 {
-		log.Warnf("%d messages in mempool does not have enough funds", tooLowFundMsgs)
-	}
-
-	if tooHighNonceMsgs > 0 {
-		log.Warnf("%d messages in mempool had too high nonce", tooHighNonceMsgs)
-	}
-
-	sm := time.Now()
-	if sm.Sub(start) > time.Second {
-		log.Warnw("SelectMessages took a long time",
-			"duration", sm.Sub(start),
-			"vmvalidate", vmValid,
-			"getbalance", getbal,
-			"msgs", len(mpool.Msgs))
-	}
-
-	return out, nil
-}

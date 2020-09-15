@@ -6,6 +6,12 @@ export IPFS_GATEWAY="https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs
 export FIL_PROOFS_USE_GPU_COLUMN_BUILDER=0
 export FIL_PROOFS_USE_GPU_TREE_BUILDER=0
 export FIL_PROOFS_MAXIMIZE_CACHING=0  # open cache for 32GB or 64GB
+export RUST_LOG=info
+export RUST_BACKTRACE=1
+
+# make build from source
+export RUSTFLAGS="-C target-cpu=native -g" 
+export FFI_BUILD_FROM_SOURCE=1
 
 # checking gpu
 gpu=""
@@ -54,7 +60,7 @@ mkdir -p $staging
 
 make $build_mode
 make lotus-shed
-make fountain
+make lotus-fountain
  if [[  "`ls -A ${sdt0111}`" = ""  &&  "`ls -A ${staging}`" = ""  ]];
  then
     ./lotus-seed genesis new "${staging}/genesis.json"
@@ -113,8 +119,8 @@ do
     ln -s ${sdt0111}/unsealed/$sector ${mdt0111}/unsealed/$sector
 done
 
-env LOTUS_PATH="${ldt0111}" LOTUS_STORAGE_PATH="${mdt0111}" ./lotus-storage-miner init --genesis-miner --actor=t01000 --pre-sealed-sectors="${sdt0111}" --pre-sealed-metadata="${sdt0111}/pre-seal-t01000.json" --nosync=true --sector-size="${SECTOR_SIZE}" || true
-env LOTUS_PATH="${ldt0111}" LOTUS_STORAGE_PATH="${mdt0111}" ./lotus-storage-miner run --nosync &
+env LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner init --genesis-miner --actor=t01000 --pre-sealed-sectors="${sdt0111}" --pre-sealed-metadata="${sdt0111}/pre-seal-t01000.json" --nosync=true --sector-size="${SECTOR_SIZE}" || true
+env LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner run --nosync &
 
 wait
 

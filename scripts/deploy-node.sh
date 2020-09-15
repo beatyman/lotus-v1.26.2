@@ -11,7 +11,7 @@ HOST=$1
 
 FILES_TO_SEND=(
 	./lotus
-	./lotus-storage-miner
+	./lotus-miner
 	scripts/lotus-daemon.service
 	scripts/lotus-miner.service
 )
@@ -20,14 +20,15 @@ rsync -P "${FILES_TO_SEND[@]}" "$HOST:~/lotus-stage/"
 
 ssh "$HOST" 'bash -s' << 'EOF'
 set -euo pipefail
-systemctl stop lotus-storage-miner
+
+systemctl stop lotus-miner
 systemctl stop lotus-daemon
-mkdir -p .lotus .lotusstorage
+mkdir -p .lotus .lotusminer
 
 cd "$HOME/lotus-stage/"
-cp -f lotus lotus-storage-miner /usr/local/bin
+cp -f lotus lotus-miner /usr/local/bin
 cp -f lotus-daemon.service /etc/systemd/system/lotus-daemon.service
-cp -f lotus-miner.service /etc/systemd/system/lotus-storage-miner.service
+cp -f lotus-miner.service /etc/systemd/system/lotus-miner.service
 mkdir -p /var/log/lotus
 
 systemctl daemon-reload

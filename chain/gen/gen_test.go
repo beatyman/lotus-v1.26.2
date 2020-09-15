@@ -3,8 +3,8 @@ package gen
 import (
 	"testing"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/builtin/verifreg"
@@ -39,8 +39,8 @@ func testGeneration(t testing.TB, n int, msgs int, sectors int) {
 }
 
 func TestChainGeneration(t *testing.T) {
-	testGeneration(t, 10, 20, 1)
-	testGeneration(t, 10, 20, 25)
+	t.Run("10-20-1", func(t *testing.T) { testGeneration(t, 10, 20, 1) })
+	t.Run("10-20-25", func(t *testing.T) { testGeneration(t, 10, 20, 25) })
 }
 
 func BenchmarkChainGeneration(b *testing.B) {

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	saproof "github.com/filecoin-project/specs-actors/actors/runtime/proof"
+
 	"github.com/docker/go-units"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/minio/blake2b-simd"
@@ -22,11 +24,11 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	paramfetch "github.com/filecoin-project/go-paramfetch"
+	"github.com/filecoin-project/go-state-types/abi"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/sector-storage/stores"
-	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
+	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-storage/storage"
 
@@ -146,9 +148,14 @@ var sealBenchCmd = &cli.Command{
 			Usage: "nums of parallel task",
 			Value: 1,
 		},
+		&cli.IntFlag{
+			Name:  "hlm-parallel",
+			Usage: "nums of hlm parallel task",
+			Value: 1,
+		},
 	},
 	Action: func(c *cli.Context) error {
-		parallel := c.Int("parallel")
+		parallel := c.Int("hlm-parallel")
 		result := make(chan string, parallel)
 		for i := 0; i < parallel; i++ {
 			log.Infof("run parallel index:%d", i)
@@ -162,7 +169,7 @@ var sealBenchCmd = &cli.Command{
 		for i := 0; i < parallel; i++ {
 			select {
 			case b := <-result:
-				fmt.Printf("result of parallel %d: \n", i)
+				fmt.Printf("result of hlm-parallel %d: \n", i)
 				fmt.Print(b)
 			case <-end:
 				return nil
@@ -261,13 +268,13 @@ func action(c *cli.Context, i int) string {
 			Root: sbdir,
 		}
 
-		sb, err := ffiwrapper.New(false, sbfs, cfg)
+		sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, sbfs, cfg)
 		if err != nil {
 			return err.Error()
 		}
 
 		var sealTimings []SealingResult
-		var sealedSectors []abi.SectorInfo
+		var sealedSectors []saproof.SectorInfo
 
 		if robench == "" {
 			var err error
@@ -310,7 +317,7 @@ func action(c *cli.Context, i int) string {
 			}
 
 			for _, s := range genm.Sectors {
-				sealedSectors = append(sealedSectors, abi.SectorInfo{
+				sealedSectors = append(sealedSectors, saproof.SectorInfo{
 					SealedCID:    s.CommR,
 					SectorNumber: s.SectorID,
 					SealProof:    s.ProofType,
@@ -335,7 +342,7 @@ func action(c *cli.Context, i int) string {
 				return err.Error()
 			}
 
-			candidates := make([]abi.SectorInfo, len(fcandidates))
+			candidates := make([]saproof.SectorInfo, len(fcandidates))
 			for i, fcandidate := range fcandidates {
 				candidates[i] = sealedSectors[fcandidate]
 			}
@@ -358,7 +365,7 @@ func action(c *cli.Context, i int) string {
 
 			winnningpost2 := time.Now()
 
-			pvi1 := abi.WinningPoStVerifyInfo{
+			pvi1 := saproof.WinningPoStVerifyInfo{
 				Randomness:        abi.PoStRandomness(challenge[:]),
 				Proofs:            proof1,
 				ChallengedSectors: candidates,
@@ -374,7 +381,7 @@ func action(c *cli.Context, i int) string {
 
 			verifyWinningPost1 := time.Now()
 
-			pvi2 := abi.WinningPoStVerifyInfo{
+			pvi2 := saproof.WinningPoStVerifyInfo{
 				Randomness:        abi.PoStRandomness(challenge[:]),
 				Proofs:            proof2,
 				ChallengedSectors: candidates,
@@ -406,7 +413,7 @@ func action(c *cli.Context, i int) string {
 
 			windowpost2 := time.Now()
 
-			wpvi1 := abi.WindowPoStVerifyInfo{
+			wpvi1 := saproof.WindowPoStVerifyInfo{
 				Randomness:        challenge[:],
 				Proofs:            wproof1,
 				ChallengedSectors: sealedSectors,
@@ -422,7 +429,7 @@ func action(c *cli.Context, i int) string {
 
 			verifyWindowpost1 := time.Now()
 
-			wpvi2 := abi.WindowPoStVerifyInfo{
+			wpvi2 := saproof.WindowPoStVerifyInfo{
 				Randomness:        challenge[:],
 				Proofs:            wproof2,
 				ChallengedSectors: sealedSectors,
@@ -495,10 +502,10 @@ type ParCfg struct {
 	Commit     int
 }
 
-func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par ParCfg, mid abi.ActorID, sectorSize abi.SectorSize, ticketPreimage []byte, saveC2inp string, skipc2, skipunseal bool) ([]SealingResult, []abi.SectorInfo, error) {
+func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par ParCfg, mid abi.ActorID, sectorSize abi.SectorSize, ticketPreimage []byte, saveC2inp string, skipc2, skipunseal bool) ([]SealingResult, []saproof.SectorInfo, error) {
 	var pieces []abi.PieceInfo
 	sealTimings := make([]SealingResult, numSectors)
-	sealedSectors := make([]abi.SectorInfo, numSectors)
+	sealedSectors := make([]saproof.SectorInfo, numSectors)
 
 	preCommit2Sema := make(chan struct{}, par.PreCommit2)
 	commitSema := make(chan struct{}, par.Commit)
@@ -568,7 +575,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 					precommit2 := time.Now()
 					<-preCommit2Sema
 
-					sealedSectors[ix] = abi.SectorInfo{
+					sealedSectors[ix] = saproof.SectorInfo{
 						SealProof:    sb.SealProofType(),
 						SectorNumber: i,
 						SealedCID:    cids.Sealed,
@@ -620,7 +627,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 					<-commitSema
 
 					if !skipc2 {
-						svi := abi.SealVerifyInfo{
+						svi := saproof.SealVerifyInfo{
 							SectorID:              abi.SectorID{Miner: mid, Number: i},
 							SealedCID:             cids.Sealed,
 							SealProof:             sb.SealProofType(),
@@ -645,7 +652,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 					if !skipunseal {
 						log.Infof("[%d] Unsealing sector", i)
 						{
-							p, done, err := sbfs.AcquireSector(context.TODO(), abi.SectorID{Miner: mid, Number: 1}, stores.FTUnsealed, stores.FTNone, true)
+							p, done, err := sbfs.AcquireSector(context.TODO(), abi.SectorID{Miner: mid, Number: 1}, stores.FTUnsealed, stores.FTNone, stores.PathSealing)
 							if err != nil {
 								return xerrors.Errorf("acquire unsealed sector for removing: %w", err)
 							}
@@ -748,7 +755,7 @@ var proveCmd = &cli.Command{
 			SealProofType: spt,
 		}
 
-		sb, err := ffiwrapper.New(false, nil, cfg)
+		sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, nil, cfg)
 		if err != nil {
 			return err
 		}
@@ -776,5 +783,5 @@ func bps(data abi.SectorSize, d time.Duration) string {
 	bdata := new(big.Int).SetUint64(uint64(data))
 	bdata = bdata.Mul(bdata, big.NewInt(time.Second.Nanoseconds()))
 	bps := bdata.Div(bdata, big.NewInt(d.Nanoseconds()))
-	return types.SizeStr(types.BigInt{bps}) + "/s"
+	return types.SizeStr(types.BigInt{Int: bps}) + "/s"
 }

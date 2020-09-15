@@ -17,7 +17,7 @@ import (
 	"github.com/filecoin-project/lotus/chain"
 	"github.com/filecoin-project/lotus/chain/beacon"
 	"github.com/filecoin-project/lotus/chain/beacon/drand"
-	"github.com/filecoin-project/lotus/chain/blocksync"
+	"github.com/filecoin-project/lotus/chain/exchange"
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
@@ -41,7 +41,13 @@ func RunHello(mctx helpers.MetricsCtx, lc fx.Lifecycle, h host.Host, svc *hello.
 			pic := evt.(event.EvtPeerIdentificationCompleted)
 			go func() {
 				if err := svc.SayHello(helpers.LifecycleCtx(mctx, lc), pic.Peer); err != nil {
-					log.Warnw("failed to say hello", "error", err)
+					protos, _ := h.Peerstore().GetProtocols(pic.Peer)
+					agent, _ := h.Peerstore().Get(pic.Peer, "AgentVersion")
+					if protosContains(protos, hello.ProtocolID) {
+						log.Warnw("failed to say hello", "error", err, "peer", pic.Peer, "supported", protos, "agent", agent)
+					} else {
+						log.Debugw("failed to say hello", "error", err, "peer", pic.Peer, "supported", protos, "agent", agent)
+					}
 					return
 				}
 			}()
@@ -50,24 +56,34 @@ func RunHello(mctx helpers.MetricsCtx, lc fx.Lifecycle, h host.Host, svc *hello.
 	return nil
 }
 
+func protosContains(protos []string, search string) bool {
+	for _, p := range protos {
+		if p == search {
+			return true
+		}
+	}
+	return false
+}
+
 func RunPeerMgr(mctx helpers.MetricsCtx, lc fx.Lifecycle, pmgr *peermgr.PeerMgr) {
 	go pmgr.Run(helpers.LifecycleCtx(mctx, lc))
 }
 
-func RunBlockSync(h host.Host, svc *blocksync.BlockSyncService) {
-	h.SetStreamHandler(blocksync.BlockSyncProtocolID, svc.HandleStream)
+func RunChainExchange(h host.Host, svc exchange.Server) {
+	h.SetStreamHandler(exchange.BlockSyncProtocolID, svc.HandleStream)     // old
+	h.SetStreamHandler(exchange.ChainExchangeProtocolID, svc.HandleStream) // new
 }
 
-func HandleIncomingBlocks(mctx helpers.MetricsCtx, lc fx.Lifecycle, ps *pubsub.PubSub, s *chain.Syncer, chain *store.ChainStore, stmgr *stmgr.StateManager, h host.Host, nn dtypes.NetworkName) {
+func HandleIncomingBlocks(mctx helpers.MetricsCtx, lc fx.Lifecycle, ps *pubsub.PubSub, s *chain.Syncer, bserv dtypes.ChainBlockService, chain *store.ChainStore, stmgr *stmgr.StateManager, h host.Host, nn dtypes.NetworkName) {
 	ctx := helpers.LifecycleCtx(mctx, lc)
 
-	blocksub, err := ps.Subscribe(build.BlocksTopic(nn))
+	blocksub, err := ps.Subscribe(build.BlocksTopic(nn)) //nolint
 	if err != nil {
 		panic(err)
 	}
 
 	v := sub.NewBlockValidator(
-		chain, stmgr,
+		h.ID(), chain, stmgr,
 		func(p peer.ID) {
 			ps.BlacklistPeer(p)
 			h.ConnManager().TagPeer(p, "badblock", -1000)
@@ -77,18 +93,18 @@ func HandleIncomingBlocks(mctx helpers.MetricsCtx, lc fx.Lifecycle, ps *pubsub.P
 		panic(err)
 	}
 
-	go sub.HandleIncomingBlocks(ctx, blocksub, s, h.ConnManager())
+	go sub.HandleIncomingBlocks(ctx, blocksub, s, bserv, h.ConnManager())
 }
 
-func HandleIncomingMessages(mctx helpers.MetricsCtx, lc fx.Lifecycle, ps *pubsub.PubSub, mpool *messagepool.MessagePool, nn dtypes.NetworkName) {
+func HandleIncomingMessages(mctx helpers.MetricsCtx, lc fx.Lifecycle, ps *pubsub.PubSub, mpool *messagepool.MessagePool, h host.Host, nn dtypes.NetworkName) {
 	ctx := helpers.LifecycleCtx(mctx, lc)
 
-	msgsub, err := ps.Subscribe(build.MessagesTopic(nn))
+	msgsub, err := ps.Subscribe(build.MessagesTopic(nn)) //nolint:staticcheck
 	if err != nil {
 		panic(err)
 	}
 
-	v := sub.NewMessageValidator(mpool)
+	v := sub.NewMessageValidator(h.ID(), mpool)
 
 	if err := ps.RegisterTopicValidator(build.MessagesTopic(nn), v.Validate); err != nil {
 		panic(err)
@@ -110,19 +126,27 @@ type RandomBeaconParams struct {
 
 	PubSub      *pubsub.PubSub `optional:"true"`
 	Cs          *store.ChainStore
-	DrandConfig dtypes.DrandConfig
+	DrandConfig dtypes.DrandSchedule
 }
 
-func BuiltinDrandConfig() dtypes.DrandConfig {
-	return build.DrandConfig
+func BuiltinDrandConfig() dtypes.DrandSchedule {
+	return build.DrandConfigSchedule()
 }
 
-func RandomBeacon(p RandomBeaconParams, _ dtypes.AfterGenesisSet) (beacon.RandomBeacon, error) {
+func RandomSchedule(p RandomBeaconParams, _ dtypes.AfterGenesisSet) (beacon.Schedule, error) {
 	gen, err := p.Cs.GetGenesis()
 	if err != nil {
 		return nil, err
 	}
 
-	//return beacon.NewMockBeacon(build.BlockDelay * time.Second)
-	return drand.NewDrandBeacon(gen.Timestamp, build.BlockDelay, p.PubSub, p.DrandConfig)
+	shd := beacon.Schedule{}
+	for _, dc := range p.DrandConfig {
+		bc, err := drand.NewDrandBeacon(gen.Timestamp, build.BlockDelaySecs, p.PubSub, dc.Config)
+		if err != nil {
+			return nil, xerrors.Errorf("creating drand beacon: %w", err)
+		}
+		shd = append(shd, beacon.BeaconPoint{Start: dc.Start, Beacon: bc})
+	}
+
+	return shd, nil
 }

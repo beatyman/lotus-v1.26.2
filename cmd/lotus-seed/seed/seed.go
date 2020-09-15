@@ -17,23 +17,25 @@ import (
 	"github.com/minio/blake2b-simd"
 	"golang.org/x/xerrors"
 
+	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/go-state-types/crypto"
+	"github.com/filecoin-project/lotus/extern/sector-storage/zerocomm"
 	"github.com/filecoin-project/specs-actors/actors/builtin/market"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
 
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
+	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/lotus/genesis"
-	"github.com/filecoin-project/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/sector-storage/stores"
 )
 
 var log = logging.Logger("preseal")
 
-func PreSeal(maddr address.Address, spt abi.RegisteredSealProof, offset abi.SectorNumber, sectors int, sbroot string, preimage []byte, key *types.KeyInfo) (*genesis.Miner, *types.KeyInfo, error) {
+func PreSeal(maddr address.Address, spt abi.RegisteredSealProof, offset abi.SectorNumber, sectors int, sbroot string, preimage []byte, key *types.KeyInfo, fakeSectors bool) (*genesis.Miner, *types.KeyInfo, error) {
 	mid, err := address.IDFromAddress(maddr)
 	if err != nil {
 		return nil, nil, err
@@ -53,7 +55,7 @@ func PreSeal(maddr address.Address, spt abi.RegisteredSealProof, offset abi.Sect
 		Root: sbroot,
 	}
 
-	sb, err := ffiwrapper.New(false, sbfs, cfg)
+	sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, sbfs, cfg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -68,41 +70,20 @@ func PreSeal(maddr address.Address, spt abi.RegisteredSealProof, offset abi.Sect
 		sid := abi.SectorID{Miner: abi.ActorID(mid), Number: next}
 		next++
 
-		pi, err := sb.AddPiece(context.TODO(), sid, nil, abi.PaddedPieceSize(ssize).Unpadded(), rand.Reader)
-		if err != nil {
-			return nil, nil, err
+		var preseal *genesis.PreSeal
+		if !fakeSectors {
+			preseal, err = presealSector(sb, sbfs, sid, spt, ssize, preimage)
+			if err != nil {
+				return nil, nil, err
+			}
+		} else {
+			preseal, err = presealSectorFake(sbfs, sid, spt, ssize)
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 
-		trand := blake2b.Sum256(preimage)
-		ticket := abi.SealRandomness(trand[:])
-
-		fmt.Printf("sector-id: %d, piece info: %v\n", sid, pi)
-
-		in2, err := sb.SealPreCommit1(context.TODO(), sid, ticket, []abi.PieceInfo{pi})
-		if err != nil {
-			return nil, nil, xerrors.Errorf("commit: %w", err)
-		}
-
-		cids, err := sb.SealPreCommit2(context.TODO(), sid, in2)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("commit: %w", err)
-		}
-
-		if err := sb.FinalizeSector(context.TODO(), sid, nil); err != nil {
-			return nil, nil, xerrors.Errorf("trim cache: %w", err)
-		}
-
-		if err := cleanupUnsealed(sbfs, sid); err != nil {
-			return nil, nil, xerrors.Errorf("remove unsealed file: %w", err)
-		}
-
-		log.Warn("PreCommitOutput: ", sid, cids.Sealed, cids.Unsealed)
-		sealedSectors = append(sealedSectors, &genesis.PreSeal{
-			CommR:     cids.Sealed,
-			CommD:     cids.Unsealed,
-			SectorID:  sid.Number,
-			ProofType: spt,
-		})
+		sealedSectors = append(sealedSectors, preseal)
 	}
 
 	var minerAddr *wallet.Key
@@ -133,6 +114,7 @@ func PreSeal(maddr address.Address, spt abi.RegisteredSealProof, offset abi.Sect
 	}
 
 	miner := &genesis.Miner{
+		ID:            maddr,
 		Owner:         minerAddr.Address,
 		Worker:        minerAddr.Address,
 		MarketBalance: big.Zero(),
@@ -163,6 +145,69 @@ func PreSeal(maddr address.Address, spt abi.RegisteredSealProof, offset abi.Sect
 	}
 
 	return miner, &minerAddr.KeyInfo, nil
+}
+
+func presealSector(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, sid abi.SectorID, spt abi.RegisteredSealProof, ssize abi.SectorSize, preimage []byte) (*genesis.PreSeal, error) {
+	pi, err := sb.AddPiece(context.TODO(), sid, nil, abi.PaddedPieceSize(ssize).Unpadded(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	trand := blake2b.Sum256(preimage)
+	ticket := abi.SealRandomness(trand[:])
+
+	fmt.Printf("sector-id: %d, piece info: %v\n", sid, pi)
+
+	in2, err := sb.SealPreCommit1(context.TODO(), sid, ticket, []abi.PieceInfo{pi})
+	if err != nil {
+		return nil, xerrors.Errorf("commit: %w", err)
+	}
+
+	cids, err := sb.SealPreCommit2(context.TODO(), sid, in2)
+	if err != nil {
+		return nil, xerrors.Errorf("commit: %w", err)
+	}
+
+	if err := sb.FinalizeSector(context.TODO(), sid, nil); err != nil {
+		return nil, xerrors.Errorf("trim cache: %w", err)
+	}
+
+	if err := cleanupUnsealed(sbfs, sid); err != nil {
+		return nil, xerrors.Errorf("remove unsealed file: %w", err)
+	}
+
+	log.Warn("PreCommitOutput: ", sid, cids.Sealed, cids.Unsealed)
+
+	return &genesis.PreSeal{
+		CommR:     cids.Sealed,
+		CommD:     cids.Unsealed,
+		SectorID:  sid.Number,
+		ProofType: spt,
+	}, nil
+}
+
+func presealSectorFake(sbfs *basicfs.Provider, sid abi.SectorID, spt abi.RegisteredSealProof, ssize abi.SectorSize) (*genesis.PreSeal, error) {
+	paths, done, err := sbfs.AcquireSector(context.TODO(), sid, 0, stores.FTSealed|stores.FTCache, stores.PathSealing)
+	if err != nil {
+		return nil, xerrors.Errorf("acquire unsealed sector: %w", err)
+	}
+	defer done()
+
+	if err := os.Mkdir(paths.Cache, 0755); err != nil {
+		return nil, xerrors.Errorf("mkdir cache: %w", err)
+	}
+
+	commr, err := ffi.FauxRep(spt, paths.Cache, paths.Sealed)
+	if err != nil {
+		return nil, xerrors.Errorf("fauxrep: %w", err)
+	}
+
+	return &genesis.PreSeal{
+		CommR:     commr,
+		CommD:     zerocomm.ZeroPieceCommitment(abi.PaddedPieceSize(ssize).Unpadded()),
+		SectorID:  sid.Number,
+		ProofType: spt,
+	}, nil
 }
 
 func cleanupUnsealed(sbfs *basicfs.Provider, sid abi.SectorID) error {
@@ -207,12 +252,13 @@ func WriteGenesisMiner(maddr address.Address, sbroot string, gm *genesis.Miner, 
 }
 
 func createDeals(m *genesis.Miner, k *wallet.Key, maddr address.Address, ssize abi.SectorSize) error {
-	for _, sector := range m.Sectors {
+	for i, sector := range m.Sectors {
 		proposal := &market.DealProposal{
 			PieceCID:             sector.CommD,
 			PieceSize:            abi.PaddedPieceSize(ssize),
 			Client:               k.Address,
 			Provider:             maddr,
+			Label:                fmt.Sprintf("%d", i),
 			StartEpoch:           0,
 			EndEpoch:             9001,
 			StoragePricePerEpoch: big.Zero(),

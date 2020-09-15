@@ -6,18 +6,18 @@ import (
 	"testing"
 
 	datastore "github.com/ipfs/go-datastore"
-	blockstore "github.com/ipfs/go-ipfs-blockstore"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/builtin/verifreg"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
 
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/lib/blockstore"
 	"github.com/filecoin-project/lotus/node/repo"
 )
 
@@ -72,7 +72,7 @@ func BenchmarkGetRandomness(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, err := cs.GetRandomness(context.TODO(), last.Cids(), crypto.DomainSeparationTag_SealRandomness, 500, nil)
+		_, err := cs.GetChainRandomness(context.TODO(), last.Cids(), crypto.DomainSeparationTag_SealRandomness, 500, nil)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -96,11 +96,11 @@ func TestChainExportImport(t *testing.T) {
 	}
 
 	buf := new(bytes.Buffer)
-	if err := cg.ChainStore().Export(context.TODO(), last, buf); err != nil {
+	if err := cg.ChainStore().Export(context.TODO(), last, 0, buf); err != nil {
 		t.Fatal(err)
 	}
 
-	nbs := blockstore.NewBlockstore(datastore.NewMapDatastore())
+	nbs := blockstore.NewTemporary()
 	cs := store.NewChainStore(nbs, datastore.NewMapDatastore(), nil)
 
 	root, err := cs.Import(buf)

@@ -12,14 +12,14 @@ import (
 	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/exitcode"
 	aapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
-	"github.com/filecoin-project/specs-actors/actors/runtime/exitcode"
 )
 
 type MessageReceipt struct {
@@ -103,18 +103,18 @@ func subMpool(ctx context.Context, api aapi.FullNode, ts *types.TipSet, blkCid c
 			log.Error(err)
 			continue
 		}
+		tsKey := rece.TipSet
 		receipt := MessageReceipt{}
 		if rece != nil {
-			receipt.Height = rece.TipSet.Height()
+			receipt.Height = rece.Height
 			receipt.ExitCode = rece.Receipt.ExitCode
 			receipt.Return = rece.Receipt.Return
 			receipt.GasUsed = rece.Receipt.GasUsed
 			receipt.BlockCid = blkCid.String()
 		}
 		log.Info("receipt done")
-		ts := rece.TipSet
 		// 获取帐户信息
-		toStateActor, err := api.StateGetActor(ctx, v.Message.To, ts.Key())
+		toStateActor, err := api.StateGetActor(ctx, v.Message.To, tsKey)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -132,7 +132,7 @@ func subMpool(ctx context.Context, api aapi.FullNode, ts *types.TipSet, blkCid c
 			toActorMiner = mInfo
 			log.Info("toStateMiner done")
 		}
-		fromStateActor, err := api.StateGetActor(ctx, v.Message.From, ts.Key())
+		fromStateActor, err := api.StateGetActor(ctx, v.Message.From, tsKey)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -148,12 +148,12 @@ func subMpool(ctx context.Context, api aapi.FullNode, ts *types.TipSet, blkCid c
 			}
 			fromActorMiner = mInfo
 		}
-		toAct, err := api.StateLookupID(ctx, v.Message.To, ts.Key())
+		toAct, err := api.StateLookupID(ctx, v.Message.To, tsKey)
 		if err != nil {
 			log.Error(err)
 			continue
 		}
-		fromAct, err := api.StateLookupID(ctx, v.Message.From, ts.Key())
+		fromAct, err := api.StateLookupID(ctx, v.Message.From, tsKey)
 		if err != nil {
 			log.Error(err)
 			continue

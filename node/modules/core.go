@@ -6,9 +6,11 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"path/filepath"
 
 	"github.com/gbrlsnchs/jwt/v3"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/peerstore"
 	record "github.com/libp2p/go-libp2p-record"
 	"golang.org/x/xerrors"
@@ -18,6 +20,7 @@ import (
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/lib/addrutil"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
@@ -34,9 +37,10 @@ func RecordValidator(ps peerstore.Peerstore) record.Validator {
 	}
 }
 
-const JWTSecretName = "auth-jwt-private" //nolint:gosec
+const JWTSecretName = "auth-jwt-private"  //nolint:gosec
+const KTJwtHmacSecret = "jwt-hmac-secret" //nolint:gosec
 
-type jwtPayload struct {
+type JwtPayload struct {
 	Allow []auth.Permission
 }
 
@@ -52,7 +56,7 @@ func APISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.APIAlg, err
 		}
 
 		key = types.KeyInfo{
-			Type:       "jwt-hmac-secret",
+			Type:       KTJwtHmacSecret,
 			PrivateKey: sk,
 		}
 
@@ -61,7 +65,7 @@ func APISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.APIAlg, err
 		}
 
 		// TODO: make this configurable
-		p := jwtPayload{
+		p := JwtPayload{
 			Allow: apistruct.AllPermissions,
 		}
 
@@ -90,6 +94,20 @@ func BuiltinBootstrap() (dtypes.BootstrapPeers, error) {
 	return build.BuiltinBootstrap()
 }
 
-func DrandBootstrap() (dtypes.DrandBootstrap, error) {
-	return build.DrandBootstrap()
+func DrandBootstrap(ds dtypes.DrandSchedule) (dtypes.DrandBootstrap, error) {
+	// TODO: retry resolving, don't fail if at least one resolve succeeds
+	res := []peer.AddrInfo{}
+	for _, d := range ds {
+		addrs, err := addrutil.ParseAddresses(context.TODO(), d.Config.Relays)
+		if err != nil {
+			log.Errorf("reoslving drand relays addresses: %+v", err)
+			return res, nil
+		}
+		res = append(res, addrs...)
+	}
+	return res, nil
+}
+
+func SetupJournal(lr repo.LockedRepo) error {
+	return journal.InitializeSystemJournal(filepath.Join(lr.Path(), "journal"))
 }

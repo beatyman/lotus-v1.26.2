@@ -259,7 +259,7 @@ When we launch a Lotus node with the command `./lotus daemon`
 (see [here](https://github.com/filecoin-project/lotus/blob/master/cmd/lotus/daemon.go) for more),
 the node is created through [dependency injection](https://godoc.org/go.uber.org/fx).
 This relies on reflection, which makes some of the references hard to follow.
-The node sets up all of the subsystems it needs to run, such as the repository, the network connections, thechain sync
+The node sets up all of the subsystems it needs to run, such as the repository, the network connections, the chain sync
 service, etc.
 This setup is orchestrated through calls to the `node.Override` function.
 The structure of each call indicates the type of component it will set up
@@ -344,7 +344,7 @@ At the end of the `Repo()` function we see two mutually exclusive configuration 
 			ApplyIf(isType(repo.FullNode), ConfigFullNode(c)),
 			ApplyIf(isType(repo.StorageMiner), ConfigStorageMiner(c)),
 ```
-As we said, the repo fully identifies the node so a repo type is also a *node* type, in this case a full node or a storage miner. (FIXME: What is the difference between the two, does *full* imply miner?) In this case the `daemon` command will create a `FullNode`, this is specified in the command logic itself in `main.DaemonCmd()`, the `FsRepo` created (and passed to `node.Repo()`) will be initiated with that type (see `(*FsRepo).Init(t RepoType)`).
+As we said, the repo fully identifies the node so a repo type is also a *node* type, in this case a full node or a miner. (FIXME: What is the difference between the two, does *full* imply miner?) In this case the `daemon` command will create a `FullNode`, this is specified in the command logic itself in `main.DaemonCmd()`, the `FsRepo` created (and passed to `node.Repo()`) will be initiated with that type (see `(*FsRepo).Init(t RepoType)`).
 
 ## Online
 
