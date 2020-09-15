@@ -86,6 +86,10 @@ var setHlmSectorStateCmd = &cli.Command{
 			Name:  "sector-id",
 			Usage: "sector id which want to set",
 		},
+		&cli.BoolFlag{
+			Name:  "force",
+			Usage: "force to release the task in working",
+		},
 		&cli.IntFlag{
 			Name:  "state",
 			Usage: "state which want to set",
@@ -111,12 +115,8 @@ var setHlmSectorStateCmd = &cli.Command{
 		if len(memo) == 0 {
 			return errors.New("need input memo")
 		}
-		working, err := nodeApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"))
-		if err != nil {
+		if _, err := nodeApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"), cctx.Bool("force")); err != nil {
 			return err
-		}
-		if working {
-			fmt.Println("state has set, but the working still in working, please restart the worker or wait the next retry of seal event.")
 		}
 		return nil
 	},

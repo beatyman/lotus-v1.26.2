@@ -26,8 +26,8 @@ func (sm *StorageMinerAPI) StopPledgeSector(ctx context.Context) error {
 	return sm.Miner.ExitPledgeSector()
 }
 
-func (sm *StorageMinerAPI) HlmSectorSetState(ctx context.Context, sid, memo string, state int) (bool, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, state)
+func (sm *StorageMinerAPI) HlmSectorSetState(ctx context.Context, sid, memo string, state int, force bool) (bool, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, state, force)
 }
 
 // Message communication

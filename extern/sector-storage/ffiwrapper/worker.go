@@ -278,7 +278,7 @@ func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string
 	return nil
 }
 
-func (sb *Sealer) UpdateSectorState(sid, memo string, state int) (bool, error) {
+func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force bool) (bool, error) {
 	sInfo, err := database.GetSectorInfo(sid)
 	if err != nil {
 		return false, errors.As(err, sid, memo, state)
@@ -294,16 +294,22 @@ func (sb *Sealer) UpdateSectorState(sid, memo string, state int) (bool, error) {
 		if ok {
 			if task.Type%10 == 0 {
 				working = true
-				return false
-			} else {
-				// free memory
-				r.lock.Lock()
-				delete(r.busyOnTasks, sid)
-				r.lock.Unlock()
 			}
+			if working && !force {
+				return false
+			}
+
+			// free memory
+			r.lock.Lock()
+			delete(r.busyOnTasks, sid)
+			r.lock.Unlock()
 		}
 		return true
 	})
+
+	if working && !force {
+		return working, errors.New("the task is in working").As(sid)
+	}
 
 	// update state
 	if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, state); err != nil {
