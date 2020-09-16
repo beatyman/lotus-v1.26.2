@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -21,6 +22,7 @@ var hlmStorageCmd = &cli.Command{
 		mountHLMStorageCmd,
 		relinkHLMStorageCmd,
 		scaleHLMStorageCmd,
+		statusHLMStorageCmd,
 	},
 }
 
@@ -139,7 +141,7 @@ var disableHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		return nodeApi.DisableHLMStorage(ctx, id)
+		return nodeApi.DisableHLMStorage(ctx, id, true)
 	},
 }
 var enableHLMStorageCmd = &cli.Command{
@@ -147,8 +149,21 @@ var enableHLMStorageCmd = &cli.Command{
 	Usage:     "Enable a storage node to recover allocating for write",
 	ArgsUsage: "id",
 	Action: func(cctx *cli.Context) error {
-		fmt.Println("TODO")
-		return nil
+		args := cctx.Args()
+		if args.Len() == 0 {
+			return errors.New("need input id")
+		}
+		id, err := strconv.ParseInt(args.First(), 10, 64)
+		if err != nil {
+			return err
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		return nodeApi.DisableHLMStorage(ctx, id, false)
 	},
 }
 var mountHLMStorageCmd = &cli.Command{
@@ -306,5 +321,60 @@ var scaleHLMStorageCmd = &cli.Command{
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 		return nodeApi.ScaleHLMStorage(ctx, storageId, maxSize, maxWork)
+	},
+}
+
+var statusHLMStorageCmd = &cli.Command{
+	Name:  "status",
+	Usage: "show status of storage",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:  "storage-id",
+			Usage: "storage ID",
+			Value: 0,
+		},
+		&cli.IntFlag{
+			Name:  "timeout",
+			Usage: "timeout for every node. Uint is in second",
+			Value: 3,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		storageId := cctx.Int64("storage-id")
+		if storageId < 0 {
+			return errors.New("error storage id")
+		}
+		timeout := cctx.Int("timeout")
+		if timeout < 1 {
+			return errors.New("error timeout")
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		stats, err := nodeApi.StatusHLMStorage(ctx, storageId, time.Duration(timeout)*time.Second)
+		if err != nil {
+			return err
+		}
+		good := []database.StorageStatus{}
+		bad := []database.StorageStatus{}
+		disable := []database.StorageStatus{}
+		for _, stat := range stats {
+			if stat.Disable {
+				fmt.Printf("disable node:%d,%s\n", stat.StorageId, stat.MountUri)
+				disable = append(disable, stat)
+				continue
+			}
+			if stat.Err != nil {
+				fmt.Printf("bad node, uri:%s,%+v\n", stat.MountUri, stat)
+				bad = append(bad, stat)
+				continue
+			}
+			good = append(good, stat)
+		}
+		fmt.Printf("status, all:%d,good:%d,bad:%d,disable:%d\n", len(stats), len(good), len(bad), len(disable))
+		return nil
 	},
 }

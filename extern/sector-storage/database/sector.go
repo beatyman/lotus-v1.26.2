@@ -37,6 +37,26 @@ type SectorStorage struct {
 	WorkerInfo  WorkerInfo
 }
 
+type StorageStatus struct {
+	StorageId int64
+	MountDir  string
+	MountUri  string
+	Disable   bool
+	Used      time.Duration
+	Err       error
+}
+type StorageStatusSort []StorageStatus
+
+func (g StorageStatusSort) Len() int {
+	return len(g)
+}
+func (g StorageStatusSort) Swap(i, j int) {
+	g[i], g[j] = g[j], g[i]
+}
+func (g StorageStatusSort) Less(i, j int) bool {
+	return g[i].Used < g[j].Used
+}
+
 func SectorID(minerId string, sectorId int64) string {
 	return fmt.Sprintf("s-%s-%d", minerId, sectorId)
 }

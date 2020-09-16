@@ -86,3 +86,43 @@ func ChecksumStorage(sumVer int64) (StorageList, error) {
 	// return all if version not match
 	return GetAllStorageInfo()
 }
+
+func GetStorageCheck(id int64) (StorageStatusSort, error) {
+	mdb := GetDB()
+	list := StorageStatusSort{}
+	var rows *sql.Rows
+	var err error
+	if id > 0 {
+		rows, err = mdb.Query(
+			"SELECT tb1.id, tb1.mount_dir, tb1.mount_signal_uri, disable FROM storage_info tb1 WHERE tb1.id=?",
+			id,
+		)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+	} else {
+		rows, err = mdb.Query(
+			"SELECT tb1.id, tb1.mount_dir, tb1.mount_signal_uri, disable FROM storage_info tb1 LIMIT 10000", // TODO: more then 10000
+		)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		state := StorageStatus{}
+		if err := rows.Scan(
+			&state.StorageId,
+			&state.MountDir,
+			&state.MountUri,
+			&state.Disable,
+		); err != nil {
+			return nil, errors.As(err)
+		}
+	}
+	if len(list) == 0 {
+		return nil, errors.ErrNoData
+	}
+	return list, nil
+}

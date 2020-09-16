@@ -2,6 +2,7 @@ package impl
 
 import (
 	"context"
+	"time"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -103,8 +104,8 @@ func (sm *StorageMinerAPI) WorkerMinerConn(ctx context.Context) (int, error) {
 func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddStorage(ctx, sInfo)
 }
-func (sm *StorageMinerAPI) DisableHLMStorage(ctx context.Context, id int64) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableStorage(ctx, id)
+func (sm *StorageMinerAPI) DisableHLMStorage(ctx context.Context, id int64, disable bool) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableStorage(ctx, id, disable)
 }
 func (sm *StorageMinerAPI) MountHLMStorage(ctx context.Context, id int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).MountStorage(ctx, id)
@@ -118,6 +119,9 @@ func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, id int64, sign
 }
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
+}
+func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, timeout time.Duration) ([]database.StorageStatus, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, timeout)
 }
 func (sm *StorageMinerAPI) PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PreStorageNode(sectorId, clientIp)
