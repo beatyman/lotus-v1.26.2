@@ -47,8 +47,8 @@ func (sb *Sealer) MakeLink(task *WorkerTask) error {
 	return nil
 }
 
-func (sb *Sealer) AddStorage(ctx context.Context, sInfo database.StorageInfo) error {
-	if err := database.AddStorage(&sInfo); err != nil {
+func (sb *Sealer) AddStorage(ctx context.Context, sInfo *database.StorageInfo) error {
+	if err := database.AddStorage(sInfo); err != nil {
 		return err
 	}
 	if sInfo.MaxSize == -1 {
@@ -58,9 +58,17 @@ func (sb *Sealer) AddStorage(ctx context.Context, sInfo database.StorageInfo) er
 			return err
 		}
 		sInfo.MaxSize = int64(diskStatus.All)
-		if err = database.UpdateStorageInfo(&sInfo); err != nil {
+		if err = database.UpdateStorageInfo(sInfo); err != nil {
 			return err
 		}
+	}
+	if err := database.Mount(
+		sInfo.MountType,
+		sInfo.MountSignalUri,
+		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", sInfo.ID)),
+		sInfo.MountOpt,
+	); err != nil {
+		return errors.As(err, sInfo)
 	}
 
 	return nil
@@ -132,28 +140,16 @@ func (sb *Sealer) RelinkStorage(ctx context.Context, storageId int64) error {
 	return nil
 }
 
-func (sb *Sealer) ReplaceStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error {
-	storageInfo, err := database.GetStorageInfo(id)
-	if err != nil {
-		return err
-	}
-	storageInfo.MountSignalUri = signalUri
-	storageInfo.MountTransfUri = transfUri
-	if len(mountType) > 0 {
-		storageInfo.MountType = mountType
-	}
-	if len(mountOpt) > 0 {
-		storageInfo.MountOpt = mountOpt
-	}
-	storageInfo.Version = time.Now().UnixNano() //  upgrade the data version
-	if err := database.Mount(mountType, signalUri,
-		filepath.Join(storageInfo.MountDir, fmt.Sprintf("%d", storageInfo.ID)),
-		mountOpt); err != nil {
+func (sb *Sealer) ReplaceStorage(ctx context.Context, info *database.StorageInfo) error {
+	if err := database.Mount(
+		info.MountType, info.MountSignalUri,
+		filepath.Join(info.MountDir, fmt.Sprintf("%d", info.ID)),
+		info.MountOpt); err != nil {
 		return errors.As(err)
 	}
 
 	// update information
-	if err := database.UpdateStorageInfo(storageInfo); err != nil {
+	if err := database.UpdateStorageInfo(info); err != nil {
 		return errors.As(err)
 	}
 	return nil
@@ -205,7 +201,7 @@ func (sb *Sealer) CancelStorageNode(sectorId string) error {
 	return tx.Rollback()
 }
 
-func (sb *Sealer) ChecksumStorage(sumVer int64) (database.StorageList, error) {
+func (sb *Sealer) ChecksumStorage(sumVer int64) ([]database.StorageInfo, error) {
 	return database.ChecksumStorage(sumVer)
 }
 

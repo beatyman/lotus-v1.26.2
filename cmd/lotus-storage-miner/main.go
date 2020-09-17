@@ -51,7 +51,6 @@ func main() {
 		lcli.WithCategory("hlm", hlmSectorCmd),
 		lcli.WithCategory("hlm", hlmStorageCmd),
 		lcli.WithCategory("hlm", hlmWorkerCmd),
-		lcli.WithCategory("hlm", hlmFaucetCmd),
 		lcli.WithCategory("hlm", testingCmd),
 	}
 	jaeger := tracing.SetupJaegerTracing("lotus")

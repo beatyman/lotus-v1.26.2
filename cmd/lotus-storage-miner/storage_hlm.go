@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -16,6 +17,9 @@ var hlmStorageCmd = &cli.Command{
 	Name:  "hlm-storage",
 	Usage: "Manage storage",
 	Subcommands: []*cli.Command{
+		verHLMStorageCmd,
+		getHLMStorageCmd,
+		searchHLMStorageCmd,
 		addHLMStorageCmd,
 		disableHLMStorageCmd,
 		enableHLMStorageCmd,
@@ -23,6 +27,85 @@ var hlmStorageCmd = &cli.Command{
 		relinkHLMStorageCmd,
 		scaleHLMStorageCmd,
 		statusHLMStorageCmd,
+	},
+}
+var verHLMStorageCmd = &cli.Command{
+	Name:      "ver",
+	Usage:     "get the current max version of the storage",
+	ArgsUsage: "id",
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		ver, err := nodeApi.VerHLMStorage(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("max ver:%d\n", ver)
+		return nil
+	},
+}
+var getHLMStorageCmd = &cli.Command{
+	Name:      "get",
+	Usage:     "get a storage node information",
+	ArgsUsage: "id",
+	Action: func(cctx *cli.Context) error {
+		args := cctx.Args()
+		if args.Len() == 0 {
+			return errors.New("need input id")
+		}
+		id, err := strconv.ParseInt(args.First(), 10, 64)
+		if err != nil {
+			return err
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		info, err := nodeApi.GetHLMStorage(ctx, id)
+		if err != nil {
+			return err
+		}
+		output, err := json.MarshalIndent(info, "", "	")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(output))
+		return nil
+	},
+}
+
+var searchHLMStorageCmd = &cli.Command{
+	Name:      "search",
+	Usage:     "search a storage node information by signal ip",
+	ArgsUsage: "ip",
+	Action: func(cctx *cli.Context) error {
+		args := cctx.Args()
+		ip := args.First()
+		if len(ip) == 0 {
+			return errors.New("need input ip")
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		info, err := nodeApi.SearchHLMStorage(ctx, ip)
+		if err != nil {
+			return err
+		}
+		output, err := json.MarshalIndent(info, "", "	")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(output))
+		return nil
 	},
 }
 
@@ -108,7 +191,7 @@ var addHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		return nodeApi.AddHLMStorage(ctx, database.StorageInfo{
+		return nodeApi.AddHLMStorage(ctx, &database.StorageInfo{
 			MountType:      mountType,
 			MountSignalUri: mountSignalUri,
 			MountTransfUri: mountTransfUri,
@@ -118,6 +201,7 @@ var addHLMStorageCmd = &cli.Command{
 			KeepSize:       keepSize,
 			SectorSize:     sectorSize,
 			MaxWork:        maxWork,
+			Version:        time.Now().UnixNano(),
 		})
 	},
 }
@@ -259,8 +343,6 @@ var replaceHLMStorageCmd = &cli.Command{
 		if len(mountTransfUri) == 0 {
 			mountTransfUri = mountSignalUri
 		}
-		mountType := cctx.String("mount-type")
-		mountOpt := cctx.String("mount-opt")
 
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -268,7 +350,20 @@ var replaceHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		return nodeApi.ReplaceHLMStorage(ctx, storageId, mountSignalUri, mountTransfUri, mountType, mountOpt)
+		info, err := nodeApi.GetHLMStorage(ctx, storageId)
+		if err != nil {
+			return err
+		}
+		mountType := cctx.String("mount-type")
+		if len(mountType) > 0 {
+			info.MountType = mountType
+		}
+		mountOpt := cctx.String("mount-opt")
+		if len(mountOpt) > 0 {
+			info.MountOpt = mountOpt
+		}
+		info.Version = time.Now().UnixNano()
+		return nodeApi.ReplaceHLMStorage(ctx, info)
 	},
 }
 
@@ -374,7 +469,7 @@ var statusHLMStorageCmd = &cli.Command{
 			}
 			good = append(good, stat)
 		}
-		fmt.Printf("status, all:%d,good:%d,bad:%d,disable:%d\n", len(stats), len(good), len(bad), len(disable))
+		fmt.Printf("all:%d, good:%d, bad:%d, disable:%d\n", len(stats), len(good), len(bad), len(disable))
 		return nil
 	},
 }

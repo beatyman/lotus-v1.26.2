@@ -344,18 +344,21 @@ type StorageMinerStruct struct {
 		WorkerMinerConn      func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
 		Testing           func(ctx context.Context, fnName string, args []string) error                                `perm:"admin"`
-		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error                                  `perm:"write"`
+		VerHLMStorage     func(ctx context.Context) (int64, error)                                                     `perm:"read"`
+		GetHLMStorage     func(ctx context.Context, id int64) (*database.StorageInfo, error)                           `perm:"read"`
+		SearchHLMStorage  func(ctx context.Context, ip string) ([]database.StorageInfo, error)                         `perm:"read"`
+		AddHLMStorage     func(ctx context.Context, sInfo *database.StorageInfo) error                                 `perm:"write"`
 		DisableHLMStorage func(ctx context.Context, id int64, disable bool) error                                      `perm:"write"`
 		MountHLMStorage   func(ctx context.Context, id int64) error                                                    `perm:"write"`
 		UMountHLMStorage  func(ctx context.Context, id int64) error                                                    `perm:"write"`
 		RelinkHLMStorage  func(ctx context.Context, id int64) error                                                    `perm:"write"`
-		ReplaceHLMStorage func(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error  `perm:"write"`
+		ReplaceHLMStorage func(ctx context.Context, info *database.StorageInfo) error                                  `perm:"write"`
 		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error                            `perm:"write"`
-		StatusHLMStorage  func(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) `perm:"write"`
+		StatusHLMStorage  func(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) `perm:"read"`
 		PreStorageNode    func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)          `perm:"write"`
 		CommitStorageNode func(ctx context.Context, sectorId string) error                                             `perm:"write"`
 		CancelStorageNode func(ctx context.Context, sectorId string) error                                             `perm:"write"`
-		ChecksumStorage   func(ctx context.Context, ver int64) (database.StorageList, error)                           `perm:"read"`
+		ChecksumStorage   func(ctx context.Context, ver int64) ([]database.StorageInfo, error)                         `perm:"read"`
 	}
 }
 
@@ -1429,7 +1432,16 @@ func (c *StorageMinerStruct) WorkerMinerConn(ctx context.Context) (int, error) {
 func (c *StorageMinerStruct) Testing(ctx context.Context, fnName string, args []string) error {
 	return c.Internal.Testing(ctx, fnName, args)
 }
-func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
+func (c *StorageMinerStruct) VerHLMStorage(ctx context.Context) (int64, error) {
+	return c.Internal.VerHLMStorage(ctx)
+}
+func (c *StorageMinerStruct) GetHLMStorage(ctx context.Context, id int64) (*database.StorageInfo, error) {
+	return c.Internal.GetHLMStorage(ctx, id)
+}
+func (c *StorageMinerStruct) SearchHLMStorage(ctx context.Context, ip string) ([]database.StorageInfo, error) {
+	return c.Internal.SearchHLMStorage(ctx, ip)
+}
+func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo *database.StorageInfo) error {
 	return c.Internal.AddHLMStorage(ctx, sInfo)
 }
 func (c *StorageMinerStruct) DisableHLMStorage(ctx context.Context, id int64, disable bool) error {
@@ -1444,8 +1456,8 @@ func (c *StorageMinerStruct) UMountHLMStorage(ctx context.Context, id int64) err
 func (c *StorageMinerStruct) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return c.Internal.RelinkHLMStorage(ctx, id)
 }
-func (c *StorageMinerStruct) ReplaceHLMStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error {
-	return c.Internal.ReplaceHLMStorage(ctx, id, signalUri, transfUri, mountType, mountOpt)
+func (c *StorageMinerStruct) ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error {
+	return c.Internal.ReplaceHLMStorage(ctx, info)
 }
 func (c *StorageMinerStruct) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return c.Internal.ScaleHLMStorage(ctx, id, size, work)
@@ -1466,7 +1478,7 @@ func (c *StorageMinerStruct) CancelStorageNode(ctx context.Context, sectorId str
 	return c.Internal.CancelStorageNode(ctx, sectorId)
 }
 
-func (c *StorageMinerStruct) ChecksumStorage(ctx context.Context, sumVer int64) (database.StorageList, error) {
+func (c *StorageMinerStruct) ChecksumStorage(ctx context.Context, sumVer int64) ([]database.StorageInfo, error) {
 	return c.Internal.ChecksumStorage(ctx, sumVer)
 }
 

@@ -193,16 +193,6 @@ func AddStorage(sInfo *StorageInfo) error {
 	if err := AddStorageInfo(sInfo); err != nil {
 		return errors.As(err, *sInfo)
 	}
-	if err := Mount(
-		sInfo.MountType,
-		sInfo.MountSignalUri,
-		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", sInfo.ID)),
-		sInfo.MountOpt,
-	); err != nil {
-		// TODO: rollback insert ?
-		return errors.As(err, *sInfo)
-	}
-
 	return nil
 }
 

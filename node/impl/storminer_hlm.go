@@ -101,8 +101,17 @@ func (sm *StorageMinerAPI) WorkerPreConn(ctx context.Context) (*database.WorkerI
 func (sm *StorageMinerAPI) WorkerMinerConn(ctx context.Context) (int, error) {
 	return fileserver.Conns(), nil
 }
-func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddStorage(ctx, sInfo)
+func (sm *StorageMinerAPI) VerHLMStorage(ctx context.Context) (int64, error) {
+	return database.StorageMaxVer()
+}
+func (sm *StorageMinerAPI) GetHLMStorage(ctx context.Context, id int64) (*database.StorageInfo, error) {
+	return database.GetStorageInfo(id)
+}
+func (sm *StorageMinerAPI) SearchHLMStorage(ctx context.Context, ip string) ([]database.StorageInfo, error) {
+	return database.SearchStorageInfoBySignalIp(ip)
+}
+func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, info *database.StorageInfo) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddStorage(ctx, info)
 }
 func (sm *StorageMinerAPI) DisableHLMStorage(ctx context.Context, id int64, disable bool) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableStorage(ctx, id, disable)
@@ -114,8 +123,8 @@ func (sm *StorageMinerAPI) MountHLMStorage(ctx context.Context, id int64) error 
 func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id)
 }
-func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ReplaceStorage(ctx, id, signalUri, transfUri, mountType, mountOpt)
+func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ReplaceStorage(ctx, info)
 }
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
@@ -132,6 +141,6 @@ func (sm *StorageMinerAPI) CommitStorageNode(ctx context.Context, sectorId strin
 func (sm *StorageMinerAPI) CancelStorageNode(ctx context.Context, sectorId string) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CancelStorageNode(sectorId)
 }
-func (sm *StorageMinerAPI) ChecksumStorage(ctx context.Context, ver int64) (database.StorageList, error) {
+func (sm *StorageMinerAPI) ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ChecksumStorage(ver)
 }

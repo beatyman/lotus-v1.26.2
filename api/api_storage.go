@@ -130,17 +130,20 @@ type StorageMiner interface {
 	WorkerMinerConn(ctx context.Context) (int, error)
 
 	//Storage
-	AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error
+	VerHLMStorage(ctx context.Context) (int64, error)
+	GetHLMStorage(ctx context.Context, id int64) (*database.StorageInfo, error)
+	SearchHLMStorage(ctx context.Context, ip string) ([]database.StorageInfo, error)
+	AddHLMStorage(ctx context.Context, info *database.StorageInfo) error
 	DisableHLMStorage(ctx context.Context, id int64, disable bool) error
 	MountHLMStorage(ctx context.Context, id int64) error
 	RelinkHLMStorage(ctx context.Context, id int64) error
-	ReplaceHLMStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error
+	ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error
 	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
 	StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error)
 	PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)
 	CommitStorageNode(ctx context.Context, sectorId string) error
 	CancelStorageNode(ctx context.Context, sectorId string) error
-	ChecksumStorage(ctx context.Context, ver int64) (database.StorageList, error)
+	ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error)
 }
 
 type SealRes struct {
