@@ -96,9 +96,9 @@ func CheckProvable(repo string, ssize abi.SectorSize, sectors []abi.SectorID, ti
 				<-routines
 			}()
 
+			start := time.Now()
 			// checking data
 			checkDone := make(chan error, 1)
-			start := time.Now()
 			go func() {
 				checkDone <- checkBad(s)
 			}()

@@ -239,6 +239,7 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 				<-routines
 			}()
 
+			start := time.Now()
 			// checking data
 			checkDone := make(chan error, 1)
 			go func() {
@@ -246,7 +247,6 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 			}()
 
 			var errResult error
-			start := time.Now()
 			select {
 			case <-ctx.Done():
 				// user canceled
