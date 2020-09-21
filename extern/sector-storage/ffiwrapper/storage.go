@@ -206,10 +206,10 @@ func (sb *Sealer) ChecksumStorage(sumVer int64) ([]database.StorageInfo, error) 
 }
 
 func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) {
-	repo := sb.sectors.RepoPath()
-
 	checkFn := func(c *database.StorageStatus) error {
-		checkPath := filepath.Join(repo, "miner-check.dat")
+		mountPath := filepath.Join(c.MountDir, fmt.Sprintf("%d", c.StorageId))
+
+		checkPath := filepath.Join(mountPath, "miner-check.dat")
 		if err := ioutil.WriteFile(checkPath, []byte("success"), 0755); err != nil {
 			return errors.As(err, checkPath)
 		}
@@ -231,26 +231,26 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 	allLk := sync.Mutex{}
 	routines := make(chan bool, 1024) // limit the gorouting to checking the bad, the sectors would be lot.
 	done := make(chan bool, len(result))
-	for _, c := range result {
+	for i, _ := range result {
 		go func(c *database.StorageStatus) {
 			// limit the concurrency
-			select {
-			case routines <- true:
-			case <-ctx.Done():
-				return
-			}
+			routines <- true
 			defer func() {
 				<-routines
 			}()
 
 			// checking data
 			checkDone := make(chan error, 1)
-			start := time.Now()
 			go func() {
 				checkDone <- checkFn(c)
 			}()
+
 			var errResult error
+			start := time.Now()
 			select {
+			case <-ctx.Done():
+				// user canceled
+				errResult = errors.New("ctx canceled")
 			case <-time.After(timeout):
 				// read sector timeout
 				errResult = errors.New("sector stat timeout").As(timeout)
@@ -259,19 +259,17 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 			}
 			allLk.Lock()
 			c.Used = time.Now().Sub(start)
-			c.Err = errResult
+			if errResult != nil {
+				c.Err = errResult.Error()
+			}
 			allLk.Unlock()
 
 			// thread end
 			done <- true
-		}(&c)
+		}(&result[i])
 	}
 	for waits := len(result); waits > 0; waits-- {
-		select {
-		case <-done:
-		case <-ctx.Done():
-			return nil, errors.New("user canceled")
-		}
+		<-done
 	}
 	sort.Sort(result)
 	return result, nil

@@ -43,7 +43,7 @@ type StorageStatus struct {
 	MountUri  string
 	Disable   bool
 	Used      time.Duration
-	Err       error
+	Err       string
 }
 type StorageStatusSort []StorageStatus
 

@@ -119,6 +119,7 @@ func ChecksumStorage(sumVer int64) ([]StorageInfo, error) {
 	return GetAllStorageInfo()
 }
 
+// SPEC: id ==0 will return all storage node
 func GetStorageCheck(id int64) (StorageStatusSort, error) {
 	mdb := GetDB()
 	var rows *sql.Rows

@@ -26,7 +26,7 @@ var hlmStorageCmd = &cli.Command{
 		mountHLMStorageCmd,
 		relinkHLMStorageCmd,
 		scaleHLMStorageCmd,
-		statusHLMStorageCmd,
+		pingHLMStorageCmd,
 	},
 }
 var verHLMStorageCmd = &cli.Command{
@@ -419,10 +419,15 @@ var scaleHLMStorageCmd = &cli.Command{
 	},
 }
 
-var statusHLMStorageCmd = &cli.Command{
-	Name:  "status",
-	Usage: "show status of storage",
+var pingHLMStorageCmd = &cli.Command{
+	Name:  "ping",
+	Usage: "ping the storage nodes",
 	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "debug",
+			Usage: "output the normal sector message",
+			Value: false,
+		},
 		&cli.Int64Flag{
 			Name:  "storage-id",
 			Usage: "storage ID",
@@ -453,17 +458,21 @@ var statusHLMStorageCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		debug := cctx.Bool("debug")
 		good := []database.StorageStatus{}
 		bad := []database.StorageStatus{}
 		disable := []database.StorageStatus{}
 		for _, stat := range stats {
+			if debug {
+				fmt.Printf("%+v\n", stat)
+			}
 			if stat.Disable {
-				fmt.Printf("disable node:%d,%s\n", stat.StorageId, stat.MountUri)
+				fmt.Printf("disable node, id:%d, uri:%s\n", stat.StorageId, stat.MountUri)
 				disable = append(disable, stat)
 				continue
 			}
-			if stat.Err != nil {
-				fmt.Printf("bad node, uri:%s,%+v\n", stat.MountUri, stat)
+			if len(stat.Err) > 0 {
+				fmt.Printf("bad node, id:%d, uri:%s, used:%s\n", stat.StorageId, stat.MountUri, stat.Used)
 				bad = append(bad, stat)
 				continue
 			}
