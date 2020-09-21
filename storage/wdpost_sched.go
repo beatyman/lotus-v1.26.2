@@ -25,7 +25,7 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-const StartConfidence = 4 // TODO: config
+const StartConfidence = 2 // TODO: config
 
 type WindowPoStScheduler struct {
 	api              storageMinerApi
