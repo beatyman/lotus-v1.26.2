@@ -7,9 +7,9 @@ fi
 mkdir -p $install_path
 
 # env for build
-RUSTFLAGS="-C target-cpu=native -g" 
-CGO_CFLAGS="-D__BLST_PORTABLE__"
-FFI_BUILD_FROM_SOURCE=1
+export RUSTFLAGS="-C target-cpu=native -g" 
+export CGO_CFLAGS="-D__BLST_PORTABLE__"
+export FFI_BUILD_FROM_SOURCE=1
 
 echo "make "$1
 case $1 in
