@@ -419,7 +419,7 @@ func (cs *ChainStore) takeHeaviestTipSet(ctx context.Context, ts *types.TipSet) 
 	heaviestMiners := []string{}
 	for _, blk := range ts.Blocks() {
 		heaviestMiners = append(heaviestMiners,
-			fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+			fmt.Sprintf("(%s,p:%d,t:%d)", blk.Miner, blk.ParentWeight, blk.Timestamp),
 		)
 	}
 
