@@ -35,12 +35,6 @@ func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	return ffi.GenerateWinningPoSt(minerID, privsectors, randomness)
 }
 
-type WindowPoStErrResp struct {
-	Code string `json:"code"`
-	Msg  string `json:"msg"`
-	Sid  int64  `json:"sid"`
-}
-
 func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.SectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
 	randomness[31] &= 0x3f
 	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
@@ -49,17 +43,21 @@ func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	}
 	defer done()
 
-	proof, faulty, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
-	if err != nil {
-		return proof, skipped, err
+	if len(skipped) > 0 {
+		return nil, skipped, xerrors.Errorf("pubSectorToPriv skipped some sectors")
 	}
+
+	proof, faulty, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
+
+	var faultyIDs []abi.SectorID
 	for _, f := range faulty {
-		skipped = append(skipped, abi.SectorID{
+		faultyIDs = append(faultyIDs, abi.SectorID{
 			Miner:  minerID,
 			Number: f,
 		})
 	}
-	return proof, skipped, err
+
+	return proof, faultyIDs, err
 }
 
 func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []proof.SectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, []abi.SectorID, func(), error) {
@@ -73,8 +71,8 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 	}
 
 	fmap := map[abi.SectorNumber]struct{}{}
-	for _, fault := range skipped {
-		fmap[fault.Number] = struct{}{}
+	for _, fault := range faults {
+		fmap[fault] = struct{}{}
 	}
 
 	var doneFuncs []func()

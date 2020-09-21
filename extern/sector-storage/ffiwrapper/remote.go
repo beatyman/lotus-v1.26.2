@@ -410,23 +410,24 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 
 	timeout := time.After(20e9)
 	var err error
+	var res resp
 	for i := len(remotes); i > 0; i-- {
 		select {
-		case resp := <-result:
-			if resp.interrupt {
+		case res := <-result:
+			if res.interrupt {
 				err = ErrTaskCancel.As(minerID)
 				continue
 			}
-			if resp.res.GoErr != nil {
-				err = errors.As(resp.res.GoErr)
+			if res.res.GoErr != nil {
+				err = errors.As(res.res.GoErr)
 				continue
 			}
-			if len(resp.res.Err) > 0 {
-				err = errors.New(resp.res.Err)
+			if len(res.res.Err) > 0 {
+				err = errors.New(res.res.Err)
 				continue
 			}
-			// only select the fastest result to return
-			return resp.res.WinningPoStProofOut, nil
+			// only select the fastest success result to return
+			return res.res.WinningPoStProofOut, nil
 		case <-ctx.Done():
 			return nil, errors.New("cancel winning post")
 		case <-timeout:
@@ -434,7 +435,7 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 			return nil, errors.New("worker timeout")
 		}
 	}
-	return nil, err
+	return res.res.WinningPoStProofOut, err
 }
 
 func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.SectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
@@ -476,8 +477,6 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		interrupt bool
 	}
 	result := make(chan resp, len(remotes))
-	retry := false
-	retryLock := sync.Mutex{}
 	for _, r := range remotes {
 		go func(req *req) {
 			ctx := context.TODO()
@@ -485,49 +484,30 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 
 			// send to remote worker
 			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
-			if interrupt {
-				result <- resp{res, interrupt}
-				return
-			}
-			if res.GoErr == nil && len(res.Err) == 0 {
-				result <- resp{res, interrupt}
-				return
-			}
-
-			// got an error , do a retry for the fastest remote
-			retryLock.Lock()
-			if !retry {
-				retry = true
-				retryLock.Unlock()
-
-				res, interrupt = sb.TaskSend(ctx, req.remote, *req.task)
-			} else {
-				retryLock.Unlock()
-			}
-
 			result <- resp{res, interrupt}
 		}(r)
 	}
 
 	var err error
+	var res resp
 	for i := len(remotes); i > 0; i-- {
-		resp := <-result
-		if resp.interrupt {
+		res = <-result
+		if res.interrupt {
 			err = ErrTaskCancel.As(minerID)
 			continue
 		}
-		if resp.res.GoErr != nil {
-			err = errors.As(resp.res.GoErr)
+		if res.res.GoErr != nil {
+			err = errors.As(res.res.GoErr)
 			continue
 		}
-		if len(resp.res.Err) > 0 {
-			err = errors.New(resp.res.Err)
+		if len(res.res.Err) > 0 {
+			err = errors.New(res.res.Err)
 			continue
 		}
-		// only select the fastest result to return
-		return resp.res.WindowPoStProofOut, resp.res.WindowPoStIgnSectors, nil
+		// only select the fastest success result to return
+		return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, nil
 	}
-	return nil, nil, err
+	return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, err
 }
 
 var selectCommit2ServiceLock = sync.Mutex{}
