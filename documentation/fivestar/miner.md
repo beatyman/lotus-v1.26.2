@@ -20,7 +20,7 @@
 # 安装依赖(需要ubuntu 18.04)
 apt-get update
 apt-get install aptitude
-aptitude install chrony nfs-common gcc git bzr jq pkg-config mesa-opencl-icd ocl-icd-opencl-dev 
+aptitude install chrony nfs-common gcc git bzr jq pkg-config mesa-opencl-icd ocl-icd-opencl-dev libclang-dev
 ```
 
 ## 国内安装技巧 
