@@ -883,9 +883,8 @@ func (a *StateAPI) MsigGetAvailableBalance(ctx context.Context, addr address.Add
 		return act.Balance, nil
 	}
 
-	minBalance := types.BigDiv(st.InitialBalance, types.NewInt(uint64(st.UnlockDuration)))
-	minBalance = types.BigMul(minBalance, types.NewInt(uint64(offset)))
-	return types.BigSub(act.Balance, minBalance), nil
+	al := st.AmountLocked(offset)
+	return types.BigSub(act.Balance, al), nil
 }
 
 func (a *StateAPI) MsigGetVested(ctx context.Context, addr address.Address, start types.TipSetKey, end types.TipSetKey) (types.BigInt, error) {
@@ -1225,4 +1224,53 @@ func (a *StateAPI) StateCirculatingSupply(ctx context.Context, tsk types.TipSetK
 	}
 
 	return a.StateManager.GetCirculatingSupplyDetailed(ctx, ts.Height(), sTree)
+}
+
+func (a *StateAPI) StateMsgGasCost(ctx context.Context, inputMsg cid.Cid, tsk types.TipSetKey) (*api.MsgGasCost, error) {
+	var msg cid.Cid
+	var ts *types.TipSet
+	var err error
+	if tsk != types.EmptyTSK {
+		msg = inputMsg
+		ts, err = a.Chain.LoadTipSet(tsk)
+		if err != nil {
+			return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
+		}
+	} else {
+		mlkp, err := a.StateSearchMsg(ctx, inputMsg)
+		if err != nil {
+			return nil, xerrors.Errorf("searching for msg %s: %w", inputMsg, err)
+		}
+		if mlkp == nil {
+			return nil, xerrors.Errorf("didn't find msg %s", inputMsg)
+		}
+
+		executionTs, err := a.Chain.GetTipSetFromKey(mlkp.TipSet)
+		if err != nil {
+			return nil, xerrors.Errorf("loading tipset %s: %w", mlkp.TipSet, err)
+		}
+
+		ts, err = a.Chain.LoadTipSet(executionTs.Parents())
+		if err != nil {
+			return nil, xerrors.Errorf("loading parent tipset %s: %w", mlkp.TipSet, err)
+		}
+
+		msg = mlkp.Message
+	}
+
+	m, r, err := a.StateManager.Replay(ctx, ts, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.MsgGasCost{
+		Message:            msg,
+		GasUsed:            big.NewInt(r.GasUsed),
+		BaseFeeBurn:        r.GasCosts.BaseFeeBurn,
+		OverEstimationBurn: r.GasCosts.OverEstimationBurn,
+		MinerPenalty:       r.GasCosts.MinerPenalty,
+		MinerTip:           r.GasCosts.MinerTip,
+		Refund:             r.GasCosts.Refund,
+		TotalCost:          big.Sub(m.RequiredFunds(), r.GasCosts.Refund),
+	}, nil
 }

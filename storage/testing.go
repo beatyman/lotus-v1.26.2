@@ -50,24 +50,22 @@ func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context, height abi.Ch
 
 	log.Infof("DEBUG:tipset:%d,%d,%+v", new.Height(), ts.Height(), deadline)
 	// deadline.Index = index
-	proof, err := s.runPost(ctx, submit, *deadline, ts)
-	switch err {
-	case errNoPartitions:
-		log.Info("NoPartitions")
-		return
-	case nil:
-		// no commit
-		log.Infof("submit window post:%t", submit)
-		if submit {
-			if _, err := s.submitPost(ctx, proof); err != nil {
-				log.Errorf("submitPost failed: %+v", err)
-				return
-			}
-		}
-
-		return
-	default:
+	posts, err := s.runPost(ctx, submit, *deadline, ts)
+	if err != nil {
 		log.Errorf("runPost failed: %+v", err)
 		return
 	}
+	// no commit
+	log.Infof("submit window post:%t", submit)
+	if !submit {
+		return
+	}
+	for i := range posts {
+		post := &posts[i]
+		_, err := s.submitPost(ctx, post)
+		if err != nil {
+			log.Errorf("submit window post failed: %+v", err)
+		}
+	}
+	return
 }

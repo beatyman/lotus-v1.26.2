@@ -424,7 +424,7 @@ func action(c *cli.Context, i int) string {
 				return err.Error()
 			}
 			if !ok {
-				log.Error("post verification failed")
+				log.Error("window post verification failed")
 			}
 
 			verifyWindowpost1 := time.Now()
@@ -440,7 +440,7 @@ func action(c *cli.Context, i int) string {
 				return err.Error()
 			}
 			if !ok {
-				log.Error("post verification failed")
+				log.Error("window post verification failed")
 			}
 
 			verifyWindowpost2 := time.Now()

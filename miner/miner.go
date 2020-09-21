@@ -141,6 +141,7 @@ func (m *Miner) niceSleep(d time.Duration) bool {
 	case <-build.Clock.After(d):
 		return true
 	case <-m.stop:
+		log.Infow("received interrupt while trying to sleep in mining cycle")
 		return false
 	}
 }
@@ -217,6 +218,7 @@ func (m *Miner) mine(ctx context.Context) {
 			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
 		}
+
 		b, err := m.mineOne(ctx, &oldbase, &lastBase)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
