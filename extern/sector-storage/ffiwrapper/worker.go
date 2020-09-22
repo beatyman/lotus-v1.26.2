@@ -278,7 +278,7 @@ func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string
 	return nil
 }
 
-func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force bool) (bool, error) {
+func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force, reset bool) (bool, error) {
 	sInfo, err := database.GetSectorInfo(sid)
 	if err != nil {
 		return false, errors.As(err, sid, memo, state)
@@ -312,7 +312,11 @@ func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force bool) (bo
 	}
 
 	// update state
-	if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, state); err != nil {
+	newState := state
+	if !reset {
+		newState = newState + sInfo.State
+	}
+	if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, newState); err != nil {
 		return working, errors.As(err)
 	}
 

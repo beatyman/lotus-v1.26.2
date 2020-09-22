@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/urfave/cli/v2"
@@ -23,6 +24,7 @@ var hlmSectorCmd = &cli.Command{
 	Name:  "hlm-sector",
 	Usage: "command for hlm-sector",
 	Subcommands: []*cli.Command{
+		getHlmSectorStateCmd,
 		setHlmSectorStateCmd,
 	},
 }
@@ -78,6 +80,33 @@ var stopPledgeSectorCmd = &cli.Command{
 	},
 }
 
+var getHlmSectorStateCmd = &cli.Command{
+	Name:  "get",
+	Usage: "get the sector info by sector id(s-t0xxx-x)",
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+
+		sid := cctx.Args().First()
+		if len(sid) == 0 {
+			return errors.New("need input sector-id(s-t0xxxx-xxx")
+		}
+		info, err := nodeApi.HlmSectorGetState(ctx, sid)
+		if err != nil {
+			return err
+		}
+		output, err := json.MarshalIndent(info, "", "	")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(output))
+		return nil
+	},
+}
 var setHlmSectorStateCmd = &cli.Command{
 	Name:  "set-state",
 	Usage: "will set the sector state",
@@ -88,7 +117,12 @@ var setHlmSectorStateCmd = &cli.Command{
 		},
 		&cli.BoolFlag{
 			Name:  "force",
-			Usage: "force to release the task in working",
+			Usage: "force to release the working task",
+		},
+		&cli.BoolFlag{
+			Name:  "reset",
+			Usage: "reset the state, or it will be added, default is added",
+			Value: false,
 		},
 		&cli.IntFlag{
 			Name:  "state",
@@ -115,9 +149,18 @@ var setHlmSectorStateCmd = &cli.Command{
 		if len(memo) == 0 {
 			return errors.New("need input memo")
 		}
-		if _, err := nodeApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"), cctx.Bool("force")); err != nil {
+		if _, err := nodeApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"), cctx.Bool("force"), cctx.Bool("reset")); err != nil {
 			return err
 		}
+		info, err := nodeApi.HlmSectorGetState(ctx, sid)
+		if err != nil {
+			return err
+		}
+		output, err := json.MarshalIndent(info, "", "	")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(output))
 		return nil
 	},
 }

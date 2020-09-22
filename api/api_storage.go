@@ -111,7 +111,8 @@ type StorageMiner interface {
 	StatusPledgeSector(context.Context) (int, error)
 	StopPledgeSector(context.Context) error
 
-	HlmSectorSetState(ctx context.Context, sid, memo string, state int, force bool) (bool, error)
+	HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error)
+	HlmSectorSetState(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)
 	HlmSectorListAll(context.Context) ([]SectorInfo, error)
 	SelectCommit2Service(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)
 	UnlockGPUService(ctx context.Context, workerId, taskKey string) error
