@@ -52,37 +52,111 @@ func GetStorageInfo(id int64) (*StorageInfo, error) {
 
 func UpdateStorageInfo(info *StorageInfo) error {
 	db := GetDB()
-	// TODO: more update?
-	if _, err := db.Exec(
-		"UPDATE storage_info SET max_work=?, max_size=? WHERE id=?",
-		info.MaxWork, info.MaxSize, info.ID,
+	info.UpdateTime = time.Now()
+	if _, err := db.Exec(`
+UPDATE
+	storage_info 
+SET
+	updated_at=?,
+	max_size=?,keep_size=?,used_size=?,
+	max_work=?, 
+	mount_type=?,mount_signal_uri=?mount_transf_uri=?,
+	mount_dir=?,mount_opt=?,
+	ver=?
+WHERE id=?
+	`,
+		info.UpdateTime,
+		info.MaxSize, info.KeepSize, info.UsedSize,
+		info.MaxWork, // no cur_work because it maybe in locking.
+		info.MountType, info.MountSignalUri, info.MountTransfUri,
+		info.MountDir, info.MountOpt, info.MountOpt,
+		info.Version,
+		info.ID,
 	); err != nil {
 		return errors.As(err, info)
 	}
 	return nil
 }
 
-type StorageList []StorageInfo
-
-func GetAllStorageInfo() (StorageList, error) {
-	list := StorageList{}
+func GetAllStorageInfo() ([]StorageInfo, error) {
+	list := []StorageInfo{}
 	db := GetDB()
-	if err := database.QueryStructs(db, &list, "SELECT * FROM storage_info where disable=0"); err != nil {
+	if err := database.QueryStructs(db, &list, "SELECT * FROM storage_info WHERE disable=0"); err != nil {
 		return nil, errors.As(err, "all")
 	}
 	return list, nil
 }
+func SearchStorageInfoBySignalIp(ip string) ([]StorageInfo, error) {
+	list := []StorageInfo{}
+	db := GetDB()
+	if err := database.QueryStructs(db, &list, "SELECT * FROM storage_info WHERE mount_signal_uri like ?", ip+"%"); err != nil {
+		return nil, errors.As(err, ip)
+	}
+	return list, nil
+}
 
-func ChecksumStorage(sumVer int64) (StorageList, error) {
+func StorageMaxVer() (int64, error) {
+	db := GetDB()
+	ver := sql.NullInt64{}
+	if err := database.QueryElem(db, &ver, "SELECT max(ver) FROM storage_info"); err != nil {
+		return 0, errors.As(err)
+	}
+	return ver.Int64, nil
+}
+
+// max(ver) is the compare key.
+func ChecksumStorage(sumVer int64) ([]StorageInfo, error) {
 	db := GetDB()
 	ver := sql.NullInt64{}
 	if err := database.QueryElem(db, &ver, "SELECT max(ver) FROM storage_info"); err != nil {
 		return nil, errors.As(err, sumVer)
 	}
 	if ver.Int64 == sumVer {
-		return StorageList{}, nil
+		return []StorageInfo{}, nil
 	}
 
 	// return all if version not match
 	return GetAllStorageInfo()
+}
+
+// SPEC: id ==0 will return all storage node
+func GetStorageCheck(id int64) (StorageStatusSort, error) {
+	mdb := GetDB()
+	var rows *sql.Rows
+	var err error
+	if id > 0 {
+		rows, err = mdb.Query(
+			"SELECT tb1.id, tb1.mount_dir, tb1.mount_signal_uri, disable FROM storage_info tb1 WHERE tb1.id=?",
+			id,
+		)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+	} else {
+		rows, err = mdb.Query(
+			"SELECT tb1.id, tb1.mount_dir, tb1.mount_signal_uri, disable FROM storage_info tb1 LIMIT 10000", // TODO: more then 10000
+		)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+	}
+	defer rows.Close()
+
+	list := StorageStatusSort{}
+	for rows.Next() {
+		stat := StorageStatus{}
+		if err := rows.Scan(
+			&stat.StorageId,
+			&stat.MountDir,
+			&stat.MountUri,
+			&stat.Disable,
+		); err != nil {
+			return nil, errors.As(err)
+		}
+		list = append(list, stat)
+	}
+	if len(list) == 0 {
+		return nil, errors.ErrNoData.As(id)
+	}
+	return list, nil
 }

@@ -6,23 +6,27 @@ if [ ! -z "$FILECOIN_BIN" ]; then
 fi
 mkdir -p $install_path
 
+# env for build
+export RUSTFLAGS="-C target-cpu=native -g" 
+export CGO_CFLAGS="-D__BLST_PORTABLE__"
+export FFI_BUILD_FROM_SOURCE=1
+
 echo "make "$1
 case $1 in
     "debug")
         cp -f scripts/bootstrappers.pi build/bootstrap/bootstrappers.pi
         cp -f scripts/devnet.car build/genesis/devnet.car
-        env RUSTFLAGS="-C target-cpu=native -g" FFI_BUILD_FROM_SOURCE=1 make debug
+        make debug
         git checkout build
     ;;
     "hlm")
         cp -f scripts/bootstrappers.pi build/bootstrap/bootstrappers.pi
         cp -f scripts/hlmnet.car build/genesis/devnet.car
-        env RUSTFLAGS="-C target-cpu=native -g" FFI_BUILD_FROM_SOURCE=1 make hlm
+        make hlm
         git checkout build
     ;;
     *)
-        env RUSTFLAGS="-C target-cpu=native -g" FFI_BUILD_FROM_SOURCE=1 make $1
-        #make $1
+        make $1
     ;;
 esac
 

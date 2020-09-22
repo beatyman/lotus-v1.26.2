@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -15,13 +17,95 @@ var hlmStorageCmd = &cli.Command{
 	Name:  "hlm-storage",
 	Usage: "Manage storage",
 	Subcommands: []*cli.Command{
+		verHLMStorageCmd,
+		getHLMStorageCmd,
+		searchHLMStorageCmd,
 		addHLMStorageCmd,
 		disableHLMStorageCmd,
 		enableHLMStorageCmd,
 		mountHLMStorageCmd,
-		umountHLMStorageCmd,
 		relinkHLMStorageCmd,
 		scaleHLMStorageCmd,
+		pingHLMStorageCmd,
+	},
+}
+var verHLMStorageCmd = &cli.Command{
+	Name:      "ver",
+	Usage:     "get the current max version of the storage",
+	ArgsUsage: "id",
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		ver, err := nodeApi.VerHLMStorage(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("max ver:%d\n", ver)
+		return nil
+	},
+}
+var getHLMStorageCmd = &cli.Command{
+	Name:      "get",
+	Usage:     "get a storage node information",
+	ArgsUsage: "id",
+	Action: func(cctx *cli.Context) error {
+		args := cctx.Args()
+		if args.Len() == 0 {
+			return errors.New("need input id")
+		}
+		id, err := strconv.ParseInt(args.First(), 10, 64)
+		if err != nil {
+			return err
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		info, err := nodeApi.GetHLMStorage(ctx, id)
+		if err != nil {
+			return err
+		}
+		output, err := json.MarshalIndent(info, "", "	")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(output))
+		return nil
+	},
+}
+
+var searchHLMStorageCmd = &cli.Command{
+	Name:      "search",
+	Usage:     "search a storage node information by signal ip",
+	ArgsUsage: "ip",
+	Action: func(cctx *cli.Context) error {
+		args := cctx.Args()
+		ip := args.First()
+		if len(ip) == 0 {
+			return errors.New("need input ip")
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		info, err := nodeApi.SearchHLMStorage(ctx, ip)
+		if err != nil {
+			return err
+		}
+		output, err := json.MarshalIndent(info, "", "	")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(output))
+		return nil
 	},
 }
 
@@ -107,7 +191,7 @@ var addHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		return nodeApi.AddHLMStorage(ctx, database.StorageInfo{
+		return nodeApi.AddHLMStorage(ctx, &database.StorageInfo{
 			MountType:      mountType,
 			MountSignalUri: mountSignalUri,
 			MountTransfUri: mountTransfUri,
@@ -117,13 +201,14 @@ var addHLMStorageCmd = &cli.Command{
 			KeepSize:       keepSize,
 			SectorSize:     sectorSize,
 			MaxWork:        maxWork,
+			Version:        time.Now().UnixNano(),
 		})
 	},
 }
 
 var disableHLMStorageCmd = &cli.Command{
 	Name:      "disable",
-	Usage:     "Disable a storage node to stop allocating",
+	Usage:     "Disable a storage node to stop allocating for only read",
 	ArgsUsage: "id",
 	Action: func(cctx *cli.Context) error {
 		args := cctx.Args()
@@ -140,21 +225,34 @@ var disableHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		return nodeApi.DisableHLMStorage(ctx, id)
+		return nodeApi.DisableHLMStorage(ctx, id, true)
 	},
 }
 var enableHLMStorageCmd = &cli.Command{
 	Name:      "enable",
-	Usage:     "Enable a storage node to recover allocating",
+	Usage:     "Enable a storage node to recover allocating for write",
 	ArgsUsage: "id",
 	Action: func(cctx *cli.Context) error {
-		fmt.Println("TODO")
-		return nil
+		args := cctx.Args()
+		if args.Len() == 0 {
+			return errors.New("need input id")
+		}
+		id, err := strconv.ParseInt(args.First(), 10, 64)
+		if err != nil {
+			return err
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		return nodeApi.DisableHLMStorage(ctx, id, false)
 	},
 }
 var mountHLMStorageCmd = &cli.Command{
 	Name:      "mount",
-	Usage:     "Mount a storage by node id",
+	Usage:     "Mount a storage by node id, if exist, will remount it.",
 	ArgsUsage: "id",
 	Action: func(cctx *cli.Context) error {
 		args := cctx.Args()
@@ -175,39 +273,10 @@ var mountHLMStorageCmd = &cli.Command{
 	},
 }
 
-var umountHLMStorageCmd = &cli.Command{
-	Name:      "umount",
-	Usage:     "umount a storage by node id or umont all storage",
-	ArgsUsage: "[id/all] -- id for one sector, all for all sectors",
-	Action: func(cctx *cli.Context) error {
-		args := cctx.Args()
-		if args.Len() == 0 {
-			return errors.New("need input id OR all")
-		}
-		firstArg := args.First()
-		id := int64(0)
-		if firstArg != "all" {
-			stroageId, err := strconv.ParseInt(firstArg, 10, 64)
-			if err != nil {
-				return err
-			}
-			id = stroageId
-		}
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-		ctx := lcli.ReqContext(cctx)
-
-		return nodeApi.UMountHLMStorage(ctx, id)
-	},
-}
-
 var relinkHLMStorageCmd = &cli.Command{
 	Name:      "relink",
-	Usage:     "Relink the cache and sealed to the storage node",
-	ArgsUsage: "[id/all] -- id for one sector, all for all sectors",
+	Usage:     "Relink(ln -s) the cache and sealed to the storage node",
+	ArgsUsage: "id -- storage id",
 	Action: func(cctx *cli.Context) error {
 		args := cctx.Args()
 		if args.Len() == 0 {
@@ -274,8 +343,6 @@ var replaceHLMStorageCmd = &cli.Command{
 		if len(mountTransfUri) == 0 {
 			mountTransfUri = mountSignalUri
 		}
-		mountType := cctx.String("mount-type")
-		mountOpt := cctx.String("mount-opt")
 
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -283,7 +350,20 @@ var replaceHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		return nodeApi.ReplaceHLMStorage(ctx, storageId, mountSignalUri, mountTransfUri, mountType, mountOpt)
+		info, err := nodeApi.GetHLMStorage(ctx, storageId)
+		if err != nil {
+			return err
+		}
+		mountType := cctx.String("mount-type")
+		if len(mountType) > 0 {
+			info.MountType = mountType
+		}
+		mountOpt := cctx.String("mount-opt")
+		if len(mountOpt) > 0 {
+			info.MountOpt = mountOpt
+		}
+		info.Version = time.Now().UnixNano()
+		return nodeApi.ReplaceHLMStorage(ctx, info)
 	},
 }
 
@@ -336,5 +416,69 @@ var scaleHLMStorageCmd = &cli.Command{
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 		return nodeApi.ScaleHLMStorage(ctx, storageId, maxSize, maxWork)
+	},
+}
+
+var pingHLMStorageCmd = &cli.Command{
+	Name:  "ping",
+	Usage: "ping the storage nodes",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "debug",
+			Usage: "output the normal sector message",
+			Value: false,
+		},
+		&cli.Int64Flag{
+			Name:  "storage-id",
+			Usage: "storage ID",
+			Value: 0,
+		},
+		&cli.IntFlag{
+			Name:  "timeout",
+			Usage: "timeout for every node. Uint is in second",
+			Value: 3,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		storageId := cctx.Int64("storage-id")
+		if storageId < 0 {
+			return errors.New("error storage id")
+		}
+		timeout := cctx.Int("timeout")
+		if timeout < 1 {
+			return errors.New("error timeout")
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		stats, err := nodeApi.StatusHLMStorage(ctx, storageId, time.Duration(timeout)*time.Second)
+		if err != nil {
+			return err
+		}
+		debug := cctx.Bool("debug")
+		good := []database.StorageStatus{}
+		bad := []database.StorageStatus{}
+		disable := []database.StorageStatus{}
+		for _, stat := range stats {
+			if debug {
+				fmt.Printf("%+v\n", stat)
+			}
+			if stat.Disable {
+				fmt.Printf("disable node, id:%d, uri:%s\n", stat.StorageId, stat.MountUri)
+				disable = append(disable, stat)
+				continue
+			}
+			if len(stat.Err) > 0 {
+				fmt.Printf("bad node, id:%d, uri:%s, used:%s\n", stat.StorageId, stat.MountUri, stat.Used)
+				bad = append(bad, stat)
+				continue
+			}
+			good = append(good, stat)
+		}
+		fmt.Printf("all:%d, good:%d, bad:%d, disable:%d\n", len(stats), len(good), len(bad), len(disable))
+		return nil
 	},
 }

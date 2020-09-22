@@ -148,17 +148,9 @@ func TestMountAllStorage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := MountAllStorage(); err != nil {
+	if err := MountAllStorage(false); err != nil {
 		t.Fatal(err)
 	}
 	// checksum the result by manu.
 	// it should have a link file with /data/testing/1, and mount point with /data/testing/2
-}
-
-func TestGCWork(t *testing.T) {
-	InitDB("./")
-	_, err := GcCurWork(time.Now().Add(-48 * time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
 }

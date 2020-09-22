@@ -3,96 +3,16 @@ package ffiwrapper
 import (
 	"context"
 	"fmt"
-	"os"
+	"io/ioutil"
 	"path/filepath"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
 )
-
-func CheckSealed(repo string) error {
-	list, err := database.GetAllSectorByState(200)
-	if err != nil {
-		return errors.As(err)
-	}
-	log.Infof("Get all secotrs done, len:%d", len(list))
-	routines := make(chan bool, 1024) // limit the gorouting to checking the bad, the sectors would be lot.
-	type Result struct {
-		path string
-		err  error
-		used time.Duration
-	}
-	result := make(chan *Result, len(list))
-	for _, info := range list {
-		go func(s database.SectorInfo) {
-			// limit the concurrency
-			routines <- true
-			defer func() {
-				<-routines
-			}()
-
-			start := time.Now()
-			sealedFile := filepath.Join(repo, "sealed", s.ID)
-			if _, err := os.Stat(sealedFile); err != nil {
-				if os.IsNotExist(err) {
-					cacheFile := filepath.Join(repo, "cache", s.ID)
-					// make a new link
-					nfsCacheFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "cache", s.ID)
-					log.Infof("ln -s %s %s", nfsCacheFile, cacheFile)
-					if err := database.Symlink(nfsCacheFile, cacheFile); err != nil {
-						log.Info(errors.As(err, s.ID))
-						result <- &Result{
-							path: sealedFile,
-							err:  err,
-							used: time.Now().Sub(start),
-						}
-						return
-					}
-					nfsSealedFile := filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId), "sealed", s.ID)
-					log.Infof("ln -s %s %s", nfsSealedFile, sealedFile)
-					if err := database.Symlink(nfsSealedFile, sealedFile); err != nil {
-						log.Info(errors.As(err, s.ID))
-						result <- &Result{
-							path: sealedFile,
-							err:  err,
-							used: time.Now().Sub(start),
-						}
-						return
-					}
-					result <- &Result{
-						path: sealedFile,
-						used: time.Now().Sub(start),
-					}
-					return
-				} else {
-					result <- &Result{
-						path: sealedFile,
-						err:  err,
-						used: time.Now().Sub(start),
-					}
-					log.Info(errors.As(err, "file os failed, try umount", s.ID, s.StorageId))
-					if _, err := database.Umount(filepath.Join("/data/nfs", fmt.Sprintf("%d", s.StorageId))); err != nil {
-						log.Warn(errors.As(err))
-					}
-					return
-				}
-			}
-		}(info)
-	}
-	var hasErr error
-	for waits := len(list); waits > 0; waits-- {
-		r := <-result
-		if hasErr == nil && r.err != nil {
-			hasErr = r.err
-		}
-		if r.used > time.Second {
-			log.Warnf("check filed using a long time:%s,%s", r.path, r.used)
-		}
-	}
-	return hasErr
-}
 
 func (sb *Sealer) SectorName(sid abi.SectorID) string {
 	return SectorName(sid)
@@ -127,8 +47,8 @@ func (sb *Sealer) MakeLink(task *WorkerTask) error {
 	return nil
 }
 
-func (sb *Sealer) AddStorage(ctx context.Context, sInfo database.StorageInfo) error {
-	if err := database.AddStorage(&sInfo); err != nil {
+func (sb *Sealer) AddStorage(ctx context.Context, sInfo *database.StorageInfo) error {
+	if err := database.AddStorage(sInfo); err != nil {
 		return err
 	}
 	if sInfo.MaxSize == -1 {
@@ -138,63 +58,98 @@ func (sb *Sealer) AddStorage(ctx context.Context, sInfo database.StorageInfo) er
 			return err
 		}
 		sInfo.MaxSize = int64(diskStatus.All)
-		if err = database.UpdateStorageInfo(&sInfo); err != nil {
+		if err = database.UpdateStorageInfo(sInfo); err != nil {
 			return err
 		}
 	}
+	if err := database.Mount(
+		sInfo.MountType,
+		sInfo.MountSignalUri,
+		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", sInfo.ID)),
+		sInfo.MountOpt,
+	); err != nil {
+		return errors.As(err, sInfo)
+	}
 
 	return nil
 }
 
-func (sb *Sealer) DisableStorage(ctx context.Context, id int64) error {
-	return database.DisableStorage(id)
+func (sb *Sealer) DisableStorage(ctx context.Context, id int64, disable bool) error {
+	if err := database.DisableStorage(id, disable); err != nil {
+		return errors.As(err)
+	}
+	if !disable {
+		return sb.MountStorage(ctx, id)
+	}
+	return nil
 }
 
 func (sb *Sealer) MountStorage(ctx context.Context, id int64) error {
-	return database.MountStorageByID(id)
+	sInfo, err := database.GetStorageInfo(id)
+	if err != nil {
+		return errors.As(err)
+	}
+	if err := database.Mount(
+		sInfo.MountType,
+		sInfo.MountSignalUri,
+		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", id)),
+		sInfo.MountOpt,
+	); err != nil {
+		return errors.As(err, sInfo)
+	}
+	return nil
 }
 
 func (sb *Sealer) UMountStorage(ctx context.Context, id int64) error {
-	// close this function
-	// https://git.grandhelmsman.com/filecoin-project/requirement/issues/60
+	sInfo, err := database.GetStorageInfo(id)
+	if err != nil {
+		return errors.As(err)
+	}
+	if _, err := database.Umount(
+		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", id)),
+	); err != nil {
+		return errors.As(err, sInfo)
+	}
 	return nil
 }
-func (sb *Sealer) RelinkStorage(ctx context.Context, id int64) error {
-	if id > 0 {
-		return sb.relinkStorageByStorageId(id)
-	}
 
-	// do relink all
-	storageList, err := database.GetAllStorageInfo()
+func (sb *Sealer) RelinkStorage(ctx context.Context, storageId int64) error {
+	storageInfo, err := database.GetStorageInfo(storageId)
 	if err != nil {
 		return err
 	}
-	for _, storageInfo := range storageList {
-		sb.relinkStorageByStorageId(storageInfo.ID)
+	list, err := database.GetSectorByState(storageId, database.SECTOR_STATE_DONE)
+	if err != nil {
+		return err
+	}
+	for _, sectorInfo := range list {
+		//获取sectorId
+		cacheFile := sb.SectorPath("cache", sectorInfo.ID)
+		newName := string(cacheFile)
+		oldName := filepath.Join(storageInfo.MountDir, fmt.Sprintf("%d", storageId), "cache", sectorInfo.ID)
+		if err := database.Symlink(oldName, newName); err != nil {
+			return err
+		}
+		sealedFile := sb.SectorPath("sealed", sectorInfo.ID)
+		newName = string(sealedFile)
+		oldName = filepath.Join(storageInfo.MountDir, fmt.Sprintf("%d", storageId), "sealed", sectorInfo.ID)
+		if err := database.Symlink(oldName, newName); err != nil {
+			return err
+		}
 	}
 	return nil
 }
-func (sb *Sealer) ReplaceStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error {
-	storageInfo, err := database.GetStorageInfo(id)
-	if err != nil {
-		return err
-	}
-	if _, err := database.Umount(storageInfo.MountDir); err != nil {
-		log.Info(errors.As(err))
-	}
-	storageInfo.MountSignalUri = signalUri
-	storageInfo.MountTransfUri = transfUri
-	storageInfo.MountType = mountType
-	storageInfo.MountOpt = mountOpt
-	storageInfo.Version = time.Now().UnixNano() //  upgrade the data version
-	if err := database.Mount(mountType, signalUri,
-		filepath.Join(storageInfo.MountDir, fmt.Sprintf("%d", storageInfo.ID)),
-		mountOpt); err != nil {
+
+func (sb *Sealer) ReplaceStorage(ctx context.Context, info *database.StorageInfo) error {
+	if err := database.Mount(
+		info.MountType, info.MountSignalUri,
+		filepath.Join(info.MountDir, fmt.Sprintf("%d", info.ID)),
+		info.MountOpt); err != nil {
 		return errors.As(err)
 	}
 
 	// update information
-	if err := database.UpdateStorageInfo(storageInfo); err != nil {
+	if err := database.UpdateStorageInfo(info); err != nil {
 		return errors.As(err)
 	}
 	return nil
@@ -228,33 +183,6 @@ func (sb *Sealer) ScaleStorage(ctx context.Context, id int64, size int64, work i
 	}
 
 	return nil
-
-}
-func (sb *Sealer) relinkStorageByStorageId(storageId int64) error {
-	storageInfo, err := database.GetStorageInfo(storageId)
-	if err != nil {
-		return err
-	}
-	list, err := database.GetSectorByState(storageId, database.SECTOR_STATE_DONE)
-	if err != nil {
-		return err
-	}
-	for _, sectorInfo := range list {
-		//获取sectorId
-		cacheFile := sb.SectorPath("cache", sectorInfo.ID)
-		newName := string(cacheFile)
-		oldName := filepath.Join(storageInfo.MountDir, fmt.Sprintf("%d", storageId), "cache", sectorInfo.ID)
-		if err := database.Symlink(oldName, newName); err != nil {
-			return err
-		}
-		sealedFile := sb.SectorPath("sealed", sectorInfo.ID)
-		newName = string(sealedFile)
-		oldName = filepath.Join(storageInfo.MountDir, fmt.Sprintf("%d", storageId), "sealed", sectorInfo.ID)
-		if err := database.Symlink(oldName, newName); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (sb *Sealer) PreStorageNode(sectorId, clientIp string) (*database.StorageInfo, error) {
@@ -273,6 +201,76 @@ func (sb *Sealer) CancelStorageNode(sectorId string) error {
 	return tx.Rollback()
 }
 
-func (sb *Sealer) ChecksumStorage(sumVer int64) (database.StorageList, error) {
+func (sb *Sealer) ChecksumStorage(sumVer int64) ([]database.StorageInfo, error) {
 	return database.ChecksumStorage(sumVer)
+}
+
+func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) {
+	checkFn := func(c *database.StorageStatus) error {
+		mountPath := filepath.Join(c.MountDir, fmt.Sprintf("%d", c.StorageId))
+
+		checkPath := filepath.Join(mountPath, "miner-check.dat")
+		if err := ioutil.WriteFile(checkPath, []byte("success"), 0755); err != nil {
+			return errors.As(err, checkPath)
+		}
+		output, err := ioutil.ReadFile(checkPath)
+		if err != nil {
+			return errors.As(err)
+		}
+		if string(output) != "success" {
+			return errors.New("output not match").As(string(output))
+		}
+		return nil
+	}
+
+	result, err := database.GetStorageCheck(id)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+
+	allLk := sync.Mutex{}
+	routines := make(chan bool, 1024) // limit the gorouting to checking the bad, the sectors would be lot.
+	done := make(chan bool, len(result))
+	for i, _ := range result {
+		go func(c *database.StorageStatus) {
+			// limit the concurrency
+			routines <- true
+			defer func() {
+				<-routines
+			}()
+
+			start := time.Now()
+			// checking data
+			checkDone := make(chan error, 1)
+			go func() {
+				checkDone <- checkFn(c)
+			}()
+
+			var errResult error
+			select {
+			case <-ctx.Done():
+				// user canceled
+				errResult = errors.New("ctx canceled")
+			case <-time.After(timeout):
+				// read sector timeout
+				errResult = errors.New("sector stat timeout").As(timeout)
+			case err := <-checkDone:
+				errResult = err
+			}
+			allLk.Lock()
+			c.Used = time.Now().Sub(start)
+			if errResult != nil {
+				c.Err = errResult.Error()
+			}
+			allLk.Unlock()
+
+			// thread end
+			done <- true
+		}(&result[i])
+	}
+	for waits := len(result); waits > 0; waits-- {
+		<-done
+	}
+	sort.Sort(result)
+	return result, nil
 }

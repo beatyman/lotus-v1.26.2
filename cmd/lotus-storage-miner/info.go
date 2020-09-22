@@ -36,6 +36,18 @@ var infoCmd = &cli.Command{
 		infoAllCmd,
 	},
 	Action: infoCmdAct,
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "balance",
+			Value: true,
+			Usage: "output the miner balance",
+		},
+		&cli.BoolFlag{
+			Name:  "seal",
+			Value: false,
+			Usage: "output the miner seal stats",
+		},
+	},
 }
 
 func infoCmdAct(cctx *cli.Context) error {
@@ -69,154 +81,159 @@ func infoCmdAct(cctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	var mas miner.State
-	{
-		rmas, err := api.ChainReadObj(ctx, mact.Head)
+
+	if cctx.Bool("balance") {
+		var mas miner.State
+		{
+			rmas, err := api.ChainReadObj(ctx, mact.Head)
+			if err != nil {
+				return err
+			}
+			if err := mas.UnmarshalCBOR(bytes.NewReader(rmas)); err != nil {
+				return err
+			}
+		}
+
+		fmt.Printf("Miner: %s\n", color.BlueString("%s", maddr))
+
+		// Sector size
+		mi, err := api.StateMinerInfo(ctx, maddr, types.EmptyTSK)
 		if err != nil {
 			return err
 		}
-		if err := mas.UnmarshalCBOR(bytes.NewReader(rmas)); err != nil {
+
+		fmt.Printf("Sector Size: %s\n", types.SizeStr(types.NewInt(uint64(mi.SectorSize))))
+
+		pow, err := api.StateMinerPower(ctx, maddr, types.EmptyTSK)
+		if err != nil {
 			return err
 		}
-	}
 
-	fmt.Printf("Miner: %s\n", color.BlueString("%s", maddr))
+		rpercI := types.BigDiv(types.BigMul(pow.MinerPower.RawBytePower, types.NewInt(1000000)), pow.TotalPower.RawBytePower)
+		qpercI := types.BigDiv(types.BigMul(pow.MinerPower.QualityAdjPower, types.NewInt(1000000)), pow.TotalPower.QualityAdjPower)
 
-	// Sector size
-	mi, err := api.StateMinerInfo(ctx, maddr, types.EmptyTSK)
-	if err != nil {
-		return err
-	}
+		fmt.Printf("Byte Power:   %s / %s (%0.4f%%)\n",
+			color.BlueString(types.SizeStr(pow.MinerPower.RawBytePower)),
+			types.SizeStr(pow.TotalPower.RawBytePower),
+			float64(rpercI.Int64())/10000)
 
-	fmt.Printf("Sector Size: %s\n", types.SizeStr(types.NewInt(uint64(mi.SectorSize))))
+		fmt.Printf("Actual Power: %s / %s (%0.4f%%)\n",
+			color.GreenString(types.DeciStr(pow.MinerPower.QualityAdjPower)),
+			types.DeciStr(pow.TotalPower.QualityAdjPower),
+			float64(qpercI.Int64())/10000)
 
-	pow, err := api.StateMinerPower(ctx, maddr, types.EmptyTSK)
-	if err != nil {
-		return err
-	}
-
-	rpercI := types.BigDiv(types.BigMul(pow.MinerPower.RawBytePower, types.NewInt(1000000)), pow.TotalPower.RawBytePower)
-	qpercI := types.BigDiv(types.BigMul(pow.MinerPower.QualityAdjPower, types.NewInt(1000000)), pow.TotalPower.QualityAdjPower)
-
-	fmt.Printf("Byte Power:   %s / %s (%0.4f%%)\n",
-		color.BlueString(types.SizeStr(pow.MinerPower.RawBytePower)),
-		types.SizeStr(pow.TotalPower.RawBytePower),
-		float64(rpercI.Int64())/10000)
-
-	fmt.Printf("Actual Power: %s / %s (%0.4f%%)\n",
-		color.GreenString(types.DeciStr(pow.MinerPower.QualityAdjPower)),
-		types.DeciStr(pow.TotalPower.QualityAdjPower),
-		float64(qpercI.Int64())/10000)
-
-	secCounts, err := api.StateMinerSectorCount(ctx, maddr, types.EmptyTSK)
-	if err != nil {
-		return err
-	}
-	faults, err := api.StateMinerFaults(ctx, maddr, types.EmptyTSK)
-	if err != nil {
-		return err
-	}
-
-	nfaults, err := faults.Count()
-	if err != nil {
-		return xerrors.Errorf("counting faults: %w", err)
-	}
-
-	fmt.Printf("\tCommitted: %s\n", types.SizeStr(types.BigMul(types.NewInt(secCounts.Sectors), types.NewInt(uint64(mi.SectorSize)))))
-	if nfaults == 0 {
-		fmt.Printf("\tProving: %s\n", types.SizeStr(types.BigMul(types.NewInt(secCounts.Active), types.NewInt(uint64(mi.SectorSize)))))
-	} else {
-		var faultyPercentage float64
-		if secCounts.Sectors != 0 {
-			faultyPercentage = float64(10000*nfaults/secCounts.Sectors) / 100.
+		secCounts, err := api.StateMinerSectorCount(ctx, maddr, types.EmptyTSK)
+		if err != nil {
+			return err
 		}
-		fmt.Printf("\tProving: %s (%s Faulty, %.2f%%)\n",
-			types.SizeStr(types.BigMul(types.NewInt(secCounts.Sectors), types.NewInt(uint64(mi.SectorSize)))),
-			types.SizeStr(types.BigMul(types.NewInt(nfaults), types.NewInt(uint64(mi.SectorSize)))),
-			faultyPercentage)
-	}
+		faults, err := api.StateMinerFaults(ctx, maddr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
 
-	if pow.MinerPower.RawBytePower.LessThan(power.ConsensusMinerMinPower) {
-		fmt.Print("Below minimum power threshold, no blocks will be won")
-	} else {
-		expWinChance := float64(types.BigMul(qpercI, types.NewInt(build.BlocksPerEpoch)).Int64()) / 1000000
-		if expWinChance > 0 {
-			if expWinChance > 1 {
-				expWinChance = 1
+		nfaults, err := faults.Count()
+		if err != nil {
+			return xerrors.Errorf("counting faults: %w", err)
+		}
+
+		fmt.Printf("\tCommitted: %s\n", types.SizeStr(types.BigMul(types.NewInt(secCounts.Sectors), types.NewInt(uint64(mi.SectorSize)))))
+		if nfaults == 0 {
+			fmt.Printf("\tProving: %s\n", types.SizeStr(types.BigMul(types.NewInt(secCounts.Active), types.NewInt(uint64(mi.SectorSize)))))
+		} else {
+			var faultyPercentage float64
+			if secCounts.Sectors != 0 {
+				faultyPercentage = float64(10000*nfaults/secCounts.Sectors) / 100.
 			}
-			winRate := time.Duration(float64(time.Second*time.Duration(build.BlockDelaySecs)) / expWinChance)
-			winPerDay := float64(time.Hour*24) / float64(winRate)
-
-			fmt.Print("Expected block win rate: ")
-			color.Blue("%.4f/day (every %s)", winPerDay, winRate.Truncate(time.Second))
+			fmt.Printf("\tProving: %s (%s Faulty, %.2f%%)\n",
+				types.SizeStr(types.BigMul(types.NewInt(secCounts.Sectors), types.NewInt(uint64(mi.SectorSize)))),
+				types.SizeStr(types.BigMul(types.NewInt(nfaults), types.NewInt(uint64(mi.SectorSize)))),
+				faultyPercentage)
 		}
-	}
 
-	fmt.Println()
+		if pow.MinerPower.RawBytePower.LessThan(power.ConsensusMinerMinPower) {
+			fmt.Print("Below minimum power threshold, no blocks will be won")
+		} else {
+			expWinChance := float64(types.BigMul(qpercI, types.NewInt(build.BlocksPerEpoch)).Int64()) / 1000000
+			if expWinChance > 0 {
+				if expWinChance > 1 {
+					expWinChance = 1
+				}
+				winRate := time.Duration(float64(time.Second*time.Duration(build.BlockDelaySecs)) / expWinChance)
+				winPerDay := float64(time.Hour*24) / float64(winRate)
 
-	deals, err := nodeApi.MarketListIncompleteDeals(ctx)
-	if err != nil {
-		return err
-	}
-
-	var nactiveDeals, nVerifDeals, ndeals uint64
-	var activeDealBytes, activeVerifDealBytes, dealBytes abi.PaddedPieceSize
-	for _, deal := range deals {
-		ndeals++
-		dealBytes += deal.Proposal.PieceSize
-
-		if deal.State == storagemarket.StorageDealActive {
-			nactiveDeals++
-			activeDealBytes += deal.Proposal.PieceSize
-
-			if deal.Proposal.VerifiedDeal {
-				nVerifDeals++
-				activeVerifDealBytes += deal.Proposal.PieceSize
+				fmt.Print("Expected block win rate: ")
+				color.Blue("%.4f/day (every %s)", winPerDay, winRate.Truncate(time.Second))
 			}
 		}
+
+		fmt.Println()
+
+		deals, err := nodeApi.MarketListIncompleteDeals(ctx)
+		if err != nil {
+			return err
+		}
+
+		var nactiveDeals, nVerifDeals, ndeals uint64
+		var activeDealBytes, activeVerifDealBytes, dealBytes abi.PaddedPieceSize
+		for _, deal := range deals {
+			ndeals++
+			dealBytes += deal.Proposal.PieceSize
+
+			if deal.State == storagemarket.StorageDealActive {
+				nactiveDeals++
+				activeDealBytes += deal.Proposal.PieceSize
+
+				if deal.Proposal.VerifiedDeal {
+					nVerifDeals++
+					activeVerifDealBytes += deal.Proposal.PieceSize
+				}
+			}
+		}
+
+		fmt.Printf("Deals: %d, %s\n", ndeals, types.SizeStr(types.NewInt(uint64(dealBytes))))
+		fmt.Printf("\tActive: %d, %s (Verified: %d, %s)\n", nactiveDeals, types.SizeStr(types.NewInt(uint64(activeDealBytes))), nVerifDeals, types.SizeStr(types.NewInt(uint64(activeVerifDealBytes))))
+		fmt.Println()
+
+		tbs := bufbstore.NewTieredBstore(apibstore.NewAPIBlockstore(api), blockstore.NewTemporary())
+		_, err = mas.UnlockVestedFunds(adt.WrapStore(ctx, cbor.NewCborStore(tbs)), head.Height())
+		if err != nil {
+			return xerrors.Errorf("calculating vested funds: %w", err)
+		}
+
+		fmt.Printf("Miner Balance: %s\n", color.YellowString("%s", types.FIL(mact.Balance)))
+		fmt.Printf("\tPreCommit:   %s\n", types.FIL(mas.PreCommitDeposits))
+		fmt.Printf("\tPledge:      %s\n", types.FIL(mas.InitialPledgeRequirement))
+		fmt.Printf("\tLocked:      %s\n", types.FIL(mas.LockedFunds))
+		color.Green("\tAvailable:   %s", types.FIL(mas.GetAvailableBalance(mact.Balance)))
+		wb, err := api.WalletBalance(ctx, mi.Worker)
+		if err != nil {
+			return xerrors.Errorf("getting worker balance: %w", err)
+		}
+		color.Cyan("Worker Balance: %s", types.FIL(wb))
+
+		mb, err := api.StateMarketBalance(ctx, maddr, types.EmptyTSK)
+		if err != nil {
+			return xerrors.Errorf("getting market balance: %w", err)
+		}
+		fmt.Printf("Market (Escrow):  %s\n", types.FIL(mb.Escrow))
+		fmt.Printf("Market (Locked):  %s\n", types.FIL(mb.Locked))
+
+		fmt.Println()
+
+		sealdur, err := nodeApi.SectorGetExpectedSealDuration(ctx)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Expected Seal Duration: %s\n\n", sealdur)
 	}
 
-	fmt.Printf("Deals: %d, %s\n", ndeals, types.SizeStr(types.NewInt(uint64(dealBytes))))
-	fmt.Printf("\tActive: %d, %s (Verified: %d, %s)\n", nactiveDeals, types.SizeStr(types.NewInt(uint64(activeDealBytes))), nVerifDeals, types.SizeStr(types.NewInt(uint64(activeVerifDealBytes))))
-	fmt.Println()
-
-	tbs := bufbstore.NewTieredBstore(apibstore.NewAPIBlockstore(api), blockstore.NewTemporary())
-	_, err = mas.UnlockVestedFunds(adt.WrapStore(ctx, cbor.NewCborStore(tbs)), head.Height())
-	if err != nil {
-		return xerrors.Errorf("calculating vested funds: %w", err)
-	}
-
-	fmt.Printf("Miner Balance: %s\n", color.YellowString("%s", types.FIL(mact.Balance)))
-	fmt.Printf("\tPreCommit:   %s\n", types.FIL(mas.PreCommitDeposits))
-	fmt.Printf("\tPledge:      %s\n", types.FIL(mas.InitialPledgeRequirement))
-	fmt.Printf("\tLocked:      %s\n", types.FIL(mas.LockedFunds))
-	color.Green("\tAvailable:   %s", types.FIL(mas.GetAvailableBalance(mact.Balance)))
-	wb, err := api.WalletBalance(ctx, mi.Worker)
-	if err != nil {
-		return xerrors.Errorf("getting worker balance: %w", err)
-	}
-	color.Cyan("Worker Balance: %s", types.FIL(wb))
-
-	mb, err := api.StateMarketBalance(ctx, maddr, types.EmptyTSK)
-	if err != nil {
-		return xerrors.Errorf("getting market balance: %w", err)
-	}
-	fmt.Printf("Market (Escrow):  %s\n", types.FIL(mb.Escrow))
-	fmt.Printf("Market (Locked):  %s\n", types.FIL(mb.Locked))
-
-	fmt.Println()
-
-	sealdur, err := nodeApi.SectorGetExpectedSealDuration(ctx)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Expected Seal Duration: %s\n\n", sealdur)
-
-	fmt.Println("Sectors:")
-	err = sectorsInfo(ctx, nodeApi)
-	if err != nil {
-		return err
+	if cctx.Bool("seal") {
+		fmt.Println("Sectors:")
+		err = sectorsInfo(ctx, nodeApi)
+		if err != nil {
+			return err
+		}
 	}
 
 	// TODO: grab actr state / info

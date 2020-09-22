@@ -193,39 +193,13 @@ func AddStorage(sInfo *StorageInfo) error {
 	if err := AddStorageInfo(sInfo); err != nil {
 		return errors.As(err, *sInfo)
 	}
-	if err := Mount(
-		sInfo.MountType,
-		sInfo.MountSignalUri,
-		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", sInfo.ID)),
-		sInfo.MountOpt,
-	); err != nil {
-		// TODO: rollback insert ?
-		return errors.As(err, *sInfo)
-	}
-
 	return nil
 }
 
-func DisableStorage(id int64) error {
+func DisableStorage(id int64, disable bool) error {
 	db := GetDB()
-	if _, err := db.Exec("UPDATE storage_info SET disable=1 WHERE id=?", id); err != nil {
+	if _, err := db.Exec("UPDATE storage_info SET disable=?,ver=? WHERE id=?", disable, time.Now().UnixNano(), id); err != nil {
 		return errors.As(err, id)
-	}
-	return nil
-}
-
-func MountStorageByID(id int64) error {
-	sInfo, err := GetStorageInfo(id)
-	if err != nil {
-		return errors.As(err)
-	}
-	if err := Mount(
-		sInfo.MountType,
-		sInfo.MountSignalUri,
-		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", id)),
-		sInfo.MountOpt,
-	); err != nil {
-		return errors.As(err, sInfo)
 	}
 	return nil
 }

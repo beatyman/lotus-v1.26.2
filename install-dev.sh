@@ -1,6 +1,11 @@
 #!/bin/sh
 
-env RUSTFLAGS="-C target-cpu=native -g" FFI_BUILD_FROM_SOURCE=1 make debug
+# env for build
+export RUSTFLAGS="-C target-cpu=native -g" 
+export CGO_CFLAGS="-D__BLST_PORTABLE__"
+export FFI_BUILD_FROM_SOURCE=1
+make debug
+
 
 cp -rf lotus $HOME/hlm-miner/apps/lotus/lotus-dev
 cp -rf lotus $HOME/hlm-miner/apps/lotus/lotus

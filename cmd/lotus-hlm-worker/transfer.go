@@ -109,8 +109,15 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 		}
 
 	default:
-		// fetch cache
+		// fetch unsealed, prepare for p2 or c2 failed to p1, p1 need the unsealed.
+		if err := w.fetchRemoteFile(
+			fmt.Sprintf("%s/file/storage/unsealed/%s", serverUri, sectorID),
+			filepath.Join(w.repo, "unsealed", sectorID),
+		); err != nil {
+			return errors.As(err, typ)
+		}
 
+		// fetch cache
 		url := fmt.Sprintf("%s/file/storage/cache/%s/", serverUri, sectorID)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {

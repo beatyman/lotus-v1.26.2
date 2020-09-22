@@ -19,7 +19,6 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/util/adt"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/lotus/journal"
 	bstore "github.com/filecoin-project/lotus/lib/blockstore"
@@ -73,6 +72,20 @@ func init() {
 // ReorgNotifee represents a callback that gets called upon reorgs.
 type ReorgNotifee func(rev, app []*types.TipSet) error
 
+// Journal event types.
+const (
+	evtTypeHeadChange = iota
+)
+
+type HeadChangeEvt struct {
+	From        types.TipSetKey
+	FromHeight  abi.ChainEpoch
+	To          types.TipSetKey
+	ToHeight    abi.ChainEpoch
+	RevertCount int
+	ApplyCount  int
+}
+
 // ChainStore is the main point of access to chain data.
 //
 // Raw chain data is stored in the Blockstore, with relevant markers (genesis,
@@ -104,6 +117,8 @@ type ChainStore struct {
 	tsCache *lru.ARCCache
 
 	vmcalls vm.SyscallBuilder
+
+	evtTypes [1]journal.EventType
 }
 
 func NewChainStore(bs bstore.Blockstore, ds dstore.Batching, vmcalls vm.SyscallBuilder) *ChainStore {
@@ -117,6 +132,10 @@ func NewChainStore(bs bstore.Blockstore, ds dstore.Batching, vmcalls vm.SyscallB
 		mmCache:  c,
 		tsCache:  tsc,
 		vmcalls:  vmcalls,
+	}
+
+	cs.evtTypes = [1]journal.EventType{
+		evtTypeHeadChange: journal.J.RegisterEventType("sync", "head_change"),
 	}
 
 	ci := NewChainIndex(cs.LoadTipSet)
@@ -346,12 +365,15 @@ func (cs *ChainStore) reorgWorker(ctx context.Context, initialNotifees []ReorgNo
 					continue
 				}
 
-				journal.Add("sync", map[string]interface{}{
-					"op":    "headChange",
-					"from":  r.old.Key(),
-					"to":    r.new.Key(),
-					"rev":   len(revert),
-					"apply": len(apply),
+				journal.J.RecordEvent(cs.evtTypes[evtTypeHeadChange], func() interface{} {
+					return HeadChangeEvt{
+						From:        r.old.Key(),
+						FromHeight:  r.old.Height(),
+						To:          r.new.Key(),
+						ToHeight:    r.new.Height(),
+						RevertCount: len(revert),
+						ApplyCount:  len(apply),
+					}
 				})
 
 				// reverse the apply array
@@ -397,7 +419,7 @@ func (cs *ChainStore) takeHeaviestTipSet(ctx context.Context, ts *types.TipSet) 
 	heaviestMiners := []string{}
 	for _, blk := range ts.Blocks() {
 		heaviestMiners = append(heaviestMiners,
-			fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+			fmt.Sprintf("(%s,p:%d,t:%d)", blk.Miner, blk.ParentWeight, blk.Timestamp),
 		)
 	}
 
@@ -753,32 +775,16 @@ type BlockMessages struct {
 func (cs *ChainStore) BlockMsgsForTipset(ts *types.TipSet) ([]BlockMessages, error) {
 	applied := make(map[address.Address]uint64)
 
-	cst := cbor.NewCborStore(cs.bs)
-	st, err := state.LoadStateTree(cst, ts.Blocks()[0].ParentStateRoot)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to load state tree")
-	}
-
-	preloadAddr := func(a address.Address) error {
-		if _, ok := applied[a]; !ok {
-			act, err := st.GetActor(a)
-			if err != nil {
-				return err
-			}
-
-			applied[a] = act.Nonce
-		}
-		return nil
-	}
-
 	selectMsg := func(m *types.Message) (bool, error) {
-		if err := preloadAddr(m.From); err != nil {
-			return false, err
+		// The first match for a sender is guaranteed to have correct nonce -- the block isn't valid otherwise
+		if _, ok := applied[m.From]; !ok {
+			applied[m.From] = m.Nonce
 		}
 
 		if applied[m.From] != m.Nonce {
 			return false, nil
 		}
+
 		applied[m.From]++
 
 		return true, nil
@@ -1168,7 +1174,7 @@ func recurseLinks(bs bstore.Blockstore, walked *cid.Set, root cid.Cid, in []cid.
 	return in, rerr
 }
 
-func (cs *ChainStore) Export(ctx context.Context, ts *types.TipSet, inclRecentRoots abi.ChainEpoch, w io.Writer) error {
+func (cs *ChainStore) Export(ctx context.Context, ts *types.TipSet, inclRecentRoots abi.ChainEpoch, skipOldMsgs bool, w io.Writer) error {
 	if ts == nil {
 		ts = cs.GetHeaviestTipSet()
 	}
@@ -1206,9 +1212,13 @@ func (cs *ChainStore) Export(ctx context.Context, ts *types.TipSet, inclRecentRo
 			return xerrors.Errorf("unmarshaling block header (cid=%s): %w", blk, err)
 		}
 
-		cids, err := recurseLinks(cs.bs, walked, b.Messages, []cid.Cid{b.Messages})
-		if err != nil {
-			return xerrors.Errorf("recursing messages failed: %w", err)
+		var cids []cid.Cid
+		if !skipOldMsgs || b.Height > ts.Height()-inclRecentRoots {
+			mcids, err := recurseLinks(cs.bs, walked, b.Messages, []cid.Cid{b.Messages})
+			if err != nil {
+				return xerrors.Errorf("recursing messages failed: %w", err)
+			}
+			cids = mcids
 		}
 
 		if b.Height > 0 {

@@ -4,7 +4,6 @@ package ffiwrapper
 
 import (
 	"context"
-	"encoding/json"
 	"path/filepath"
 	"time"
 
@@ -36,25 +35,6 @@ func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	return ffi.GenerateWinningPoSt(minerID, privsectors, randomness)
 }
 
-// 扩展[]abi.PoStProof约定, 以便兼容官方接口
-// PoStProof {
-//    PoStProof RegisteredPoStProof
-//    ProofBytes []byte
-// }
-// 其中的PoStProof.PoStProof为类型，>=0时使用官方原值, 小于0时由我方自定义
-// PoStProof.PoStProof == -100 时，为扩展标识，PoStProof.ProofBytes为json字符串序列化出来的字节，内容定义如下：
-//    {
-//        "code":"1001", // 0，成功(未启用)；1001,扇区证明失败；1002, 扇区文件读取超时; 1003，扇区文件错误
-//        "msg":"", // 需要传递的消息，错误时为错误信息
-//        "sid":1000, //扇区编号值
-//    }
-//
-type WindowPoStErrResp struct {
-	Code string `json:"code"`
-	Msg  string `json:"msg"`
-	Sid  int64  `json:"sid"`
-}
-
 func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.SectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
 	randomness[31] &= 0x3f
 	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
@@ -63,30 +43,21 @@ func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	}
 	defer done()
 
-	proofs, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
-	if err != nil {
-		return proofs, skipped, err
+	if len(skipped) > 0 {
+		return nil, skipped, xerrors.Errorf("pubSectorToPriv skipped some sectors")
 	}
-	sucProof := []proof.PoStProof{}
-	for _, p := range proofs {
-		if p.PoStProof >= 0 {
-			sucProof = append(sucProof, p)
-			continue
-		}
-		switch p.PoStProof {
-		case -100:
-			resp := WindowPoStErrResp{}
-			if err := json.Unmarshal(p.ProofBytes, &resp); err != nil {
-				return proofs, skipped, errors.As(err, "Unexpecte protocal", string(p.ProofBytes))
-			}
-			skipped = append(skipped, abi.SectorID{
-				Miner:  minerID,
-				Number: abi.SectorNumber(resp.Sid),
-			})
-			// TODO:标记并处理错误的扇区
-		}
+
+	proof, faulty, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
+
+	var faultyIDs []abi.SectorID
+	for _, f := range faulty {
+		faultyIDs = append(faultyIDs, abi.SectorID{
+			Miner:  minerID,
+			Number: f,
+		})
 	}
-	return sucProof, skipped, err
+
+	return proof, faultyIDs, err
 }
 
 func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []proof.SectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, []abi.SectorID, func(), error) {
@@ -100,8 +71,8 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 	}
 
 	fmap := map[abi.SectorNumber]struct{}{}
-	for _, fault := range skipped {
-		fmap[fault.Number] = struct{}{}
+	for _, fault := range faults {
+		fmap[fault] = struct{}{}
 	}
 
 	var doneFuncs []func()

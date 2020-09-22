@@ -37,6 +37,26 @@ type SectorStorage struct {
 	WorkerInfo  WorkerInfo
 }
 
+type StorageStatus struct {
+	StorageId int64
+	MountDir  string
+	MountUri  string
+	Disable   bool
+	Used      time.Duration
+	Err       string
+}
+type StorageStatusSort []StorageStatus
+
+func (g StorageStatusSort) Len() int {
+	return len(g)
+}
+func (g StorageStatusSort) Swap(i, j int) {
+	g[i], g[j] = g[j], g[i]
+}
+func (g StorageStatusSort) Less(i, j int) bool {
+	return g[i].Used < g[j].Used
+}
+
 func SectorID(minerId string, sectorId int64) string {
 	return fmt.Sprintf("s-%s-%d", minerId, sectorId)
 }
@@ -86,13 +106,28 @@ func GetSectorByState(storageId int64, state int64) (SectorList, error) {
 	}
 	return list, nil
 }
-func GetAllSectorByState(state int64) (SectorList, error) {
+
+func GetAllSectorByState(state int64) (map[string]int64, error) {
 	mdb := GetDB()
-	list := SectorList{}
-	if err := database.QueryStructs(mdb, &list, "SELECT * FROM sector_info WHERE state=?", state); err != nil {
-		return nil, errors.As(err, "all")
+	rows, err := mdb.Query("SELECT id,storage_id FROM sector_info WHERE state=?", state)
+	if err != nil {
+		return nil, errors.As(err)
 	}
-	return list, nil
+	defer rows.Close()
+
+	result := map[string]int64{}
+	for rows.Next() {
+		sid := ""
+		storageId := int64(0)
+		if err := rows.Scan(&sid, &storageId); err != nil {
+			return nil, errors.As(err)
+		}
+		result[sid] = storageId
+	}
+	if len(result) == 0 {
+		return nil, errors.ErrNoData.As(state)
+	}
+	return result, nil
 }
 
 func GetSectorStorage(id string) (*SectorStorage, error) {

@@ -86,6 +86,10 @@ var setHlmSectorStateCmd = &cli.Command{
 			Name:  "sector-id",
 			Usage: "sector id which want to set",
 		},
+		&cli.BoolFlag{
+			Name:  "force",
+			Usage: "force to release the task in working",
+		},
 		&cli.IntFlag{
 			Name:  "state",
 			Usage: "state which want to set",
@@ -105,36 +109,15 @@ var setHlmSectorStateCmd = &cli.Command{
 
 		sid := cctx.String("sector-id")
 		if len(sid) == 0 {
-			return errors.New("need input sector-id")
+			return errors.New("need input sector-id(s-t0xxxx-xxx")
 		}
 		memo := cctx.String("memo")
 		if len(memo) == 0 {
 			return errors.New("need input memo")
 		}
-		return nodeApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"))
-	},
-}
-var finalizeHlmSectorCmd = &cli.Command{
-	Name:  "finalize",
-	Usage: "will call the finalize to trigger the remote do finalize",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "sector-id",
-			Usage: "sector id which want to set",
-		},
-	},
-	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
-		if err != nil {
+		if _, err := nodeApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"), cctx.Bool("force")); err != nil {
 			return err
 		}
-		defer closer()
-		ctx := lcli.ReqContext(cctx)
-
-		sid := cctx.String("sector-id")
-		if len(sid) == 0 {
-			return errors.New("need input sector-id")
-		}
-		return nodeApi.HlmSectorFinalize(ctx, sid)
+		return nil
 	},
 }

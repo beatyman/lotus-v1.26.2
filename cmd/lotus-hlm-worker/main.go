@@ -178,7 +178,7 @@ func main() {
 			&cli.UintFlag{
 				Name:  "cache-mode",
 				Value: 0,
-				Usage: "cache mode.0, tranfer mode; 1, share mode",
+				Usage: "cache mode. 0, tranfer mode; 1, share mode",
 			},
 			&cli.UintFlag{
 				Name:  "parallel-addpiece",

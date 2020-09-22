@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/filecoin-project/go-address"
@@ -39,6 +40,11 @@ var testWdPoStCmd = &cli.Command{
 			Usage: "Window PoSt deadline index",
 		},
 		&cli.BoolFlag{
+			Name:  "check-sealed",
+			Value: false,
+			Usage: "check and relink the sealed file",
+		},
+		&cli.BoolFlag{
 			Name:  "mount",
 			Value: false,
 			Usage: "mount storage node from miner",
@@ -54,6 +60,7 @@ var testWdPoStCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		database.InitDB(filepath.Join(minerRepo))
 
 		fullApi, closer, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {
@@ -161,7 +168,7 @@ var testWdPoStCmd = &cli.Command{
 		}
 		fmt.Println("Start CheckProvable")
 		start := time.Now()
-		all, bad, err := ffiwrapper.CheckProvable(minerRepo, ssize, sectors, 3*time.Second)
+		all, bad, err := ffiwrapper.CheckProvable(minerRepo, ssize, sectors, 6*time.Second)
 		if err != nil {
 			return errors.As(err)
 		}

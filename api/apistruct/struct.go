@@ -98,7 +98,7 @@ type FullNodeStruct struct {
 		ChainGetNode                  func(ctx context.Context, p string) (*api.IpldObject, error)                                                       `perm:"read"`
 		ChainGetMessage               func(context.Context, cid.Cid) (*types.Message, error)                                                             `perm:"read"`
 		ChainGetPath                  func(context.Context, types.TipSetKey, types.TipSetKey) ([]*api.HeadChange, error)                                 `perm:"read"`
-		ChainExport                   func(context.Context, abi.ChainEpoch, types.TipSetKey) (<-chan []byte, error)                                      `perm:"read"`
+		ChainExport                   func(context.Context, abi.ChainEpoch, bool, types.TipSetKey) (<-chan []byte, error)                                `perm:"read"`
 
 		ChainComputeBaseFee func(context.Context, types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
@@ -189,6 +189,7 @@ type FullNodeStruct struct {
 		StateReplay                        func(context.Context, types.TipSetKey, cid.Cid) (*api.InvocResult, error)                                           `perm:"read"`
 		StateGetActor                      func(context.Context, address.Address, types.TipSetKey) (*types.Actor, error)                                       `perm:"read"`
 		StateReadState                     func(context.Context, address.Address, types.TipSetKey) (*api.ActorState, error)                                    `perm:"read"`
+		StateMsgGasCost                    func(context.Context, cid.Cid, types.TipSetKey) (*api.MsgGasCost, error)                                            `perm:"read"`
 		StateWaitMsg                       func(ctx context.Context, cid cid.Cid, confidence uint64) (*api.MsgLookup, error)                                   `perm:"read"`
 		StateSearchMsg                     func(context.Context, cid.Cid) (*api.MsgLookup, error)                                                              `perm:"read"`
 		StateListMiners                    func(context.Context, types.TipSetKey) ([]address.Address, error)                                                   `perm:"read"`
@@ -225,8 +226,8 @@ type FullNodeStruct struct {
 
 		PaychGet                    func(ctx context.Context, from, to address.Address, amt types.BigInt) (*api.ChannelInfo, error)           `perm:"sign"`
 		PaychGetWaitReady           func(context.Context, cid.Cid) (address.Address, error)                                                   `perm:"sign"`
-		PaychAvailableFunds         func(address.Address) (*api.ChannelAvailableFunds, error)                                                 `perm:"sign"`
-		PaychAvailableFundsByFromTo func(address.Address, address.Address) (*api.ChannelAvailableFunds, error)                                `perm:"sign"`
+		PaychAvailableFunds         func(context.Context, address.Address) (*api.ChannelAvailableFunds, error)                                `perm:"sign"`
+		PaychAvailableFundsByFromTo func(context.Context, address.Address, address.Address) (*api.ChannelAvailableFunds, error)               `perm:"sign"`
 		PaychList                   func(context.Context) ([]address.Address, error)                                                          `perm:"read"`
 		PaychStatus                 func(context.Context, address.Address) (*api.PaychStatus, error)                                          `perm:"read"`
 		PaychSettle                 func(context.Context, address.Address) (cid.Cid, error)                                                   `perm:"sign"`
@@ -325,8 +326,7 @@ type StorageMinerStruct struct {
 		RunPledgeSector      func(context.Context) error                                                               `perm:"write"`
 		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
 		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
-		HlmSectorSetState    func(ctx context.Context, sid, memo string, state int) error                              `perm:"write"`
-		HlmSectorFinalize    func(ctx context.Context, sid string) error                                               `perm:"write"`
+		HlmSectorSetState    func(ctx context.Context, sid, memo string, state int, force bool) (bool, error)          `perm:"write"`
 		HlmSectorListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
 		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
 		UnlockGPUService     func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
@@ -344,18 +344,22 @@ type StorageMinerStruct struct {
 		WorkerPreConn        func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
 		WorkerMinerConn      func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
-		Testing           func(ctx context.Context, fnName string, args []string) error                               `perm:"admin"`
-		AddHLMStorage     func(ctx context.Context, sInfo database.StorageInfo) error                                 `perm:"write"`
-		DisableHLMStorage func(ctx context.Context, id int64) error                                                   `perm:"write"`
-		MountHLMStorage   func(ctx context.Context, id int64) error                                                   `perm:"write"`
-		UMountHLMStorage  func(ctx context.Context, id int64) error                                                   `perm:"write"`
-		RelinkHLMStorage  func(ctx context.Context, id int64) error                                                   `perm:"write"`
-		ReplaceHLMStorage func(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error `perm:"write"`
-		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error                           `perm:"write"`
-		PreStorageNode    func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)         `perm:"write"`
-		CommitStorageNode func(ctx context.Context, sectorId string) error                                            `perm:"write"`
-		CancelStorageNode func(ctx context.Context, sectorId string) error                                            `perm:"write"`
-		ChecksumStorage   func(ctx context.Context, ver int64) (database.StorageList, error)                          `perm:"read"`
+		Testing           func(ctx context.Context, fnName string, args []string) error                                `perm:"admin"`
+		VerHLMStorage     func(ctx context.Context) (int64, error)                                                     `perm:"read"`
+		GetHLMStorage     func(ctx context.Context, id int64) (*database.StorageInfo, error)                           `perm:"read"`
+		SearchHLMStorage  func(ctx context.Context, ip string) ([]database.StorageInfo, error)                         `perm:"read"`
+		AddHLMStorage     func(ctx context.Context, sInfo *database.StorageInfo) error                                 `perm:"write"`
+		DisableHLMStorage func(ctx context.Context, id int64, disable bool) error                                      `perm:"write"`
+		MountHLMStorage   func(ctx context.Context, id int64) error                                                    `perm:"write"`
+		UMountHLMStorage  func(ctx context.Context, id int64) error                                                    `perm:"write"`
+		RelinkHLMStorage  func(ctx context.Context, id int64) error                                                    `perm:"write"`
+		ReplaceHLMStorage func(ctx context.Context, info *database.StorageInfo) error                                  `perm:"write"`
+		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error                            `perm:"write"`
+		StatusHLMStorage  func(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) `perm:"read"`
+		PreStorageNode    func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)          `perm:"write"`
+		CommitStorageNode func(ctx context.Context, sectorId string) error                                             `perm:"write"`
+		CancelStorageNode func(ctx context.Context, sectorId string) error                                             `perm:"write"`
+		ChecksumStorage   func(ctx context.Context, ver int64) ([]database.StorageInfo, error)                         `perm:"read"`
 	}
 }
 
@@ -738,8 +742,8 @@ func (c *FullNodeStruct) ChainGetPath(ctx context.Context, from types.TipSetKey,
 	return c.Internal.ChainGetPath(ctx, from, to)
 }
 
-func (c *FullNodeStruct) ChainExport(ctx context.Context, nroots abi.ChainEpoch, tsk types.TipSetKey) (<-chan []byte, error) {
-	return c.Internal.ChainExport(ctx, nroots, tsk)
+func (c *FullNodeStruct) ChainExport(ctx context.Context, nroots abi.ChainEpoch, iom bool, tsk types.TipSetKey) (<-chan []byte, error) {
+	return c.Internal.ChainExport(ctx, nroots, iom, tsk)
 }
 
 func (c *FullNodeStruct) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
@@ -864,6 +868,10 @@ func (c *FullNodeStruct) StateGetActor(ctx context.Context, actor address.Addres
 
 func (c *FullNodeStruct) StateReadState(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*api.ActorState, error) {
 	return c.Internal.StateReadState(ctx, addr, tsk)
+}
+
+func (c *FullNodeStruct) StateMsgGasCost(ctx context.Context, msgc cid.Cid, tsk types.TipSetKey) (*api.MsgGasCost, error) {
+	return c.Internal.StateMsgGasCost(ctx, msgc, tsk)
 }
 
 func (c *FullNodeStruct) StateWaitMsg(ctx context.Context, msgc cid.Cid, confidence uint64) (*api.MsgLookup, error) {
@@ -994,12 +1002,12 @@ func (c *FullNodeStruct) PaychGetWaitReady(ctx context.Context, sentinel cid.Cid
 	return c.Internal.PaychGetWaitReady(ctx, sentinel)
 }
 
-func (c *FullNodeStruct) PaychAvailableFunds(ch address.Address) (*api.ChannelAvailableFunds, error) {
-	return c.Internal.PaychAvailableFunds(ch)
+func (c *FullNodeStruct) PaychAvailableFunds(ctx context.Context, ch address.Address) (*api.ChannelAvailableFunds, error) {
+	return c.Internal.PaychAvailableFunds(ctx, ch)
 }
 
-func (c *FullNodeStruct) PaychAvailableFundsByFromTo(from, to address.Address) (*api.ChannelAvailableFunds, error) {
-	return c.Internal.PaychAvailableFundsByFromTo(from, to)
+func (c *FullNodeStruct) PaychAvailableFundsByFromTo(ctx context.Context, from, to address.Address) (*api.ChannelAvailableFunds, error) {
+	return c.Internal.PaychAvailableFundsByFromTo(ctx, from, to)
 }
 
 func (c *FullNodeStruct) PaychList(ctx context.Context) ([]address.Address, error) {
@@ -1374,11 +1382,8 @@ func (c *StorageMinerStruct) StatusPledgeSector(ctx context.Context) (int, error
 func (c *StorageMinerStruct) StopPledgeSector(ctx context.Context) error {
 	return c.Internal.StopPledgeSector(ctx)
 }
-func (c *StorageMinerStruct) HlmSectorSetState(ctx context.Context, sid, memo string, state int) error {
-	return c.Internal.HlmSectorSetState(ctx, sid, memo, state)
-}
-func (c *StorageMinerStruct) HlmSectorFinalize(ctx context.Context, sid string) error {
-	return c.Internal.HlmSectorFinalize(ctx, sid)
+func (c *StorageMinerStruct) HlmSectorSetState(ctx context.Context, sid, memo string, state int, force bool) (bool, error) {
+	return c.Internal.HlmSectorSetState(ctx, sid, memo, state, force)
 }
 func (c *StorageMinerStruct) HlmSectorListAll(ctx context.Context) ([]api.SectorInfo, error) {
 	return c.Internal.HlmSectorListAll(ctx)
@@ -1432,11 +1437,20 @@ func (c *StorageMinerStruct) WorkerMinerConn(ctx context.Context) (int, error) {
 func (c *StorageMinerStruct) Testing(ctx context.Context, fnName string, args []string) error {
 	return c.Internal.Testing(ctx, fnName, args)
 }
-func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo database.StorageInfo) error {
+func (c *StorageMinerStruct) VerHLMStorage(ctx context.Context) (int64, error) {
+	return c.Internal.VerHLMStorage(ctx)
+}
+func (c *StorageMinerStruct) GetHLMStorage(ctx context.Context, id int64) (*database.StorageInfo, error) {
+	return c.Internal.GetHLMStorage(ctx, id)
+}
+func (c *StorageMinerStruct) SearchHLMStorage(ctx context.Context, ip string) ([]database.StorageInfo, error) {
+	return c.Internal.SearchHLMStorage(ctx, ip)
+}
+func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo *database.StorageInfo) error {
 	return c.Internal.AddHLMStorage(ctx, sInfo)
 }
-func (c *StorageMinerStruct) DisableHLMStorage(ctx context.Context, id int64) error {
-	return c.Internal.DisableHLMStorage(ctx, id)
+func (c *StorageMinerStruct) DisableHLMStorage(ctx context.Context, id int64, disable bool) error {
+	return c.Internal.DisableHLMStorage(ctx, id, disable)
 }
 func (c *StorageMinerStruct) MountHLMStorage(ctx context.Context, id int64) error {
 	return c.Internal.MountHLMStorage(ctx, id)
@@ -1447,11 +1461,14 @@ func (c *StorageMinerStruct) UMountHLMStorage(ctx context.Context, id int64) err
 func (c *StorageMinerStruct) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return c.Internal.RelinkHLMStorage(ctx, id)
 }
-func (c *StorageMinerStruct) ReplaceHLMStorage(ctx context.Context, id int64, signalUri, transfUri, mountType, mountOpt string) error {
-	return c.Internal.ReplaceHLMStorage(ctx, id, signalUri, transfUri, mountType, mountOpt)
+func (c *StorageMinerStruct) ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error {
+	return c.Internal.ReplaceHLMStorage(ctx, info)
 }
 func (c *StorageMinerStruct) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return c.Internal.ScaleHLMStorage(ctx, id, size, work)
+}
+func (c *StorageMinerStruct) StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) {
+	return c.Internal.StatusHLMStorage(ctx, id, timeout)
 }
 
 func (c *StorageMinerStruct) PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) {
@@ -1466,7 +1483,7 @@ func (c *StorageMinerStruct) CancelStorageNode(ctx context.Context, sectorId str
 	return c.Internal.CancelStorageNode(ctx, sectorId)
 }
 
-func (c *StorageMinerStruct) ChecksumStorage(ctx context.Context, sumVer int64) (database.StorageList, error) {
+func (c *StorageMinerStruct) ChecksumStorage(ctx context.Context, sumVer int64) ([]database.StorageInfo, error) {
 	return c.Internal.ChecksumStorage(ctx, sumVer)
 }
 

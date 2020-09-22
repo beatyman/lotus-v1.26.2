@@ -29,6 +29,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/types"
 	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
+	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 
@@ -38,6 +39,9 @@ import (
 var log = logging.Logger("storageminer")
 
 type Miner struct {
+	// implement by hlm
+	fps *WindowPoStScheduler // SPEC: only for testing
+
 	api    storageMinerApi
 	feeCfg config.MinerFeeConfig
 	h      host.Host
@@ -52,8 +56,16 @@ type Miner struct {
 	getSealConfig dtypes.GetSealingConfigFunc
 	sealing       *sealing.Sealing
 
-	// implement by hlm
-	fps *WindowPoStScheduler // SPEC: only for testing
+	sealingEvtType journal.EventType
+}
+
+// SealingStateEvt is a journal event that records a sector state transition.
+type SealingStateEvt struct {
+	SectorNumber abi.SectorNumber
+	SectorType   abi.RegisteredSealProof
+	From         sealing.SectorState
+	After        sealing.SectorState
+	Error        string
 }
 
 type storageMinerApi interface {
@@ -99,6 +111,8 @@ type storageMinerApi interface {
 
 func NewMiner(api storageMinerApi, maddr, worker address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, fps *WindowPoStScheduler) (*Miner, error) {
 	m := &Miner{
+		fps: fps,
+
 		api:    api,
 		feeCfg: feeCfg,
 		h:      h,
@@ -107,11 +121,10 @@ func NewMiner(api storageMinerApi, maddr, worker address.Address, h host.Host, d
 		sc:     sc,
 		verif:  verif,
 
-		maddr:         maddr,
-		worker:        worker,
-		getSealConfig: gsd,
-
-		fps: fps,
+		maddr:          maddr,
+		worker:         worker,
+		getSealConfig:  gsd,
+		sealingEvtType: journal.J.RegisterEventType("storage", "sealing_states"),
 	}
 
 	return m, nil
@@ -135,11 +148,23 @@ func (m *Miner) Run(ctx context.Context) error {
 	evts := events.NewEvents(ctx, m.api)
 	adaptedAPI := NewSealingAPIAdapter(m.api)
 	pcp := sealing.NewBasicPreCommitPolicy(adaptedAPI, miner.MaxSectorExpirationExtension-(miner.WPoStProvingPeriod*2), md.PeriodStart%miner.WPoStProvingPeriod)
-	m.sealing = sealing.New(adaptedAPI, fc, NewEventsAdapter(evts), m.maddr, m.ds, m.sealer, m.sc, m.verif, &pcp, sealing.GetSealingConfigFunc(m.getSealConfig))
+	m.sealing = sealing.New(adaptedAPI, fc, NewEventsAdapter(evts), m.maddr, m.ds, m.sealer, m.sc, m.verif, &pcp, sealing.GetSealingConfigFunc(m.getSealConfig), m.handleSealingNotifications)
 
 	go m.sealing.Run(ctx) //nolint:errcheck // logged intside the function
 
 	return nil
+}
+
+func (m *Miner) handleSealingNotifications(before, after sealing.SectorInfo) {
+	journal.J.RecordEvent(m.sealingEvtType, func() interface{} {
+		return SealingStateEvt{
+			SectorNumber: before.SectorNumber,
+			SectorType:   before.SectorType,
+			From:         before.State,
+			After:        after.State,
+			Error:        after.LastErr,
+		}
+	})
 }
 
 func (m *Miner) Stop(ctx context.Context) error {

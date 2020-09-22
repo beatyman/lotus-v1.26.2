@@ -278,14 +278,14 @@ func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string
 	return nil
 }
 
-func (sb *Sealer) UpdateSectorState(sid, memo string, state int) error {
+func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force bool) (bool, error) {
 	sInfo, err := database.GetSectorInfo(sid)
 	if err != nil {
-		return errors.As(err, sid, memo, state)
+		return false, errors.As(err, sid, memo, state)
 	}
 
 	// working check
-	var gErr error
+	working := false
 	_remotes.Range(func(key, val interface{}) bool {
 		r := val.(*remote)
 		r.lock.Lock()
@@ -293,26 +293,30 @@ func (sb *Sealer) UpdateSectorState(sid, memo string, state int) error {
 		r.lock.Unlock()
 		if ok {
 			if task.Type%10 == 0 {
-				gErr = errors.New("task in working").As(sid, memo, state, task.Type)
-				return false
-			} else {
-				// free memory
-				r.lock.Lock()
-				delete(r.busyOnTasks, sid)
-				r.lock.Unlock()
+				working = true
 			}
+			if working && !force {
+				return false
+			}
+
+			// free memory
+			r.lock.Lock()
+			delete(r.busyOnTasks, sid)
+			r.lock.Unlock()
 		}
 		return true
 	})
-	if gErr != nil {
-		return gErr
+
+	if working && !force {
+		return working, errors.New("the task is in working").As(sid)
 	}
 
 	// update state
 	if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, state); err != nil {
-		return errors.As(err)
+		return working, errors.As(err)
 	}
-	return nil
+
+	return working, nil
 }
 
 func (sb *Sealer) GcWorker(invalidTime time.Time) ([]database.SectorInfo, error) {
