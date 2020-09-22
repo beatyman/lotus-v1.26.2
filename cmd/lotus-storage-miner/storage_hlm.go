@@ -254,15 +254,20 @@ var enableHLMStorageCmd = &cli.Command{
 var mountHLMStorageCmd = &cli.Command{
 	Name:      "mount",
 	Usage:     "Mount a storage by node id, if exist, will remount it.",
-	ArgsUsage: "id",
+	ArgsUsage: "id/all",
 	Action: func(cctx *cli.Context) error {
 		args := cctx.Args()
 		if args.Len() == 0 {
 			return errors.New("need input id")
 		}
-		id, err := strconv.ParseInt(args.First(), 10, 64)
-		if err != nil {
-			return err
+		storageId := int64(0)
+		input := args.First()
+		if input != "all" {
+			id, err := strconv.ParseInt(args.First(), 10, 64)
+			if err != nil {
+				return err
+			}
+			storageId = id
 		}
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -270,7 +275,7 @@ var mountHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		return nodeApi.MountHLMStorage(ctx, id)
+		return nodeApi.MountHLMStorage(ctx, storageId)
 	},
 }
 
@@ -281,7 +286,7 @@ var relinkHLMStorageCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		args := cctx.Args()
 		if args.Len() == 0 {
-			return errors.New("need input id OR all")
+			return errors.New("need input storage id")
 		}
 		firstArg := args.First()
 		id := int64(0)
