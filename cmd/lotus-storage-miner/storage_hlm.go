@@ -25,6 +25,7 @@ var hlmStorageCmd = &cli.Command{
 		enableHLMStorageCmd,
 		mountHLMStorageCmd,
 		relinkHLMStorageCmd,
+		replaceHLMStorageCmd,
 		scaleHLMStorageCmd,
 		pingHLMStorageCmd,
 	},
