@@ -340,6 +340,7 @@ type StorageMinerStruct struct {
 		WorkerLock           func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
 		WorkerUnlock         func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
 		WorkerDone           func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
+		WorkerInfo           func(ctx context.Context, wid string) (*database.WorkerInfo, error)                       `perm:"read"`
 		WorkerDisable        func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
 		WorkerAddConn        func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
 		WorkerPreConn        func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
@@ -1424,6 +1425,9 @@ func (c *StorageMinerStruct) WorkerUnlock(ctx context.Context, workerId, taskKey
 }
 func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return c.Internal.WorkerDone(ctx, res)
+}
+func (c *StorageMinerStruct) WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error) {
+	return c.Internal.WorkerInfo(ctx, wid)
 }
 func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return c.Internal.WorkerDisable(ctx, wid, disable)

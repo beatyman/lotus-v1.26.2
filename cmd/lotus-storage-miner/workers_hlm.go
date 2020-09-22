@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -15,7 +16,36 @@ var hlmWorkerCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		infoHLMWorkerCmd,
 		listHLMWorkerCmd,
+		getHLMWorkerCmd,
 		disableHLMWorkerCmd,
+	},
+}
+var getHLMWorkerCmd = &cli.Command{
+	Name:      "get",
+	Usage:     "get worker detail",
+	ArgsUsage: "worker id",
+	Action: func(cctx *cli.Context) error {
+		args := cctx.Args()
+		workerId := args.First()
+		if len(workerId) == 0 {
+			return errors.New("need input workid")
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		info, err := nodeApi.WorkerInfo(ctx, workerId)
+		if err != nil {
+			return err
+		}
+		output, err := json.MarshalIndent(info, "", "	")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(output))
+		return nil
 	},
 }
 var disableHLMWorkerCmd = &cli.Command{

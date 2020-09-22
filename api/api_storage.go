@@ -125,6 +125,7 @@ type StorageMiner interface {
 	WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
 	WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
 	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
+	WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error)
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 	WorkerAddConn(ctx context.Context, wid string, num int) error
 	WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error)
