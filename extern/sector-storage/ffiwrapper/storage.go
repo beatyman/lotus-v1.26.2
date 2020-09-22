@@ -148,6 +148,9 @@ func (sb *Sealer) ReplaceStorage(ctx context.Context, info *database.StorageInfo
 		return errors.As(err)
 	}
 
+	// update the storage max version when done a replace operation
+	info.Version = time.Now().UnixNano()
+
 	// update information
 	if err := database.UpdateStorageInfo(info); err != nil {
 		return errors.As(err)

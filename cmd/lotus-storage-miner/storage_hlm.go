@@ -363,7 +363,8 @@ var replaceHLMStorageCmd = &cli.Command{
 		if len(mountOpt) > 0 {
 			info.MountOpt = mountOpt
 		}
-		info.Version = time.Now().UnixNano()
+		info.MountSignalUri = mountSignalUri
+		info.MountTransfUri = mountTransfUri
 		return nodeApi.ReplaceHLMStorage(ctx, info)
 	},
 }

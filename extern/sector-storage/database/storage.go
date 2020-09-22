@@ -58,18 +58,20 @@ UPDATE
 	storage_info 
 SET
 	updated_at=?,
-	max_size=?,keep_size=?,used_size=?,
+	max_size=?,keep_size=?,
 	max_work=?, 
-	mount_type=?,mount_signal_uri=?mount_transf_uri=?,
+	mount_type=?,mount_signal_uri=?,mount_transf_uri=?,
 	mount_dir=?,mount_opt=?,
 	ver=?
-WHERE id=?
+WHERE
+	id=?
 	`,
-		info.UpdateTime,
-		info.MaxSize, info.KeepSize, info.UsedSize,
-		info.MaxWork, // no cur_work because it maybe in locking.
+		time.Now(),
+		// no cur_work and used_size because it maybe in locking.
+		info.MaxSize, info.KeepSize,
+		info.MaxWork,
 		info.MountType, info.MountSignalUri, info.MountTransfUri,
-		info.MountDir, info.MountOpt, info.MountOpt,
+		info.MountDir, info.MountOpt,
 		info.Version,
 		info.ID,
 	); err != nil {

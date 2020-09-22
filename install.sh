@@ -30,7 +30,7 @@ case $1 in
     ;;
 esac
 
-echo "copy to : "$install_path
+echo "copy bin to "$install_path
 cp -rf lotus $install_path
 cp -rf lotus-miner $install_path
 cp -rf lotus-worker $install_path
