@@ -9,8 +9,9 @@ export FIL_PROOFS_MAXIMIZE_CACHING=0  # open cache for 32GB or 64GB
 export RUST_LOG=info
 export RUST_BACKTRACE=1
 
-# make build from source
+# env for build
 export RUSTFLAGS="-C target-cpu=native -g" 
+export CGO_CFLAGS="-D__BLST_PORTABLE__"
 export FFI_BUILD_FROM_SOURCE=1
 
 # checking gpu
