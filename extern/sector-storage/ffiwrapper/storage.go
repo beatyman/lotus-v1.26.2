@@ -85,30 +85,54 @@ func (sb *Sealer) DisableStorage(ctx context.Context, id int64, disable bool) er
 }
 
 func (sb *Sealer) MountStorage(ctx context.Context, id int64) error {
-	sInfo, err := database.GetStorageInfo(id)
-	if err != nil {
-		return errors.As(err)
+	storageInfos := []database.StorageInfo{}
+	if id > 0 {
+		sInfo, err := database.GetStorageInfo(id)
+		if err != nil {
+			return errors.As(err)
+		}
+		storageInfos = append(storageInfos, *sInfo)
+	} else {
+		infos, err := database.GetAllStorageInfo()
+		if err != nil {
+			return errors.As(err)
+		}
+		storageInfos = infos
 	}
-	if err := database.Mount(
-		sInfo.MountType,
-		sInfo.MountSignalUri,
-		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", id)),
-		sInfo.MountOpt,
-	); err != nil {
-		return errors.As(err, sInfo)
+	for _, info := range storageInfos {
+		if err := database.Mount(
+			info.MountType,
+			info.MountSignalUri,
+			filepath.Join(info.MountDir, fmt.Sprintf("%d", info.ID)),
+			info.MountOpt,
+		); err != nil {
+			return errors.As(err, info)
+		}
 	}
 	return nil
 }
 
 func (sb *Sealer) UMountStorage(ctx context.Context, id int64) error {
-	sInfo, err := database.GetStorageInfo(id)
-	if err != nil {
-		return errors.As(err)
+	storageInfos := []database.StorageInfo{}
+	if id > 0 {
+		sInfo, err := database.GetStorageInfo(id)
+		if err != nil {
+			return errors.As(err)
+		}
+		storageInfos = append(storageInfos, *sInfo)
+	} else {
+		infos, err := database.GetAllStorageInfo()
+		if err != nil {
+			return errors.As(err)
+		}
+		storageInfos = infos
 	}
-	if _, err := database.Umount(
-		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", id)),
-	); err != nil {
-		return errors.As(err, sInfo)
+	for _, info := range storageInfos {
+		if _, err := database.Umount(
+			filepath.Join(info.MountDir, fmt.Sprintf("%d", info.ID)),
+		); err != nil {
+			return errors.As(err, info)
+		}
 	}
 	return nil
 }
@@ -147,6 +171,9 @@ func (sb *Sealer) ReplaceStorage(ctx context.Context, info *database.StorageInfo
 		info.MountOpt); err != nil {
 		return errors.As(err)
 	}
+
+	// update the storage max version when done a replace operation
+	info.Version = time.Now().UnixNano()
 
 	// update information
 	if err := database.UpdateStorageInfo(info); err != nil {

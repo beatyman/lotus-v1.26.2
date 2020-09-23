@@ -26,9 +26,11 @@ func (sm *StorageMinerAPI) StatusPledgeSector(ctx context.Context) (int, error) 
 func (sm *StorageMinerAPI) StopPledgeSector(ctx context.Context) error {
 	return sm.Miner.ExitPledgeSector()
 }
-
-func (sm *StorageMinerAPI) HlmSectorSetState(ctx context.Context, sid, memo string, state int, force bool) (bool, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, state, force)
+func (sm *StorageMinerAPI) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
+	return database.GetSectorInfo(sid)
+}
+func (sm *StorageMinerAPI) HlmSectorSetState(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, state, force, reset)
 }
 
 // Message communication
@@ -88,6 +90,9 @@ func (sm *StorageMinerAPI) WorkerUnlock(ctx context.Context, workerId, taskKey, 
 }
 func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskDone(ctx, res)
+}
+func (sm *StorageMinerAPI) WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error) {
+	return database.GetWorkerInfo(wid)
 }
 func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableWorker(ctx, wid, disable)

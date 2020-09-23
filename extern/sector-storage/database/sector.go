@@ -28,6 +28,7 @@ type SectorInfo struct {
 	WorkerId   string    `db:"worker_id"`
 	State      int       `db:"state,0"`
 	StateTime  time.Time `db:"state_time"`
+	StateTimes int       `db:"state_times"`
 	CreateTime time.Time `db:"created_at"`
 }
 

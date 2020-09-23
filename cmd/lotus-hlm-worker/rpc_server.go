@@ -102,11 +102,8 @@ func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,
 	}
 
 	proofs, ignore, err := w.sb.GenerateWindowPoSt(ctx, minerID, sectorInfo, randomness)
-	if err != nil {
-		return api.WindowPoStResp{}, errors.As(err)
-	}
 	return api.WindowPoStResp{
 		Proofs: proofs,
 		Ignore: ignore,
-	}, nil
+	}, err
 }
