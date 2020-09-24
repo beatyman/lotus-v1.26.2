@@ -180,6 +180,10 @@ func copyFile(ctx context.Context, from, to string) error {
 		if !errors.Equal(err, io.EOF) {
 			return errors.As(err)
 		}
+		// TODO: checksum transfer data
+		if fromStat.Size() != toStat.Size() {
+			return errors.New("final size not match").As(from, to, fromStat.Size(), toStat.Size())
+		}
 		return nil
 	case <-ctx.Done():
 		iLock.Lock()
