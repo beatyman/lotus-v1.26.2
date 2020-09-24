@@ -16,7 +16,6 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
-	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/gwaylib/errors"
 )
@@ -467,34 +466,28 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			task.SectorInfo,
 			task.Randomness,
 		)
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
 		res.WindowPoStProofOut = proofs.Proofs
 		res.WindowPoStIgnSectors = proofs.Ignore
-		return res
+		return errRes(err, &res)
 	case ffiwrapper.WorkerWinningPoSt:
 		proofs, err := w.rpcServer.GenerateWinningPoSt(ctx,
 			task.SectorID.Miner,
 			task.SectorInfo,
 			task.Randomness,
 		)
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
 		res.WinningPoStProofOut = proofs
-		return res
+		return errRes(err, &res)
 	default:
-		return errRes(errors.New("unknown task type").As(task.Type, w.workerCfg), task)
+		return errRes(errors.New("unknown task type").As(task.Type, w.workerCfg), &res)
 	}
 	api, err := GetNodeApi()
 	if err != nil {
 		ReleaseNodeApi(false)
-		return errRes(errors.As(err, w.workerCfg), task)
+		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	// clean cache before working.
 	if err := w.CleanCache(ctx); err != nil {
-		return errRes(errors.As(err, w.workerCfg), task)
+		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	// checking is the cache in a different storage server, do fetch when it is.
 	if w.workerCfg.CacheMode == 0 &&
@@ -503,7 +496,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// lock bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
 			ReleaseNodeApi(false)
-			return errRes(errors.As(err, w.workerCfg), task)
+			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 	retryFetch:
 		// fetch data
@@ -525,7 +518,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// release bandwidth
 		if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
 			ReleaseNodeApi(false)
-			return errRes(errors.As(err, w.workerCfg), task)
+			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 		// keep unseal data from miner
 		if !fromMiner {
@@ -536,23 +529,23 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 				task.SectorStorage.SectorInfo.ID,
 				"all",
 			); err != nil {
-				return errRes(errors.As(err, w.workerCfg), task)
+				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 		}
 	}
 	// lock the task to this worker
 	if err := api.WorkerLock(ctx, w.workerCfg.ID, task.Key(), "task in", int(task.Type)); err != nil {
 		ReleaseNodeApi(false)
-		return errRes(errors.As(err, w.workerCfg), task)
+		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	unlockWorker := false
 	switch task.Type {
 	case ffiwrapper.WorkerAddPiece:
 		rsp, err := w.addPiece(ctx, task)
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
 		res.Pieces = rsp
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
 
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
@@ -560,47 +553,46 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerPreCommit1:
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
+			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 		rspco, err := w.workerSB.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
 		res.PreCommit1Out = rspco
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
 
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 	case ffiwrapper.WorkerPreCommit2:
 		out, err := w.workerSB.SealPreCommit2(ctx, task.SectorID, task.PreCommit1Out)
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
 		res.PreCommit2Out = ffiwrapper.SectorCids{
 			Unsealed: out.Unsealed.String(),
 			Sealed:   out.Sealed.String(),
 		}
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
 	case ffiwrapper.WorkerCommit1:
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
+			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 		cids, err := task.Cids.Decode()
 		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
+			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 		out, err := w.workerSB.SealCommit1(ctx, task.SectorID, task.SealTicket, task.SealSeed, pieceInfo, *cids)
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), task)
-		}
 		res.Commit1Out = out
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
 	case ffiwrapper.WorkerCommit2:
-		var out storage.Proof
 		var err error
 		// if local no gpu service, using remote if the remtoes have.
 		// TODO: Optimized waiting algorithm
 		if w.workerCfg.ParallelCommit2 == 0 && !w.workerCfg.Commit2Srv {
 			for {
-				out, err = CallCommit2Service(ctx, task)
+				res.Commit2Out, err = CallCommit2Service(ctx, task)
 				if err != nil {
 					log.Warn(errors.As(err))
 					time.Sleep(10e9)
@@ -610,13 +602,12 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			}
 		}
 		// call gpu service failed, using local instead.
-		if len(out) == 0 {
-			out, err = w.workerSB.SealCommit2(ctx, task.SectorID, task.Commit1Out)
+		if len(res.Commit2Out) == 0 {
+			res.Commit2Out, err = w.workerSB.SealCommit2(ctx, task.SectorID, task.Commit1Out)
 			if err != nil {
-				return errRes(errors.As(err, w.workerCfg), task)
+				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 		}
-		res.Commit2Out = out
 	// SPEC: cancel deal with worker finalize, because it will post failed when commit2 is online and finalize is interrupt.
 	// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
 	// TODO: when testing stable finalize retrying and reopen it.
@@ -625,14 +616,14 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		_, err := os.Stat(string(sealedFile))
 		if err != nil {
 			if !os.IsNotExist(err) {
-				return errRes(errors.As(err, sealedFile), task)
+				return errRes(errors.As(err, sealedFile), &res)
 			}
 		} else {
 			if err := w.workerSB.FinalizeSector(ctx, task.SectorID, nil); err != nil {
-				return errRes(errors.As(err, w.workerCfg), task)
+				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 			if err := w.pushCommit(ctx, task); err != nil {
-				return errRes(errors.As(err, w.workerCfg), task)
+				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 		}
 	}
@@ -643,21 +634,16 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker", database.SECTOR_STATE_MOVE); err != nil {
 			log.Warn(errors.As(err))
 			ReleaseNodeApi(false)
-			return errRes(errors.As(err, w.workerCfg), task)
+			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 	}
 	return res
 }
 
-func errRes(err error, task ffiwrapper.WorkerTask) ffiwrapper.SealRes {
-	return ffiwrapper.SealRes{
-		Type:   task.Type,
-		TaskID: task.Key(),
-		Err:    err.Error(),
-		GoErr:  err,
-		WorkerCfg: ffiwrapper.WorkerCfg{
-			//
-			ID: task.WorkerID,
-		},
+func errRes(err error, res *ffiwrapper.SealRes) ffiwrapper.SealRes {
+	if err != nil {
+		res.Err = err.Error()
+		res.GoErr = err
 	}
+	return *res
 }
