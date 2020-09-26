@@ -48,20 +48,21 @@ func (sb *Sealer) MakeLink(task *WorkerTask) error {
 }
 
 func (sb *Sealer) AddStorage(ctx context.Context, sInfo *database.StorageInfo) error {
+	id, err := database.AddStorageInfo(sInfo)
+	if err != nil {
+		return errors.As(err)
+	}
 	if err := database.Mount(
 		sInfo.MountType,
 		sInfo.MountSignalUri,
-		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", sInfo.ID)),
+		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", id)),
 		sInfo.MountOpt,
 	); err != nil {
 		return errors.As(err, sInfo)
 	}
 
-	if err := database.AddStorage(sInfo); err != nil {
-		return errors.As(err)
-	}
 	if sInfo.MaxSize == -1 {
-		dir := filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", sInfo.ID))
+		dir := filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", id))
 		diskStatus, err := database.DiskUsage(dir)
 		if err != nil {
 			return errors.As(err)

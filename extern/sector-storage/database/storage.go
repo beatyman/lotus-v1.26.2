@@ -31,7 +31,7 @@ func (s *StorageInfo) SetLastInsertId(id int64, err error) {
 	}
 	s.ID = id
 }
-func AddStorageInfo(info *StorageInfo) error {
+func AddStorageInfo(info *StorageInfo) (int64, error) {
 	if info.Version == 0 {
 		info.Version = time.Now().UnixNano()
 	}
@@ -39,9 +39,9 @@ func AddStorageInfo(info *StorageInfo) error {
 
 	db := GetDB()
 	if _, err := database.InsertStruct(db, info, "storage_info"); err != nil {
-		return errors.As(err, *info)
+		return 0, errors.As(err, *info)
 	}
-	return nil
+	return info.ID, nil
 }
 
 func GetStorageInfo(id int64) (*StorageInfo, error) {
@@ -51,6 +51,14 @@ func GetStorageInfo(id int64) (*StorageInfo, error) {
 		return nil, errors.As(err, id)
 	}
 	return info, nil
+}
+
+func DisableStorage(id int64, disable bool) error {
+	db := GetDB()
+	if _, err := db.Exec("UPDATE storage_info SET disable=?,ver=? WHERE id=?", disable, time.Now().UnixNano(), id); err != nil {
+		return errors.As(err, id)
+	}
+	return nil
 }
 
 func UpdateStorageInfo(info *StorageInfo) error {
