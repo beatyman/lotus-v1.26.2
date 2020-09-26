@@ -71,7 +71,7 @@ func DiskUsage(path string) (*DiskStatus, error) {
 	err := syscall.Statfs(path, &fs)
 
 	if err != nil {
-		return nil, err
+		return nil, errors.As(err, path)
 	}
 	disk := &DiskStatus{}
 	disk.All = fs.Blocks * uint64(fs.Bsize)
@@ -183,22 +183,6 @@ func MountAllStorage(block bool) error {
 			}
 			log.Error(errors.As(err, mountUri, mountPoint))
 		}
-	}
-	return nil
-}
-func AddStorage(sInfo *StorageInfo) error {
-	// set to default value
-	//sInfo.SectorSize = 107374182400
-	if err := AddStorageInfo(sInfo); err != nil {
-		return errors.As(err, *sInfo)
-	}
-	return nil
-}
-
-func DisableStorage(id int64, disable bool) error {
-	db := GetDB()
-	if _, err := db.Exec("UPDATE storage_info SET disable=?,ver=? WHERE id=?", disable, time.Now().UnixNano(), id); err != nil {
-		return errors.As(err, id)
 	}
 	return nil
 }
