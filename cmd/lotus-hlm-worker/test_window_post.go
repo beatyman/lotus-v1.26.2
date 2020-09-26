@@ -144,12 +144,12 @@ var testWdPoStCmd = &cli.Command{
 		var sinfos []proof.SectorInfo
 		var sectors = []abi.SectorID{}
 		for partIdx, partition := range partitions {
-			pSector := partition.Sectors
+			pSector := partition.AllSectors
 			liveCount, err := pSector.Count()
 			if err != nil {
 				return errors.As(err)
 			}
-			sset, err := fullApi.StateMinerSectors(ctx, act, &pSector, false, ts.Key())
+			sset, err := fullApi.StateMinerSectors(ctx, act, &pSector, ts.Key())
 			if err != nil {
 				return errors.As(err, partIdx)
 			}
@@ -157,12 +157,12 @@ var testWdPoStCmd = &cli.Command{
 			for _, sector := range sset {
 				sectors = append(sectors, abi.SectorID{
 					Miner:  abi.ActorID(mid),
-					Number: sector.ID,
+					Number: sector.SectorNumber,
 				})
 				sinfos = append(sinfos, proof.SectorInfo{
-					SectorNumber: sector.ID,
-					SealedCID:    sector.Info.SealedCID,
-					SealProof:    sector.Info.SealProof,
+					SectorNumber: sector.SectorNumber,
+					SealedCID:    sector.SealedCID,
+					SealProof:    sector.SealProof,
 				})
 			}
 		}

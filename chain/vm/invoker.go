@@ -86,7 +86,7 @@ func (inv *Invoker) Invoke(codeCid cid.Cid, rt vmr.Runtime, method abi.MethodNum
 				"fnString", fnType.String(),
 				"method", method,
 				"cid", codeCid,
-				"actor", builtin.ActorNameByCode(codeCid),
+				"actor", builtin0.ActorNameByCode(codeCid),
 			)
 		}
 	}()
