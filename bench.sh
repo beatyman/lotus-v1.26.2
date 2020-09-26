@@ -10,9 +10,21 @@ export IPFS_GATEWAY="https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs
 
 # Note that FIL_PROOFS_USE_GPU_TREE_BUILDER=1 is for tree_r_last building and FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1 is for tree_c.  
 # So be sure to use both if you want both built on the GPU
-export FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1
-export FIL_PROOFS_USE_GPU_TREE_BUILDER=1 
+export FIL_PROOFS_USE_GPU_COLUMN_BUILDER=0
+export FIL_PROOFS_USE_GPU_TREE_BUILDER=0 
 export FIL_PROOFS_MAXIMIZE_CACHING=1  # open cache for 32GB or 64GB
+export FIL_PROOFS_USE_MULTICORE_SDR=1
+
+# checking gpu
+gpu=""
+type nvidia-smi
+if [ $? -eq 0 ]; then
+    gpu=$(nvidia-smi -L|grep "GPU")
+fi
+if [ ! -z "$gpu" ]; then
+    FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1
+    FIL_PROOFS_USE_GPU_TREE_BUILDER=1
+fi
 
 #size=34359738368 # 32GB
 #size=536870912 # 512MB
