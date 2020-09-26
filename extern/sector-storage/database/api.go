@@ -189,7 +189,6 @@ func MountAllStorage(block bool) error {
 func AddStorage(sInfo *StorageInfo) error {
 	// set to default value
 	//sInfo.SectorSize = 107374182400
-	sInfo.UpdateTime = time.Now()
 	if err := AddStorageInfo(sInfo); err != nil {
 		return errors.As(err, *sInfo)
 	}

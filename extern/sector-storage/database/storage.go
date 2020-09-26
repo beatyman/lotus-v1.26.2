@@ -35,12 +35,15 @@ func AddStorageInfo(info *StorageInfo) error {
 	if info.Version == 0 {
 		info.Version = time.Now().UnixNano()
 	}
+	info.UpdateTime = time.Now()
+
 	db := GetDB()
 	if _, err := database.InsertStruct(db, info, "storage_info"); err != nil {
 		return errors.As(err, *info)
 	}
 	return nil
 }
+
 func GetStorageInfo(id int64) (*StorageInfo, error) {
 	db := GetDB()
 	info := &StorageInfo{}
