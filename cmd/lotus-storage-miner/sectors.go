@@ -8,14 +8,15 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
-
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
 
+	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
+
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
 
 	lcli "github.com/filecoin-project/lotus/cli"
@@ -175,16 +176,16 @@ var sectorsListCmd = &cli.Command{
 		}
 		activeIDs := make(map[abi.SectorNumber]struct{}, len(activeSet))
 		for _, info := range activeSet {
-			activeIDs[info.ID] = struct{}{}
+			activeIDs[info.SectorNumber] = struct{}{}
 		}
 
-		sset, err := fullApi.StateMinerSectors(ctx, maddr, nil, true, types.EmptyTSK)
+		sset, err := fullApi.StateMinerSectors(ctx, maddr, nil, types.EmptyTSK)
 		if err != nil {
 			return err
 		}
 		commitedIDs := make(map[abi.SectorNumber]struct{}, len(activeSet))
 		for _, info := range sset {
-			commitedIDs[info.ID] = struct{}{}
+			commitedIDs[info.SectorNumber] = struct{}{}
 		}
 
 		sort.Slice(list, func(i, j int) bool {
@@ -389,7 +390,7 @@ var sectorsCapacityCollateralCmd = &cli.Command{
 			Expiration: abi.ChainEpoch(cctx.Uint64("expiration")),
 		}
 		if pci.Expiration == 0 {
-			pci.Expiration = miner.MaxSectorExpirationExtension
+			pci.Expiration = miner0.MaxSectorExpirationExtension
 		}
 		pc, err := nApi.StateMinerInitialPledgeCollateral(ctx, maddr, pci, types.EmptyTSK)
 		if err != nil {
@@ -403,8 +404,9 @@ var sectorsCapacityCollateralCmd = &cli.Command{
 }
 
 var sectorsUpdateCmd = &cli.Command{
-	Name:  "update-state",
-	Usage: "ADVANCED: manually update the state of a sector, this may aid in error recovery",
+	Name:      "update-state",
+	Usage:     "ADVANCED: manually update the state of a sector, this may aid in error recovery",
+	ArgsUsage: "<sectorNum> <newState>",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "really-do-it",
@@ -430,17 +432,13 @@ var sectorsUpdateCmd = &cli.Command{
 			return xerrors.Errorf("could not parse sector number: %w", err)
 		}
 
-		state := cctx.Args().Get(1)
-		switch state {
-		case "Packing", "PreCommit1", "PreCommit2", "Committing", "Proving", "FinalizeSector":
-		// TODO: verify the every command.
-		// pass
-		default:
-			return xerrors.Errorf("Not in support state")
-		}
-
-		if _, ok := sealing.ExistSectorStateList[sealing.SectorState(cctx.Args().Get(1))]; !ok {
-			return xerrors.Errorf("Not existing sector state")
+		newState := cctx.Args().Get(1)
+		if _, ok := sealing.ExistSectorStateList[sealing.SectorState(newState)]; !ok {
+			fmt.Printf(" \"%s\" is not a valid state. Possible states for sectors are: \n", newState)
+			for state := range sealing.ExistSectorStateList {
+				fmt.Printf("%s\n", string(state))
+			}
+			return nil
 		}
 
 		return nodeApi.SectorsUpdate(ctx, abi.SectorNumber(id), api.SectorState(cctx.Args().Get(1)))

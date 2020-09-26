@@ -1310,7 +1310,7 @@ func (cs *ChainStore) GetLatestBeaconEntry(ts *types.TipSet) (*types.BeaconEntry
 		}, nil
 	}
 
-	return nil, xerrors.Errorf("found NO beacon entries in the 20 blocks prior to given tipset")
+	return nil, xerrors.Errorf("found NO beacon entries in the 20 latest tipsets")
 }
 
 type chainRand struct {
