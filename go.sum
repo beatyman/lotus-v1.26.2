@@ -225,6 +225,8 @@ github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200827003423-8dafc6b4a581 h1:9u
 github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200827003423-8dafc6b4a581/go.mod h1:XBBpuKIMaXIIzeqzO1iucq4GvbF8CxmXRFoezRh+Cx4=
 github.com/filecoin-project/go-address v0.0.3 h1:eVfbdjEbpbzIrbiSa+PiGUY+oDK9HnUn+M1R/ggoHf8=
 github.com/filecoin-project/go-address v0.0.3/go.mod h1:jr8JxKsYx+lQlQZmF5i2U0Z+cGQ59wMIps/8YW/lDj8=
+github.com/filecoin-project/go-address v0.0.4 h1:gSNMv0qWwH16fGQs7ycOUrDjY6YCSsgLUl0I0KLjo8w=
+github.com/filecoin-project/go-address v0.0.4/go.mod h1:jr8JxKsYx+lQlQZmF5i2U0Z+cGQ59wMIps/8YW/lDj8=
 github.com/filecoin-project/go-amt-ipld/v2 v2.1.0 h1:t6qDiuGYYngDqaLc2ZUvdtAg4UNxPeOYaXhBWSNsVaM=
 github.com/filecoin-project/go-amt-ipld/v2 v2.1.0/go.mod h1:nfFPoGyX0CU9SkXX8EoCcSuHN1XcbN0c6KBh7yvP5fs=
 github.com/filecoin-project/go-bitfield v0.2.0 h1:gCtLcjskIPtdg4NfN7gQZSQF9yrBQ7mkT0qCJxzGI2Q=
