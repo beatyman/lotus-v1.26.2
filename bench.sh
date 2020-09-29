@@ -29,6 +29,21 @@ fi
 #size=34359738368 # 32GB
 #size=536870912 # 512MB
 size=2048
-RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench sealing --storage-dir=/data/cache/.lotus-bench --sector-size=$size #--hlm-parallel=1
+RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench sealing --storage-dir=/data/cache/.lotus-bench --sector-size=$size &
 #RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench sealing --storage-dir=/data/cache/.lotus-bench --sector-size=$size --hlm-parallel=2 --num-sectors=2
+
+
+# set ulimit for process
+nropen=$(cat /proc/sys/fs/nr_open)
+echo "max nofile limit:"$nropen
+echo "current nofile of $pid limit:"$(cat /proc/$pid/limits|grep "open files")
+prlimit -p $pid --nofile=$nropen
+if [ $? -eq 0 ]; then
+    echo "new nofile of $pid limit:"$(cat /proc/$pid/limits|grep "open files")
+else
+    echo "set prlimit failed, command:prlimit -p $pid --nofile=$nropen"
+    exit 0
+fi
+
+wait $pid
 
