@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
@@ -37,11 +36,16 @@ import (
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("storageminer")
 
 type Miner struct {
+	// implement by hlm
+	fps *WindowPoStScheduler // SPEC: only for testing
+
 	api    storageMinerApi
 	feeCfg config.MinerFeeConfig
 	h      host.Host
@@ -110,8 +114,10 @@ type storageMinerApi interface {
 	WalletHas(context.Context, address.Address) (bool, error)
 }
 
-func NewMiner(api storageMinerApi, maddr, worker address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig) (*Miner, error) {
+func NewMiner(api storageMinerApi, maddr, worker address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, fps *WindowPoStScheduler) (*Miner, error) {
 	m := &Miner{
+		fps: fps,
+
 		api:    api,
 		feeCfg: feeCfg,
 		h:      h,
@@ -170,6 +176,13 @@ func (m *Miner) handleSealingNotifications(before, after sealing.SectorInfo) {
 func (m *Miner) Stop(ctx context.Context) error {
 	return m.sealing.Stop(ctx)
 }
+func (m *Miner) Sealer() *sectorstorage.Manager {
+	return m.sealer.(*sectorstorage.Manager)
+}
+func (m *Miner) Maddr() string {
+	log.Info("addr:", m.maddr.String())
+	return string(m.maddr.String())
+}
 
 func (m *Miner) runPreflightChecks(ctx context.Context) error {
 	has, err := m.api.WalletHas(ctx, m.worker)
@@ -200,7 +213,7 @@ func NewWinningPoStProver(api api.FullNode, prover storage.Prover, verifier ffiw
 
 	mi, err := api.StateMinerInfo(context.TODO(), ma, types.EmptyTSK)
 	if err != nil {
-		return nil, xerrors.Errorf("getting sector size: %w", err)
+		return nil, errors.As(err, "getting sector size", ma)
 	}
 
 	spt, err := ffiwrapper.SealProofTypeFromSectorSize(mi.SectorSize)
@@ -236,9 +249,9 @@ func (wpp *StorageWpp) GenerateCandidates(ctx context.Context, randomness abi.Po
 }
 
 func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []proof0.SectorInfo, rand abi.PoStRandomness) ([]proof0.PoStProof, error) {
-	if build.InsecurePoStValidation {
-		return []proof0.PoStProof{{ProofBytes: []byte("valid proof")}}, nil
-	}
+	//if build.InsecurePoStValidation {
+	//	return []proof0.PoStProof{{ProofBytes: []byte("valid proof")}}, nil
+	//}
 
 	log.Infof("Computing WinningPoSt ;%+v; %v", ssi, rand)
 

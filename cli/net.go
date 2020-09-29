@@ -18,6 +18,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/addrutil"
 )
@@ -147,6 +148,13 @@ var netConnect = &cli.Command{
 	Name:      "connect",
 	Usage:     "Connect to a peer",
 	ArgsUsage: "[peerMultiaddr|minerActorAddress]",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "boostrap",
+			Value: false,
+			Usage: "Also connect boostrap",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetAPI(cctx)
 		if err != nil {
@@ -154,49 +162,59 @@ var netConnect = &cli.Command{
 		}
 		defer closer()
 		ctx := ReqContext(cctx)
+		allPis := []peer.AddrInfo{}
 
-		pis, err := addrutil.ParseAddresses(ctx, cctx.Args().Slice())
-		if err != nil {
-			a, perr := address.NewFromString(cctx.Args().First())
-			if perr != nil {
-				return err
-			}
-
-			na, fc, err := GetFullNodeAPI(cctx)
+		if cctx.Bool("boostrap") {
+			pis, err := build.BuiltinBootstrap()
 			if err != nil {
 				return err
 			}
-			defer fc()
-
-			mi, err := na.StateMinerInfo(ctx, a, types.EmptyTSK)
+			allPis = append(allPis, pis...)
+		} else {
+			pis, err := addrutil.ParseAddresses(ctx, cctx.Args().Slice())
 			if err != nil {
-				return xerrors.Errorf("getting miner info: %w", err)
-			}
-
-			if mi.PeerId == nil {
-				return xerrors.Errorf("no PeerID for miner")
-			}
-			multiaddrs := make([]multiaddr.Multiaddr, 0, len(mi.Multiaddrs))
-			for i, a := range mi.Multiaddrs {
-				maddr, err := multiaddr.NewMultiaddrBytes(a)
-				if err != nil {
-					log.Warnf("parsing multiaddr %d (%x): %s", i, a, err)
-					continue
+				a, perr := address.NewFromString(cctx.Args().First())
+				if perr != nil {
+					return err
 				}
-				multiaddrs = append(multiaddrs, maddr)
+
+				na, fc, err := GetFullNodeAPI(cctx)
+				if err != nil {
+					return err
+				}
+				defer fc()
+
+				mi, err := na.StateMinerInfo(ctx, a, types.EmptyTSK)
+				if err != nil {
+					return xerrors.Errorf("getting miner info: %w", err)
+				}
+
+				if mi.PeerId == nil {
+					return xerrors.Errorf("no PeerID for miner")
+				}
+				multiaddrs := make([]multiaddr.Multiaddr, 0, len(mi.Multiaddrs))
+				for i, a := range mi.Multiaddrs {
+					maddr, err := multiaddr.NewMultiaddrBytes(a)
+					if err != nil {
+						log.Warnf("parsing multiaddr %d (%x): %s", i, a, err)
+						continue
+					}
+					multiaddrs = append(multiaddrs, maddr)
+				}
+
+				pi := peer.AddrInfo{
+					ID:    *mi.PeerId,
+					Addrs: multiaddrs,
+				}
+
+				fmt.Printf("%s -> %s\n", a, pi)
+
+				pis = append(pis, pi)
 			}
-
-			pi := peer.AddrInfo{
-				ID:    *mi.PeerId,
-				Addrs: multiaddrs,
-			}
-
-			fmt.Printf("%s -> %s\n", a, pi)
-
-			pis = append(pis, pi)
+			allPis = append(allPis, pis...)
 		}
 
-		for _, pi := range pis {
+		for _, pi := range allPis {
 			fmt.Printf("connect %s: ", pi.ID.Pretty())
 			err := api.NetConnect(ctx, pi)
 			if err != nil {

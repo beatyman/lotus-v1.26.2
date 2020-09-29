@@ -9,6 +9,7 @@ import (
 
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("beacon")
@@ -131,12 +132,19 @@ func BeaconEntriesForBlock(ctx context.Context, bSchedule Schedule, epoch abi.Ch
 	}
 
 	cur := maxRound
+	retry := 0
 	var out []types.BeaconEntry
 	for cur > prev.Round {
+	retryLoop:
 		rch := beacon.Entry(ctx, cur)
 		select {
 		case resp := <-rch:
 			if resp.Err != nil {
+				log.Warn(errors.As(resp.Err))
+				retry++
+				if retry < 3 {
+					goto retryLoop
+				}
 				return nil, xerrors.Errorf("beacon entry request returned error: %w", resp.Err)
 			}
 
@@ -147,7 +155,7 @@ func BeaconEntriesForBlock(ctx context.Context, bSchedule Schedule, epoch abi.Ch
 		}
 	}
 
-	log.Debugw("fetching beacon entries", "took", build.Clock.Since(start), "numEntries", len(out))
+	log.Infow("fetching beacon entries", "took", build.Clock.Since(start), "numEntries", len(out))
 	reverse(out)
 	return out, nil
 }

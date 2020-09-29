@@ -197,7 +197,7 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 			return nil, err
 		}
 
-		sm, err := storage.NewMiner(api, maddr, worker, h, ds, sealer, sc, verif, gsd, fc)
+		sm, err := storage.NewMiner(api, maddr, worker, h, ds, sealer, sc, verif, gsd, fc, fps)
 		if err != nil {
 			return nil, err
 		}
@@ -640,6 +640,7 @@ func NewSetSealConfigFunc(r repo.LockedRepo) (dtypes.SetSealingConfigFunc, error
 			c.Sealing = config.SealingConfig{
 				MaxWaitDealsSectors: cfg.MaxWaitDealsSectors,
 				MaxSealingSectors:   cfg.MaxSealingSectors,
+				MaxDealsPerSector:   cfg.MaxDealsPerSector,
 				WaitDealsDelay:      config.Duration(cfg.WaitDealsDelay),
 			}
 		})
@@ -654,6 +655,7 @@ func NewGetSealConfigFunc(r repo.LockedRepo) (dtypes.GetSealingConfigFunc, error
 				MaxWaitDealsSectors:       cfg.Sealing.MaxWaitDealsSectors,
 				MaxSealingSectors:         cfg.Sealing.MaxSealingSectors,
 				MaxSealingSectorsForDeals: cfg.Sealing.MaxSealingSectorsForDeals,
+				MaxDealsPerSector:         cfg.Sealing.MaxDealsPerSector,
 				WaitDealsDelay:            time.Duration(cfg.Sealing.WaitDealsDelay),
 			}
 		})

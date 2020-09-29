@@ -13,6 +13,11 @@ type Sealer struct {
 
 	sectors  SectorProvider
 	stopping chan struct{}
+
+	//// for remote worker start
+	remoteCfg RemoteCfg // if in remote mode, remote worker will be called.
+	//// for remote worker end
+
 }
 
 func (sb *Sealer) Stop() {

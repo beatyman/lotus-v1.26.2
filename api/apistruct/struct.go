@@ -37,6 +37,9 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/paych"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 )
 
 // All permissions are listed in permissioned.go
@@ -98,6 +101,8 @@ type FullNodeStruct struct {
 		ChainGetPath                  func(context.Context, types.TipSetKey, types.TipSetKey) ([]*api.HeadChange, error)                                 `perm:"read"`
 		ChainExport                   func(context.Context, abi.ChainEpoch, bool, types.TipSetKey) (<-chan []byte, error)                                `perm:"read"`
 
+		ChainComputeBaseFee func(context.Context, types.TipSetKey) (types.BigInt, error) `perm:"read"`
+
 		BeaconGetEntry func(ctx context.Context, epoch abi.ChainEpoch) (*types.BeaconEntry, error) `perm:"read"`
 
 		GasEstimateGasPremium func(context.Context, uint64, address.Address, int64, types.TipSetKey) (types.BigInt, error)         `perm:"read"`
@@ -125,6 +130,7 @@ type FullNodeStruct struct {
 		MpoolPushMessage func(context.Context, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error) `perm:"sign"`
 		MpoolGetNonce    func(context.Context, address.Address) (uint64, error)                                    `perm:"read"`
 		MpoolSub         func(context.Context) (<-chan api.MpoolUpdate, error)                                     `perm:"read"`
+		MpoolRemove      func(context.Context, address.Address, uint64) error                                      `perm:"write"`
 
 		MinerGetBaseInfo func(context.Context, address.Address, abi.ChainEpoch, types.TipSetKey) (*api.MiningBaseInfo, error) `perm:"read"`
 		MinerCreateBlock func(context.Context, *api.BlockTemplate) (*types.BlockMsg, error)                                   `perm:"write"`
@@ -317,6 +323,47 @@ type StorageMinerStruct struct {
 		PiecesListCidInfos func(ctx context.Context) ([]cid.Cid, error)                               `perm:"read"`
 		PiecesGetPieceInfo func(ctx context.Context, pieceCid cid.Cid) (*piecestore.PieceInfo, error) `perm:"read"`
 		PiecesGetCIDInfo   func(ctx context.Context, payloadCid cid.Cid) (*piecestore.CIDInfo, error) `perm:"read"`
+
+		// implements by hlm
+		RunPledgeSector      func(context.Context) error                                                               `perm:"write"`
+		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
+		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
+		HlmSectorGetState    func(ctx context.Context, sid string) (*database.SectorInfo, error)                       `perm:"read"`
+		HlmSectorSetState    func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)   `perm:"write"`
+		HlmSectorListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
+		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
+		UnlockGPUService     func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
+		WorkerAddress        func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
+		WorkerStatus         func(context.Context) (ffiwrapper.WorkerStats, error)                                     `perm:"read"`
+		WorkerStatusAll      func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
+		WorkerQueue          func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
+		WorkerWorking        func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
+		WorkerWorkingById    func(ctx context.Context, sid []string) (database.WorkingSectors, error)                  `perm:"read"`
+		WorkerLock           func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
+		WorkerUnlock         func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
+		WorkerDone           func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
+		WorkerInfo           func(ctx context.Context, wid string) (*database.WorkerInfo, error)                       `perm:"read"`
+		WorkerDisable        func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
+		WorkerAddConn        func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
+		WorkerPreConn        func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
+		WorkerMinerConn      func(ctx context.Context) (int, error)                                                    `perm:"read"`
+
+		Testing           func(ctx context.Context, fnName string, args []string) error                                `perm:"admin"`
+		VerHLMStorage     func(ctx context.Context) (int64, error)                                                     `perm:"read"`
+		GetHLMStorage     func(ctx context.Context, id int64) (*database.StorageInfo, error)                           `perm:"read"`
+		SearchHLMStorage  func(ctx context.Context, ip string) ([]database.StorageInfo, error)                         `perm:"read"`
+		AddHLMStorage     func(ctx context.Context, sInfo *database.StorageInfo) error                                 `perm:"write"`
+		DisableHLMStorage func(ctx context.Context, id int64, disable bool) error                                      `perm:"write"`
+		MountHLMStorage   func(ctx context.Context, id int64) error                                                    `perm:"write"`
+		UMountHLMStorage  func(ctx context.Context, id int64) error                                                    `perm:"write"`
+		RelinkHLMStorage  func(ctx context.Context, id int64) error                                                    `perm:"write"`
+		ReplaceHLMStorage func(ctx context.Context, info *database.StorageInfo) error                                  `perm:"write"`
+		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error                            `perm:"write"`
+		StatusHLMStorage  func(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) `perm:"read"`
+		PreStorageNode    func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)          `perm:"write"`
+		CommitStorageNode func(ctx context.Context, sectorId string) error                                             `perm:"write"`
+		CancelStorageNode func(ctx context.Context, sectorId string) error                                             `perm:"write"`
+		ChecksumStorage   func(ctx context.Context, ver int64) ([]database.StorageInfo, error)                         `perm:"read"`
 	}
 }
 
@@ -559,6 +606,10 @@ func (c *FullNodeStruct) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, 
 	return c.Internal.MpoolSub(ctx)
 }
 
+func (c *FullNodeStruct) MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error {
+	return c.Internal.MpoolRemove(ctx, from, nonce)
+}
+
 func (c *FullNodeStruct) MinerGetBaseInfo(ctx context.Context, maddr address.Address, epoch abi.ChainEpoch, tsk types.TipSetKey) (*api.MiningBaseInfo, error) {
 	return c.Internal.MinerGetBaseInfo(ctx, maddr, epoch, tsk)
 }
@@ -701,6 +752,10 @@ func (c *FullNodeStruct) ChainGetPath(ctx context.Context, from types.TipSetKey,
 
 func (c *FullNodeStruct) ChainExport(ctx context.Context, nroots abi.ChainEpoch, iom bool, tsk types.TipSetKey) (<-chan []byte, error) {
 	return c.Internal.ChainExport(ctx, nroots, iom, tsk)
+}
+
+func (c *FullNodeStruct) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
+	return c.Internal.ChainComputeBaseFee(ctx, tsk)
 }
 
 func (c *FullNodeStruct) BeaconGetEntry(ctx context.Context, epoch abi.ChainEpoch) (*types.BeaconEntry, error) {
@@ -1328,6 +1383,129 @@ func (w *WorkerStruct) Fetch(ctx context.Context, id abi.SectorID, fileType stor
 func (w *WorkerStruct) Closing(ctx context.Context) (<-chan struct{}, error) {
 	return w.Internal.Closing(ctx)
 }
+
+// implements by hlm start
+func (c *StorageMinerStruct) RunPledgeSector(ctx context.Context) error {
+	return c.Internal.RunPledgeSector(ctx)
+}
+func (c *StorageMinerStruct) StatusPledgeSector(ctx context.Context) (int, error) {
+	return c.Internal.StatusPledgeSector(ctx)
+}
+func (c *StorageMinerStruct) StopPledgeSector(ctx context.Context) error {
+	return c.Internal.StopPledgeSector(ctx)
+}
+func (c *StorageMinerStruct) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
+	return c.Internal.HlmSectorGetState(ctx, sid)
+}
+func (c *StorageMinerStruct) HlmSectorSetState(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) {
+	return c.Internal.HlmSectorSetState(ctx, sid, memo, state, force, reset)
+}
+func (c *StorageMinerStruct) HlmSectorListAll(ctx context.Context) ([]api.SectorInfo, error) {
+	return c.Internal.HlmSectorListAll(ctx)
+}
+func (c *StorageMinerStruct) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {
+	return c.Internal.SelectCommit2Service(ctx, sector)
+}
+func (c *StorageMinerStruct) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
+	return c.Internal.UnlockGPUService(ctx, workerId, taskKey)
+}
+func (c *StorageMinerStruct) WorkerAddress(ctx context.Context, act address.Address, tsk types.TipSetKey) (address.Address, error) {
+	return c.Internal.WorkerAddress(ctx, act, tsk)
+}
+func (c *StorageMinerStruct) WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error) {
+	return c.Internal.WorkerStatus(ctx)
+}
+func (c *StorageMinerStruct) WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error) {
+	return c.Internal.WorkerStatusAll(ctx)
+}
+func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) {
+	return c.Internal.WorkerQueue(ctx, cfg)
+}
+func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
+	return c.Internal.WorkerWorking(ctx, workerId)
+}
+func (c *StorageMinerStruct) WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error) {
+	return c.Internal.WorkerWorkingById(ctx, sid)
+}
+func (c *StorageMinerStruct) WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
+	return c.Internal.WorkerLock(ctx, workerId, taskKey, memo, sectorState)
+}
+func (c *StorageMinerStruct) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
+	return c.Internal.WorkerUnlock(ctx, workerId, taskKey, memo, sectorState)
+}
+func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
+	return c.Internal.WorkerDone(ctx, res)
+}
+func (c *StorageMinerStruct) WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error) {
+	return c.Internal.WorkerInfo(ctx, wid)
+}
+func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disable bool) error {
+	return c.Internal.WorkerDisable(ctx, wid, disable)
+}
+func (c *StorageMinerStruct) WorkerAddConn(ctx context.Context, wid string, num int) error {
+	return c.Internal.WorkerAddConn(ctx, wid, num)
+}
+func (c *StorageMinerStruct) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
+	return c.Internal.WorkerPreConn(ctx)
+}
+func (c *StorageMinerStruct) WorkerMinerConn(ctx context.Context) (int, error) {
+	return c.Internal.WorkerMinerConn(ctx)
+}
+
+func (c *StorageMinerStruct) Testing(ctx context.Context, fnName string, args []string) error {
+	return c.Internal.Testing(ctx, fnName, args)
+}
+func (c *StorageMinerStruct) VerHLMStorage(ctx context.Context) (int64, error) {
+	return c.Internal.VerHLMStorage(ctx)
+}
+func (c *StorageMinerStruct) GetHLMStorage(ctx context.Context, id int64) (*database.StorageInfo, error) {
+	return c.Internal.GetHLMStorage(ctx, id)
+}
+func (c *StorageMinerStruct) SearchHLMStorage(ctx context.Context, ip string) ([]database.StorageInfo, error) {
+	return c.Internal.SearchHLMStorage(ctx, ip)
+}
+func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo *database.StorageInfo) error {
+	return c.Internal.AddHLMStorage(ctx, sInfo)
+}
+func (c *StorageMinerStruct) DisableHLMStorage(ctx context.Context, id int64, disable bool) error {
+	return c.Internal.DisableHLMStorage(ctx, id, disable)
+}
+func (c *StorageMinerStruct) MountHLMStorage(ctx context.Context, id int64) error {
+	return c.Internal.MountHLMStorage(ctx, id)
+}
+func (c *StorageMinerStruct) UMountHLMStorage(ctx context.Context, id int64) error {
+	return c.Internal.UMountHLMStorage(ctx, id)
+}
+func (c *StorageMinerStruct) RelinkHLMStorage(ctx context.Context, id int64) error {
+	return c.Internal.RelinkHLMStorage(ctx, id)
+}
+func (c *StorageMinerStruct) ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error {
+	return c.Internal.ReplaceHLMStorage(ctx, info)
+}
+func (c *StorageMinerStruct) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
+	return c.Internal.ScaleHLMStorage(ctx, id, size, work)
+}
+func (c *StorageMinerStruct) StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) {
+	return c.Internal.StatusHLMStorage(ctx, id, timeout)
+}
+
+func (c *StorageMinerStruct) PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) {
+	return c.Internal.PreStorageNode(ctx, sectorId, clientIp)
+}
+
+func (c *StorageMinerStruct) CommitStorageNode(ctx context.Context, sectorId string) error {
+	return c.Internal.CommitStorageNode(ctx, sectorId)
+}
+
+func (c *StorageMinerStruct) CancelStorageNode(ctx context.Context, sectorId string) error {
+	return c.Internal.CancelStorageNode(ctx, sectorId)
+}
+
+func (c *StorageMinerStruct) ChecksumStorage(ctx context.Context, sumVer int64) ([]database.StorageInfo, error) {
+	return c.Internal.ChecksumStorage(ctx, sumVer)
+}
+
+// implements by hlm end
 
 var _ api.Common = &CommonStruct{}
 var _ api.FullNode = &FullNodeStruct{}

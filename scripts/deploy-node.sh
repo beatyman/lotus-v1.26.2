@@ -13,7 +13,7 @@ FILES_TO_SEND=(
 	./lotus
 	./lotus-miner
 	scripts/lotus-daemon.service
-	scripts/louts-miner.service
+	scripts/lotus-miner.service
 )
 
 rsync -P "${FILES_TO_SEND[@]}" "$HOST:~/lotus-stage/"
@@ -29,9 +29,10 @@ cd "$HOME/lotus-stage/"
 cp -f lotus lotus-miner /usr/local/bin
 cp -f lotus-daemon.service /etc/systemd/system/lotus-daemon.service
 cp -f lotus-miner.service /etc/systemd/system/lotus-miner.service
+mkdir -p /var/log/lotus
 
 systemctl daemon-reload
-systemctl start lotus-daemon
+systemctl restart lotus-daemon
 EOF
 
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	builtin0 "github.com/filecoin-project/specs-actors/actors/builtin"
 	msig0 "github.com/filecoin-project/specs-actors/actors/builtin/multisig"
@@ -153,6 +154,34 @@ func (sm *StateManager) ExecutionTrace(ctx context.Context, ts *types.TipSet) (c
 type ExecCallback func(cid.Cid, *types.Message, *vm.ApplyRet) error
 
 func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEpoch, pstate cid.Cid, bms []store.BlockMessages, epoch abi.ChainEpoch, r vm.Rand, cb ExecCallback, baseFee abi.TokenAmount, ts *types.TipSet) (cid.Cid, cid.Cid, error) {
+	applyBlocksStart := build.Clock.Now()
+	var (
+		handleStateForksStart     = time.Time{}
+		processedMsgsStart        = time.Time{}
+		serializeParamsStart      = time.Time{}
+		sysActStart               = time.Time{}
+		applyImplicitMessageStart = time.Time{}
+		runCronStart              = time.Time{}
+		flushStart                = time.Time{}
+	)
+	defer func() {
+		applyBlocksEnd := build.Clock.Now()
+		took := applyBlocksEnd.Sub(applyBlocksStart)
+		if took > 1e9 {
+			log.Infow("ApplyBlocks",
+				"took", took,
+				"height", epoch,
+				"newVM", handleStateForksStart.Sub(applyBlocksStart),
+				"handleStateForks", processedMsgsStart.Sub(handleStateForksStart),
+				"processedMsgs", serializeParamsStart.Sub(processedMsgsStart),
+				"serializeParams", sysActStart.Sub(serializeParamsStart),
+				"sysAct", applyImplicitMessageStart.Sub(sysActStart),
+				"applyImplicitMessage", runCronStart.Sub(applyImplicitMessageStart),
+				"runCron", flushStart.Sub(runCronStart),
+				"flush", applyBlocksEnd.Sub(flushStart),
+			)
+		}
+	}()
 
 	makeVmWithBaseState := func(base cid.Cid) (*vm.VM, error) {
 		vmopt := &vm.VMOpts{
@@ -208,6 +237,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		return nil
 	}
 
+	handleStateForksStart = build.Clock.Now()
 	for i := parentEpoch; i < epoch; i++ {
 		// handle state forks
 		// XXX: The state tree
@@ -239,6 +269,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		pstate = newState
 	}
 
+	processedMsgsStart = build.Clock.Now()
 	var receipts []cbg.CBORMarshaler
 	processedMsgs := map[cid.Cid]bool{}
 	for _, b := range bms {
@@ -267,6 +298,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 			processedMsgs[m.Cid()] = true
 		}
 
+		serializeParamsStart = build.Clock.Now()
 		params, err := actors.SerializeParams(&reward.AwardBlockRewardParams{
 			Miner:     b.Miner,
 			Penalty:   penalty,
@@ -277,11 +309,13 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 			return cid.Undef, cid.Undef, xerrors.Errorf("failed to serialize award params: %w", err)
 		}
 
+		sysActStart = build.Clock.Now()
 		sysAct, actErr := vmi.StateTree().GetActor(builtin0.SystemActorAddr)
 		if actErr != nil {
 			return cid.Undef, cid.Undef, xerrors.Errorf("failed to get system actor: %w", err)
 		}
 
+		applyImplicitMessageStart = build.Clock.Now()
 		rwMsg := &types.Message{
 			From:       builtin0.SystemActorAddr,
 			To:         reward.Address,
@@ -308,6 +342,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		}
 	}
 
+	runCronStart = build.Clock.Now()
 	if err := runCron(); err != nil {
 		return cid.Cid{}, cid.Cid{}, err
 	}
@@ -327,6 +362,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		return cid.Undef, cid.Undef, xerrors.Errorf("failed to build receipts amt: %w", err)
 	}
 
+	flushStart = build.Clock.Now()
 	st, err := vmi.Flush(ctx)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("vm flush failed: %w", err)
@@ -336,6 +372,25 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 }
 
 func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet, cb ExecCallback) (cid.Cid, cid.Cid, error) {
+	tsHeight := ts.Height()
+	computeStart := build.Clock.Now()
+	var (
+		computeGetBlockStart           = time.Time{}
+		computeNewChainRandStart       = time.Time{}
+		computeBlockMsgsForTipsetStart = time.Time{}
+		computeApplyBlocksStart        = time.Time{}
+	)
+	defer func() {
+		computeEnd := build.Clock.Now()
+		log.Infow("StateManager.computeTipSetState",
+			"took", computeEnd.Sub(computeStart),
+			"height", tsHeight,
+			"computeGetBlock", computeNewChainRandStart.Sub(computeGetBlockStart),
+			"computeNewChanRand", computeBlockMsgsForTipsetStart.Sub(computeNewChainRandStart),
+			"computeBlockMsgsForTipset", computeApplyBlocksStart.Sub(computeBlockMsgsForTipsetStart),
+			"computeApplyBlocks", computeEnd.Sub(computeApplyBlocksStart),
+		)
+	}()
 	ctx, span := trace.StartSpan(ctx, "computeTipSetState")
 	defer span.End()
 
@@ -351,6 +406,7 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 		}
 	}
 
+	computeGetBlockStart = build.Clock.Now()
 	var parentEpoch abi.ChainEpoch
 	pstate := blks[0].ParentStateRoot
 	if blks[0].Height > 0 {
@@ -367,8 +423,10 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 		cids[i] = v.Cid()
 	}
 
+	computeNewChainRandStart = build.Clock.Now()
 	r := store.NewChainRand(sm.cs, cids)
 
+	computeBlockMsgsForTipsetStart = build.Clock.Now()
 	blkmsgs, err := sm.cs.BlockMsgsForTipset(ts)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("getting block messages for tipset: %w", err)
@@ -376,6 +434,7 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 
 	baseFee := blks[0].ParentBaseFee
 
+	computeApplyBlocksStart = build.Clock.Now()
 	return sm.ApplyBlocks(ctx, parentEpoch, pstate, blkmsgs, blks[0].Height, r, cb, baseFee, ts)
 }
 
@@ -691,6 +750,15 @@ func (sm *StateManager) tipsetExecutedMessage(ts *types.TipSet, msg cid.Cid, vmm
 					}
 					return pr, m.Cid(), nil
 				}
+
+				// TODO: continue waitting Magik6k fix it.
+				log.Warn(xerrors.Errorf("found message with equal nonce as the one we are looking for (F:%s n %d, TS: %s n%d)", msg, vmm.Nonce, m.Cid(), m.VMMessage().Nonce))
+
+				//pr, err := sm.cs.GetParentReceipt(ts.Blocks()[0], i)
+				//if err != nil {
+				//	return nil, cid.Undef, err
+				//}
+				//return pr, m.Cid(), nil
 
 				// this should be that message
 				return nil, cid.Undef, xerrors.Errorf("found message with equal nonce as the one we are looking for (F:%s n %d, TS: %s n%d)",

@@ -21,6 +21,8 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
 	"github.com/filecoin-project/lotus/node/repo"
+
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("cli")
@@ -177,7 +179,7 @@ func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
 
 	ma, err := r.APIEndpoint()
 	if err != nil {
-		return APIInfo{}, xerrors.Errorf("could not get api endpoint: %w", err)
+		return APIInfo{}, xerrors.Errorf("could not get api endpoint: %s; %w", p, err)
 	}
 
 	token, err := r.APIToken()
@@ -236,7 +238,7 @@ func GetFullNodeAPI(ctx *cli.Context) (api.FullNode, jsonrpc.ClientCloser, error
 func GetStorageMinerAPI(ctx *cli.Context, opts ...jsonrpc.Option) (api.StorageMiner, jsonrpc.ClientCloser, error) {
 	addr, headers, err := GetRawAPI(ctx, repo.StorageMiner)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.As(err)
 	}
 
 	return client.NewStorageMinerRPC(ctx.Context, addr, headers, opts...)

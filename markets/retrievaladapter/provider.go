@@ -17,6 +17,9 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/builtin/paych"
 
 	"github.com/ipfs/go-cid"
+
+	"github.com/gwaylib/errors"
+	"github.com/gwaylib/log"
 )
 
 type retrievalProviderNode struct {
@@ -64,6 +67,9 @@ func (rpn *retrievalProviderNode) UnsealSector(ctx context.Context, sectorID abi
 			commD = *si.CommD
 		}
 		err := rpn.sealer.ReadPiece(ctx, w, sid, storiface.UnpaddedByteIndex(offset), length, si.TicketValue, commD)
+		if err != nil {
+			log.Error(errors.As(err, sid))
+		}
 		_ = w.CloseWithError(err)
 	}()
 

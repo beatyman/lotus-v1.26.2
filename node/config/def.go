@@ -57,6 +57,9 @@ type SealingConfig struct {
 	// includes failed, 0 = no limit
 	MaxSealingSectorsForDeals uint64
 
+	// includes failed, 0 = no limit
+	MaxDealsPerSector uint64
+
 	WaitDealsDelay Duration
 }
 
@@ -119,8 +122,8 @@ func defCommon() Common {
 			AnnounceAddresses:   []string{},
 			NoAnnounceAddresses: []string{},
 
-			ConnMgrLow:   150,
-			ConnMgrHigh:  180,
+			ConnMgrLow:   15,
+			ConnMgrHigh:  50,
 			ConnMgrGrace: Duration(20 * time.Second),
 		},
 		Pubsub: Pubsub{
@@ -144,9 +147,10 @@ func DefaultStorageMiner() *StorageMiner {
 		Common: defCommon(),
 
 		Sealing: SealingConfig{
-			MaxWaitDealsSectors:       2, // 64G with 32G sectors
+			MaxWaitDealsSectors:       0, // 64G with 32G sectors
 			MaxSealingSectors:         0,
 			MaxSealingSectorsForDeals: 0,
+			MaxDealsPerSector:         0,
 			WaitDealsDelay:            Duration(time.Hour),
 		},
 
@@ -156,6 +160,9 @@ func DefaultStorageMiner() *StorageMiner {
 			AllowPreCommit2: true,
 			AllowCommit:     true,
 			AllowUnseal:     true,
+			RemoteSeal:      false,
+			RemoteWnPoSt:    0,
+			RemoteWdPoSt:    0,
 
 			// Default to 10 - tcp should still be able to figure this out, and
 			// it's the ratio between 10gbit / 1gbit

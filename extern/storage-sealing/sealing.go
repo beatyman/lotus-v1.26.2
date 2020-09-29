@@ -184,7 +184,14 @@ func (m *Sealing) AddPieceToAnySector(ctx context.Context, size abi.UnpaddedPiec
 		return 0, 0, xerrors.Errorf("adding piece to sector: %w", err)
 	}
 
-	startPacking := m.unsealedInfoMap.infos[sid].numDeals >= getDealPerSectorLimit(m.sealer.SectorSize())
+	cfg, err := m.getConfig()
+	if err != nil {
+		return 0, 0, xerrors.Errorf("getting config: %w", err)
+	}
+	startPacking := cfg.MaxDealsPerSector > 0 && m.unsealedInfoMap.infos[sid].numDeals >= cfg.MaxDealsPerSector
+	if m.unsealedInfoMap.infos[sid].numDeals >= getDealPerSectorLimit(m.sealer.SectorSize()) {
+		startPacking = true
+	}
 
 	m.unsealedInfoMap.lk.Unlock()
 
@@ -234,6 +241,7 @@ func (m *Sealing) Remove(ctx context.Context, sid abi.SectorNumber) error {
 
 // Caller should NOT hold m.unsealedInfoMap.lk
 func (m *Sealing) StartPacking(sectorID abi.SectorNumber) error {
+	log.Infof("Starting packing sector %d", sectorID)
 	// locking here ensures that when the SectorStartPacking event is sent, the sector won't be picked up anywhere else
 	m.unsealedInfoMap.lk.Lock()
 	defer m.unsealedInfoMap.lk.Unlock()
@@ -243,7 +251,6 @@ func (m *Sealing) StartPacking(sectorID abi.SectorNumber) error {
 		log.Warnf("call start packing, but sector %v not in unsealedInfoMap.infos, maybe have called", sectorID)
 		return nil
 	}
-	log.Infof("Starting packing sector %d", sectorID)
 	err := m.sectors.Send(uint64(sectorID), SectorStartPacking{})
 	if err != nil {
 		return err

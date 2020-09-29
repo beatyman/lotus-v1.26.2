@@ -47,7 +47,19 @@ func (m *Miner) RemoveSector(ctx context.Context, id abi.SectorNumber) error {
 func (m *Miner) MarkForUpgrade(id abi.SectorNumber) error {
 	return m.sealing.MarkForUpgrade(id)
 }
-
 func (m *Miner) IsMarkedForUpgrade(id abi.SectorNumber) bool {
 	return m.sealing.IsMarkedForUpgrade(id)
 }
+
+// implements by hlm start
+func (m *Miner) RunPledgeSector() error {
+	return m.sealing.RunPledgeSector()
+}
+func (m *Miner) StatusPledgeSector() (int, error) {
+	return m.sealing.StatusPledgeSector()
+}
+func (m *Miner) ExitPledgeSector() error {
+	return m.sealing.ExitPledgeSector()
+}
+
+// implements by hlm end

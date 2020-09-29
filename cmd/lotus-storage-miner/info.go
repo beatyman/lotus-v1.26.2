@@ -34,6 +34,13 @@ var infoCmd = &cli.Command{
 		infoAllCmd,
 	},
 	Action: infoCmdAct,
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "seal",
+			Value: false,
+			Usage: "output the miner seal stats",
+		},
+	},
 }
 
 func infoCmdAct(cctx *cli.Context) error {
@@ -199,10 +206,12 @@ func infoCmdAct(cctx *cli.Context) error {
 
 	fmt.Printf("Expected Seal Duration: %s\n\n", sealdur)
 
-	fmt.Println("Sectors:")
-	err = sectorsInfo(ctx, nodeApi)
-	if err != nil {
-		return err
+	if cctx.Bool("seal") {
+		fmt.Println("Sectors:")
+		err = sectorsInfo(ctx, nodeApi)
+		if err != nil {
+			return err
+		}
 	}
 
 	// TODO: grab actr state / info

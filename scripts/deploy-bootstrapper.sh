@@ -29,6 +29,16 @@ scp scripts/bootstrap.toml "${host}:.lotus/config.toml"
 ssh "$host" "echo -e '[Metrics]\nNickname=\"Boot-$host\"' >> .lotus/config.toml"
 ssh "$host" 'systemctl restart lotus-daemon'
 
-log 'Extracting addr info'
+sleep 10
 
-ssh "$host" 'lotus net listen' | grep -v '/10' | grep -v '/127' >> build/bootstrap/bootstrappers.pi
+log 'Extracting addr info'
+ssh "$host" 'lotus net listen' | grep -v '/172' | grep -v '/ip6' > scripts/bootstrappers.pi
+sed -i "s/127.0.0.1\/tcp\/1347/120.77.213.165\/tcp\/1346/g" scripts/bootstrappers.pi
+
+log 'Connect to t0111'
+ssh "$host" 'lotus net connect $(lotus --repo=/data/lotus/dev/.ldt0111 net listen)'
+
+log 'Get fil from t0111'
+ssh "$host" 'lotus wallet new bls'
+ssh "$host" 'lotus --repo=/data/lotus/dev/.ldt0111 send $(lotus wallet default) 40000000'
+git checkout build

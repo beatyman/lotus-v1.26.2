@@ -24,6 +24,13 @@ type Provider struct {
 	waitSector map[sectorFile]chan struct{}
 }
 
+func (b *Provider) RepoPath() string {
+	if len(b.Root) == 0 {
+		panic("Not Found Path")
+	}
+	return b.Root
+}
+
 func (b *Provider) AcquireSector(ctx context.Context, id abi.SectorID, existing stores.SectorFileType, allocate stores.SectorFileType, ptype stores.PathType) (stores.SectorPaths, func(), error) {
 	if err := os.Mkdir(filepath.Join(b.Root, stores.FTUnsealed.String()), 0755); err != nil && !os.IsExist(err) { // nolint
 		return stores.SectorPaths{}, nil, err
@@ -34,6 +41,7 @@ func (b *Provider) AcquireSector(ctx context.Context, id abi.SectorID, existing 
 	if err := os.Mkdir(filepath.Join(b.Root, stores.FTCache.String()), 0755); err != nil && !os.IsExist(err) { // nolint
 		return stores.SectorPaths{}, nil, err
 	}
+	//return stores.HLMSectorPath(id, b.RepoPath()), func() {}, nil
 
 	done := func() {}
 

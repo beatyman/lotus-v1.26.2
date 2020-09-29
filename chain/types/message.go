@@ -118,6 +118,13 @@ func (m *Message) Equals(o *Message) bool {
 	return m.Cid() == o.Cid()
 }
 
+func (m *Message) String() string {
+	return fmt.Sprintf(
+		"{To:%s,From:%s,Nonce:%d,Value:%+v,GasLimit:%+v,GasFeeCap:%+v,GasPremium:%+v,Method:%d}",
+		m.To, m.From, m.Nonce, m.Value, m.GasLimit, m.GasFeeCap, m.GasPremium, m.Method,
+	)
+}
+
 func (m *Message) EqualCall(o *Message) bool {
 	m1 := *m
 	m2 := *o

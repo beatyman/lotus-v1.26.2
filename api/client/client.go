@@ -11,7 +11,9 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
+
 	"github.com/filecoin-project/lotus/lib/rpcenc"
+	"github.com/gwaylib/errors"
 )
 
 // NewCommonRPC creates a new http jsonrpc client.
@@ -50,7 +52,9 @@ func NewStorageMinerRPC(ctx context.Context, addr string, requestHeader http.Hea
 		requestHeader,
 		opts...,
 	)
-
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
 	return &res, closer, err
 }
 
@@ -79,6 +83,36 @@ func NewWorkerRPC(ctx context.Context, addr string, requestHeader http.Header) (
 		jsonrpc.WithNoReconnect(),
 		jsonrpc.WithTimeout(30*time.Second),
 	)
-
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
 	return &res, closer, err
+}
+
+func NewWorkerHlmRPC(ctx context.Context, addr string, requestHeader http.Header) (api.WorkerHlmAPI, jsonrpc.ClientCloser, error) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch u.Scheme {
+	case "ws":
+		u.Scheme = "http"
+	case "wss":
+		u.Scheme = "https"
+	}
+
+	var res apistruct.WorkerHlmStruct
+	closer, err := jsonrpc.NewMergeClient(ctx, addr, "Filecoin",
+		[]interface{}{
+			&res.Internal,
+		},
+		requestHeader,
+		jsonrpc.WithNoReconnect(),
+		jsonrpc.WithTimeout(120*time.Second),
+	)
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
+	return &res, closer, err
+
 }

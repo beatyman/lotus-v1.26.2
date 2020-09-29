@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -241,7 +242,9 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 	go func() {
 		defer close(out)
 		var unsubOnce sync.Once
-
+		defer unsubOnce.Do(func() {
+			cs.bestTips.Unsub(subch)
+		})
 		for {
 			select {
 			case val, ok := <-subch:
@@ -255,11 +258,10 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 				select {
 				case out <- val.([]*api.HeadChange):
 				case <-ctx.Done():
+					return
 				}
 			case <-ctx.Done():
-				unsubOnce.Do(func() {
-					go cs.bestTips.Unsub(subch)
-				})
+				return
 			}
 		}
 	}()
@@ -418,7 +420,14 @@ func (cs *ChainStore) takeHeaviestTipSet(ctx context.Context, ts *types.TipSet) 
 
 	span.AddAttributes(trace.BoolAttribute("newHead", true))
 
-	log.Infof("New heaviest tipset! %s (height=%d)", ts.Cids(), ts.Height())
+	heaviestMiners := []string{}
+	for _, blk := range ts.Blocks() {
+		heaviestMiners = append(heaviestMiners,
+			fmt.Sprintf("(%s,p:%d,t:%d)", blk.Miner, blk.ParentWeight, blk.Timestamp),
+		)
+	}
+
+	log.Infof("New heaviest tipset(height=%d)! %s, %+v", ts.Height(), ts.Cids(), heaviestMiners)
 	cs.heaviest = ts
 
 	if err := cs.writeHead(ts); err != nil {

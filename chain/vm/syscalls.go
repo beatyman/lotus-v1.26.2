@@ -226,7 +226,16 @@ func (ss *syscallShim) VerifyPoSt(proof proof.WindowPoStVerifyInfo) error {
 	return nil
 }
 
+// TODO: waitting offical fix
+// https://filecoinproject.slack.com/archives/C017CCH1MHB/p1597754475177800?thread_ts=1597578727.267400&cid=C017CCH1MHB
+var verifySealLimit = make(chan int, 10)
+
 func (ss *syscallShim) VerifySeal(info proof.SealVerifyInfo) error {
+	verifySealLimit <- 1
+	defer func() {
+		<-verifySealLimit
+	}()
+
 	//_, span := trace.StartSpan(ctx, "ValidatePoRep")
 	//defer span.End()
 

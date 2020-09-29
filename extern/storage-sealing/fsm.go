@@ -14,6 +14,11 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	statemachine "github.com/filecoin-project/go-statemachine"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/gwaylib/errors"
 )
 
 func (m *Sealing) Plan(events []statemachine.Event, user interface{}) (interface{}, uint64, error) {
@@ -204,6 +209,14 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	if err != nil {
 		return nil, 0, xerrors.Errorf("running planner for state %s failed: %w", state.State, err)
 	}
+	// checking the sector state in hlm miner
+	sInfo, err := database.GetSectorInfo(ffiwrapper.SectorName(m.minerSector(state.SectorNumber)))
+	if err != nil {
+		log.Warn(errors.As(err))
+	} else if state.SectorNumber > 0 && sInfo.State > database.SECTOR_STATE_DONE {
+		log.Infof("sector(%s,%d) state(%d,%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
+		return nil, processed, nil
+	}
 
 	/////
 	// Now decide what to do next
@@ -313,6 +326,24 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	case Removing:
 		return m.handleRemoving, processed, nil
 	case Removed:
+		log.Warnf("Remove sector:%s", sInfo.ID)
+
+		// update hlm database statue to failed.
+		sealer, ok := m.sealer.(*sectorstorage.Manager)
+		if !ok {
+			log.Infof("the sealer does not have sectorstorage.Manager, ignore it, sector id:%s", sInfo.ID)
+			return nil, processed, nil
+		}
+		ffi, ok := sealer.Prover.(*ffiwrapper.Sealer)
+		if !ok {
+			log.Infof("the sealer does not have ffiwrapper.Sealer, ignore it, sector id:%s", sInfo.ID)
+			return nil, processed, nil
+		}
+		if _, err := ffi.UpdateSectorState(sInfo.ID, "removed", 500, true, false); err != nil {
+			log.Warn(errors.As(err))
+		}
+		// hlm end
+
 		return nil, processed, nil
 
 	case RemoveFailed:

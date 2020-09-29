@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -347,6 +348,12 @@ var dealsListCmd = &cli.Command{
 			Aliases: []string{"v"},
 		},
 		&cli.BoolFlag{
+			Name:     "json",
+			Usage:    "json output",
+			Required: false,
+			Value:    false,
+		},
+		&cli.BoolFlag{
 			Name:  "watch",
 			Usage: "watch deal updates in real-time, rather than a one time list",
 		},
@@ -364,6 +371,22 @@ var dealsListCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+
+		isJsonOutPut := cctx.Bool("json")
+		if isJsonOutPut {
+			data, err := json.MarshalIndent(deals, "", "  ")
+			if err != nil {
+				return err
+			}
+
+			fmt.Println(string(data))
+			return nil
+
+		}
+
+		sort.Slice(deals, func(i, j int) bool {
+			return deals[i].CreationTime.Time().Before(deals[j].CreationTime.Time())
+		})
 
 		verbose := cctx.Bool("verbose")
 		watch := cctx.Bool("watch")

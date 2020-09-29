@@ -16,6 +16,9 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 )
 
 // StorageMiner is a low-level interface to the Filecoin network storage miner node
@@ -101,6 +104,48 @@ type StorageMiner interface {
 	PiecesListCidInfos(ctx context.Context) ([]cid.Cid, error)
 	PiecesGetPieceInfo(ctx context.Context, pieceCid cid.Cid) (*piecestore.PieceInfo, error)
 	PiecesGetCIDInfo(ctx context.Context, payloadCid cid.Cid) (*piecestore.CIDInfo, error)
+
+	// implements by hlm
+	Testing(ctx context.Context, fnName string, args []string) error
+	RunPledgeSector(context.Context) error
+	StatusPledgeSector(context.Context) (int, error)
+	StopPledgeSector(context.Context) error
+
+	HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error)
+	HlmSectorSetState(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)
+	HlmSectorListAll(context.Context) ([]SectorInfo, error)
+	SelectCommit2Service(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)
+	UnlockGPUService(ctx context.Context, workerId, taskKey string) error
+	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)
+	WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error)
+	WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error)
+	WorkerQueue(context.Context, ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error)
+	WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error)
+	WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error)
+	WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
+	WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
+	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
+	WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error)
+	WorkerDisable(ctx context.Context, wid string, disable bool) error
+	WorkerAddConn(ctx context.Context, wid string, num int) error
+	WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error)
+	WorkerMinerConn(ctx context.Context) (int, error)
+
+	//Storage
+	VerHLMStorage(ctx context.Context) (int64, error)
+	GetHLMStorage(ctx context.Context, id int64) (*database.StorageInfo, error)
+	SearchHLMStorage(ctx context.Context, ip string) ([]database.StorageInfo, error)
+	AddHLMStorage(ctx context.Context, info *database.StorageInfo) error
+	DisableHLMStorage(ctx context.Context, id int64, disable bool) error
+	MountHLMStorage(ctx context.Context, id int64) error
+	RelinkHLMStorage(ctx context.Context, id int64) error
+	ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error
+	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
+	StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error)
+	PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)
+	CommitStorageNode(ctx context.Context, sectorId string) error
+	CancelStorageNode(ctx context.Context, sectorId string) error
+	ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error)
 }
 
 type SealRes struct {

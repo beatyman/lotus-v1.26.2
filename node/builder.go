@@ -208,7 +208,7 @@ func libp2p() Option {
 		Override(NatPortMapKey, lp2p.NatPortMap),
 		Override(BandwidthReporterKey, lp2p.BandwidthCounter),
 
-		Override(ConnectionManagerKey, lp2p.ConnectionManager(50, 200, 20*time.Second, nil)),
+		Override(ConnectionManagerKey, lp2p.ConnectionManager(15, 50, 20*time.Second, nil)),
 		Override(AutoNATSvcKey, lp2p.AutoNATService),
 
 		Override(new(*dtypes.ScoreKeeper), lp2p.ScoreKeeper),

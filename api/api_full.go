@@ -123,6 +123,8 @@ type FullNode interface {
 	// If oldmsgskip is set, messages from before the requested roots are also not included.
 	ChainExport(ctx context.Context, nroots abi.ChainEpoch, oldmsgskip bool, tsk types.TipSetKey) (<-chan []byte, error)
 
+	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
+
 	// MethodGroup: Beacon
 	// The Beacon method group contains methods for interacting with the random beacon (DRAND)
 
@@ -201,6 +203,7 @@ type FullNode interface {
 	// Note that this method may not be atomic. Use MpoolPushMessage instead.
 	MpoolGetNonce(context.Context, address.Address) (uint64, error)
 	MpoolSub(context.Context) (<-chan MpoolUpdate, error)
+	MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error
 
 	// MpoolClear clears pending messages from the mpool
 	MpoolClear(context.Context, bool) error

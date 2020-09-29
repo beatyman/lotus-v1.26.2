@@ -8,10 +8,13 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/Gurpartap/async v0.0.0-20180927173644-4f7f499dd9ee
+	github.com/Shopify/sarama v1.19.0
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
+	github.com/bsm/sarama-cluster v2.1.15+incompatible
 	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
 	github.com/coreos/go-systemd/v22 v22.0.0
+	github.com/dchest/blake2b v1.0.0
 	github.com/detailyang/go-fallocate v0.0.0-20180908115635-432fa640bd2e
 	github.com/dgraph-io/badger/v2 v2.2007.2
 	github.com/docker/go-units v0.4.0
@@ -45,6 +48,9 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
+	github.com/gwaylib/database v0.0.0-20191004162319-8535ba649f9c
+	github.com/gwaylib/errors v0.0.0-20190905023356-162e59439c92
+	github.com/gwaylib/log v0.0.0-20190829041528-b6c28711ef53
 	github.com/hannahhoward/go-pubsub v0.0.0-20200423002714-8d62886cc36e
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/hashicorp/golang-lru v0.5.4
@@ -98,11 +104,14 @@ require (
 	github.com/libp2p/go-libp2p-tls v0.1.3
 	github.com/libp2p/go-libp2p-yamux v0.2.8
 	github.com/libp2p/go-maddr-filter v0.1.0
+	github.com/mattn/go-isatty v0.0.12 // indirect
+	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-base32 v0.0.3
 	github.com/multiformats/go-multiaddr v0.3.1
 	github.com/multiformats/go-multiaddr-dns v0.2.0
+	github.com/multiformats/go-multiaddr-net v0.2.0
 	github.com/multiformats/go-multibase v0.0.3
 	github.com/multiformats/go-multihash v0.0.14
 	github.com/opentracing/opentracing-go v1.2.0
@@ -133,6 +142,20 @@ require (
 replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v1.18.0
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
+
+//replace github.com/filecoin-project/lotus/extern/sector-storage => github.com/filecoin-fivestar/sector-storage v0.0.0-20200812185739-f4044d30b368
+
+//replace github.com/filecoin-project/lotus/extern/sector-storage => ../sector-storage
+//replace github.com/filecoin-project/lotus/extern/sector-storage => ./extern/sector-storage
+
+//replace github.com/filecoin-project/storage-fsm => github.com/filecoin-fivestar/storage-fsm v0.0.0-20200808141757-9768cc3f61b6
+
+//replace github.com/filecoin-project/storage-fsm => ../storage-fsm
+//replace github.com/filecoin-project/storage-fsm => ./extern/storage-fsm
+
+replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20200827003423-8dafc6b4a581
+
+//replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
 
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 

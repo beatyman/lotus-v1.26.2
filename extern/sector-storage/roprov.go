@@ -16,7 +16,22 @@ type readonlyProvider struct {
 	spt   abi.RegisteredSealProof
 }
 
+func (l *readonlyProvider) RepoPath() string {
+	local, err := l.stor.Local(context.TODO())
+	if err != nil {
+		panic(err)
+	}
+	for _, p := range local {
+		if p.CanStore {
+			return p.LocalPath
+		}
+	}
+	panic("No RepoPath")
+}
+
 func (l *readonlyProvider) AcquireSector(ctx context.Context, id abi.SectorID, existing stores.SectorFileType, allocate stores.SectorFileType, sealing stores.PathType) (stores.SectorPaths, func(), error) {
+	return stores.HLMSectorPath(id, l.RepoPath()), func() {}, nil
+
 	if allocate != stores.FTNone {
 		return stores.SectorPaths{}, nil, xerrors.New("read-only storage")
 	}

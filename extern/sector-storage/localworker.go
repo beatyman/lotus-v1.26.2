@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"sync"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
@@ -19,6 +20,8 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+
+	"github.com/gwaylib/errors"
 )
 
 var pathTypes = []stores.SectorFileType{stores.FTUnsealed, stores.FTSealed, stores.FTCache}
@@ -29,21 +32,26 @@ type WorkerConfig struct {
 }
 
 type LocalWorker struct {
+	remoteCfg  ffiwrapper.RemoteCfg
 	scfg       *ffiwrapper.Config
 	storage    stores.Store
 	localStore *stores.Local
 	sindex     stores.SectorIndex
 
 	acceptTasks map[sealtasks.TaskType]struct{}
+
+	sbLk    sync.Mutex
+	sbStore ffiwrapper.Storage
 }
 
-func NewLocalWorker(wcfg WorkerConfig, store stores.Store, local *stores.Local, sindex stores.SectorIndex) *LocalWorker {
+func NewLocalWorker(remoteCfg ffiwrapper.RemoteCfg, wcfg WorkerConfig, store stores.Store, local *stores.Local, sindex stores.SectorIndex) *LocalWorker {
 	acceptTasks := map[sealtasks.TaskType]struct{}{}
 	for _, taskType := range wcfg.TaskTypes {
 		acceptTasks[taskType] = struct{}{}
 	}
 
 	return &LocalWorker{
+		remoteCfg: remoteCfg,
 		scfg: &ffiwrapper.Config{
 			SealProofType: wcfg.SealProof,
 		},
@@ -60,11 +68,24 @@ type localWorkerPathProvider struct {
 	op stores.AcquireMode
 }
 
+func (l *localWorkerPathProvider) RepoPath() string {
+	paths, err := l.w.localStore.Local(context.TODO())
+	if err != nil {
+		panic(err)
+	}
+	for _, p := range paths {
+		if p.CanStore {
+			return p.LocalPath
+		}
+	}
+	panic("No RepoPath")
+}
+
 func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector abi.SectorID, existing stores.SectorFileType, allocate stores.SectorFileType, sealing stores.PathType) (stores.SectorPaths, func(), error) {
 
 	paths, storageIDs, err := l.w.storage.AcquireSector(ctx, sector, l.w.scfg.SealProofType, existing, allocate, sealing, l.op)
 	if err != nil {
-		return stores.SectorPaths{}, nil, err
+		return stores.SectorPaths{}, nil, errors.As(err)
 	}
 
 	releaseStorage, err := l.w.localStore.Reserve(ctx, sector, l.w.scfg.SealProofType, allocate, storageIDs, stores.FSOverheadSeal)
@@ -92,7 +113,16 @@ func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector abi.
 }
 
 func (l *LocalWorker) sb() (ffiwrapper.Storage, error) {
-	return ffiwrapper.New(&localWorkerPathProvider{w: l}, l.scfg)
+	l.sbLk.Lock()
+	defer l.sbLk.Unlock()
+	if l.sbStore == nil {
+		sb, err := ffiwrapper.New(l.remoteCfg, &localWorkerPathProvider{w: l}, l.scfg)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+		l.sbStore = sb
+	}
+	return l.sbStore, nil
 }
 
 func (l *LocalWorker) NewSector(ctx context.Context, sector abi.SectorID) error {
@@ -114,6 +144,9 @@ func (l *LocalWorker) AddPiece(ctx context.Context, sector abi.SectorID, epcs []
 }
 
 func (l *LocalWorker) Fetch(ctx context.Context, sector abi.SectorID, fileType stores.SectorFileType, ptype stores.PathType, am stores.AcquireMode) error {
+	// cloase fetch
+	return nil
+
 	_, done, err := (&localWorkerPathProvider{w: l, op: am}).AcquireSector(ctx, sector, fileType, stores.FTNone, ptype)
 	if err != nil {
 		return err
@@ -123,16 +156,16 @@ func (l *LocalWorker) Fetch(ctx context.Context, sector abi.SectorID, fileType s
 }
 
 func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage2.PreCommit1Out, err error) {
-	{
-		// cleanup previous failed attempts if they exist
-		if err := l.storage.Remove(ctx, sector, stores.FTSealed, true); err != nil {
-			return nil, xerrors.Errorf("cleaning up sealed data: %w", err)
-		}
-
-		if err := l.storage.Remove(ctx, sector, stores.FTCache, true); err != nil {
-			return nil, xerrors.Errorf("cleaning up cache data: %w", err)
-		}
-	}
+	//{
+	//	// cleanup previous failed attempts if they exist
+	//	if err := l.storage.Remove(ctx, sector, stores.FTSealed, true); err != nil {
+	//		return nil, xerrors.Errorf("cleaning up sealed data: %w", err)
+	//	}
+	//
+	//	if err := l.storage.Remove(ctx, sector, stores.FTCache, true); err != nil {
+	//		return nil, xerrors.Errorf("cleaning up cache data: %w", err)
+	//	}
+	//}
 
 	sb, err := l.sb()
 	if err != nil {
@@ -178,6 +211,7 @@ func (l *LocalWorker) FinalizeSector(ctx context.Context, sector abi.SectorID, k
 	if err := sb.FinalizeSector(ctx, sector, keepUnsealed); err != nil {
 		return xerrors.Errorf("finalizing sector: %w", err)
 	}
+	return nil
 
 	if len(keepUnsealed) == 0 {
 		if err := l.storage.Remove(ctx, sector, stores.FTUnsealed, true); err != nil {

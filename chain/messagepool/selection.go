@@ -520,14 +520,13 @@ tailLoop:
 }
 
 func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[uint64]*types.SignedMessage, baseFee types.BigInt, ts *types.TipSet) ([]*types.SignedMessage, int64) {
+	result := make([]*types.SignedMessage, 0, mp.cfg.SizeLimitLow)
 	start := time.Now()
 	defer func() {
-		if dt := time.Since(start); dt > time.Millisecond {
-			log.Infow("select priority messages done", "took", dt)
-		}
+		dt := time.Since(start)
+		log.Infow("select priority messages done", "took", dt, "len", len(result))
 	}()
 
-	result := make([]*types.SignedMessage, 0, mp.cfg.SizeLimitLow)
 	gasLimit := int64(build.BlockGasLimit)
 	minGas := int64(gasguess.MinGas)
 
@@ -555,7 +554,7 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 	})
 
 	if !allowNegativeChains(ts.Height()) && len(chains) != 0 && chains[0].gasPerf < 0 {
-		log.Warnw("all priority messages in mpool have negative gas performance", "bestGasPerf", chains[0].gasPerf)
+		log.Warnw("all priority messages in mpool have negative gas performance", "bestGasPerf", chains[0].gasPerf, "gasRewrad", chains[0].gasReward)
 		return nil, gasLimit
 	}
 

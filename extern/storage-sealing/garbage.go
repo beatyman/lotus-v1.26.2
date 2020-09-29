@@ -8,10 +8,18 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 )
 
+var limitPledge = make(chan int, 1)
+
 func (m *Sealing) pledgeSector(ctx context.Context, sectorID abi.SectorID, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	if len(sizes) == 0 {
 		return nil, nil
 	}
+	// only one can pledge
+	// TODO: do it in parallel
+	limitPledge <- 1
+	defer func() {
+		<-limitPledge
+	}()
 
 	log.Infof("Pledge %d, contains %+v", sectorID, existingPieceSizes)
 

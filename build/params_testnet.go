@@ -1,5 +1,6 @@
 // +build !debug
 // +build !2k
+// +build !hlm
 // +build !testground
 
 package build

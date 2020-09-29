@@ -51,6 +51,8 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
+
+	"github.com/gwaylib/errors"
 )
 
 var initCmd = &cli.Command{
@@ -161,6 +163,14 @@ var initCmd = &cli.Command{
 		log.Info("Checking if repo exists")
 
 		repoPath := cctx.String(FlagMinerRepo)
+		if _, err := os.Stat(repoPath); err != nil {
+			if !os.IsNotExist(err) {
+				return errors.As(err, repoPath)
+			}
+			if err := os.MkdirAll(repoPath, 0755); err != nil {
+				return errors.As(err)
+			}
+		}
 		r, err := repo.NewFS(repoPath)
 		if err != nil {
 			return err

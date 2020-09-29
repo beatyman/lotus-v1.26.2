@@ -2,6 +2,7 @@
 /lotus-miner
 /lotus-worker
 /lotus-seed
+/lotus-shed
 /lotus-health
 /lotus-chainwatch
 /lotus-shed
@@ -29,6 +30,7 @@ build/paramfetch.sh
 /blocks.dot
 /blocks.svg
 /chainwatch.db
+/lotus-chain-watch*
 /bundle
 /darwin
 /linux
@@ -38,4 +40,8 @@ build/paramfetch.sh
 bin/ipget
 bin/tmp/*
 .idea
+/nohup.out
+/*.log
+.DS_Store
+*/.DS_Store
 scratchpad

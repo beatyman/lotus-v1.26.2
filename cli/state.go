@@ -1267,7 +1267,7 @@ var stateWaitMsgCmd = &cli.Command{
 			return err
 		}
 
-		fmt.Printf("message was executed in tipset: %s\n", mw.TipSet.Cids())
+		fmt.Printf("message was executed in tipset(%d): %s\n", mw.Height, mw.TipSet.Cids())
 		fmt.Printf("Exit Code: %d\n", mw.Receipt.ExitCode)
 		fmt.Printf("Gas Used: %d\n", mw.Receipt.GasUsed)
 		fmt.Printf("Return: %x\n", mw.Receipt.Return)
@@ -1323,7 +1323,7 @@ var stateSearchMsgCmd = &cli.Command{
 		}
 
 		if mw != nil {
-			fmt.Printf("message was executed in tipset: %s", mw.TipSet.Cids())
+			fmt.Printf("message was executed in tipset(%d): %s", mw.Height, mw.TipSet.Cids())
 			fmt.Printf("\nExit Code: %d", mw.Receipt.ExitCode)
 			fmt.Printf("\nGas Used: %d", mw.Receipt.GasUsed)
 			fmt.Printf("\nReturn: %x", mw.Receipt.Return)

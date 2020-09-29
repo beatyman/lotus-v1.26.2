@@ -5,6 +5,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/gwaylib/errors"
+
 	"github.com/filecoin-project/go-bitfield"
 
 	"github.com/filecoin-project/go-address"
@@ -45,7 +47,7 @@ func (s *WindowPoStScheduler) failPost(err error, deadline *dline.Info) {
 	s.failLk.Unlock()*/
 }
 
-func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *dline.Info, ts *types.TipSet) {
+func (s *WindowPoStScheduler) doPost(ctx context.Context, submit bool, deadline *dline.Info, ts *types.TipSet) {
 	ctx, abort := context.WithCancel(ctx)
 
 	s.abort = abort
@@ -76,7 +78,7 @@ func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *dline.Info, 
 			})
 		}
 
-		posts, err := s.runPost(ctx, *deadline, ts)
+		posts, err := s.runPost(ctx, submit, *deadline, ts)
 		if err != nil {
 			log.Errorf("run window post failed: %+v", err)
 			s.failPost(err, deadline)
@@ -108,7 +110,7 @@ func (s *WindowPoStScheduler) doPost(ctx context.Context, deadline *dline.Info, 
 	}()
 }
 
-func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.BitField) (bitfield.BitField, error) {
+func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.BitField, timeout time.Duration) (bitfield.BitField, error) {
 	spt, err := s.proofType.RegisteredSealProof()
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("getting seal proof type: %w", err)
@@ -135,12 +137,16 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		return bitfield.BitField{}, xerrors.Errorf("iterating over bitfield: %w", err)
 	}
 
-	bad, err := s.faultTracker.CheckProvable(ctx, spt, tocheck)
+	all, _, err := s.faultTracker.CheckProvable(ctx, spt, tocheck, timeout)
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
 	}
-	for _, id := range bad {
-		delete(sectors, id)
+	// bad
+	for _, val := range all {
+		if val.Err != nil {
+			log.Warnf("s-t0%d-%d,%d,%s,%s", val.ID.Miner, val.ID.Number, val.Used, val.Used.String(), errors.ParseError(val.Err))
+			delete(sectors, val.ID)
+		}
 	}
 
 	log.Warnw("Checked sectors", "checked", len(tocheck), "good", len(sectors))
@@ -153,7 +159,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	return sbf, nil
 }
 
-func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uint64, partitions []api.Partition) ([]miner.RecoveryDeclaration, *types.SignedMessage, error) {
+func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, submit bool, dlIdx uint64, partitions []api.Partition) ([]miner.RecoveryDeclaration, *types.SignedMessage, error) {
 	ctx, span := trace.StartSpan(ctx, "storage.checkNextRecoveries")
 	defer span.End()
 
@@ -179,7 +185,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 
 		faulty += uc
 
-		recovered, err := s.checkSectors(ctx, unrecovered)
+		recovered, err := s.checkSectors(ctx, unrecovered, 60*time.Second)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("checking unrecovered sectors: %w", err)
 		}
@@ -214,6 +220,10 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 	if aerr != nil {
 		return recoveries, nil, xerrors.Errorf("could not serialize declare recoveries parameters: %w", aerr)
 	}
+	if !submit {
+		log.Infow("noSubmit for DeclareFaultsRecovered", "deadline", dlIdx)
+		return recoveries, nil, nil
+	}
 
 	msg := &types.Message{
 		To:     s.actor,
@@ -230,7 +240,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 		return recoveries, sm, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
 
-	log.Warnw("declare faults recovered Message CID", "cid", sm.Cid())
+	log.Warnw("declare faults recovered Message CID", "deadline", dlIdx, "cid", sm.Cid())
 
 	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
 	if err != nil {
@@ -238,8 +248,10 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 	}
 
 	if rec.Receipt.ExitCode != 0 {
+		log.Infow("declare faults recovered exit non-0 ", rec.Receipt.ExitCode, "deadline", dlIdx, "cid", sm.Cid())
 		return recoveries, sm, xerrors.Errorf("declare faults recovered wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
+	log.Infow("declare faults recovered exit 0", "deadline", dlIdx, "cid", sm.Cid())
 
 	return recoveries, sm, nil
 }
@@ -254,7 +266,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 	}
 
 	for partIdx, partition := range partitions {
-		good, err := s.checkSectors(ctx, partition.ActiveSectors)
+		good, err := s.checkSectors(ctx, partition.ActiveSectors, 60*time.Second)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("checking sectors: %w", err)
 		}
@@ -293,6 +305,10 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 	if aerr != nil {
 		return faults, nil, xerrors.Errorf("could not serialize declare faults parameters: %w", aerr)
 	}
+	if s.noSubmit {
+		log.Infow("noSubmit for DeclareFaults", "deadline", dlIdx)
+		return faults, nil, nil
+	}
 
 	msg := &types.Message{
 		To:     s.actor,
@@ -309,7 +325,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 		return faults, sm, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
 
-	log.Warnw("declare faults Message CID", "cid", sm.Cid())
+	log.Warnw("declare faults Message CID", "deadline", dlIdx, "cid", sm.Cid())
 
 	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
 	if err != nil {
@@ -319,11 +335,12 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 	if rec.Receipt.ExitCode != 0 {
 		return faults, sm, xerrors.Errorf("declare faults wait non-0 exit code: %d", rec.Receipt.ExitCode)
 	}
+	log.Infow("declare faults recovered exit 0", "deadline", dlIdx, "cid", sm.Cid())
 
 	return faults, sm, nil
 }
 
-func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
+func (s *WindowPoStScheduler) runPost(ctx context.Context, submit bool, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
 
@@ -356,7 +373,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 			}
 		)
 
-		if recoveries, sigmsg, err = s.checkNextRecoveries(context.TODO(), declDeadline, partitions); err != nil {
+		if recoveries, sigmsg, err = s.checkNextRecoveries(context.TODO(), submit, declDeadline, partitions); err != nil {
 			// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
 			log.Errorf("checking sector recoveries: %v", err)
 		}
@@ -404,6 +421,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 	if err != nil {
 		return nil, xerrors.Errorf("getting partitions: %w", err)
 	}
+	log.Infof("DEBUG doPost StateMinerPartitions:%d,len:%d", di.Index, len(partitions))
 
 	// Split partitions into batches, so as not to exceed the number of sectors
 	// allowed in a single message
@@ -441,7 +459,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 					return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
 				}
 
-				good, err := s.checkSectors(ctx, toProve)
+				good, err := s.checkSectors(ctx, toProve, 3*time.Second)
 				if err != nil {
 					return nil, xerrors.Errorf("checking sectors to skip: %w", err)
 				}
@@ -657,6 +675,11 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	spec := &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)}
 	s.setSender(ctx, msg, spec)
 
+	if s.noSubmit {
+		log.Info("noSubmit for SubmitWindowedPoSt")
+		return nil, errors.New("submit is false")
+	}
+
 	// TODO: consider maybe caring about the output
 	sm, err := s.api.MpoolPushMessage(ctx, msg, spec)
 
@@ -664,20 +687,21 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 		return nil, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
 
-	log.Infof("Submitted window post: %s", sm.Cid())
+	log.Infof("Submitting window post %d: %s", proof.Deadline, sm.Cid())
 
 	go func() {
 		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
 		if err != nil {
-			log.Error(err)
+			log.Error(errors.As(err, proof.Deadline))
 			return
 		}
 
 		if rec.Receipt.ExitCode == 0 {
+			log.Infof("Submitting window post %d, %s success.", proof.Deadline, sm.Cid())
 			return
 		}
 
-		log.Errorf("Submitting window post %s failed: exit %d", sm.Cid(), rec.Receipt.ExitCode)
+		log.Errorf("Submitting window post %d, %s failed: exit %d", proof.Deadline, sm.Cid(), rec.Receipt.ExitCode)
 	}()
 
 	return sm, nil

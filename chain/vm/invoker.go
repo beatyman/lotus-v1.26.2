@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	cbg "github.com/whyrusleeping/cbor-gen"
@@ -71,7 +72,25 @@ func (inv *Invoker) Invoke(codeCid cid.Cid, rt vmr.Runtime, method abi.MethodNum
 	if method >= abi.MethodNum(len(code)) || code[method] == nil {
 		return nil, aerrors.Newf(exitcode.SysErrInvalidMethod, "no method %d on actor", method)
 	}
-	return code[method](rt, params)
+	fn := code[method]
+	fnType := reflect.TypeOf(fn)
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		took := end.Sub(start)
+		if took > 1e9 {
+			log.Infow("Invoke",
+				"took", took,
+				"fnName", fnType.Name(),
+				"fnPkgPath", fnType.PkgPath(),
+				"fnString", fnType.String(),
+				"method", method,
+				"cid", codeCid,
+				"actor", builtin0.ActorNameByCode(codeCid),
+			)
+		}
+	}()
+	return fn(rt, params)
 
 }
 

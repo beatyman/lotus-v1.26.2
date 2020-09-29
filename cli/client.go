@@ -709,6 +709,10 @@ var clientFindCmd = &cli.Command{
 			return err
 		}
 
+		if len(offers) == 0 {
+			fmt.Println("No offers")
+		}
+
 		for _, offer := range offers {
 			if offer.Err != "" {
 				fmt.Printf("ERR %s@%s: %s\n", offer.Miner, offer.MinerPeer.ID, offer.Err)
@@ -800,6 +804,7 @@ var clientRetrieveCmd = &cli.Command{
 		var offer api.QueryOffer
 		minerStrAddr := cctx.String("miner")
 		if minerStrAddr == "" { // Local discovery
+			fmt.Println("ClientFindData(Local)")
 			offers, err := fapi.ClientFindData(ctx, file, pieceCid)
 
 			var cleaned []api.QueryOffer
@@ -831,6 +836,7 @@ var clientRetrieveCmd = &cli.Command{
 			if err != nil {
 				return err
 			}
+			fmt.Println("ClientMinerQueryOffer")
 			offer, err = fapi.ClientMinerQueryOffer(ctx, minerAddr, file, pieceCid)
 			if err != nil {
 				return err
@@ -855,6 +861,7 @@ var clientRetrieveCmd = &cli.Command{
 			return xerrors.Errorf("failed to find offer satisfying maxPrice: %s", maxPrice)
 		}
 
+		fmt.Println("ClientRetrieve")
 		ref := &lapi.FileRef{
 			Path:  cctx.Args().Get(1),
 			IsCAR: cctx.Bool("car"),

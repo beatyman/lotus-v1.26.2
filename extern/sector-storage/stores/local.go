@@ -199,7 +199,8 @@ func (st *Local) OpenPath(ctx context.Context, p string) error {
 
 			sid, err := ParseSectorID(ent.Name())
 			if err != nil {
-				return xerrors.Errorf("parse sector id %s: %w", ent.Name(), err)
+				log.Error(xerrors.Errorf("parse(%s) sector id %s: %w", filepath.Join(p, t.String()), ent.Name(), err))
+				continue
 			}
 
 			if err := st.index.StorageDeclareSector(ctx, meta.ID, sid, t, meta.CanStore); err != nil {
