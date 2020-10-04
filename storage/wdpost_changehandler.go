@@ -13,7 +13,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
-const SubmitConfidence = 4
+const SubmitConfidence = 2
 
 type CompleteGeneratePoSTCb func(posts []miner.SubmitWindowedPoStParams, err error)
 type CompleteSubmitPoSTCb func(err error)
