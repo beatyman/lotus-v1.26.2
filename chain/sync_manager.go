@@ -76,7 +76,7 @@ type syncResult struct {
 	success bool
 }
 
-const syncWorkerCount = 8
+const syncWorkerCount = 3
 
 func NewSyncManager(sync SyncFunc) SyncManager {
 	return &syncManager{
