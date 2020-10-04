@@ -33,14 +33,19 @@ var infoCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		infoAllCmd,
 	},
-	Action: infoCmdAct,
 	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "hide-sectors-info",
+			Usage: "hide sectors info",
+			Value: true,
+		},
 		&cli.BoolFlag{
 			Name:  "seal",
 			Value: false,
 			Usage: "output the miner seal stats",
 		},
 	},
+	Action: infoCmdAct,
 }
 
 func infoCmdAct(cctx *cli.Context) error {
@@ -206,7 +211,7 @@ func infoCmdAct(cctx *cli.Context) error {
 
 	fmt.Printf("Expected Seal Duration: %s\n\n", sealdur)
 
-	if cctx.Bool("seal") {
+	if !cctx.Bool("hide-sectors-info") || cctx.Bool("seal") {
 		fmt.Println("Sectors:")
 		err = sectorsInfo(ctx, nodeApi)
 		if err != nil {
