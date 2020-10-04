@@ -2,10 +2,12 @@ package storage
 
 import (
 	"context"
+
+	"github.com/gwaylib/errors"
 )
 
 func (m *Miner) Testing(ctx context.Context, fnName string, args []string) error {
-	return nil
+	return errors.New("Not implements").As(fnName)
 	//switch fnName {
 	//case "checkWindowPoSt":
 	//	if len(args) != 2 {
