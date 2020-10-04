@@ -201,7 +201,7 @@ func (m *Miner) mine(ctx context.Context) {
 				}
 			}
 
-			log.Infof("Update base to:%d", base.TipSet.Height())
+			log.Infof("Update %s base to:%d", m.address, base.TipSet.Height())
 
 			nextRound = nextRoundTime(base)
 			lastBase = *base
