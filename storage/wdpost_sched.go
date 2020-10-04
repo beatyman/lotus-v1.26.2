@@ -122,7 +122,6 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 					log.Errorf("expected first notif to tell current ts")
 					continue
 				}
-				log.Infof("Checking window post at:%d", chg.Val.Height())
 
 				ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.headChange")
 
@@ -163,6 +162,8 @@ func (s *WindowPoStScheduler) update(ctx context.Context, revert, apply *types.T
 		log.Error("no new tipset in window post WindowPoStScheduler.update")
 		return
 	}
+	log.Infof("Checking window post at:%d", apply.Height())
+
 	err := s.ch.update(ctx, revert, apply)
 	if err != nil {
 		log.Errorf("handling head updates in window post sched: %+v", err)
