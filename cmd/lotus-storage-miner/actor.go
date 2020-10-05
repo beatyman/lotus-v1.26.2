@@ -178,9 +178,17 @@ var actorSetPeeridCmd = &cli.Command{
 	},
 }
 
+// lotus send --nonce $nonce --gas-feecap 1000000000000 --gas-limit 2000000 --gas-premium 20000
 var actorWithdrawCmd = &cli.Command{
-	Name:      "withdraw",
-	Usage:     "withdraw available balance",
+	Name:  "withdraw",
+	Usage: "withdraw available balance",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:  "nonce",
+			Usage: "spec nonce(lotus wallet list)",
+			Value: 0,
+		},
+	},
 	ArgsUsage: "[amount (FIL)]",
 	Action: func(cctx *cli.Context) error {
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
@@ -233,18 +241,46 @@ var actorWithdrawCmd = &cli.Command{
 			return err
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
-			To:     maddr,
-			From:   mi.Owner,
-			Value:  types.NewInt(0),
+		msg := &types.Message{
+			To:    maddr,
+			From:  mi.Owner,
+			Value: types.NewInt(0),
+
+			Nonce: uint64(cctx.Int64("nonce")),
+
 			Method: builtin.MethodsMiner.WithdrawBalance,
 			Params: params,
-		}, nil)
-		if err != nil {
-			return err
+		}
+		var smsg *types.SignedMessage
+		if msg.Nonce > 0 {
+			sAddr, err := api.StateAccountKey(ctx, mi.Owner, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+			msg.From = sAddr
+			msg, err = api.GasEstimateMessageGas(ctx, msg, nil, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+			sm, err := api.WalletSignMessage(ctx, sAddr, msg)
+			if err != nil {
+				return err
+			}
+			fmt.Println("push")
+			_, err = api.MpoolPush(ctx, sm)
+			if err != nil {
+				return err
+			}
+			smsg = sm
+		} else {
+			sm, err := api.MpoolPushMessage(ctx, msg, nil)
+			if err != nil {
+				return err
+			}
+			smsg = sm
 		}
 
-		fmt.Printf("Requested rewards withdrawal in message %s\n", smsg.Cid())
+		fmt.Printf("Requested rewards withdrawal in message %s,%s\n", smsg.Cid(), msg)
 
 		return nil
 	},
