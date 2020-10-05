@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/gwaylib/errors"
+
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
@@ -86,6 +88,35 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 	defer s.ch.shutdown()
 	s.ch.start()
 
+	var lastTsHeight abi.ChainEpoch
+	for {
+		bts, err := s.api.ChainHead(ctx)
+		if err != nil {
+			log.Error(errors.As(err))
+			time.Sleep(time.Second)
+			continue
+		}
+		if bts.Height() == lastTsHeight {
+			time.Sleep(time.Second)
+			continue
+		}
+
+		log.Infof("Checking window post at:%d", bts.Height())
+		lastTsHeight = bts.Height()
+		s.update(ctx, nil, bts)
+
+		// loop to next time.
+		select {
+		case <-time.After(time.Until(nextRoundTime(bts))):
+			continue
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	// close this function and use the timer from mining
+	return
+
 	var notifs <-chan []*api.HeadChange
 	var err error
 	var gotCur bool
@@ -122,7 +153,6 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 					log.Errorf("expected first notif to tell current ts")
 					continue
 				}
-				log.Infof("Checking window post at:%d", chg.Val.Height())
 
 				ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.headChange")
 
@@ -163,6 +193,7 @@ func (s *WindowPoStScheduler) update(ctx context.Context, revert, apply *types.T
 		log.Error("no new tipset in window post WindowPoStScheduler.update")
 		return
 	}
+
 	err := s.ch.update(ctx, revert, apply)
 	if err != nil {
 		log.Errorf("handling head updates in window post sched: %+v", err)
