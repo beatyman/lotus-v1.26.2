@@ -43,7 +43,7 @@ var mpoolCmd = &cli.Command{
 	},
 }
 var mpoolGetCfg = &cli.Command{
-	Name:  "get-cfg",
+	Name:  "hlm-get-cfg",
 	Usage: "Println the configration of mpool",
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
@@ -62,7 +62,7 @@ var mpoolGetCfg = &cli.Command{
 	},
 }
 var mpoolSetCfg = &cli.Command{
-	Name:  "set-cfg",
+	Name:  "hlm-set-cfg",
 	Usage: "Println the configration of mpool",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -144,8 +144,8 @@ var mpoolSetCfg = &cli.Command{
 }
 
 var mpoolFix = &cli.Command{
-	Name:  "fix",
-	Usage: "fix [address]",
+	Name:  "hlm-fix",
+	Usage: "hlm-fix [address]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "really-do-it",
@@ -328,10 +328,6 @@ var mpoolClear = &cli.Command{
 	Name:  "clear",
 	Usage: "Clear all pending messages from the mpool (USE WITH CARE)",
 	Flags: []cli.Flag{
-		&cli.Int64Flag{
-			Name:  "nonce",
-			Usage: "clear one message",
-		},
 		&cli.BoolFlag{
 			Name:  "local",
 			Usage: "also clear local messages",
@@ -354,15 +350,6 @@ var mpoolClear = &cli.Command{
 			return fmt.Errorf("--really-do-it must be specified for this action to have an effect; you have been warned")
 		}
 		ctx := ReqContext(cctx)
-		nonce := cctx.Uint64("nonce")
-		if nonce > 0 {
-			fromAddr, err := address.NewFromString(cctx.Args().First())
-			if err != nil {
-				return errors.New("need input from address")
-			}
-			return api.MpoolRemove(ctx, fromAddr, nonce)
-		}
-
 		local := cctx.Bool("local")
 
 		return api.MpoolClear(ctx, local)
