@@ -117,7 +117,13 @@ func (a *API) ClientStartDeal(ctx context.Context, params *api.StartDealParams) 
 			}
 		}
 	}
-	exist, err := a.WalletHas(ctx, params.Wallet)
+
+	walletKey, err := a.StateAPI.StateManager.ResolveToKeyAddress(ctx, params.Wallet, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("failed resolving params.Wallet addr: %w", params.Wallet)
+	}
+
+	exist, err := a.WalletHas(ctx, walletKey)
 	if err != nil {
 		return nil, xerrors.Errorf("failed getting addr from wallet: %w", params.Wallet)
 	}
@@ -200,6 +206,7 @@ func (a *API) ClientListDeals(ctx context.Context) ([]api.DealInfo, error) {
 			Duration:      uint64(v.Proposal.Duration()),
 			DealID:        v.DealID,
 			CreationTime:  v.CreationTime.Time(),
+			Verified:      v.Proposal.VerifiedDeal,
 		}
 	}
 
@@ -223,6 +230,7 @@ func (a *API) ClientGetDealInfo(ctx context.Context, d cid.Cid) (*api.DealInfo, 
 		Duration:      uint64(v.Proposal.Duration()),
 		DealID:        v.DealID,
 		CreationTime:  v.CreationTime.Time(),
+		Verified:      v.Proposal.VerifiedDeal,
 	}, nil
 }
 
@@ -848,6 +856,7 @@ func newDealInfo(v storagemarket.ClientDeal) api.DealInfo {
 		Duration:      uint64(v.Proposal.Duration()),
 		DealID:        v.DealID,
 		CreationTime:  v.CreationTime.Time(),
+		Verified:      v.Proposal.VerifiedDeal,
 	}
 }
 
