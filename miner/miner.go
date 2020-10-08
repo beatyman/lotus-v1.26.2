@@ -361,7 +361,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	if mbi == nil {
 		return nil, nil
 	}
-	if !mbi.HasMinPower {
+	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
 		return nil, nil
 	}
