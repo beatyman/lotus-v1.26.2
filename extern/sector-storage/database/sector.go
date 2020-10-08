@@ -97,6 +97,15 @@ func GetSectorInfo(id string) (*SectorInfo, error) {
 	return info, nil
 }
 
+func GetSectorState(id string) (int, error) {
+	mdb := GetDB()
+	state := -1
+	if err := database.QueryElem(mdb, &state, "SELECT state FROM sector_info WHERE id=?", id); err != nil {
+		return state, errors.As(err, id)
+	}
+	return state, nil
+}
+
 type SectorList []SectorInfo
 
 func GetSectorByState(storageId int64, state int64) (SectorList, error) {

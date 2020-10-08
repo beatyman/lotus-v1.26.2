@@ -59,22 +59,23 @@ var gcHLMWorkerCmd = &cli.Command{
 		if len(workerId) == 0 {
 			return errors.New("need input workid/all")
 		}
+		if workerId == "all" {
+			workerId = ""
+		}
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
 		defer closer()
-		// TODO: implement gc
 		ctx := lcli.ReqContext(cctx)
-		info, err := nodeApi.WorkerInfo(ctx, workerId)
+		gcTasks, err := nodeApi.WorkerGcLock(ctx, workerId)
 		if err != nil {
 			return err
 		}
-		output, err := json.MarshalIndent(info, "", "	")
-		if err != nil {
-			return err
+		for _, task := range gcTasks {
+			fmt.Printf("gc : %s\n", task)
 		}
-		fmt.Println(string(output))
+		fmt.Println("gc done")
 		return nil
 	},
 }

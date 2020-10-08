@@ -323,23 +323,50 @@ func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force, reset bo
 	return working, nil
 }
 
-func (sb *Sealer) GcWorker(invalidTime time.Time) ([]database.SectorInfo, error) {
-	dropTasks, err := database.GetTimeoutTask(invalidTime)
-	if err != nil {
-		return nil, errors.As(err)
-	}
-	for _, dropTask := range dropTasks {
-		// need free by manu, because precomit will burn gas.
-		//if err := database.UpdateSectorState(dropTask.ID, dropTask.WorkerId, "GC task", database.SECTOR_STATE_FAILED); err != nil {
-		//	return nil, errors.As(err)
-		//}
-		r, ok := _remotes.Load(dropTask.WorkerId)
-		if !ok {
-			continue
+// len(workerId) == 0 for gc all workers
+func (sb *Sealer) GcWorker(workerId string) ([]string, error) {
+	var gc = func(r *remote) ([]string, error) {
+		r.lock.Lock()
+		defer r.lock.Unlock()
+
+		result := []string{}
+		for sid, task := range r.busyOnTasks {
+			state, err := database.GetSectorState(sid)
+			if err != nil {
+				return nil, errors.As(err)
+			}
+			if state < 200 {
+				continue
+			}
+			delete(r.busyOnTasks, sid)
+			result = append(result, task.Key())
 		}
-		r.(*remote).freeTask(dropTask.ID)
+		return result, nil
 	}
-	return dropTasks, nil
+
+	// for one worker
+	if len(workerId) > 0 {
+		val, ok := _remotes.Load(workerId)
+		if !ok {
+			return nil, errors.New("worker not online").As(workerId)
+		}
+		return gc(val.(*remote))
+	}
+
+	// for all workers
+	result := []string{}
+	var gErr error
+	_remotes.Range(func(key, val interface{}) bool {
+		ret, err := gc(val.(*remote))
+		if err != nil {
+			gErr = err
+			return false
+		}
+		result = append(result, ret...)
+		return true
+	})
+
+	return result, gErr
 }
 
 // export for rpc service to notiy in pushing stage

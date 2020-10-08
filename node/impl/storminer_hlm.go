@@ -88,6 +88,9 @@ func (sm *StorageMinerAPI) WorkerLock(ctx context.Context, workerId, taskKey, me
 func (sm *StorageMinerAPI) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockWorker(ctx, workerId, taskKey, memo, sectorState)
 }
+func (sm *StorageMinerAPI) WorkerGcLock(ctx context.Context, workerId string) ([]string, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).GcWorker(workerId)
+}
 func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskDone(ctx, res)
 }
