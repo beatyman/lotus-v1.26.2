@@ -189,10 +189,10 @@ func (m *Miner) mine(ctx context.Context) {
 			base := prebase
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			now := time.Now()
-			delay := (time.Duration(build.PropagationDelaySecs+(build.PropagationDelaySecs/2)) * time.Second) - now.Sub(nextRound)
+			delay := (time.Duration(build.PropagationDelaySecs) * time.Second) - now.Sub(nextRound)
 			log.Infof("Waiting PropagationDelay time: %s", delay)
 			if delay > 0 && now.Sub(nextRound) > 0 {
-				time.Sleep(delay)
+				time.Sleep(delay + (time.Second / 2)) // offset 500ms
 				// update the parent weight
 				base, err = m.GetBestMiningCandidate(ctx)
 				if err != nil {
@@ -361,7 +361,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	if mbi == nil {
 		return nil, nil
 	}
-	if !mbi.HasMinPower {
+	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
 		return nil, nil
 	}

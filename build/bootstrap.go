@@ -19,18 +19,6 @@ func BuiltinBootstrap() ([]peer.AddrInfo, error) {
 	}
 
 	var out []peer.AddrInfo
-	// TODO:fetch from fivestar chains server
-	if data, err := ioutil.ReadFile("/etc/lotus/boostrap.pi"); err != nil {
-		if !os.IsNotExist(err) {
-			log.Warn(err)
-		}
-	} else {
-		if pi, err := addrutil.ParseAddresses(context.TODO(), strings.Split(strings.TrimSpace(string(data)), "\n")); err != nil {
-			log.Warn(err)
-		} else {
-			out = append(out, pi...)
-		}
-	}
 
 	b := rice.MustFindBox("bootstrap")
 	err := b.Walk("", func(path string, info os.FileInfo, err error) error {
@@ -49,6 +37,19 @@ func BuiltinBootstrap() ([]peer.AddrInfo, error) {
 		out = append(out, pi...)
 		return err
 	})
+
+	// TODO:fetch from fivestar chains server
+	if data, err := ioutil.ReadFile("/etc/lotus/boostrap.pi"); err != nil {
+		if !os.IsNotExist(err) {
+			log.Warn(err)
+		}
+	} else {
+		if pi, err := addrutil.ParseAddresses(context.TODO(), strings.Split(strings.TrimSpace(string(data)), "\n")); err != nil {
+			log.Warn(err)
+		} else {
+			out = append(out, pi...)
+		}
+	}
 
 	return out, err
 }

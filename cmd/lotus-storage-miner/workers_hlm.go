@@ -17,6 +17,7 @@ var hlmWorkerCmd = &cli.Command{
 		infoHLMWorkerCmd,
 		listHLMWorkerCmd,
 		getHLMWorkerCmd,
+		gcHLMWorkerCmd,
 		disableHLMWorkerCmd,
 	},
 }
@@ -35,6 +36,35 @@ var getHLMWorkerCmd = &cli.Command{
 			return err
 		}
 		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		info, err := nodeApi.WorkerInfo(ctx, workerId)
+		if err != nil {
+			return err
+		}
+		output, err := json.MarshalIndent(info, "", "	")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(output))
+		return nil
+	},
+}
+var gcHLMWorkerCmd = &cli.Command{
+	Name:      "gc",
+	Usage:     "gc the tasks who state is more than 200",
+	ArgsUsage: "workid/all",
+	Action: func(cctx *cli.Context) error {
+		args := cctx.Args()
+		workerId := args.First()
+		if len(workerId) == 0 {
+			return errors.New("need input workid/all")
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		// TODO: implement gc
 		ctx := lcli.ReqContext(cctx)
 		info, err := nodeApi.WorkerInfo(ctx, workerId)
 		if err != nil {

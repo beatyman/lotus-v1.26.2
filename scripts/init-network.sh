@@ -98,7 +98,7 @@ git checkout build
 sleep 10
 # make the wallet address to default, so it can send by ${ldlist[0]}
 #./lotus --repo="${ldt0111}" wallet import ${sdt0111}/pre-seal-t01000.key
-./lotus --repo="${ldt0111}" wallet set-default $(./lotus --repo="${ldt0111}" wallet list)
+#./lotus --repo="${ldt0111}" wallet set-default $(./lotus --repo="${ldt0111}" wallet list)
 
 mdt0111=/data/lotus/dev/.mdt0111 # $(mktemp -d)
 rm -rf $mdt0111 && mkdir -p $mdt0111
