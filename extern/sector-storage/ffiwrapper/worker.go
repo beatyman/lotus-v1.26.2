@@ -333,6 +333,9 @@ func (sb *Sealer) GcWorker(workerId string) ([]string, error) {
 		for sid, task := range r.busyOnTasks {
 			state, err := database.GetSectorState(sid)
 			if err != nil {
+				if errors.ErrNoData.Equal(err) {
+					continue
+				}
 				return nil, errors.As(err)
 			}
 			if state < 200 {
