@@ -27,6 +27,15 @@ func GetWorkerInfo(id string) (*WorkerInfo, error) {
 	return info, nil
 }
 
+func AllWorkerInfo() ([]WorkerInfo, error) {
+	db := GetDB()
+	infos := []WorkerInfo{}
+	if err := database.QueryStructs(db, &infos, "SELECT * FROM worker_info"); err != nil {
+		return nil, errors.As(err)
+	}
+	return infos, nil
+}
+
 func OnlineWorker(info *WorkerInfo) error {
 	db := GetDB()
 	exist := 0

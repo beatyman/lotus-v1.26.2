@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/gwaylib/errors"
+
+	cid "github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -41,7 +43,7 @@ var mpoolCmd = &cli.Command{
 	},
 }
 var mpoolGetCfg = &cli.Command{
-	Name:  "get-cfg",
+	Name:  "hlm-get-cfg",
 	Usage: "Println the configration of mpool",
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
@@ -60,7 +62,7 @@ var mpoolGetCfg = &cli.Command{
 	},
 }
 var mpoolSetCfg = &cli.Command{
-	Name:  "set-cfg",
+	Name:  "hlm-set-cfg",
 	Usage: "Println the configration of mpool",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -142,8 +144,8 @@ var mpoolSetCfg = &cli.Command{
 }
 
 var mpoolFix = &cli.Command{
-	Name:  "fix",
-	Usage: "fix [address]",
+	Name:  "hlm-fix",
+	Usage: "hlm-fix [address]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "really-do-it",
@@ -267,6 +269,10 @@ var mpoolPending = &cli.Command{
 			Name:  "local",
 			Usage: "print pending messages for addresses in local wallet only",
 		},
+		&cli.BoolFlag{
+			Name:  "cids",
+			Usage: "only print cids of messages in output",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
@@ -303,11 +309,15 @@ var mpoolPending = &cli.Command{
 				}
 			}
 
-			out, err := json.MarshalIndent(msg, "", "  ")
-			if err != nil {
-				return err
+			if cctx.Bool("cids") {
+				fmt.Println(msg.Cid())
+			} else {
+				out, err := json.MarshalIndent(msg, "", "  ")
+				if err != nil {
+					return err
+				}
+				fmt.Println(string(out))
 			}
-			fmt.Println(string(out))
 		}
 
 		return nil
@@ -318,10 +328,6 @@ var mpoolClear = &cli.Command{
 	Name:  "clear",
 	Usage: "Clear all pending messages from the mpool (USE WITH CARE)",
 	Flags: []cli.Flag{
-		&cli.Int64Flag{
-			Name:  "nonce",
-			Usage: "clear one message",
-		},
 		&cli.BoolFlag{
 			Name:  "local",
 			Usage: "also clear local messages",
@@ -344,15 +350,6 @@ var mpoolClear = &cli.Command{
 			return fmt.Errorf("--really-do-it must be specified for this action to have an effect; you have been warned")
 		}
 		ctx := ReqContext(cctx)
-		nonce := cctx.Uint64("nonce")
-		if nonce > 0 {
-			fromAddr, err := address.NewFromString(cctx.Args().First())
-			if err != nil {
-				return errors.New("need input from address")
-			}
-			return api.MpoolRemove(ctx, fromAddr, nonce)
-		}
-
 		local := cctx.Bool("local")
 
 		return api.MpoolClear(ctx, local)
@@ -391,14 +388,6 @@ var mpoolSub = &cli.Command{
 	},
 }
 
-type statBucket struct {
-	msgs map[uint64]*types.SignedMessage
-}
-type mpStat struct {
-	addr              string
-	past, cur, future uint64
-}
-
 var mpoolStat = &cli.Command{
 	Name:  "stat",
 	Usage: "print mempool stats",
@@ -406,6 +395,11 @@ var mpoolStat = &cli.Command{
 		&cli.BoolFlag{
 			Name:  "local",
 			Usage: "print stats for addresses in local wallet only",
+		},
+		&cli.IntFlag{
+			Name:  "basefee-lookback",
+			Usage: "number of blocks to look back for minimum basefee",
+			Value: 60,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -420,6 +414,20 @@ var mpoolStat = &cli.Command{
 		ts, err := api.ChainHead(ctx)
 		if err != nil {
 			return xerrors.Errorf("getting chain head: %w", err)
+		}
+		currBF := ts.Blocks()[0].ParentBaseFee
+		minBF := currBF
+		{
+			currTs := ts
+			for i := 0; i < cctx.Int("basefee-lookback"); i++ {
+				currTs, err = api.ChainGetTipSet(ctx, currTs.Parents())
+				if err != nil {
+					return xerrors.Errorf("walking chain: %w", err)
+				}
+				if newBF := currTs.Blocks()[0].ParentBaseFee; newBF.LessThan(minBF) {
+					minBF = newBF
+				}
+			}
 		}
 
 		var filter map[address.Address]struct{}
@@ -441,8 +449,16 @@ var mpoolStat = &cli.Command{
 			return err
 		}
 
-		buckets := map[address.Address]*statBucket{}
+		type statBucket struct {
+			msgs map[uint64]*types.SignedMessage
+		}
+		type mpStat struct {
+			addr                 string
+			past, cur, future    uint64
+			belowCurr, belowPast uint64
+		}
 
+		buckets := map[address.Address]*statBucket{}
 		for _, v := range msgs {
 			if filter != nil {
 				if _, has := filter[v.Message.From]; !has {
@@ -479,23 +495,27 @@ var mpoolStat = &cli.Command{
 				cur++
 			}
 
-			past := uint64(0)
-			future := uint64(0)
+			var s mpStat
+			s.addr = a.String()
+
 			for _, m := range bkt.msgs {
 				if m.Message.Nonce < act.Nonce {
-					past++
+					s.past++
+				} else if m.Message.Nonce > cur {
+					s.future++
+				} else {
+					s.cur++
 				}
-				if m.Message.Nonce > cur {
-					future++
+
+				if m.Message.GasFeeCap.LessThan(currBF) {
+					s.belowCurr++
+				}
+				if m.Message.GasFeeCap.LessThan(minBF) {
+					s.belowPast++
 				}
 			}
 
-			out = append(out, mpStat{
-				addr:   a.String(),
-				past:   past,
-				cur:    cur - act.Nonce,
-				future: future,
-			})
+			out = append(out, s)
 		}
 
 		sort.Slice(out, func(i, j int) bool {
@@ -508,14 +528,14 @@ var mpoolStat = &cli.Command{
 			total.past += stat.past
 			total.cur += stat.cur
 			total.future += stat.future
+			total.belowCurr += stat.belowCurr
+			total.belowPast += stat.belowPast
 
-			fmt.Printf("%s: past: %d, cur: %d, future: %d\n",
-				stat.addr, stat.past, stat.cur, stat.future,
-			)
+			fmt.Printf("%s: Nonce past: %d, cur: %d, future: %d; FeeCap cur: %d, min-%d: %d \n", stat.addr, stat.past, stat.cur, stat.future, stat.belowCurr, cctx.Int("basefee-lookback"), stat.belowPast)
 		}
 
 		fmt.Println("-----")
-		fmt.Printf("total: past: %d, cur: %d, future: %d\n", total.past, total.cur, total.future)
+		fmt.Printf("total: Nonce past: %d, cur: %d, future: %d; FeeCap cur: %d, min-%d: %d \n", total.past, total.cur, total.future, total.belowCurr, cctx.Int("basefee-lookback"), total.belowPast)
 
 		return nil
 	},
@@ -550,21 +570,8 @@ var mpoolReplaceCmd = &cli.Command{
 			Usage: "Spend up to X FIL for this message (applicable for auto mode)",
 		},
 	},
-	ArgsUsage: "[from] [nonce]",
+	ArgsUsage: "<from nonce> | <message-cid>",
 	Action: func(cctx *cli.Context) error {
-		if cctx.Args().Len() < 2 {
-			return cli.ShowCommandHelp(cctx, cctx.Command.Name)
-		}
-
-		from, err := address.NewFromString(cctx.Args().Get(0))
-		if err != nil {
-			return err
-		}
-
-		nonce, err := strconv.ParseUint(cctx.Args().Get(1), 10, 64)
-		if err != nil {
-			return err
-		}
 
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
@@ -573,6 +580,39 @@ var mpoolReplaceCmd = &cli.Command{
 		defer closer()
 
 		ctx := ReqContext(cctx)
+
+		var from address.Address
+		var nonce uint64
+		switch cctx.Args().Len() {
+		case 1:
+			mcid, err := cid.Decode(cctx.Args().First())
+			if err != nil {
+				return err
+			}
+
+			msg, err := api.ChainGetMessage(ctx, mcid)
+			if err != nil {
+				return fmt.Errorf("could not find referenced message: %w", err)
+			}
+
+			from = msg.From
+			nonce = msg.Nonce
+		case 2:
+			f, err := address.NewFromString(cctx.Args().Get(0))
+			if err != nil {
+				return err
+			}
+
+			n, err := strconv.ParseUint(cctx.Args().Get(1), 10, 64)
+			if err != nil {
+				return err
+			}
+
+			from = f
+			nonce = n
+		default:
+			return cli.ShowCommandHelp(cctx, cctx.Command.Name)
+		}
 
 		ts, err := api.ChainHead(ctx)
 		if err != nil {

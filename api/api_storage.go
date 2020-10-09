@@ -105,6 +105,12 @@ type StorageMiner interface {
 	PiecesGetPieceInfo(ctx context.Context, pieceCid cid.Cid) (*piecestore.PieceInfo, error)
 	PiecesGetCIDInfo(ctx context.Context, payloadCid cid.Cid) (*piecestore.CIDInfo, error)
 
+	// CreateBackup creates node backup onder the specified file name. The
+	// method requires that the lotus-miner is running with the
+	// LOTUS_BACKUP_BASE_PATH environment variable set to some path, and that
+	// the path specified when calling CreateBackup is within the base path
+	CreateBackup(ctx context.Context, fpath string) error
+
 	// implements by hlm
 	Testing(ctx context.Context, fnName string, args []string) error
 	RunPledgeSector(context.Context) error
@@ -124,6 +130,7 @@ type StorageMiner interface {
 	WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error)
 	WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
 	WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
+	WorkerGcLock(ctx context.Context, workerId string) ([]string, error)
 	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
 	WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error)
 	WorkerDisable(ctx context.Context, wid string, disable bool) error

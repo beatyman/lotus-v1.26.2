@@ -192,7 +192,7 @@ func (m *Miner) mine(ctx context.Context) {
 			delay := (time.Duration(build.PropagationDelaySecs) * time.Second) - now.Sub(nextRound)
 			log.Infof("Waiting PropagationDelay time: %s", delay)
 			if delay > 0 && now.Sub(nextRound) > 0 {
-				time.Sleep(delay + time.Second)
+				time.Sleep(delay + (time.Second / 2)) // offset 500ms
 				// update the parent weight
 				base, err = m.GetBestMiningCandidate(ctx)
 				if err != nil {
@@ -201,7 +201,7 @@ func (m *Miner) mine(ctx context.Context) {
 				}
 			}
 
-			log.Infof("Update base to:%d", base.TipSet.Height())
+			log.Infof("Update %s base height to: %d", m.address, base.TipSet.Height())
 
 			nextRound = nextRoundTime(base)
 			lastBase = *base
@@ -361,7 +361,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	if mbi == nil {
 		return nil, nil
 	}
-	if !mbi.HasMinPower {
+	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
 		return nil, nil
 	}

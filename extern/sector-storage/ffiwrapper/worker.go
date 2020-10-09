@@ -14,6 +14,25 @@ import (
 )
 
 func (sb *Sealer) WorkerStats() WorkerStats {
+	infos, err := database.AllWorkerInfo()
+	if err != nil {
+		log.Error(errors.As(err))
+	}
+	workerOnlines := 0
+	workerOfflines := 0
+	workerDisabled := 0
+	for _, info := range infos {
+		if info.Disable {
+			workerDisabled++
+			continue
+		}
+		if info.Online {
+			workerOnlines++
+		} else {
+			workerOfflines++
+		}
+	}
+
 	// make a copy for stats
 	sealWorkerTotal := 0
 	sealWorkerUsing := 0
@@ -66,9 +85,9 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 	})
 
 	return WorkerStats{
-		LocalFree:     0,
-		LocalReserved: 1,
-		LocalTotal:    1,
+		WorkerOnlines:  workerOnlines,
+		WorkerOfflines: workerOfflines,
+		WorkerDisabled: workerDisabled,
 
 		SealWorkerTotal:  sealWorkerTotal,
 		SealWorkerUsing:  sealWorkerUsing,
@@ -99,17 +118,31 @@ func (arr WorkerRemoteStatsArr) Swap(i, j int) {
 	arr[i], arr[j] = arr[j], arr[i]
 }
 func (arr WorkerRemoteStatsArr) Less(i, j int) bool {
-	return arr[i].ID < arr[j].ID
+	return arr[i].Disable == arr[j].Disable && arr[i].Online == arr[i].Online && arr[i].ID < arr[j].ID
 }
 func (sb *Sealer) WorkerRemoteStats() ([]WorkerRemoteStats, error) {
 	result := WorkerRemoteStatsArr{}
-	var gErr error
-	_remotes.Range(func(key, val interface{}) bool {
-		r := val.(*remote)
+	infos, err := database.AllWorkerInfo()
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	for _, info := range infos {
+		stat := WorkerRemoteStats{
+			ID:      info.ID,
+			IP:      info.Ip,
+			Disable: info.Disable,
+		}
+		on, ok := _remotes.Load(info.ID)
+		if !ok {
+			stat.Online = false
+			result = append(result, stat)
+			continue
+		}
+
+		r := on.(*remote)
 		sectors, err := sb.TaskWorking(r.cfg.ID)
 		if err != nil {
-			gErr = errors.As(err)
-			return false
+			return nil, errors.As(err)
 		}
 		busyOn := []string{}
 		r.lock.Lock()
@@ -118,18 +151,12 @@ func (sb *Sealer) WorkerRemoteStats() ([]WorkerRemoteStats, error) {
 		}
 		r.lock.Unlock()
 
-		result = append(result, WorkerRemoteStats{
-			ID:       r.cfg.ID,
-			IP:       r.cfg.IP,
-			Disable:  r.disable,
-			Srv:      r.cfg.Commit2Srv || r.cfg.WnPoStSrv || r.cfg.WdPoStSrv,
-			BusyOn:   fmt.Sprintf("%+v", busyOn),
-			SectorOn: sectors,
-		})
-		return true
-	})
-	if gErr != nil {
-		return nil, gErr
+		stat.Online = true
+		stat.Srv = r.cfg.Commit2Srv || r.cfg.WnPoStSrv || r.cfg.WdPoStSrv
+		stat.BusyOn = fmt.Sprintf("%+v", busyOn)
+		stat.SectorOn = sectors
+
+		result = append(result, stat)
 	}
 	sort.Sort(result)
 	return result, nil
@@ -323,23 +350,53 @@ func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force, reset bo
 	return working, nil
 }
 
-func (sb *Sealer) GcWorker(invalidTime time.Time) ([]database.SectorInfo, error) {
-	dropTasks, err := database.GetTimeoutTask(invalidTime)
-	if err != nil {
-		return nil, errors.As(err)
-	}
-	for _, dropTask := range dropTasks {
-		// need free by manu, because precomit will burn gas.
-		//if err := database.UpdateSectorState(dropTask.ID, dropTask.WorkerId, "GC task", database.SECTOR_STATE_FAILED); err != nil {
-		//	return nil, errors.As(err)
-		//}
-		r, ok := _remotes.Load(dropTask.WorkerId)
-		if !ok {
-			continue
+// len(workerId) == 0 for gc all workers
+func (sb *Sealer) GcWorker(workerId string) ([]string, error) {
+	var gc = func(r *remote) ([]string, error) {
+		r.lock.Lock()
+		defer r.lock.Unlock()
+
+		result := []string{}
+		for sid, task := range r.busyOnTasks {
+			state, err := database.GetSectorState(sid)
+			if err != nil {
+				if errors.ErrNoData.Equal(err) {
+					continue
+				}
+				return nil, errors.As(err)
+			}
+			if state < 200 {
+				continue
+			}
+			delete(r.busyOnTasks, sid)
+			result = append(result, task.Key())
 		}
-		r.(*remote).freeTask(dropTask.ID)
+		return result, nil
 	}
-	return dropTasks, nil
+
+	// for one worker
+	if len(workerId) > 0 {
+		val, ok := _remotes.Load(workerId)
+		if !ok {
+			return nil, errors.New("worker not online").As(workerId)
+		}
+		return gc(val.(*remote))
+	}
+
+	// for all workers
+	result := []string{}
+	var gErr error
+	_remotes.Range(func(key, val interface{}) bool {
+		ret, err := gc(val.(*remote))
+		if err != nil {
+			gErr = err
+			return false
+		}
+		result = append(result, ret...)
+		return true
+	})
+
+	return result, gErr
 }
 
 // export for rpc service to notiy in pushing stage

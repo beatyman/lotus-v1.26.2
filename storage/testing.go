@@ -50,7 +50,7 @@ func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context, height abi.Ch
 
 	log.Infof("DEBUG:tipset:%d,%d,%+v", new.Height(), ts.Height(), deadline)
 	// deadline.Index = index
-	posts, err := s.runPost(ctx, submit, *deadline, ts)
+	posts, err := s.runPost(ctx, *deadline, ts)
 	if err != nil {
 		log.Errorf("runPost failed: %+v", err)
 		return

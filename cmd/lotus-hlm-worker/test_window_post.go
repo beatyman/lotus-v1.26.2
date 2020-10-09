@@ -114,10 +114,12 @@ var testWdPoStCmd = &cli.Command{
 		di := dline.Info{
 			Index: cctx.Uint64("index"), // TODO: get from params
 		}
+		log.Info("get chain head")
 		ts, err := fullApi.ChainHead(ctx)
 		if err != nil {
 			return err
 		}
+		log.Info("get miner partitions")
 		partitions, err := fullApi.StateMinerPartitions(ctx, act, di.Index, ts.Key())
 		if err != nil {
 			return errors.As(err)
@@ -132,15 +134,18 @@ var testWdPoStCmd = &cli.Command{
 			return errors.As(err)
 		}
 
+		log.Info("get randomness")
 		rand, err := fullApi.ChainGetRandomnessFromBeacon(ctx, ts.Key(), crypto.DomainSeparationTag_WindowedPoStChallengeSeed, di.Challenge, buf.Bytes())
 		if err != nil {
 			return errors.As(err)
 		}
 
+		log.Info("get mid")
 		mid, err := address.IDFromAddress(act)
 		if err != nil {
 			return errors.As(err)
 		}
+		log.Info("create sinfos")
 		var sinfos []proof.SectorInfo
 		var sectors = []abi.SectorID{}
 		for partIdx, partition := range partitions {

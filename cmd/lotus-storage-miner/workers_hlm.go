@@ -14,9 +14,10 @@ var hlmWorkerCmd = &cli.Command{
 	Name:  "hlm-worker",
 	Usage: "Manage worker",
 	Subcommands: []*cli.Command{
-		infoHLMWorkerCmd,
+		statusHLMWorkerCmd,
 		listHLMWorkerCmd,
 		getHLMWorkerCmd,
+		gcHLMWorkerCmd,
 		disableHLMWorkerCmd,
 	},
 }
@@ -48,6 +49,36 @@ var getHLMWorkerCmd = &cli.Command{
 		return nil
 	},
 }
+var gcHLMWorkerCmd = &cli.Command{
+	Name:      "gc",
+	Usage:     "gc the tasks who state is more than 200",
+	ArgsUsage: "workid/all",
+	Action: func(cctx *cli.Context) error {
+		args := cctx.Args()
+		workerId := args.First()
+		if len(workerId) == 0 {
+			return errors.New("need input workid/all")
+		}
+		if workerId == "all" {
+			workerId = ""
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		gcTasks, err := nodeApi.WorkerGcLock(ctx, workerId)
+		if err != nil {
+			return err
+		}
+		for _, task := range gcTasks {
+			fmt.Printf("gc : %s\n", task)
+		}
+		fmt.Println("gc done")
+		return nil
+	},
+}
 var disableHLMWorkerCmd = &cli.Command{
 	Name:      "disable",
 	Usage:     "Disable a work node to stop allocating OR start allocating",
@@ -72,9 +103,10 @@ var disableHLMWorkerCmd = &cli.Command{
 	},
 }
 
-var infoHLMWorkerCmd = &cli.Command{
-	Name:  "info",
-	Usage: "worker information",
+var statusHLMWorkerCmd = &cli.Command{
+	Name:    "status",
+	Aliases: []string{"info"},
+	Usage:   "workers status",
 	Action: func(cctx *cli.Context) error {
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -88,11 +120,11 @@ var infoHLMWorkerCmd = &cli.Command{
 		}
 
 		fmt.Printf("Worker use:\n")
-		fmt.Printf("\tLocal: %d / %d (+%d reserved)\n", wstat.LocalTotal-wstat.LocalReserved-wstat.LocalFree, wstat.LocalTotal-wstat.LocalReserved, wstat.LocalReserved)
 		fmt.Printf("\tSealWorker: %d / %d (locked: %d)\n", wstat.SealWorkerUsing, wstat.SealWorkerTotal, wstat.SealWorkerLocked)
 		fmt.Printf("\tCommit2Srv: %d / %d\n", wstat.Commit2SrvUsed, wstat.Commit2SrvTotal)
 		fmt.Printf("\tWnPoStSrv : %d / %d\n", wstat.WnPoStSrvUsed, wstat.WnPoStSrvTotal)
 		fmt.Printf("\tWdPoStSrv : %d / %d\n", wstat.WdPoStSrvUsed, wstat.WdPoStSrvTotal)
+		fmt.Printf("\tAllRemotes: all:%d, online:%d, offline:%d, disabled: %d\n", wstat.WorkerOnlines+wstat.WorkerOfflines+wstat.WorkerDisabled, wstat.WorkerOnlines, wstat.WorkerOfflines, wstat.WorkerDisabled)
 
 		fmt.Printf("Queues:\n")
 		fmt.Printf("\tAddPiece: %d\n", wstat.AddPieceWait)
@@ -108,6 +140,28 @@ var infoHLMWorkerCmd = &cli.Command{
 var listHLMWorkerCmd = &cli.Command{
 	Name:  "list",
 	Usage: "list worker status",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "online",
+			Usage: "show the online worker",
+			Value: true,
+		},
+		&cli.BoolFlag{
+			Name:  "offline",
+			Usage: "show the offline worker",
+			Value: false,
+		},
+		&cli.BoolFlag{
+			Name:  "disabled",
+			Usage: "show the disabled worker",
+			Value: false,
+		},
+		&cli.BoolFlag{
+			Name:  "service",
+			Usage: "show the service worker",
+			Value: true,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -119,7 +173,23 @@ var listHLMWorkerCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err)
 		}
+		showDisabled := cctx.Bool("disabled")
+		showOnline := cctx.Bool("online")
+		showOffline := cctx.Bool("offline")
+		showService := cctx.Bool("service")
 		for _, info := range infos {
+			if info.Disable && !showDisabled {
+				continue
+			}
+			if info.Online && !showOnline {
+				continue
+			}
+			if !info.Online && !showOffline {
+				continue
+			}
+			if info.Srv && !showService {
+				continue
+			}
 			fmt.Println(info.String())
 		}
 		return nil

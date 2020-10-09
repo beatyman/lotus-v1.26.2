@@ -78,8 +78,6 @@ func main() {
 
 	log.Info("Starting lotus-bench")
 
-	policy.AddSupportedProofTypes(abi.RegisteredSealProof_StackedDrg2KiBV1)
-
 	app := &cli.App{
 		Name:    "lotus-bench",
 		Usage:   "Benchmark performance of lotus on your hardware",
@@ -155,6 +153,8 @@ var sealBenchCmd = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
+		policy.AddSupportedProofTypes(abi.RegisteredSealProof_StackedDrg2KiBV1)
+
 		parallel := c.Int("hlm-parallel")
 		result := make(chan string, parallel)
 		for i := 0; i < parallel; i++ {

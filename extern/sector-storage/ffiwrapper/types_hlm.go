@@ -226,9 +226,9 @@ type workerCall struct {
 	ret  chan SealRes
 }
 type WorkerStats struct {
-	LocalFree     int
-	LocalReserved int
-	LocalTotal    int
+	WorkerOnlines  int
+	WorkerOfflines int
+	WorkerDisabled int
 
 	SealWorkerTotal  int
 	SealWorkerUsing  int
@@ -236,10 +236,11 @@ type WorkerStats struct {
 
 	Commit2SrvTotal int
 	Commit2SrvUsed  int
-	WnPoStSrvTotal  int
-	WnPoStSrvUsed   int
-	WdPoStSrvTotal  int
-	WdPoStSrvUsed   int
+
+	WnPoStSrvTotal int
+	WnPoStSrvUsed  int
+	WdPoStSrvTotal int
+	WdPoStSrvUsed  int
 
 	AddPieceWait   int
 	PreCommit1Wait int
@@ -255,6 +256,7 @@ type WorkerRemoteStats struct {
 	ID       string
 	IP       string
 	Disable  bool
+	Online   bool
 	Srv      bool
 	BusyOn   string
 	SectorOn database.WorkingSectors
@@ -266,8 +268,8 @@ func (w *WorkerRemoteStats) String() string {
 		tasks = append(tasks, fmt.Sprintf("%s:%d", s.ID, s.State))
 	}
 	return fmt.Sprintf(
-		"id:%s,disable:%t,srv:%t,ip:%s,busy:%s,sectors:%+v",
-		w.ID, w.Disable, w.Srv, w.IP, w.BusyOn, tasks,
+		"id:%s,disable:%t,online:%t,srv:%t,ip:%s,busy:%s,sectors:%+v",
+		w.ID, w.Disable, w.Online, w.Srv, w.IP, w.BusyOn, tasks,
 	)
 }
 

@@ -64,9 +64,11 @@ type SealingConfig struct {
 }
 
 type MinerFeeConfig struct {
-	MaxPreCommitGasFee  types.FIL
-	MaxCommitGasFee     types.FIL
-	MaxWindowPoStGasFee types.FIL
+	MaxPreCommitGasFee     types.FIL
+	MaxCommitGasFee        types.FIL
+	MaxWindowPoStGasFee    types.FIL
+	MaxPublishDealsFee     types.FIL
+	MaxMarketBalanceAddFee types.FIL
 }
 
 // API contains configs for API endpoint
@@ -151,7 +153,7 @@ func DefaultStorageMiner() *StorageMiner {
 			MaxSealingSectors:         0,
 			MaxSealingSectorsForDeals: 0,
 			MaxDealsPerSector:         0,
-			WaitDealsDelay:            Duration(time.Hour),
+			WaitDealsDelay:            Duration(time.Hour * 6),
 		},
 
 		Storage: sectorstorage.SealerConfig{
@@ -176,13 +178,15 @@ func DefaultStorageMiner() *StorageMiner {
 			ConsiderOfflineRetrievalDeals: true,
 			PieceCidBlocklist:             []cid.Cid{},
 			// TODO: It'd be nice to set this based on sector size
-			ExpectedSealDuration: Duration(time.Hour * 12),
+			ExpectedSealDuration: Duration(time.Hour * 24),
 		},
 
 		Fees: MinerFeeConfig{
-			MaxPreCommitGasFee:  types.FIL(types.BigDiv(types.FromFil(1), types.NewInt(20))), // 0.05
-			MaxCommitGasFee:     types.FIL(types.BigDiv(types.FromFil(1), types.NewInt(20))),
-			MaxWindowPoStGasFee: types.FIL(types.FromFil(50)),
+			MaxPreCommitGasFee:     types.FIL(types.BigDiv(types.FromFil(1), types.NewInt(20))), // 0.05
+			MaxCommitGasFee:        types.FIL(types.BigDiv(types.FromFil(1), types.NewInt(20))),
+			MaxWindowPoStGasFee:    types.FIL(types.FromFil(50)),
+			MaxPublishDealsFee:     types.FIL(types.BigDiv(types.FromFil(1), types.NewInt(33))),  // 0.03ish
+			MaxMarketBalanceAddFee: types.FIL(types.BigDiv(types.FromFil(1), types.NewInt(100))), // 0.01
 		},
 	}
 	cfg.Common.API.ListenAddress = "/ip4/127.0.0.1/tcp/2345/http"

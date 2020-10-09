@@ -23,11 +23,11 @@ var hlmStorageCmd = &cli.Command{
 		addHLMStorageCmd,
 		disableHLMStorageCmd,
 		enableHLMStorageCmd,
+		statusHLMStorageCmd,
 		mountHLMStorageCmd,
 		relinkHLMStorageCmd,
 		replaceHLMStorageCmd,
 		scaleHLMStorageCmd,
-		pingHLMStorageCmd,
 	},
 }
 var verHLMStorageCmd = &cli.Command{
@@ -426,9 +426,9 @@ var scaleHLMStorageCmd = &cli.Command{
 	},
 }
 
-var pingHLMStorageCmd = &cli.Command{
-	Name:  "ping",
-	Usage: "ping the storage nodes",
+var statusHLMStorageCmd = &cli.Command{
+	Name:  "status",
+	Usage: "the storage nodes status",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "debug",
@@ -479,7 +479,7 @@ var pingHLMStorageCmd = &cli.Command{
 				continue
 			}
 			if len(stat.Err) > 0 {
-				fmt.Printf("bad node, id:%d, uri:%s, used:%s\n", stat.StorageId, stat.MountUri, stat.Used)
+				fmt.Printf("bad node,     id:%d, uri:%s, used:%s\n", stat.StorageId, stat.MountUri, stat.Used)
 				bad = append(bad, stat)
 				continue
 			}
