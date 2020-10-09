@@ -268,8 +268,8 @@ func (w *WorkerRemoteStats) String() string {
 		tasks = append(tasks, fmt.Sprintf("%s:%d", s.ID, s.State))
 	}
 	return fmt.Sprintf(
-		"id:%s,disable:%t,srv:%t,ip:%s,busy:%s,sectors:%+v",
-		w.ID, w.Disable, w.Srv, w.IP, w.BusyOn, tasks,
+		"id:%s,disable:%t,online:%t,srv:%t,ip:%s,busy:%s,sectors:%+v",
+		w.ID, w.Disable, w.Online, w.Srv, w.IP, w.BusyOn, tasks,
 	)
 }
 
