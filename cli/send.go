@@ -143,7 +143,6 @@ var sendCmd = &cli.Command{
 			Params:     params,
 		}
 
-		fmt.Println("starting push message")
 		if cctx.Int64("nonce") > 0 {
 			msg.Nonce = uint64(cctx.Int64("nonce"))
 			sm, err := api.WalletSignMessage(ctx, fromAddr, msg)

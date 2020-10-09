@@ -408,7 +408,7 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 		}(r)
 	}
 
-	timeout := time.After(20e9)
+	timeout := time.After(30e9)
 	var err error
 	var res resp
 	for i := len(remotes); i > 0; i-- {
