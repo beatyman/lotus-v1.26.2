@@ -156,6 +156,11 @@ var listHLMWorkerCmd = &cli.Command{
 			Usage: "show the disabled worker",
 			Value: false,
 		},
+		&cli.BoolFlag{
+			Name:  "service",
+			Usage: "show the service worker",
+			Value: true,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
@@ -171,6 +176,7 @@ var listHLMWorkerCmd = &cli.Command{
 		showDisabled := cctx.Bool("disabled")
 		showOnline := cctx.Bool("online")
 		showOffline := cctx.Bool("offline")
+		showService := cctx.Bool("service")
 		for _, info := range infos {
 			if info.Disable && !showDisabled {
 				continue
@@ -179,6 +185,9 @@ var listHLMWorkerCmd = &cli.Command{
 				continue
 			}
 			if !info.Online && !showOffline {
+				continue
+			}
+			if info.Srv && !showService {
 				continue
 			}
 			fmt.Println(info.String())
