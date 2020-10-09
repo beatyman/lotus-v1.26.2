@@ -58,13 +58,13 @@ deps: $(BUILD_DEPS)
 .PHONY: deps
 
 debug: GOFLAGS+=-tags=debug
-debug: lotus lotus-miner lotus-worker lotus-seed chain-watch lotus-bench
+debug: lotus lotus-miner lotus-worker lotus-seed chain-watch lotus-bench leveldb-tools
 
 hlm: GOFLAGS+=-tags=hlm
-hlm: lotus lotus-miner lotus-worker lotus-seed chain-watch lotus-bench
+hlm: lotus lotus-miner lotus-worker lotus-seed chain-watch lotus-bench leveldb-tools
 
 2k: GOFLAGS+=-tags=2k
-2k: lotus lotus-miner lotus-worker lotus-seed chain-watch lotus-bench
+2k: lotus lotus-miner lotus-worker lotus-seed chain-watch lotus-bench leveldb-tools
 
 lotus: $(BUILD_DEPS)
 	rm -f lotus
@@ -109,7 +109,7 @@ lotus-gateway: $(BUILD_DEPS)
 .PHONY: lotus-gateway
 BINS+=lotus-gateway
 
-build: lotus lotus-miner lotus-worker chain-watch lotus-bench
+build: lotus lotus-miner lotus-worker chain-watch lotus-bench leveldb-tools
 	@[[ $$(type -P "lotus") ]] && echo "Caution: you have \
 an existing lotus binary in your PATH. This may cause problems if you don't run 'sudo make install'" || true
 
@@ -196,6 +196,12 @@ lotus-health:
 	go run github.com/GeertJohan/go.rice/rice append --exec lotus-health -i ./build
 .PHONY: lotus-health
 BINS+=lotus-health
+
+leveldb-tools:
+	rm -f leveldb-tools 
+	go build -o leveldb-tools ./cmd/tools/leveldb-tools/main.go
+.PHONY: leveldb-tools
+BINS+=leveldb-tools
 
 testground:
 	go build -tags testground -o /dev/null ./cmd/lotus

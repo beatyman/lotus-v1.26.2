@@ -13,6 +13,7 @@
 /lotus-bench
 /lotus-gateway
 /lotus-pcr
+/leveldb-tools
 /bench.json
 /lotuspond/front/node_modules
 /lotuspond/front/build
