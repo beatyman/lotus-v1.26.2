@@ -226,9 +226,9 @@ type workerCall struct {
 	ret  chan SealRes
 }
 type WorkerStats struct {
-	LocalFree     int
-	LocalReserved int
-	LocalTotal    int
+	WorkerOnlines  int
+	WorkerOfflines int
+	WorkerDisabled int
 
 	SealWorkerTotal  int
 	SealWorkerUsing  int
@@ -236,10 +236,11 @@ type WorkerStats struct {
 
 	Commit2SrvTotal int
 	Commit2SrvUsed  int
-	WnPoStSrvTotal  int
-	WnPoStSrvUsed   int
-	WdPoStSrvTotal  int
-	WdPoStSrvUsed   int
+
+	WnPoStSrvTotal int
+	WnPoStSrvUsed  int
+	WdPoStSrvTotal int
+	WdPoStSrvUsed  int
 
 	AddPieceWait   int
 	PreCommit1Wait int
@@ -255,6 +256,7 @@ type WorkerRemoteStats struct {
 	ID       string
 	IP       string
 	Disable  bool
+	Online   bool
 	Srv      bool
 	BusyOn   string
 	SectorOn database.WorkingSectors

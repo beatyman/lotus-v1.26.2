@@ -14,7 +14,7 @@ var hlmWorkerCmd = &cli.Command{
 	Name:  "hlm-worker",
 	Usage: "Manage worker",
 	Subcommands: []*cli.Command{
-		infoHLMWorkerCmd,
+		statusHLMWorkerCmd,
 		listHLMWorkerCmd,
 		getHLMWorkerCmd,
 		gcHLMWorkerCmd,
@@ -103,9 +103,10 @@ var disableHLMWorkerCmd = &cli.Command{
 	},
 }
 
-var infoHLMWorkerCmd = &cli.Command{
-	Name:  "info",
-	Usage: "worker information",
+var statusHLMWorkerCmd = &cli.Command{
+	Name:    "status",
+	Aliases: []string{"info"},
+	Usage:   "workers status",
 	Action: func(cctx *cli.Context) error {
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -119,11 +120,11 @@ var infoHLMWorkerCmd = &cli.Command{
 		}
 
 		fmt.Printf("Worker use:\n")
-		fmt.Printf("\tLocal: %d / %d (+%d reserved)\n", wstat.LocalTotal-wstat.LocalReserved-wstat.LocalFree, wstat.LocalTotal-wstat.LocalReserved, wstat.LocalReserved)
 		fmt.Printf("\tSealWorker: %d / %d (locked: %d)\n", wstat.SealWorkerUsing, wstat.SealWorkerTotal, wstat.SealWorkerLocked)
 		fmt.Printf("\tCommit2Srv: %d / %d\n", wstat.Commit2SrvUsed, wstat.Commit2SrvTotal)
 		fmt.Printf("\tWnPoStSrv : %d / %d\n", wstat.WnPoStSrvUsed, wstat.WnPoStSrvTotal)
 		fmt.Printf("\tWdPoStSrv : %d / %d\n", wstat.WdPoStSrvUsed, wstat.WdPoStSrvTotal)
+		fmt.Printf("\tAllRemotes: all:%d, online:%d, offline:%d, disabled: %d\n", wstat.WorkerOnlines+wstat.WorkerOfflines+wstat.WorkerDisabled, wstat.WorkerOnlines, wstat.WorkerOfflines, wstat.WorkerDisabled)
 
 		fmt.Printf("Queues:\n")
 		fmt.Printf("\tAddPiece: %d\n", wstat.AddPieceWait)
