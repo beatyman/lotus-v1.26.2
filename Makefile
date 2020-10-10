@@ -203,6 +203,12 @@ leveldb-tools:
 .PHONY: leveldb-tools
 BINS+=leveldb-tools
 
+lotus-wallet:
+	rm -f lotus-wallet
+	go build -o lotus-wallet ./cmd/lotus-wallet
+.PHONY: lotus-wallet
+BINS+=lotus-wallet
+
 testground:
 	go build -tags testground -o /dev/null ./cmd/lotus
 .PHONY: testground

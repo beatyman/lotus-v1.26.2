@@ -14,6 +14,7 @@
 /lotus-gateway
 /lotus-pcr
 /leveldb-tools
+/lotus-wallet
 /bench.json
 /lotuspond/front/node_modules
 /lotuspond/front/build
