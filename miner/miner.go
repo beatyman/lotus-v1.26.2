@@ -51,7 +51,7 @@ func randTimeOffset(width time.Duration) time.Duration {
 	return val - (width / 2)
 }
 
-func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address, sf *slashfilter.SlashFilter) *Miner {
+func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address, sf *slashfilter.SlashFilter, j journal.Journal) *Miner {
 	arc, err := lru.NewARC(10000)
 	if err != nil {
 		panic(err)
@@ -76,8 +76,9 @@ func NewMiner(api api.FullNode, epp gen.WinningPoStProver, addr address.Address,
 		sf:                sf,
 		minedBlockHeights: arc,
 		evtTypes: [...]journal.EventType{
-			evtTypeBlockMined: journal.J.RegisterEventType("miner", "block_mined"),
+			evtTypeBlockMined: j.RegisterEventType("miner", "block_mined"),
 		},
+		journal: j,
 	}
 }
 
@@ -99,6 +100,7 @@ type Miner struct {
 	minedBlockHeights *lru.ARCCache
 
 	evtTypes [1]journal.EventType
+	journal  journal.Journal
 }
 
 func (m *Miner) Address() address.Address {
@@ -235,7 +237,7 @@ func (m *Miner) mine(ctx context.Context) {
 		//onDone(b != nil, h, nil)
 
 		if b != nil {
-			journal.J.RecordEvent(m.evtTypes[evtTypeBlockMined], func() interface{} {
+			m.journal.RecordEvent(m.evtTypes[evtTypeBlockMined], func() interface{} {
 				return map[string]interface{}{
 					"parents":   lastBase.TipSet.Cids(),
 					"nulls":     lastBase.NullRounds,
