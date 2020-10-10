@@ -36,8 +36,15 @@ func PermissionedWorkerAPI(a api.WorkerAPI) api.WorkerAPI {
 	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
 	return &out
 }
+
 func PermissionedWorkerHlmAPI(a api.WorkerHlmAPI) api.WorkerHlmAPI {
 	var out WorkerHlmStruct
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	return &out
+}
+
+func PermissionedWalletAPI(a api.WalletAPI) api.WalletAPI {
+	var out WalletStruct
 	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
 	return &out
 }
