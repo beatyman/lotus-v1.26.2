@@ -20,8 +20,6 @@ import (
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
-	manet "github.com/multiformats/go-multiaddr-net"
-
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
@@ -249,7 +247,7 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("could not get api info: %w", err)
 		}
-		_, storageAddr, err := manet.DialArgs(ainfo.Addr)
+		storageAddr, err := ainfo.DialArgs()
 		if err != nil {
 			return err
 		}
