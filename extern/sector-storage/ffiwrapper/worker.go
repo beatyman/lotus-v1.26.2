@@ -902,6 +902,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 				"commit2 done", database.SECTOR_STATE_DONE); err != nil {
 				res = sb.errTask(task, errors.As(err))
 			}
+			r.freeTask(sectorId)
 		} else if ss.SectorInfo.State < database.SECTOR_STATE_MOVE {
 			state := int(res.Type) + 1
 			if err := database.UpdateSectorState(
