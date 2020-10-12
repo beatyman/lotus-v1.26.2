@@ -16,6 +16,7 @@ type Sealer struct {
 
 	//// for remote worker start
 	remoteCfg RemoteCfg // if in remote mode, remote worker will be called.
+	pauseSeal int32     // pause seal for base fee, zero is not pause, not zero is true.
 	//// for remote worker end
 
 }
