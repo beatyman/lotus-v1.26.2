@@ -133,6 +133,7 @@ type StorageMiner interface {
 	WorkerGcLock(ctx context.Context, workerId string) ([]string, error)
 	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
 	WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error)
+	WorkerSearch(ctx context.Context, ip string) ([]database.WorkerInfo, error)
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 	WorkerAddConn(ctx context.Context, wid string, num int) error
 	WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error)

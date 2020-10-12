@@ -27,6 +27,15 @@ func GetWorkerInfo(id string) (*WorkerInfo, error) {
 	return info, nil
 }
 
+func SearchWorkerInfo(ip string) ([]WorkerInfo, error) {
+	db := GetDB()
+	infos := []WorkerInfo{}
+	if err := database.QueryStructs(db, &infos, "SELECT * FROM worker_info WHERE ip=?", ip); err != nil {
+		return nil, errors.As(err)
+	}
+	return infos, nil
+}
+
 func AllWorkerInfo() ([]WorkerInfo, error) {
 	db := GetDB()
 	infos := []WorkerInfo{}

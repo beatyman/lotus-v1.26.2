@@ -97,6 +97,9 @@ func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRe
 func (sm *StorageMinerAPI) WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error) {
 	return database.GetWorkerInfo(wid)
 }
+func (sm *StorageMinerAPI) WorkerSearch(ctx context.Context, ip string) ([]database.WorkerInfo, error) {
+	return database.SearchWorkerInfo(ip)
+}
 func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableWorker(ctx, wid, disable)
 }

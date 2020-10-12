@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/gwaylib/errors"
@@ -17,7 +16,9 @@ var hlmWorkerCmd = &cli.Command{
 		statusHLMWorkerCmd,
 		listHLMWorkerCmd,
 		getHLMWorkerCmd,
+		searchHLMWorkerCmd,
 		gcHLMWorkerCmd,
+		enableHLMWorkerCmd,
 		disableHLMWorkerCmd,
 	},
 }
@@ -42,6 +43,34 @@ var getHLMWorkerCmd = &cli.Command{
 			return err
 		}
 		output, err := json.MarshalIndent(info, "", "	")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(output))
+		return nil
+	},
+}
+var searchHLMWorkerCmd = &cli.Command{
+	Name:      "search",
+	Usage:     "search worker with ip",
+	ArgsUsage: "worker ip",
+	Action: func(cctx *cli.Context) error {
+		args := cctx.Args()
+		workerId := args.First()
+		if len(workerId) == 0 {
+			return errors.New("need input workid")
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		infos, err := nodeApi.WorkerSearch(ctx, workerId)
+		if err != nil {
+			return err
+		}
+		output, err := json.MarshalIndent(infos, "", "	")
 		if err != nil {
 			return err
 		}
@@ -79,19 +108,15 @@ var gcHLMWorkerCmd = &cli.Command{
 		return nil
 	},
 }
-var disableHLMWorkerCmd = &cli.Command{
-	Name:      "disable",
-	Usage:     "Disable a work node to stop allocating OR start allocating",
-	ArgsUsage: "id and disable value",
+var enableHLMWorkerCmd = &cli.Command{
+	Name:      "enable",
+	Usage:     "Enable a work node to start allocating",
+	ArgsUsage: "worker id",
 	Action: func(cctx *cli.Context) error {
 		args := cctx.Args()
-		if args.Len() < 2 {
-			return errors.New("need input workid AND disable value")
-		}
 		workerId := args.First()
-		disable, err := strconv.ParseBool(args.Get(1))
-		if err != nil {
-			return errors.New("need input disable true/false")
+		if len(workerId) == 0 {
+			return errors.New("need input worker id")
 		}
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -99,7 +124,26 @@ var disableHLMWorkerCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		return nodeApi.WorkerDisable(ctx, workerId, disable)
+		return nodeApi.WorkerDisable(ctx, workerId, false)
+	},
+}
+var disableHLMWorkerCmd = &cli.Command{
+	Name:      "disable",
+	Usage:     "Disable a work node to stop allocating OR start allocating",
+	ArgsUsage: "worker id",
+	Action: func(cctx *cli.Context) error {
+		args := cctx.Args()
+		workerId := args.First()
+		if len(workerId) == 0 {
+			return errors.New("need input worker id")
+		}
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		return nodeApi.WorkerDisable(ctx, workerId, true)
 	},
 }
 
