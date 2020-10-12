@@ -226,6 +226,7 @@ type workerCall struct {
 	ret  chan SealRes
 }
 type WorkerStats struct {
+	PauseSeal      int32
 	WorkerOnlines  int
 	WorkerOfflines int
 	WorkerDisabled int

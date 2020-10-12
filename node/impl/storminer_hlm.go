@@ -67,6 +67,9 @@ func (sm *StorageMinerAPI) WorkerAddress(ctx context.Context, act address.Addres
 	return mInfo.Worker, nil
 }
 
+func (sm *StorageMinerAPI) PauseSeal(ctx context.Context, pause int32) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PauseSeal(ctx, pause)
+}
 func (sm *StorageMinerAPI) WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).WorkerStats(), nil
 }
@@ -96,6 +99,9 @@ func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRe
 }
 func (sm *StorageMinerAPI) WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error) {
 	return database.GetWorkerInfo(wid)
+}
+func (sm *StorageMinerAPI) WorkerSearch(ctx context.Context, ip string) ([]database.WorkerInfo, error) {
+	return database.SearchWorkerInfo(ip)
 }
 func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableWorker(ctx, wid, disable)

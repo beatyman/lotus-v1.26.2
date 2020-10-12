@@ -498,14 +498,21 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		}
 		if res.res.GoErr != nil {
 			err = errors.As(res.res.GoErr)
-			continue
-		}
-		if len(res.res.Err) > 0 {
+		} else if len(res.res.Err) > 0 {
 			err = errors.New(res.res.Err)
+		}
+
+		if len(res.res.WindowPoStIgnSectors) > 0 {
+			// when ignore is defined, return the ignore and do the next.
+			return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, err
+		}
+		if err != nil {
+			// continue to sector a correct result.
 			continue
 		}
+
 		// only select the fastest success result to return
-		return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, nil
+		return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, err
 	}
 	return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, err
 }
