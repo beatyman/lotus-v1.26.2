@@ -348,6 +348,7 @@ type StorageMinerStruct struct {
 		HlmSectorListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
 		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
 		UnlockGPUService     func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
+		PauseSeal            func(ctx context.Context, pause int32) error                                              `perm:"write"`
 		WorkerAddress        func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
 		WorkerStatus         func(context.Context) (ffiwrapper.WorkerStats, error)                                     `perm:"read"`
 		WorkerStatusAll      func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
@@ -359,6 +360,7 @@ type StorageMinerStruct struct {
 		WorkerGcLock         func(ctx context.Context, workerId string) ([]string, error)                              `perm:"write"`
 		WorkerDone           func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
 		WorkerInfo           func(ctx context.Context, wid string) (*database.WorkerInfo, error)                       `perm:"read"`
+		WorkerSearch         func(ctx context.Context, ip string) ([]database.WorkerInfo, error)                       `perm:"read"`
 		WorkerDisable        func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
 		WorkerAddConn        func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
 		WorkerPreConn        func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
@@ -1186,6 +1188,9 @@ func (c *StorageMinerStruct) SelectCommit2Service(ctx context.Context, sector ab
 func (c *StorageMinerStruct) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
 	return c.Internal.UnlockGPUService(ctx, workerId, taskKey)
 }
+func (c *StorageMinerStruct) PauseSeal(ctx context.Context, pause int32) error {
+	return c.Internal.PauseSeal(ctx, pause)
+}
 func (c *StorageMinerStruct) WorkerAddress(ctx context.Context, act address.Address, tsk types.TipSetKey) (address.Address, error) {
 	return c.Internal.WorkerAddress(ctx, act, tsk)
 }
@@ -1218,6 +1223,9 @@ func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.Seal
 }
 func (c *StorageMinerStruct) WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error) {
 	return c.Internal.WorkerInfo(ctx, wid)
+}
+func (c *StorageMinerStruct) WorkerSearch(ctx context.Context, ip string) ([]database.WorkerInfo, error) {
+	return c.Internal.WorkerSearch(ctx, ip)
 }
 func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return c.Internal.WorkerDisable(ctx, wid, disable)

@@ -85,6 +85,7 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 	})
 
 	return WorkerStats{
+		PauseSeal:      atomic.LoadInt32(&sb.pauseSeal),
 		WorkerOnlines:  workerOnlines,
 		WorkerOfflines: workerOfflines,
 		WorkerDisabled: workerDisabled,
@@ -189,6 +190,11 @@ func (sb *Sealer) DisableWorker(ctx context.Context, wid string, disable bool) e
 		// TODO: make sync?
 		r.(*remote).disable = disable
 	}
+	return nil
+}
+
+func (sb *Sealer) PauseSeal(ctx context.Context, pause int32) error {
+	atomic.StoreInt32(&sb.pauseSeal, pause)
 	return nil
 }
 
@@ -738,7 +744,7 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		}
 	}
 	checkFunc := []func(){
-		checkFinalize, checkCommit2, checkCommit1, checkPreCommit2, checkPreCommit1, checkAddPiece,
+		checkCommit2, checkCommit1, checkPreCommit2, checkPreCommit1, checkAddPiece,
 	}
 
 	timeout := 10 * time.Second
@@ -757,6 +763,11 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			time.Sleep(timeout)
 			for _, check := range checkFunc {
 				for i := 0; i < r.cfg.MaxTaskNum; i++ {
+					checkFinalize()
+					if atomic.LoadInt32(&sb.pauseSeal) != 0 {
+						// pause the seal
+						continue
+					}
 					check()
 				}
 			}
