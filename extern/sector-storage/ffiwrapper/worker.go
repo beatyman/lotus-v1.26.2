@@ -347,8 +347,14 @@ func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force, reset bo
 	// update state
 	newState := state
 	if !reset {
+		// state already done
+		if sInfo.State >= 200 {
+			return working, nil
+		}
+
 		newState = newState + sInfo.State
 	}
+
 	if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, newState); err != nil {
 		return working, errors.As(err)
 	}
