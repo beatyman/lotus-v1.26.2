@@ -171,9 +171,15 @@ func (sb *Sealer) SetAddPieceListener(l func(WorkerTask)) error {
 }
 
 func (sb *Sealer) pubAddPieceEvent(t WorkerTask) {
+	_addPieceListenerLk.Lock()
+	defer _addPieceListenerLk.Unlock()
 	if _addPieceListener != nil {
 		go _addPieceListener(t)
 	}
+}
+
+func (sb *Sealer) GetAddPieceWait() int {
+	return int(atomic.LoadInt32(&_addPieceWait))
 }
 
 func (sb *Sealer) DelWorker(ctx context.Context, workerId string) {
