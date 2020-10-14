@@ -87,9 +87,9 @@ func (m *Sealing) RunPledgeSector() error {
 				// just replenish
 				m.addConsumeTask()
 			case <-taskConsumed:
-				stats := sb.WorkerStats()
+				stats := sb.GetAddPieceWait()
 				// not accurate, if missing the taskConsumed event, it should replenish in gcTime.
-				if stats.AddPieceWait > 0 {
+				if stats > 0 {
 					continue
 				}
 				go func() {
