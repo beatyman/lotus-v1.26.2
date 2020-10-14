@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/types"
 )
@@ -145,7 +146,7 @@ var sendCmd = &cli.Command{
 
 		if cctx.Int64("nonce") > 0 {
 			msg.Nonce = uint64(cctx.Int64("nonce"))
-			sm, err := api.WalletSignMessage(ctx, fromAddr, msg)
+			sm, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), fromAddr, msg)
 			if err != nil {
 				return err
 			}
@@ -156,7 +157,7 @@ var sendCmd = &cli.Command{
 			}
 			fmt.Println(sm.Cid())
 		} else {
-			sm, err := api.MpoolPushMessage(ctx, msg, nil)
+			sm, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
 			if err != nil {
 				return err
 			}

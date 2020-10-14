@@ -1197,7 +1197,7 @@ var slashConsensusFault = &cli.Command{
 			Params: enc,
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, msg, nil)
+		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
 		if err != nil {
 			return err
 		}

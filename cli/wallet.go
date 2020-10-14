@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/crypto"
 
+	"github.com/filecoin-project/lotus/build"
 	types "github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
@@ -243,7 +244,7 @@ var walletExport = &cli.Command{
 			return err
 		}
 
-		ki, err := api.WalletExport(ctx, addr)
+		ki, err := api.WalletExport(ctx, build.GetHlmAuth(), addr)
 		if err != nil {
 			return err
 		}
@@ -383,7 +384,7 @@ var walletSign = &cli.Command{
 			return err
 		}
 
-		sig, err := api.WalletSign(ctx, addr, msg)
+		sig, err := api.WalletSign(ctx, build.GetHlmAuth(), addr, msg)
 
 		if err != nil {
 			return err
@@ -469,6 +470,6 @@ var walletDelete = &cli.Command{
 			return err
 		}
 
-		return api.WalletDelete(ctx, addr)
+		return api.WalletDelete(ctx, build.GetHlmAuth(), addr)
 	},
 }

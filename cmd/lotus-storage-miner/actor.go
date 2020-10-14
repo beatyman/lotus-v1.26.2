@@ -99,7 +99,7 @@ var actorSetAddrsCmd = &cli.Command{
 
 		gasLimit := cctx.Int64("gas-limit")
 
-		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 			To:       maddr,
 			From:     minfo.Worker,
 			Value:    types.NewInt(0),
@@ -164,7 +164,7 @@ var actorSetPeeridCmd = &cli.Command{
 
 		gasLimit := cctx.Int64("gas-limit")
 
-		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 			To:       maddr,
 			From:     minfo.Worker,
 			Value:    types.NewInt(0),
@@ -266,7 +266,7 @@ var actorWithdrawCmd = &cli.Command{
 			if err != nil {
 				return err
 			}
-			sm, err := api.WalletSignMessage(ctx, sAddr, msg)
+			sm, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), sAddr, msg)
 			if err != nil {
 				return err
 			}
@@ -277,7 +277,7 @@ var actorWithdrawCmd = &cli.Command{
 			}
 			smsg = sm
 		} else {
-			sm, err := api.MpoolPushMessage(ctx, msg, nil)
+			sm, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
 			if err != nil {
 				return err
 			}
@@ -501,7 +501,7 @@ var actorControlSet = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: builtin.MethodsMiner.ChangeWorkerAddress,
@@ -579,7 +579,7 @@ var actorSetOwnerCmd = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: builtin2.MethodsMiner.ChangeOwnerAddress,
@@ -604,7 +604,7 @@ var actorSetOwnerCmd = &cli.Command{
 			return err
 		}
 
-		smsg, err = api.MpoolPushMessage(ctx, &types.Message{
+		smsg, err = api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 			From:   newAddr,
 			To:     maddr,
 			Method: builtin2.MethodsMiner.ChangeOwnerAddress,

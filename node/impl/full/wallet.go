@@ -35,17 +35,17 @@ func (a *WalletAPI) WalletBalance(ctx context.Context, addr address.Address) (ty
 	return act.Balance, nil
 }
 
-func (a *WalletAPI) WalletSign(ctx context.Context, k address.Address, msg []byte) (*crypto.Signature, error) {
+func (a *WalletAPI) WalletSign(ctx context.Context, auth []byte, k address.Address, msg []byte) (*crypto.Signature, error) {
 	keyAddr, err := a.StateManagerAPI.ResolveToKeyAddress(ctx, k, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to resolve ID address: %w", keyAddr)
 	}
-	return a.WalletAPI.WalletSign(ctx, keyAddr, msg, api.MsgMeta{
+	return a.WalletAPI.WalletSign(ctx, auth, keyAddr, msg, api.MsgMeta{
 		Type: api.MTUnknown,
 	})
 }
 
-func (a *WalletAPI) WalletSignMessage(ctx context.Context, k address.Address, msg *types.Message) (*types.SignedMessage, error) {
+func (a *WalletAPI) WalletSignMessage(ctx context.Context, auth []byte, k address.Address, msg *types.Message) (*types.SignedMessage, error) {
 	keyAddr, err := a.StateManagerAPI.ResolveToKeyAddress(ctx, k, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to resolve ID address: %w", keyAddr)
@@ -56,7 +56,7 @@ func (a *WalletAPI) WalletSignMessage(ctx context.Context, k address.Address, ms
 		return nil, xerrors.Errorf("serializing message: %w", err)
 	}
 
-	sig, err := a.WalletAPI.WalletSign(ctx, k, mb.Cid().Bytes(), api.MsgMeta{
+	sig, err := a.WalletAPI.WalletSign(ctx, auth, k, mb.Cid().Bytes(), api.MsgMeta{
 		Type:  api.MTChainMsg,
 		Extra: mb.RawData(),
 	})
