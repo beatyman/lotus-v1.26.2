@@ -387,7 +387,7 @@ func (sb *Sealer) GcWorker(workerId string) ([]string, error) {
 				continue
 			}
 			delete(r.busyOnTasks, sid)
-			result = append(result, task.Key())
+			result = append(result, fmt.Sprintf("%s,cause by: %d", task.Key(), state))
 		}
 		return result, nil
 	}
