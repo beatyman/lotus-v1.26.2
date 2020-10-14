@@ -50,14 +50,7 @@ func IsHlmAuth(in []byte) bool {
 	defer authMut.Unlock()
 
 	// just a simple set
-	ok := bytes.Compare(in, auth) == 0
-	if !ok {
-		// should reload the data for next try
-		if err := loadHlmAuth(); err != nil {
-			log.Error(errors.As(err))
-		}
-	}
-	return ok
+	return bytes.Compare(in, auth) == 0
 }
 
 func GetHlmAuth() []byte {

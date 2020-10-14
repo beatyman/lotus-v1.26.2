@@ -47,8 +47,10 @@ var _ = AllPermissions
 
 type CommonStruct struct {
 	Internal struct {
-		AuthVerify func(ctx context.Context, token string) ([]auth.Permission, error) `perm:"read"`
-		AuthNew    func(ctx context.Context, perms []auth.Permission) ([]byte, error) `perm:"admin"`
+		// Reload the auth key
+		ReloadHlmAuth func(context.Context) error                                        `perm:"write"`
+		AuthVerify    func(ctx context.Context, token string) ([]auth.Permission, error) `perm:"read"`
+		AuthNew       func(ctx context.Context, perms []auth.Permission) ([]byte, error) `perm:"admin"`
 
 		NetConnectedness            func(context.Context, peer.ID) (network.Connectedness, error)    `perm:"read"`
 		NetPeers                    func(context.Context) ([]peer.AddrInfo, error)                   `perm:"read"`
@@ -446,6 +448,9 @@ type WalletStruct struct {
 
 // CommonStruct
 
+func (c *CommonStruct) ReloadHlmAuth(ctx context.Context) error {
+	return c.Internal.ReloadHlmAuth(ctx)
+}
 func (c *CommonStruct) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 	return c.Internal.AuthVerify(ctx, token)
 }

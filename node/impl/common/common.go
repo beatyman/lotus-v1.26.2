@@ -43,6 +43,9 @@ type jwtPayload struct {
 	Allow []auth.Permission
 }
 
+func (n *CommonAPI) ReloadHlmAuth(ctx context.Context) error {
+	return build.LoadHlmAuth()
+}
 func (a *CommonAPI) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 	var payload jwtPayload
 	if _, err := jwt.Verify([]byte(token), (*jwt.HMACSHA)(a.APISecret), &payload); err != nil {
