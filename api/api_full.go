@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	datatransfer "github.com/filecoin-project/go-data-transfer"
 	"github.com/filecoin-project/go-state-types/network"
 
 	"github.com/ipfs/go-cid"
@@ -232,7 +233,9 @@ type FullNode interface {
 	// MethodGroup: Wallet
 
 	// WalletNew creates a new address in the wallet with the given sigType.
-	WalletNew(context.Context, crypto.SigType) (address.Address, error)
+	// Available key types: bls, secp256k1, secp256k1-ledger
+	// Support for numerical types: 1 - secp256k1, 2 - BLS is deprecated
+	WalletNew(context.Context, types.KeyType) (address.Address, error)
 	// WalletHas indicates whether the given address is in the wallet.
 	WalletHas(context.Context, address.Address) (bool, error)
 	// WalletList lists all the addresses in the wallet.
@@ -299,6 +302,8 @@ type FullNode interface {
 	// ClientListTransfers returns the status of all ongoing transfers of data
 	ClientListDataTransfers(ctx context.Context) ([]DataTransferChannel, error)
 	ClientDataTransferUpdates(ctx context.Context) (<-chan DataTransferChannel, error)
+	// ClientRestartDataTransfer attempts to restart a data transfer with the given transfer ID and other peer
+	ClientRestartDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error
 	// ClientRetrieveTryRestartInsufficientFunds attempts to restart stalled retrievals on a given payment channel
 	// which are stuck due to insufficient funds
 	ClientRetrieveTryRestartInsufficientFunds(ctx context.Context, paymentChannel address.Address) error
@@ -417,8 +422,12 @@ type FullNode interface {
 	// can issue. It takes the deal size and verified status as parameters.
 	StateDealProviderCollateralBounds(context.Context, abi.PaddedPieceSize, bool, types.TipSetKey) (DealCollateralBounds, error)
 
-	// StateCirculatingSupply returns the circulating supply of Filecoin at the given tipset
-	StateCirculatingSupply(context.Context, types.TipSetKey) (CirculatingSupply, error)
+	// StateCirculatingSupply returns the exact circulating supply of Filecoin at the given tipset.
+	// This is not used anywhere in the protocol itself, and is only for external consumption.
+	StateCirculatingSupply(context.Context, types.TipSetKey) (abi.TokenAmount, error)
+	// StateVMCirculatingSupplyInternal returns an approximation of the circulating supply of Filecoin at the given tipset.
+	// This is the value reported by the runtime interface to actors code.
+	StateVMCirculatingSupplyInternal(context.Context, types.TipSetKey) (CirculatingSupply, error)
 	// StateNetworkVersion returns the network version at the given tipset
 	StateNetworkVersion(context.Context, types.TipSetKey) (network.Version, error)
 
@@ -731,6 +740,7 @@ type RetrievalOrder struct {
 }
 
 type InvocResult struct {
+	MsgCid         cid.Cid
 	Msg            *types.Message
 	MsgRct         *types.MessageReceipt
 	ExecutionTrace types.ExecutionTrace

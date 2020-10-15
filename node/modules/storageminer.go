@@ -267,6 +267,7 @@ func NewProviderDAGServiceDataTransfer(lc fx.Lifecycle, h host.Host, gs dtypes.S
 		return nil, err
 	}
 
+	dt.OnReady(marketevents.ReadyLogger("provider data transfer"))
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			return dt.Start(ctx)
@@ -392,13 +393,13 @@ func NewStorageAsk(ctx helpers.MetricsCtx, fapi lapi.FullNode, ds dtypes.Metadat
 	if err != nil {
 		return nil, err
 	}
-	storedAsk, err := storedask.NewStoredAsk(namespace.Wrap(providerDs, datastore.NewKey("/storage-ask")), datastore.NewKey("latest"), spn, address.Address(minerAddress))
+	storedAsk, err := storedask.NewStoredAsk(namespace.Wrap(providerDs, datastore.NewKey("/storage-ask")), datastore.NewKey("latest"), spn, address.Address(minerAddress),
+		storagemarket.MaxPieceSize(abi.PaddedPieceSize(mi.SectorSize)))
 	if err != nil {
 		return nil, err
 	}
-	// Hacky way to set max piece size to the sector size
 	a := storedAsk.GetAsk().Ask
-	err = storedAsk.SetAsk(a.Price, a.VerifiedPrice, a.Expiry-a.Timestamp, storagemarket.MaxPieceSize(abi.PaddedPieceSize(mi.SectorSize)))
+	err = storedAsk.SetAsk(a.Price, a.VerifiedPrice, a.Expiry-a.Timestamp)
 	if err != nil {
 		return storedAsk, err
 	}
@@ -473,7 +474,7 @@ func BasicDealFilter(user dtypes.DealFilter) func(onlineOk dtypes.ConsiderOnline
 
 			// Reject if it's more than 7 days in the future
 			// TODO: read from cfg
-			maxStartEpoch := ht + abi.ChainEpoch(7*builtin.EpochsInDay)
+			maxStartEpoch := earliest + abi.ChainEpoch(7*builtin.EpochsInDay)
 			if deal.Proposal.StartEpoch > maxStartEpoch {
 				return false, fmt.Sprintf("deal start epoch is too far in the future: %s > %s", deal.Proposal.StartEpoch, maxStartEpoch), nil
 			}

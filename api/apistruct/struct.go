@@ -15,6 +15,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
+	datatransfer "github.com/filecoin-project/go-data-transfer"
 	"github.com/filecoin-project/go-fil-markets/piecestore"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
@@ -141,7 +142,7 @@ type FullNodeStruct struct {
 		MinerGetBaseInfo func(context.Context, address.Address, abi.ChainEpoch, types.TipSetKey) (*api.MiningBaseInfo, error) `perm:"read"`
 		MinerCreateBlock func(context.Context, *api.BlockTemplate) (*types.BlockMsg, error)                                   `perm:"write"`
 
-		WalletNew             func(context.Context, crypto.SigType) (address.Address, error)                               `perm:"write"`
+		WalletNew             func(context.Context, types.KeyType) (address.Address, error)                                `perm:"write"`
 		WalletHas             func(context.Context, address.Address) (bool, error)                                         `perm:"write"`
 		WalletList            func(context.Context) ([]address.Address, error)                                             `perm:"write"`
 		WalletBalance         func(context.Context, address.Address) (types.BigInt, error)                                 `perm:"read"`
@@ -173,6 +174,7 @@ type FullNodeStruct struct {
 		ClientDealSize                            func(ctx context.Context, root cid.Cid) (api.DataSize, error)                                                     `perm:"read"`
 		ClientListDataTransfers                   func(ctx context.Context) ([]api.DataTransferChannel, error)                                                      `perm:"write"`
 		ClientDataTransferUpdates                 func(ctx context.Context) (<-chan api.DataTransferChannel, error)                                                 `perm:"write"`
+		ClientRestartDataTransfer                 func(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error          `perm:"write"`
 		ClientRetrieveTryRestartInsufficientFunds func(ctx context.Context, paymentChannel address.Address) error                                                   `perm:"write"`
 
 		StateNetworkName                   func(context.Context) (dtypes.NetworkName, error)                                                                   `perm:"read"`
@@ -218,7 +220,8 @@ type FullNodeStruct struct {
 		StateVerifiedClientStatus          func(context.Context, address.Address, types.TipSetKey) (*abi.StoragePower, error)                                  `perm:"read"`
 		StateVerifiedRegistryRootKey       func(ctx context.Context, tsk types.TipSetKey) (address.Address, error)                                             `perm:"read"`
 		StateDealProviderCollateralBounds  func(context.Context, abi.PaddedPieceSize, bool, types.TipSetKey) (api.DealCollateralBounds, error)                 `perm:"read"`
-		StateCirculatingSupply             func(context.Context, types.TipSetKey) (api.CirculatingSupply, error)                                               `perm:"read"`
+		StateCirculatingSupply             func(context.Context, types.TipSetKey) (abi.TokenAmount, error)                                                     `perm:"read"`
+		StateVMCirculatingSupplyInternal   func(context.Context, types.TipSetKey) (api.CirculatingSupply, error)                                               `perm:"read"`
 		StateNetworkVersion                func(context.Context, types.TipSetKey) (stnetwork.Version, error)                                                   `perm:"read"`
 
 		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                                                    `perm:"read"`
@@ -436,7 +439,7 @@ type GatewayStruct struct {
 
 type WalletStruct struct {
 	Internal struct {
-		WalletNew    func(context.Context, crypto.SigType) (address.Address, error)                                 `perm:"write"`
+		WalletNew    func(context.Context, types.KeyType) (address.Address, error)                                  `perm:"write"`
 		WalletHas    func(context.Context, address.Address) (bool, error)                                           `perm:"write"`
 		WalletList   func(context.Context) ([]address.Address, error)                                               `perm:"write"`
 		WalletSign   func(context.Context, []byte, address.Address, []byte, api.MsgMeta) (*crypto.Signature, error) `perm:"sign"`
@@ -606,6 +609,10 @@ func (c *FullNodeStruct) ClientDataTransferUpdates(ctx context.Context) (<-chan 
 	return c.Internal.ClientDataTransferUpdates(ctx)
 }
 
+func (c *FullNodeStruct) ClientRestartDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error {
+	return c.Internal.ClientRestartDataTransfer(ctx, transferID, otherPeer, isInitiator)
+}
+
 func (c *FullNodeStruct) ClientRetrieveTryRestartInsufficientFunds(ctx context.Context, paymentChannel address.Address) error {
 	return c.Internal.ClientRetrieveTryRestartInsufficientFunds(ctx, paymentChannel)
 }
@@ -690,7 +697,7 @@ func (c *FullNodeStruct) ChainGetTipSetByHeight(ctx context.Context, h abi.Chain
 	return c.Internal.ChainGetTipSetByHeight(ctx, h, tsk)
 }
 
-func (c *FullNodeStruct) WalletNew(ctx context.Context, typ crypto.SigType) (address.Address, error) {
+func (c *FullNodeStruct) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {
 	return c.Internal.WalletNew(ctx, typ)
 }
 
@@ -1026,8 +1033,12 @@ func (c *FullNodeStruct) StateDealProviderCollateralBounds(ctx context.Context, 
 	return c.Internal.StateDealProviderCollateralBounds(ctx, size, verified, tsk)
 }
 
-func (c *FullNodeStruct) StateCirculatingSupply(ctx context.Context, tsk types.TipSetKey) (api.CirculatingSupply, error) {
+func (c *FullNodeStruct) StateCirculatingSupply(ctx context.Context, tsk types.TipSetKey) (abi.TokenAmount, error) {
 	return c.Internal.StateCirculatingSupply(ctx, tsk)
+}
+
+func (c *FullNodeStruct) StateVMCirculatingSupplyInternal(ctx context.Context, tsk types.TipSetKey) (api.CirculatingSupply, error) {
+	return c.Internal.StateVMCirculatingSupplyInternal(ctx, tsk)
 }
 
 func (c *FullNodeStruct) StateNetworkVersion(ctx context.Context, tsk types.TipSetKey) (stnetwork.Version, error) {
@@ -1660,7 +1671,7 @@ func (g GatewayStruct) StateWaitMsg(ctx context.Context, msg cid.Cid, confidence
 	return g.Internal.StateWaitMsg(ctx, msg, confidence)
 }
 
-func (c *WalletStruct) WalletNew(ctx context.Context, typ crypto.SigType) (address.Address, error) {
+func (c *WalletStruct) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {
 	return c.Internal.WalletNew(ctx, typ)
 }
 
