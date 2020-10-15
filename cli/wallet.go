@@ -18,7 +18,6 @@ import (
 
 	"github.com/filecoin-project/lotus/build"
 	types "github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
 )
 
@@ -56,7 +55,7 @@ var walletNew = &cli.Command{
 			t = "secp256k1"
 		}
 
-		nk, err := api.WalletNew(ctx, wallet.ActSigType(t))
+		nk, err := api.WalletNew(ctx, types.KeyType(t))
 		if err != nil {
 			return err
 		}
@@ -330,9 +329,9 @@ var walletImport = &cli.Command{
 			ki.PrivateKey = gk.PrivateKey
 			switch gk.SigType {
 			case 1:
-				ki.Type = wallet.KTSecp256k1
+				ki.Type = types.KTSecp256k1
 			case 2:
-				ki.Type = wallet.KTBLS
+				ki.Type = types.KTBLS
 			default:
 				return fmt.Errorf("unrecognized key type: %d", gk.SigType)
 			}

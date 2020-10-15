@@ -46,6 +46,7 @@
   * [ClientMinerQueryOffer](#ClientMinerQueryOffer)
   * [ClientQueryAsk](#ClientQueryAsk)
   * [ClientRemoveImport](#ClientRemoveImport)
+  * [ClientRestartDataTransfer](#ClientRestartDataTransfer)
   * [ClientRetrieve](#ClientRetrieve)
   * [ClientRetrieveTryRestartInsufficientFunds](#ClientRetrieveTryRestartInsufficientFunds)
   * [ClientRetrieveWithEvents](#ClientRetrieveWithEvents)
@@ -165,6 +166,7 @@
   * [StateSectorGetInfo](#StateSectorGetInfo)
   * [StateSectorPartition](#StateSectorPartition)
   * [StateSectorPreCommitInfo](#StateSectorPreCommitInfo)
+  * [StateVMCirculatingSupplyInternal](#StateVMCirculatingSupplyInternal)
   * [StateVerifiedClientStatus](#StateVerifiedClientStatus)
   * [StateVerifiedRegistryRootKey](#StateVerifiedRegistryRootKey)
   * [StateVerifierStatus](#StateVerifierStatus)
@@ -226,7 +228,7 @@ Response:
 ```json
 {
   "Version": "string value",
-  "APIVersion": 4096,
+  "APIVersion": 4352,
   "BlockDelay": 42
 }
 ```
@@ -462,7 +464,10 @@ Response:
   "GasFeeCap": "0",
   "GasPremium": "0",
   "Method": 1,
-  "Params": "Ynl0ZSBhcnJheQ=="
+  "Params": "Ynl0ZSBhcnJheQ==",
+  "CID": {
+    "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+  }
 }
 ```
 
@@ -1160,6 +1165,23 @@ Inputs:
 
 Response: `{}`
 
+### ClientRestartDataTransfer
+ClientRestartDataTransfer attempts to restart a data transfer with the given transfer ID and other peer
+
+
+Perms: write
+
+Inputs:
+```json
+[
+  3,
+  "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
+  true
+]
+```
+
+Response: `{}`
+
 ### ClientRetrieve
 ClientRetrieve initiates the retrieval of a file, as specified in the order.
 
@@ -1333,7 +1355,10 @@ Inputs:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   },
   9,
   [
@@ -1369,7 +1394,10 @@ Inputs:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   },
   [
     {
@@ -1429,7 +1457,10 @@ Inputs:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   },
   {
     "MaxFee": "0"
@@ -1457,7 +1488,10 @@ Response:
   "GasFeeCap": "0",
   "GasPremium": "0",
   "Method": 1,
-  "Params": "Ynl0ZSBhcnJheQ=="
+  "Params": "Ynl0ZSBhcnJheQ==",
+  "CID": {
+    "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+  }
 }
 ```
 
@@ -1741,11 +1775,17 @@ Inputs:
       "GasFeeCap": "0",
       "GasPremium": "0",
       "Method": 1,
-      "Params": "Ynl0ZSBhcnJheQ=="
+      "Params": "Ynl0ZSBhcnJheQ==",
+      "CID": {
+        "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+      }
     },
     "Signature": {
       "Type": 2,
       "Data": "Ynl0ZSBhcnJheQ=="
+    },
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
     }
   }
 ]
@@ -1782,7 +1822,10 @@ Inputs:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   },
   {
     "MaxFee": "0"
@@ -1803,11 +1846,17 @@ Response:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   },
   "Signature": {
     "Type": 2,
     "Data": "Ynl0ZSBhcnJheQ=="
+  },
+  "CID": {
+    "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
   }
 }
 ```
@@ -1832,11 +1881,17 @@ Inputs:
       "GasFeeCap": "0",
       "GasPremium": "0",
       "Method": 1,
-      "Params": "Ynl0ZSBhcnJheQ=="
+      "Params": "Ynl0ZSBhcnJheQ==",
+      "CID": {
+        "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+      }
     },
     "Signature": {
       "Type": 2,
       "Data": "Ynl0ZSBhcnJheQ=="
+    },
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
     }
   }
 ]
@@ -1916,11 +1971,17 @@ Response:
       "GasFeeCap": "0",
       "GasPremium": "0",
       "Method": 1,
-      "Params": "Ynl0ZSBhcnJheQ=="
+      "Params": "Ynl0ZSBhcnJheQ==",
+      "CID": {
+        "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+      }
     },
     "Signature": {
       "Type": 2,
       "Data": "Ynl0ZSBhcnJheQ=="
+    },
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
     }
   }
 }
@@ -2997,7 +3058,10 @@ Inputs:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   },
   [
     {
@@ -3013,6 +3077,9 @@ Inputs:
 Response:
 ```json
 {
+  "MsgCid": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "Msg": {
     "Version": 42,
     "To": "f01234",
@@ -3023,7 +3090,10 @@ Response:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   },
   "MsgRct": {
     "ExitCode": 0,
@@ -3041,7 +3111,10 @@ Response:
       "GasFeeCap": "0",
       "GasPremium": "0",
       "Method": 1,
-      "Params": "Ynl0ZSBhcnJheQ=="
+      "Params": "Ynl0ZSBhcnJheQ==",
+      "CID": {
+        "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+      }
     },
     "MsgRct": {
       "ExitCode": 0,
@@ -3094,7 +3167,8 @@ Response:
 ```
 
 ### StateCirculatingSupply
-StateCirculatingSupply returns the circulating supply of Filecoin at the given tipset
+StateCirculatingSupply returns the exact circulating supply of Filecoin at the given tipset.
+This is not used anywhere in the protocol itself, and is only for external consumption.
 
 
 Perms: read
@@ -3113,16 +3187,7 @@ Inputs:
 ]
 ```
 
-Response:
-```json
-{
-  "FilVested": "0",
-  "FilMined": "0",
-  "FilBurnt": "0",
-  "FilLocked": "0",
-  "FilCirculating": "0"
-}
-```
+Response: `"0"`
 
 ### StateCompute
 StateCompute is a flexible command that applies the given messages on the given tipset.
@@ -3296,7 +3361,10 @@ Inputs:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   },
   [
     {
@@ -4032,6 +4100,9 @@ Inputs:
 Response:
 ```json
 {
+  "MsgCid": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "Msg": {
     "Version": 42,
     "To": "f01234",
@@ -4042,7 +4113,10 @@ Response:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   },
   "MsgRct": {
     "ExitCode": 0,
@@ -4060,7 +4134,10 @@ Response:
       "GasFeeCap": "0",
       "GasPremium": "0",
       "Method": 1,
-      "Params": "Ynl0ZSBhcnJheQ=="
+      "Params": "Ynl0ZSBhcnJheQ==",
+      "CID": {
+        "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+      }
     },
     "MsgRct": {
       "ExitCode": 0,
@@ -4262,6 +4339,38 @@ Response:
   "PreCommitEpoch": 10101,
   "DealWeight": "0",
   "VerifiedDealWeight": "0"
+}
+```
+
+### StateVMCirculatingSupplyInternal
+StateVMCirculatingSupplyInternal returns an approximation of the circulating supply of Filecoin at the given tipset.
+This is the value reported by the runtime interface to actors code.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+{
+  "FilVested": "0",
+  "FilMined": "0",
+  "FilBurnt": "0",
+  "FilLocked": "0",
+  "FilCirculating": "0"
 }
 ```
 
@@ -4710,7 +4819,7 @@ Inputs:
 Response:
 ```json
 {
-  "Type": "string value",
+  "Type": "bls",
   "PrivateKey": "Ynl0ZSBhcnJheQ=="
 }
 ```
@@ -4740,7 +4849,7 @@ Inputs:
 ```json
 [
   {
-    "Type": "string value",
+    "Type": "bls",
     "PrivateKey": "Ynl0ZSBhcnJheQ=="
   }
 ]
@@ -4760,6 +4869,8 @@ Response: `null`
 
 ### WalletNew
 WalletNew creates a new address in the wallet with the given sigType.
+Available key types: bls, secp256k1, secp256k1-ledger
+Support for numerical types: 1 - secp256k1, 2 - BLS is deprecated
 
 
 Perms: write
@@ -4767,7 +4878,7 @@ Perms: write
 Inputs:
 ```json
 [
-  2
+  "bls"
 ]
 ```
 
@@ -4830,7 +4941,10 @@ Inputs:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   }
 ]
 ```
@@ -4848,11 +4962,17 @@ Response:
     "GasFeeCap": "0",
     "GasPremium": "0",
     "Method": 1,
-    "Params": "Ynl0ZSBhcnJheQ=="
+    "Params": "Ynl0ZSBhcnJheQ==",
+    "CID": {
+      "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
+    }
   },
   "Signature": {
     "Type": 2,
     "Data": "Ynl0ZSBhcnJheQ=="
+  },
+  "CID": {
+    "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
   }
 }
 ```
