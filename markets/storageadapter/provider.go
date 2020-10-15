@@ -88,7 +88,7 @@ func (n *ProviderNodeAdapter) PublishDeals(ctx context.Context, deal storagemark
 	}
 
 	// TODO: We may want this to happen after fetching data
-	smsg, err := n.MpoolPushMessage(ctx, &types.Message{
+	smsg, err := n.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 		To:     market.Address,
 		From:   mi.Worker,
 		Value:  types.NewInt(0),
@@ -174,7 +174,7 @@ func (n *ProviderNodeAdapter) SignBytes(ctx context.Context, signer address.Addr
 		return nil, err
 	}
 
-	localSignature, err := n.WalletSign(ctx, signer, b)
+	localSignature, err := n.WalletSign(ctx, build.GetHlmAuth(), signer, b)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func (n *ProviderNodeAdapter) EnsureFunds(ctx context.Context, addr, wallet addr
 // Adds funds with the StorageMinerActor for a storage participant.  Used by both providers and clients.
 func (n *ProviderNodeAdapter) AddFunds(ctx context.Context, addr address.Address, amount abi.TokenAmount) (cid.Cid, error) {
 	// (Provider Node API)
-	smsg, err := n.MpoolPushMessage(ctx, &types.Message{
+	smsg, err := n.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 		To:     market.Address,
 		From:   addr,
 		Value:  amount,

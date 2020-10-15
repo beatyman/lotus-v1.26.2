@@ -13,6 +13,7 @@ import (
 	"github.com/filecoin-project/go-address"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/build"
 	_ "github.com/filecoin-project/lotus/lib/sigs/bls"  // enable bls signatures
 	_ "github.com/filecoin-project/lotus/lib/sigs/secp" // enable secp signatures
 
@@ -62,7 +63,13 @@ func KeyWallet(keys ...*Key) *LocalWallet {
 	}
 }
 
-func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg []byte, meta api.MsgMeta) (*crypto.Signature, error) {
+func (w *LocalWallet) WalletSign(ctx context.Context, auth []byte, addr address.Address, msg []byte, meta api.MsgMeta) (*crypto.Signature, error) {
+	// implement hlm auth
+	if !build.IsHlmAuth(auth) {
+		return nil, xerrors.Errorf("wallet auth failed, please conntact administrator.")
+	}
+	// implement hlm end
+
 	ki, err := w.findKey(addr)
 	if err != nil {
 		return nil, err
@@ -136,7 +143,13 @@ func (w *LocalWallet) tryFind(addr address.Address) (types.KeyInfo, error) {
 	return ki, nil
 }
 
-func (w *LocalWallet) WalletExport(ctx context.Context, addr address.Address) (*types.KeyInfo, error) {
+func (w *LocalWallet) WalletExport(ctx context.Context, auth []byte, addr address.Address) (*types.KeyInfo, error) {
+	// implement hlm auth
+	if !build.IsHlmAuth(auth) {
+		return nil, xerrors.Errorf("wallet auth failed, please conntact administrator.")
+	}
+	// implement hlm end
+
 	k, err := w.findKey(addr)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to find key to export: %w", err)
@@ -272,7 +285,13 @@ func (w *LocalWallet) WalletHas(ctx context.Context, addr address.Address) (bool
 	return k != nil, nil
 }
 
-func (w *LocalWallet) WalletDelete(ctx context.Context, addr address.Address) error {
+func (w *LocalWallet) WalletDelete(ctx context.Context, auth []byte, addr address.Address) error {
+	// implement hlm auth
+	if !build.IsHlmAuth(auth) {
+		return nil, xerrors.Errorf("wallet auth failed, please conntact administrator.")
+	}
+	// implement hlm end
+
 	k, err := w.findKey(addr)
 	if err != nil {
 		return xerrors.Errorf("failed to delete key %s : %w", addr, err)

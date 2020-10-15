@@ -376,8 +376,8 @@ func (cg *ChainGen) nextBlockProof(ctx context.Context, pts *types.TipSet, m add
 		return nil, nil, nil, xerrors.Errorf("get miner worker: %w", err)
 	}
 
-	sf := func(ctx context.Context, a address.Address, i []byte) (*crypto.Signature, error) {
-		return cg.w.WalletSign(ctx, a, i, api.MsgMeta{
+	sf := func(ctx context.Context, auth []byte, a address.Address, i []byte) (*crypto.Signature, error) {
+		return cg.w.WalletSign(ctx, auth, a, i, api.MsgMeta{
 			Type: api.MTUnknown,
 		})
 	}
@@ -536,7 +536,7 @@ func getRandomMessages(cg *ChainGen) ([]*types.SignedMessage, error) {
 			GasPremium: types.NewInt(0),
 		}
 
-		sig, err := cg.w.WalletSign(context.TODO(), cg.banker, msg.Cid().Bytes(), api.MsgMeta{
+		sig, err := cg.w.WalletSign(context.TODO(), build.GetHlmAuth(), cg.banker, msg.Cid().Bytes(), api.MsgMeta{
 			Type: api.MTUnknown, // testing
 		})
 		if err != nil {
@@ -565,7 +565,7 @@ type MiningCheckAPI interface {
 
 	MinerGetBaseInfo(context.Context, address.Address, abi.ChainEpoch, types.TipSetKey) (*api.MiningBaseInfo, error)
 
-	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
+	WalletSign(context.Context, []byte, address.Address, []byte) (*crypto.Signature, error)
 }
 
 type mca struct {
@@ -597,8 +597,8 @@ func (mca mca) MinerGetBaseInfo(ctx context.Context, maddr address.Address, epoc
 	return stmgr.MinerGetBaseInfo(ctx, mca.sm, mca.bcn, tsk, epoch, maddr, mca.pv)
 }
 
-func (mca mca) WalletSign(ctx context.Context, a address.Address, v []byte) (*crypto.Signature, error) {
-	return mca.w.WalletSign(ctx, a, v, api.MsgMeta{
+func (mca mca) WalletSign(ctx context.Context, auth []byte, a address.Address, v []byte) (*crypto.Signature, error) {
+	return mca.w.WalletSign(ctx, auth, a, v, api.MsgMeta{
 		Type: api.MTUnknown,
 	})
 }
@@ -646,7 +646,7 @@ func IsRoundWinner(ctx context.Context, ts *types.TipSet, round abi.ChainEpoch,
 	return ep, nil
 }
 
-type SignFunc func(context.Context, address.Address, []byte) (*crypto.Signature, error)
+type SignFunc func(context.Context, []byte, address.Address, []byte) (*crypto.Signature, error)
 
 func VerifyVRF(ctx context.Context, worker address.Address, vrfBase, vrfproof []byte) error {
 	_, span := trace.StartSpan(ctx, "VerifyVRF")
@@ -665,7 +665,7 @@ func VerifyVRF(ctx context.Context, worker address.Address, vrfBase, vrfproof []
 }
 
 func ComputeVRF(ctx context.Context, sign SignFunc, worker address.Address, sigInput []byte) ([]byte, error) {
-	sig, err := sign(ctx, worker, sigInput)
+	sig, err := sign(ctx, build.GetHlmAuth(), worker, sigInput)
 	if err != nil {
 		return nil, err
 	}

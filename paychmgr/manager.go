@@ -47,9 +47,9 @@ type stateManagerAPI interface {
 type paychAPI interface {
 	StateAccountKey(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 	StateWaitMsg(ctx context.Context, msg cid.Cid, confidence uint64) (*api.MsgLookup, error)
-	MpoolPushMessage(ctx context.Context, msg *types.Message, maxFee *api.MessageSendSpec) (*types.SignedMessage, error)
+	MpoolPushMessage(ctx context.Context, auth []byte, msg *types.Message, maxFee *api.MessageSendSpec) (*types.SignedMessage, error)
 	WalletHas(ctx context.Context, addr address.Address) (bool, error)
-	WalletSign(ctx context.Context, k address.Address, msg []byte) (*crypto.Signature, error)
+	WalletSign(ctx context.Context, auth []byte, k address.Address, msg []byte) (*crypto.Signature, error)
 	StateNetworkVersion(context.Context, types.TipSetKey) (network.Version, error)
 }
 

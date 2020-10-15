@@ -14,6 +14,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/events"
@@ -60,7 +61,7 @@ func StartFundManager(lc fx.Lifecycle, api API) *FundMgr {
 
 type fundMgrAPI interface {
 	StateMarketBalance(context.Context, address.Address, types.TipSetKey) (api.MarketBalance, error)
-	MpoolPushMessage(context.Context, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
+	MpoolPushMessage(context.Context, []byte, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
 	StateLookupID(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 }
 
@@ -152,7 +153,7 @@ func (fm *FundMgr) EnsureAvailable(ctx context.Context, addr, wallet address.Add
 		return cid.Undef, err
 	}
 
-	smsg, err := fm.api.MpoolPushMessage(ctx, &types.Message{
+	smsg, err := fm.api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 		To:     market.Address,
 		From:   wallet,
 		Value:  toAdd,

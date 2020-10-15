@@ -18,6 +18,7 @@ var authCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		authCreateAdminToken,
 		authApiInfoToken,
+		authReloadHlmAuth,
 	},
 }
 
@@ -129,5 +130,20 @@ var authApiInfoToken = &cli.Command{
 
 		fmt.Printf("%s=%s:%s\n", envForRepo(t), string(token), ainfo.Addr)
 		return nil
+	},
+}
+
+var authReloadHlmAuth = &cli.Command{
+	Name:  "reload-hlm-auth",
+	Usage: "Reload hlm auth key",
+	Action: func(cctx *cli.Context) error {
+		napi, closer, err := GetAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ctx := ReqContext(cctx)
+		return napi.ReloadHlmAuth(ctx)
 	},
 }
