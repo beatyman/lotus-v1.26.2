@@ -206,7 +206,7 @@ type FullNode interface {
 	//
 	// When maxFee is set to 0, MpoolPushMessage will guess appropriate fee
 	// based on current chain conditions
-	MpoolPushMessage(ctx context.Context, msg *types.Message, spec *MessageSendSpec) (*types.SignedMessage, error)
+	MpoolPushMessage(ctx context.Context, auth []byte, msg *types.Message, spec *MessageSendSpec) (*types.SignedMessage, error)
 
 	// MpoolGetNonce gets next nonce for the specified sender.
 	// Note that this method may not be atomic. Use MpoolPushMessage instead.
@@ -240,9 +240,9 @@ type FullNode interface {
 	// WalletBalance returns the balance of the given address at the current head of the chain.
 	WalletBalance(context.Context, address.Address) (types.BigInt, error)
 	// WalletSign signs the given bytes using the given address.
-	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
+	WalletSign(context.Context, []byte, address.Address, []byte) (*crypto.Signature, error)
 	// WalletSignMessage signs the given message using the given address.
-	WalletSignMessage(context.Context, address.Address, *types.Message) (*types.SignedMessage, error)
+	WalletSignMessage(context.Context, []byte, address.Address, *types.Message) (*types.SignedMessage, error)
 	// WalletVerify takes an address, a signature, and some bytes, and indicates whether the signature is valid.
 	// The address does not have to be in the wallet.
 	WalletVerify(context.Context, address.Address, []byte, *crypto.Signature) (bool, error)
@@ -251,11 +251,11 @@ type FullNode interface {
 	// WalletSetDefault marks the given address as as the default one.
 	WalletSetDefault(context.Context, address.Address) error
 	// WalletExport returns the private key of an address in the wallet.
-	WalletExport(context.Context, address.Address) (*types.KeyInfo, error)
+	WalletExport(context.Context, []byte, address.Address) (*types.KeyInfo, error)
 	// WalletImport receives a KeyInfo, which includes a private key, and imports it into the wallet.
 	WalletImport(context.Context, *types.KeyInfo) (address.Address, error)
 	// WalletDelete deletes an address from the wallet.
-	WalletDelete(context.Context, address.Address) error
+	WalletDelete(context.Context, []byte, address.Address) error
 	// WalletValidateAddress validates whether a given string can be decoded as a well-formed address
 	WalletValidateAddress(context.Context, string) (address.Address, error)
 

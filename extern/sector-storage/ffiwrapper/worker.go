@@ -171,9 +171,15 @@ func (sb *Sealer) SetAddPieceListener(l func(WorkerTask)) error {
 }
 
 func (sb *Sealer) pubAddPieceEvent(t WorkerTask) {
+	_addPieceListenerLk.Lock()
+	defer _addPieceListenerLk.Unlock()
 	if _addPieceListener != nil {
 		go _addPieceListener(t)
 	}
+}
+
+func (sb *Sealer) GetAddPieceWait() int {
+	return int(atomic.LoadInt32(&_addPieceWait))
 }
 
 func (sb *Sealer) DelWorker(ctx context.Context, workerId string) {
@@ -347,8 +353,14 @@ func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force, reset bo
 	// update state
 	newState := state
 	if !reset {
+		// state already done
+		if sInfo.State >= 200 {
+			return working, nil
+		}
+
 		newState = newState + sInfo.State
 	}
+
 	if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, newState); err != nil {
 		return working, errors.As(err)
 	}
@@ -375,7 +387,7 @@ func (sb *Sealer) GcWorker(workerId string) ([]string, error) {
 				continue
 			}
 			delete(r.busyOnTasks, sid)
-			result = append(result, task.Key())
+			result = append(result, fmt.Sprintf("%s,cause by: %d", task.Key(), state))
 		}
 		return result, nil
 	}
@@ -761,13 +773,14 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		default:
 			// sleep for controlling the loop
 			time.Sleep(timeout)
-			for _, check := range checkFunc {
-				for i := 0; i < r.cfg.MaxTaskNum; i++ {
-					checkFinalize()
-					if atomic.LoadInt32(&sb.pauseSeal) != 0 {
-						// pause the seal
-						continue
-					}
+			for i := 0; i < r.cfg.MaxTaskNum; i++ {
+				checkFinalize()
+				if atomic.LoadInt32(&sb.pauseSeal) != 0 {
+					// pause the seal
+					continue
+				}
+
+				for _, check := range checkFunc {
 					check()
 				}
 			}

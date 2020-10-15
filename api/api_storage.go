@@ -25,6 +25,9 @@ import (
 type StorageMiner interface {
 	Common
 
+	// Reload the auth key
+	ReloadHlmAuth(context.Context) error
+
 	ActorAddress(context.Context) (address.Address, error)
 
 	ActorSectorSize(context.Context, address.Address) (abi.SectorSize, error)

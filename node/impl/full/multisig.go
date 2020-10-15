@@ -8,6 +8,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/multisig"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -51,7 +52,7 @@ func (a *MsigAPI) MsigCreate(ctx context.Context, req uint64, addrs []address.Ad
 	}
 
 	// send the message out to the network
-	smsg, err := a.MpoolAPI.MpoolPushMessage(ctx, msg, nil)
+	smsg, err := a.MpoolAPI.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -71,7 +72,7 @@ func (a *MsigAPI) MsigPropose(ctx context.Context, msig address.Address, to addr
 		return cid.Undef, xerrors.Errorf("failed to create proposal: %w", err)
 	}
 
-	smsg, err := a.MpoolAPI.MpoolPushMessage(ctx, msg, nil)
+	smsg, err := a.MpoolAPI.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
 	if err != nil {
 		return cid.Undef, xerrors.Errorf("failed to push message: %w", err)
 	}
@@ -181,7 +182,7 @@ func (a *MsigAPI) msigApproveOrCancelSimple(ctx context.Context, operation api.M
 		return cid.Undef, err
 	}
 
-	smsg, err := a.MpoolAPI.MpoolPushMessage(ctx, msg, nil)
+	smsg, err := a.MpoolAPI.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -233,7 +234,7 @@ func (a *MsigAPI) msigApproveOrCancelTxnHash(ctx context.Context, operation api.
 		return cid.Undef, err
 	}
 
-	smsg, err := a.MpoolAPI.MpoolPushMessage(ctx, msg, nil)
+	smsg, err := a.MpoolAPI.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}

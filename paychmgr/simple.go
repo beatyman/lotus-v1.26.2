@@ -393,7 +393,7 @@ func (ca *channelAccessor) createPaych(ctx context.Context, amt types.BigInt) (c
 		return cid.Undef, err
 	}
 
-	smsg, err := ca.api.MpoolPushMessage(ctx, msg, nil)
+	smsg, err := ca.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
 	if err != nil {
 		return cid.Undef, xerrors.Errorf("initializing paych actor: %w", err)
 	}
@@ -475,7 +475,7 @@ func (ca *channelAccessor) addFunds(ctx context.Context, channelInfo *ChannelInf
 		Method: 0,
 	}
 
-	smsg, err := ca.api.MpoolPushMessage(ctx, msg, nil)
+	smsg, err := ca.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
 	if err != nil {
 		return nil, err
 	}
