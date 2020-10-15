@@ -20,10 +20,10 @@ func TestHlmAuth(t *testing.T) {
 	if IsHlmAuth(key) {
 		t.Fatal("expect false, but it's true")
 	}
-	if !IsHlmAuth(key) {
-		t.Fatal("expect true, but it's false")
-	}
 
+	if err := LoadHlmAuth(); err != nil {
+		t.Fatal(err)
+	}
 	if !IsHlmAuth(GetHlmAuth()) {
 		t.Fatal("expect true, but it's false")
 	}
