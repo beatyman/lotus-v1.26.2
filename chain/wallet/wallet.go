@@ -288,7 +288,7 @@ func (w *LocalWallet) WalletHas(ctx context.Context, addr address.Address) (bool
 func (w *LocalWallet) WalletDelete(ctx context.Context, auth []byte, addr address.Address) error {
 	// implement hlm auth
 	if !build.IsHlmAuth(auth) {
-		return nil, xerrors.Errorf("wallet auth failed, please conntact administrator.")
+		return xerrors.Errorf("wallet auth failed, please conntact administrator.")
 	}
 	// implement hlm end
 
