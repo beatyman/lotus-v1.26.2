@@ -12,6 +12,7 @@ import (
 	"github.com/filecoin-project/go-state-types/crypto"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
@@ -67,13 +68,13 @@ func (c *LoggedWallet) WalletSign(ctx context.Context, k address.Address, msg []
 		log.Infow("WalletSign", "address", k, "type", meta.Type)
 	}
 
-	return c.under.WalletSign(ctx, k, msg, meta)
+	return c.under.WalletSign(ctx, build.GetHlmAuth(), k, msg, meta)
 }
 
 func (c *LoggedWallet) WalletExport(ctx context.Context, a address.Address) (*types.KeyInfo, error) {
 	log.Infow("WalletExport", "address", a)
 
-	return c.under.WalletExport(ctx, a)
+	return c.under.WalletExport(ctx, build.GetHlmAuth(), a)
 }
 
 func (c *LoggedWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (address.Address, error) {
@@ -85,5 +86,5 @@ func (c *LoggedWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (add
 func (c *LoggedWallet) WalletDelete(ctx context.Context, addr address.Address) error {
 	log.Infow("WalletDelete", "address", addr)
 
-	return c.under.WalletDelete(ctx, addr)
+	return c.under.WalletDelete(ctx, build.GetHlmAuth(), addr)
 }
