@@ -214,7 +214,7 @@ type ApplyRet struct {
 	ActorErr       aerrors.ActorError
 	ExecutionTrace types.ExecutionTrace
 	Duration       time.Duration
-	GasCosts       GasOutputs
+	GasCosts       *GasOutputs
 }
 
 func (vm *VM) send(ctx context.Context, msg *types.Message, parent *Runtime,
@@ -405,7 +405,7 @@ func (vm *VM) ApplyImplicitMessage(ctx context.Context, msg *types.Message) (*Ap
 		},
 		ActorErr:       actorErr,
 		ExecutionTrace: rt.executionTrace,
-		GasCosts:       GasOutputs{},
+		GasCosts:       nil,
 		Duration:       time.Since(start),
 	}, actorErr
 }
@@ -441,7 +441,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 				ExitCode: exitcode.SysErrOutOfGas,
 				GasUsed:  0,
 			},
-			GasCosts: gasOutputs,
+			GasCosts: &gasOutputs,
 			Duration: time.Since(start),
 		}, nil
 	}
@@ -461,7 +461,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 					GasUsed:  0,
 				},
 				ActorErr: aerrors.Newf(exitcode.SysErrSenderInvalid, "actor not found: %s", msg.From),
-				GasCosts: gasOutputs,
+				GasCosts: &gasOutputs,
 				Duration: time.Since(start),
 			}, nil
 		}
@@ -478,7 +478,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 				GasUsed:  0,
 			},
 			ActorErr: aerrors.Newf(exitcode.SysErrSenderInvalid, "send from not account actor: %s", fromActor.Code),
-			GasCosts: gasOutputs,
+			GasCosts: &gasOutputs,
 			Duration: time.Since(start),
 		}, nil
 	}
@@ -494,7 +494,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 			ActorErr: aerrors.Newf(exitcode.SysErrSenderStateInvalid,
 				"actor nonce invalid: msg:%d != state:%d", msg.Nonce, fromActor.Nonce),
 
-			GasCosts: gasOutputs,
+			GasCosts: &gasOutputs,
 			Duration: time.Since(start),
 		}, nil
 	}
@@ -510,7 +510,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 			},
 			ActorErr: aerrors.Newf(exitcode.SysErrSenderStateInvalid,
 				"actor balance less than needed: %s < %s", types.FIL(fromActor.Balance), types.FIL(gascost)),
-			GasCosts: gasOutputs,
+			GasCosts: &gasOutputs,
 			Duration: time.Since(start),
 		}, nil
 	}
@@ -604,7 +604,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 		},
 		ActorErr:       actorErr,
 		ExecutionTrace: rt.executionTrace,
-		GasCosts:       gasOutputs,
+		GasCosts:       &gasOutputs,
 		Duration:       time.Since(start),
 	}, nil
 }
