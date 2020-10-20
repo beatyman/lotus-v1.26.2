@@ -156,9 +156,17 @@ var sectorsListCmd = &cli.Command{
 			Name:  "fast",
 			Usage: "don't show on-chain info for better performance",
 		},
+		&cli.BoolFlag{
+			Name:  "really-do-it",
+			Usage: "this command is not applicable to a lot of sectos.",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		color.NoColor = !cctx.Bool("color")
+		if !cctx.Bool("really-do-it") {
+			fmt.Println("need really-do-it cause it's not applicable to a lot of sectors")
+			return nil
+		}
 
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
