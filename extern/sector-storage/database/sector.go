@@ -1,13 +1,14 @@
 package database
 
 import (
+	"database/sql"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -19,6 +20,52 @@ const (
 	SECTOR_STATE_DONE   = 200
 	SECTOR_STATE_FAILED = 500
 )
+
+func ParseSectorID(baseName string) (abi.SectorID, error) {
+	var n abi.SectorNumber
+	var mid abi.ActorID
+	read, err := fmt.Sscanf(baseName, "s-t0%d-%d", &mid, &n)
+	if err != nil {
+		return abi.SectorID{}, xerrors.Errorf("sscanf sector name ('%s'): %w", baseName, err)
+	}
+
+	if read != 2 {
+		return abi.SectorID{}, xerrors.Errorf("parseSectorID expected to scan 2 values, got %d", read)
+	}
+
+	return abi.SectorID{
+		Miner:  mid,
+		Number: n,
+	}, nil
+}
+
+func SectorName(sid abi.SectorID) string {
+	return fmt.Sprintf("s-t0%d-%d", sid.Miner, sid.Number)
+}
+
+type SectorFile struct {
+	SectorId  string
+	StorageId uint64
+}
+
+func (f *SectorFile) SectorID() abi.SectorID {
+	id, err := ParseSectorID(f.SectorId)
+	if err != nil {
+		// should not reach here.
+		panic(err)
+	}
+	return id
+}
+
+func (f *SectorFile) UnsealedFile() string {
+	return fmt.Sprintf("/data/nfs/%d/unsealed/%s", f.StorageId, f.SectorId)
+}
+func (f *SectorFile) SealedFile() string {
+	return fmt.Sprintf("/data/nfs/%d/sealed/%s", f.StorageId, f.SectorId)
+}
+func (f *SectorFile) CachePath() string {
+	return fmt.Sprintf("/data/nfs/%d/cache/%s", f.StorageId, f.SectorId)
+}
 
 type SectorInfo struct {
 	ID         string    `db:"id"` // s-t0101-1
@@ -58,21 +105,6 @@ func (g StorageStatusSort) Less(i, j int) bool {
 	return g[i].Used < g[j].Used
 }
 
-func SectorID(minerId string, sectorId int64) string {
-	return fmt.Sprintf("s-%s-%d", minerId, sectorId)
-}
-func ParseSectorID(id string) (string, int64, error) {
-	arr := strings.Split(id, "-")
-	if len(arr) != 3 {
-		return "", 0, errors.New("error format id").As(id)
-	}
-	sectorId, err := strconv.ParseInt(arr[2], 10, 64)
-	if err != nil {
-		return "", 0, errors.New("error format of sectorId").As(id)
-	}
-	return arr[1], sectorId, nil
-}
-
 func AddSectorInfo(info *SectorInfo) error {
 	mdb := GetDB()
 	if _, err := database.InsertStruct(mdb, info, "sector_info"); err != nil {
@@ -104,6 +136,21 @@ func GetSectorState(id string) (int, error) {
 		return state, errors.As(err, id)
 	}
 	return state, nil
+}
+
+func GetSectorFile(id string) (*SectorFile, error) {
+	file := SectorFile{}
+	mdb := GetDB()
+	if err := mdb.QueryRow("SELECT storage_id FROM sector_info WHERE id=?", id).Scan(
+		&file.StorageId,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.ErrNoData.As(id)
+		}
+		return nil, errors.As(err, id)
+	}
+	file.SectorId = id
+	return &file, nil
 }
 
 type SectorList []SectorInfo
@@ -233,8 +280,7 @@ func CheckWorkingById(sid []string) (WorkingSectors, error) {
 	args := []rune{}
 	for _, s := range sid {
 		// checking sql injection
-		_, _, err := ParseSectorID(s)
-		if err != nil {
+		if _, err := ParseSectorID(s); err != nil {
 			return sectors, errors.As(err, sid)
 		}
 		args = append(args, []rune(",'")...)

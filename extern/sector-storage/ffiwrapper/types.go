@@ -26,9 +26,14 @@ type StorageSealer interface {
 	storage.Storage
 }
 
+type StorageProver interface {
+	GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error)
+	GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []ProofSectorInfo, randomness abi.PoStRandomness) (proof []proof.PoStProof, skipped []abi.SectorID, err error)
+}
+
 type Storage interface {
-	storage.Prover
 	StorageSealer
+	StorageProver
 
 	UnsealPiece(ctx context.Context, sector abi.SectorID, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error
 	ReadPiece(ctx context.Context, writer io.Writer, sector abi.SectorID, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error)

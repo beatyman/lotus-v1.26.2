@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/gwaylib/errors"
 )
 
 type ProvableStat struct {
-	ID   abi.SectorID
+	ID   database.SectorFile
 	Used time.Duration
 	Err  error
 }
@@ -33,12 +34,21 @@ func (g ProvableStatArr) Less(i, j int) bool {
 }
 
 // CheckProvable returns unprovable sectors
-func CheckProvable(ctx context.Context, repo string, ssize abi.SectorSize, sectors []abi.SectorID, timeout time.Duration) ([]ProvableStat, []abi.SectorID, error) {
+func CheckProvable(ctx context.Context, repo string, ssize abi.SectorSize, sectors []database.SectorFile, timeout time.Duration) ([]ProvableStat, []database.SectorFile, []database.SectorFile, error) {
 	log.Info("Manager.CheckProvable in, len:", len(sectors))
 	defer log.Info("Manager.CheckProvable out, len:", len(sectors))
-	var bad = []abi.SectorID{}
+
+	var good = []database.SectorFile{}
+	var goodLk = sync.Mutex{}
+	var appendGood = func(sid database.SectorFile) {
+		goodLk.Lock()
+		defer goodLk.Unlock()
+		good = append(good, sid)
+	}
+
+	var bad = []database.SectorFile{}
 	var badLk = sync.Mutex{}
-	var appendBad = func(sid abi.SectorID) {
+	var appendBad = func(sid database.SectorFile) {
 		badLk.Lock()
 		defer badLk.Unlock()
 		bad = append(bad, sid)
@@ -52,12 +62,12 @@ func CheckProvable(ctx context.Context, repo string, ssize abi.SectorSize, secto
 		all = append(all, good)
 	}
 
-	checkBad := func(ctx context.Context, sector abi.SectorID) error {
+	checkBad := func(ctx context.Context, sector database.SectorFile) error {
 		lp := stores.SectorPaths{
-			ID:       sector,
-			Unsealed: filepath.Join(repo, "unsealed", SectorName(sector)),
-			Sealed:   filepath.Join(repo, "sealed", SectorName(sector)),
-			Cache:    filepath.Join(repo, "cache", SectorName(sector)),
+			ID:       sector.SectorID(),
+			Unsealed: sector.UnsealedFile(),
+			Sealed:   sector.SealedFile(),
+			Cache:    sector.CachePath(),
 		}
 
 		if lp.Sealed == "" || lp.Cache == "" {
@@ -111,7 +121,7 @@ func CheckProvable(ctx context.Context, repo string, ssize abi.SectorSize, secto
 	routines := make(chan bool, 256)
 	done := make(chan bool, len(sectors))
 	for _, sector := range sectors {
-		go func(s abi.SectorID) {
+		go func(s database.SectorFile) {
 			// limit the concurrency
 			routines <- true
 			defer func() {
@@ -125,6 +135,8 @@ func CheckProvable(ctx context.Context, repo string, ssize abi.SectorSize, secto
 			used := time.Now().Sub(start)
 			if err != nil {
 				appendBad(s)
+			} else {
+				appendGood(s)
 			}
 			appendAll(ProvableStat{ID: s, Used: used, Err: err})
 
@@ -137,7 +149,7 @@ func CheckProvable(ctx context.Context, repo string, ssize abi.SectorSize, secto
 	}
 
 	sort.Sort(all)
-	return all, bad, nil
+	return all, good, bad, nil
 }
 
 func addCachePathsForSectorSize(chk map[string]int64, cacheDir string, ssize abi.SectorSize) {

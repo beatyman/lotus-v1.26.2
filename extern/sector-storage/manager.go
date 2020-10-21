@@ -56,7 +56,7 @@ type SectorManager interface {
 	ReadPiece(context.Context, io.Writer, abi.SectorID, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) error
 
 	ffiwrapper.StorageSealer
-	storage.Prover
+	ffiwrapper.StorageProver
 	FaultTracker
 }
 
@@ -75,7 +75,7 @@ type Manager struct {
 
 	w Worker
 
-	storage.Prover
+	ffiwrapper.StorageProver
 }
 
 type SealerConfig struct {
@@ -98,7 +98,7 @@ type StorageAuth http.Header
 // only for hlm worker
 func NewWorkerManager(sb *ffiwrapper.Sealer) *Manager {
 	return &Manager{
-		Prover: sb,
+		StorageProver: sb,
 	}
 }
 
@@ -133,7 +133,7 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, cfg
 
 		sched: newScheduler(cfg.SealProofType),
 
-		Prover: prover,
+		StorageProver: prover,
 	}
 
 	// go m.sched.runSched()
@@ -286,7 +286,7 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector abi.Sect
 }
 
 func (m *Manager) NewSector(ctx context.Context, sector abi.SectorID) error {
-	sb, ok := m.Prover.(*ffiwrapper.Sealer)
+	sb, ok := m.StorageProver.(*ffiwrapper.Sealer)
 	if !ok {
 		log.Warnf("stub NewSector")
 	}

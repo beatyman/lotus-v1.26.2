@@ -191,7 +191,7 @@ type WorkerTask struct {
 	Commit1Out storage.Commit1Out
 
 	// winning PoSt
-	SectorInfo []proof.SectorInfo
+	SectorInfo []ProofSectorInfo
 	Randomness abi.PoStRandomness
 
 	// window PoSt
