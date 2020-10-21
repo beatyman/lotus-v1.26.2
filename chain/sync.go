@@ -268,7 +268,8 @@ func (syncer *Syncer) InformNewHead(from peer.ID, fts *store.FullTipSet) bool {
 
 	syncer.Exchange.AddPeer(from)
 
-	bestPweight := syncer.store.GetHeaviestTipSet().ParentWeight()
+	hts := syncer.store.GetHeaviestTipSet()
+	bestPweight := hts.ParentWeight()
 	targetWeight := fts.TipSet().ParentWeight()
 	if targetWeight.LessThan(bestPweight) {
 		var miners []string
