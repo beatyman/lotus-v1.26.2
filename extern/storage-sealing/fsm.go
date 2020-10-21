@@ -334,7 +334,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 			log.Infof("the sealer does not have sectorstorage.Manager, ignore it, sector id:%s", sInfo.ID)
 			return nil, processed, nil
 		}
-		ffi, ok := sealer.Prover.(*ffiwrapper.Sealer)
+		ffi, ok := sealer.StorageProver.(*ffiwrapper.Sealer)
 		if !ok {
 			log.Infof("the sealer does not have ffiwrapper.Sealer, ignore it, sector id:%s", sInfo.ID)
 			return nil, processed, nil
