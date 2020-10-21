@@ -23,8 +23,8 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -202,13 +202,13 @@ func (m *Miner) runPreflightChecks(ctx context.Context) error {
 }
 
 type StorageWpp struct {
-	prover   storage.Prover
+	prover   ffiwrapper.StorageProver
 	verifier ffiwrapper.Verifier
 	miner    abi.ActorID
 	winnRpt  abi.RegisteredPoStProof
 }
 
-func NewWinningPoStProver(api api.FullNode, prover storage.Prover, verifier ffiwrapper.Verifier, miner dtypes.MinerID) (*StorageWpp, error) {
+func NewWinningPoStProver(api api.FullNode, prover ffiwrapper.StorageProver, verifier ffiwrapper.Verifier, miner dtypes.MinerID) (*StorageWpp, error) {
 	ma, err := address.NewIDAddress(uint64(miner))
 	if err != nil {
 		return nil, err
@@ -259,7 +259,38 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []proof0.SectorInfo
 	log.Infof("Computing WinningPoSt ;%+v; %v", ssi, rand)
 
 	start := build.Clock.Now()
-	proof, err := wpp.prover.GenerateWinningPoSt(ctx, wpp.miner, ssi, rand)
+	pFiles := []ffiwrapper.ProofSectorInfo{}
+	sFiles := []database.SectorFile{}
+	ssize := abi.SectorSize(0) // undefined.
+	for _, s := range ssi {
+		size, err := s.SealProof.SectorSize()
+		if err != nil {
+			return nil, err
+		}
+		if ssize < 0 {
+			ssize = size
+		}
+		if size != ssize {
+			log.Error(errors.New("ssize not match in the same miner").As(wpp.miner, s.SectorNumber))
+		}
+		sFile, err := database.GetSectorFile(database.SectorName(abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}))
+		if err != nil {
+			return nil, err
+		}
+		pFiles = append(pFiles, ffiwrapper.ProofSectorInfo{SectorInfo: s, SectorFile: *sFile})
+		sFiles = append(sFiles, *sFile)
+	}
+	// check files
+	_, _, bad, err := ffiwrapper.CheckProvable(ctx, ssize, sFiles, 6*time.Second)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	if len(bad) > 0 {
+		return nil, xerrors.Errorf("pubSectorToPriv skipped sectors: %+v", bad)
+	}
+	log.Infof("GenerateWinningPoSt checking %s", time.Since(start))
+
+	proof, err := wpp.prover.GenerateWinningPoSt(ctx, wpp.miner, pFiles, rand)
 	if err != nil {
 		return nil, err
 	}

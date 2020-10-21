@@ -16,9 +16,9 @@ import (
 )
 
 type ProvableStat struct {
-	ID   database.SectorFile
-	Used time.Duration
-	Err  error
+	Sector database.SectorFile
+	Used   time.Duration
+	Err    error
 }
 
 type ProvableStatArr []ProvableStat
@@ -34,21 +34,21 @@ func (g ProvableStatArr) Less(i, j int) bool {
 }
 
 // CheckProvable returns unprovable sectors
-func CheckProvable(ctx context.Context, repo string, ssize abi.SectorSize, sectors []database.SectorFile, timeout time.Duration) ([]ProvableStat, []database.SectorFile, []database.SectorFile, error) {
+func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []database.SectorFile, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
 	log.Info("Manager.CheckProvable in, len:", len(sectors))
 	defer log.Info("Manager.CheckProvable out, len:", len(sectors))
 
-	var good = []database.SectorFile{}
+	var good = []ProvableStat{}
 	var goodLk = sync.Mutex{}
-	var appendGood = func(sid database.SectorFile) {
+	var appendGood = func(sid ProvableStat) {
 		goodLk.Lock()
 		defer goodLk.Unlock()
 		good = append(good, sid)
 	}
 
-	var bad = []database.SectorFile{}
+	var bad = []ProvableStat{}
 	var badLk = sync.Mutex{}
-	var appendBad = func(sid database.SectorFile) {
+	var appendBad = func(sid ProvableStat) {
 		badLk.Lock()
 		defer badLk.Unlock()
 		bad = append(bad, sid)
@@ -133,12 +133,13 @@ func CheckProvable(ctx context.Context, repo string, ssize abi.SectorSize, secto
 			start := time.Now()
 			err := checkBad(checkCtx, s)
 			used := time.Now().Sub(start)
+			pState := ProvableStat{Sector: s, Used: used, Err: err}
 			if err != nil {
-				appendBad(s)
+				appendBad(pState)
 			} else {
-				appendGood(s)
+				appendGood(pState)
 			}
-			appendAll(ProvableStat{ID: s, Used: used, Err: err})
+			appendAll(pState)
 
 			// thread end
 			done <- true

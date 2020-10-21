@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -21,6 +22,7 @@ const (
 	SECTOR_STATE_FAILED = 500
 )
 
+// copy from sector-storage/stores/filetype.go
 func ParseSectorID(baseName string) (abi.SectorID, error) {
 	var n abi.SectorNumber
 	var mid abi.ActorID
@@ -39,13 +41,14 @@ func ParseSectorID(baseName string) (abi.SectorID, error) {
 	}, nil
 }
 
+// copy from sector-storage/stores/filetype.go
 func SectorName(sid abi.SectorID) string {
 	return fmt.Sprintf("s-t0%d-%d", sid.Miner, sid.Number)
 }
 
 type SectorFile struct {
-	SectorId  string
-	StorageId uint64
+	SectorId    string
+	StorageRepo string
 }
 
 func (f *SectorFile) SectorID() abi.SectorID {
@@ -58,13 +61,13 @@ func (f *SectorFile) SectorID() abi.SectorID {
 }
 
 func (f *SectorFile) UnsealedFile() string {
-	return fmt.Sprintf("/data/nfs/%d/unsealed/%s", f.StorageId, f.SectorId)
+	return filepath.Join(f.StorageRepo, "unsealed", f.SectorId)
 }
 func (f *SectorFile) SealedFile() string {
-	return fmt.Sprintf("/data/nfs/%d/sealed/%s", f.StorageId, f.SectorId)
+	return filepath.Join(f.StorageRepo, "sealed", f.SectorId)
 }
 func (f *SectorFile) CachePath() string {
-	return fmt.Sprintf("/data/nfs/%d/cache/%s", f.StorageId, f.SectorId)
+	return filepath.Join(f.StorageRepo, "cache", f.SectorId)
 }
 
 type SectorInfo struct {
@@ -139,18 +142,19 @@ func GetSectorState(id string) (int, error) {
 }
 
 func GetSectorFile(id string) (*SectorFile, error) {
-	file := SectorFile{}
 	mdb := GetDB()
-	if err := mdb.QueryRow("SELECT storage_id FROM sector_info WHERE id=?", id).Scan(
-		&file.StorageId,
+	storageId := uint64(0)
+	mountDir := sql.NullString{}
+	if err := mdb.QueryRow("SELECT storage_id FROM sector_info tb1 LEFT JOIN storage_info tb2 on tb1.storage_id=tb2.id WHERE tb1.id=?", id).Scan(
+		&storageId,
+		&mountDir,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.ErrNoData.As(id)
 		}
 		return nil, errors.As(err, id)
 	}
-	file.SectorId = id
-	return &file, nil
+	return &SectorFile{SectorId: id, StorageRepo: filepath.Join(mountDir.String, fmt.Sprintf("%d", storageId))}, nil
 }
 
 type SectorList []SectorInfo

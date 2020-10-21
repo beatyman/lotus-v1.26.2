@@ -30,7 +30,7 @@ func (sm *StorageMinerAPI) HlmSectorGetState(ctx context.Context, sid string) (*
 	return database.GetSectorInfo(sid)
 }
 func (sm *StorageMinerAPI) HlmSectorSetState(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, state, force, reset)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, state, force, reset)
 }
 
 // Message communication
@@ -50,13 +50,15 @@ func (sm *StorageMinerAPI) HlmSectorListAll(ctx context.Context) ([]api.SectorIn
 	}
 	return out, nil
 }
-
+func (sm *StorageMinerAPI) HlmSectorFile(ctx context.Context, sid string) (*database.SectorFile, error) {
+	return database.GetSectorFile(sid)
+}
 func (sm *StorageMinerAPI) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).SelectCommit2Service(ctx, sector)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).SelectCommit2Service(ctx, sector)
 }
 
 func (sm *StorageMinerAPI) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockGPUService(ctx, workerId, taskKey)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).UnlockGPUService(ctx, workerId, taskKey)
 }
 
 func (sm *StorageMinerAPI) WorkerAddress(ctx context.Context, act address.Address, task types.TipSetKey) (address.Address, error) {
@@ -68,34 +70,34 @@ func (sm *StorageMinerAPI) WorkerAddress(ctx context.Context, act address.Addres
 }
 
 func (sm *StorageMinerAPI) PauseSeal(ctx context.Context, pause int32) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PauseSeal(ctx, pause)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).PauseSeal(ctx, pause)
 }
 func (sm *StorageMinerAPI) WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).WorkerStats(), nil
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).WorkerStats(), nil
 }
 func (sm *StorageMinerAPI) WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).WorkerRemoteStats()
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).WorkerRemoteStats()
 }
 func (sm *StorageMinerAPI) WorkerQueue(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddWorker(ctx, cfg)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).AddWorker(ctx, cfg)
 }
 func (sm *StorageMinerAPI) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorking(workerId)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).TaskWorking(workerId)
 }
 func (sm *StorageMinerAPI) WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorkingById(sid)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).TaskWorkingById(sid)
 }
 func (sm *StorageMinerAPI) WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).LockWorker(ctx, workerId, taskKey, memo, sectorState)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).LockWorker(ctx, workerId, taskKey, memo, sectorState)
 }
 func (sm *StorageMinerAPI) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockWorker(ctx, workerId, taskKey, memo, sectorState)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).UnlockWorker(ctx, workerId, taskKey, memo, sectorState)
 }
 func (sm *StorageMinerAPI) WorkerGcLock(ctx context.Context, workerId string) ([]string, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).GcWorker(workerId)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).GcWorker(workerId)
 }
 func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskDone(ctx, res)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).TaskDone(ctx, res)
 }
 func (sm *StorageMinerAPI) WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error) {
 	return database.GetWorkerInfo(wid)
@@ -104,7 +106,7 @@ func (sm *StorageMinerAPI) WorkerSearch(ctx context.Context, ip string) ([]datab
 	return database.SearchWorkerInfo(ip)
 }
 func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disable bool) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableWorker(ctx, wid, disable)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).DisableWorker(ctx, wid, disable)
 }
 func (sm *StorageMinerAPI) WorkerAddConn(ctx context.Context, wid string, num int) error {
 	return database.AddWorkerConn(wid, num)
@@ -125,36 +127,36 @@ func (sm *StorageMinerAPI) SearchHLMStorage(ctx context.Context, ip string) ([]d
 	return database.SearchStorageInfoBySignalIp(ip)
 }
 func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, info *database.StorageInfo) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddStorage(ctx, info)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).AddStorage(ctx, info)
 }
 func (sm *StorageMinerAPI) DisableHLMStorage(ctx context.Context, id int64, disable bool) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableStorage(ctx, id, disable)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).DisableStorage(ctx, id, disable)
 }
 func (sm *StorageMinerAPI) MountHLMStorage(ctx context.Context, id int64) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).MountStorage(ctx, id)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).MountStorage(ctx, id)
 }
 
 func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).RelinkStorage(ctx, id)
 }
 func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ReplaceStorage(ctx, info)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).ReplaceStorage(ctx, info)
 }
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
 }
 func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, timeout time.Duration) ([]database.StorageStatus, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, timeout)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, timeout)
 }
 func (sm *StorageMinerAPI) PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PreStorageNode(sectorId, clientIp)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).PreStorageNode(sectorId, clientIp)
 }
 func (sm *StorageMinerAPI) CommitStorageNode(ctx context.Context, sectorId string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CommitStorageNode(sectorId)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).CommitStorageNode(sectorId)
 }
 func (sm *StorageMinerAPI) CancelStorageNode(ctx context.Context, sectorId string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CancelStorageNode(sectorId)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).CancelStorageNode(sectorId)
 }
 func (sm *StorageMinerAPI) ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ChecksumStorage(ver)
+	return sm.StorageMgr.StorageProver.(*ffiwrapper.Sealer).ChecksumStorage(ver)
 }
