@@ -22,7 +22,7 @@ func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof
 	}
 	lstor := &readonlyProvider{stor: m.localStore}
 	repo := lstor.RepoPath()
-	return ffiwrapper.CheckProvable(repo, ssize, sectors, timeout)
+	return ffiwrapper.CheckProvable(ctx, repo, ssize, sectors, timeout)
 }
 
 var _ FaultTracker = &Manager{}

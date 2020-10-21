@@ -173,7 +173,7 @@ var testWdPoStCmd = &cli.Command{
 		}
 		fmt.Println("Start CheckProvable")
 		start := time.Now()
-		all, bad, err := ffiwrapper.CheckProvable(minerRepo, ssize, sectors, 6*time.Second)
+		all, bad, err := ffiwrapper.CheckProvable(ctx, minerRepo, ssize, sectors, 6*time.Second)
 		if err != nil {
 			return errors.As(err)
 		}

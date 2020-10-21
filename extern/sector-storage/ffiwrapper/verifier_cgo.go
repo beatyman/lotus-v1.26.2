@@ -65,7 +65,7 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 	for _, s := range sectorInfo {
 		sectors = append(sectors, abi.SectorID{Miner: mid, Number: s.SectorNumber})
 	}
-	_, skipped, err := CheckProvable(sb.sectors.RepoPath(), sb.ssize, sectors, 6*time.Second)
+	_, skipped, err := CheckProvable(ctx, sb.sectors.RepoPath(), sb.ssize, sectors, 6*time.Second)
 	if err != nil {
 		return ffi.SortedPrivateSectorInfo{}, nil, nil, errors.As(err)
 	}

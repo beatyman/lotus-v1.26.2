@@ -1,6 +1,7 @@
 package ffiwrapper
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,7 +33,7 @@ func (g ProvableStatArr) Less(i, j int) bool {
 }
 
 // CheckProvable returns unprovable sectors
-func CheckProvable(repo string, ssize abi.SectorSize, sectors []abi.SectorID, timeout time.Duration) ([]ProvableStat, []abi.SectorID, error) {
+func CheckProvable(ctx context.Context, repo string, ssize abi.SectorSize, sectors []abi.SectorID, timeout time.Duration) ([]ProvableStat, []abi.SectorID, error) {
 	log.Info("Manager.CheckProvable in, len:", len(sectors))
 	defer log.Info("Manager.CheckProvable out, len:", len(sectors))
 	var bad = []abi.SectorID{}
@@ -51,7 +52,7 @@ func CheckProvable(repo string, ssize abi.SectorSize, sectors []abi.SectorID, ti
 		all = append(all, good)
 	}
 
-	checkBad := func(sector abi.SectorID) error {
+	checkBad := func(ctx context.Context, sector abi.SectorID) error {
 		lp := stores.SectorPaths{
 			ID:       sector,
 			Unsealed: filepath.Join(repo, "unsealed", SectorName(sector)),
@@ -72,21 +73,42 @@ func CheckProvable(repo string, ssize abi.SectorSize, sectors []abi.SectorID, ti
 		addCachePathsForSectorSize(toCheck, lp.Cache, ssize)
 
 		for p, sz := range toCheck {
-			st, err := os.Stat(p)
+			file, err := os.Open(p)
 			if err != nil {
 				return errors.As(err, p)
 			}
-
-			if sz != 0 {
-				if st.Size() < sz {
-					return errors.New("CheckProvable Sector FAULT: sector file is wrong size").As(p, st.Size())
+			defer file.Close()
+			// checking data
+			checkDone := make(chan error, 1)
+			go func() {
+				st, err := os.Stat(p)
+				if err != nil {
+					checkDone <- errors.As(err, p)
+					return
 				}
+
+				if sz != 0 {
+					if st.Size() < sz {
+						checkDone <- errors.New("CheckProvable Sector FAULT: sector file is wrong size").As(p, st.Size())
+						return
+					}
+				}
+				checkDone <- nil
+				return
+			}()
+
+			select {
+			case <-ctx.Done():
+				return errors.New("context canceled").As(p)
+			case err := <-checkDone:
+				return errors.As(err, p)
 			}
-			// TODO: check 'sanity check failed' in rust
 		}
 		return nil
 	}
-	routines := make(chan bool, 1024) // limit the gorouting to checking the bad, the sectors would be lot.
+	// limit the gorouting to checking the bad, the sectors would be so a lots.
+	// limit low donw to 256 cause by 'runtime/cgo: pthread_create failed: Resource temporarily unavailable' panic
+	routines := make(chan bool, 256)
 	done := make(chan bool, len(sectors))
 	for _, sector := range sectors {
 		go func(s abi.SectorID) {
@@ -96,25 +118,15 @@ func CheckProvable(repo string, ssize abi.SectorSize, sectors []abi.SectorID, ti
 				<-routines
 			}()
 
+			checkCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
 			start := time.Now()
-			// checking data
-			checkDone := make(chan error, 1)
-			go func() {
-				checkDone <- checkBad(s)
-			}()
-			var errResult error
-			select {
-			case <-time.After(timeout):
-				// read sector timeout
-				errResult = errors.New("sector stat timeout").As(timeout)
-			case err := <-checkDone:
-				errResult = err
-			}
+			err := checkBad(checkCtx, s)
 			used := time.Now().Sub(start)
-			if errResult != nil {
+			if err != nil {
 				appendBad(s)
 			}
-			appendAll(ProvableStat{ID: s, Used: used, Err: errResult})
+			appendAll(ProvableStat{ID: s, Used: used, Err: err})
 
 			// thread end
 			done <- true
@@ -137,7 +149,7 @@ func addCachePathsForSectorSize(chk map[string]int64, cacheDir string, ssize abi
 	case 512 << 20:
 		chk[filepath.Join(cacheDir, "sc-02-data-tree-r-last.dat")] = 0
 	case 32 << 30:
-		// chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", 0))] = 4586976 // just check one file cause it use a lot of time to check every file.
+		// chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", 0))] = 4586976 // just check one file cause it use a lots of time to check every files.
 		for i := 0; i < 8; i++ {
 			chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 4586976
 		}
