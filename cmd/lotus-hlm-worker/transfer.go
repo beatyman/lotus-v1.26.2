@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
+	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
 
@@ -191,7 +192,7 @@ func (w *worker) pushRemote(ctx context.Context, typ string, sectorID, toPath st
 }
 
 func (w *worker) remove(typ string, sectorID abi.SectorID) error {
-	filename := filepath.Join(w.repo, typ, w.workerSB.SectorName(sectorID))
+	filename := filepath.Join(w.repo, typ, storage.SectorName(sectorID))
 	log.Infof("Remove file: %s", filename)
 	return os.RemoveAll(filename)
 }

@@ -350,7 +350,7 @@ type StorageMinerStruct struct {
 		HlmSectorGetState    func(ctx context.Context, sid string) (*database.SectorInfo, error)                       `perm:"read"`
 		HlmSectorSetState    func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)   `perm:"write"`
 		HlmSectorListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
-		HlmSectorFile        func(ctx context.Context, sid string) (*database.SectorFile, error)                       `perm:"read"`
+		HlmSectorFile        func(ctx context.Context, sid string) (*storage.SectorFile, error)                       `perm:"read"`
 		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
 		UnlockGPUService     func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
 		PauseSeal            func(ctx context.Context, pause int32) error                                              `perm:"write"`
@@ -1196,7 +1196,7 @@ func (c *StorageMinerStruct) HlmSectorSetState(ctx context.Context, sid, memo st
 func (c *StorageMinerStruct) HlmSectorListAll(ctx context.Context) ([]api.SectorInfo, error) {
 	return c.Internal.HlmSectorListAll(ctx)
 }
-func (c *StorageMinerStruct) HlmSectorFile(ctx context.Context, sid string) (*database.SectorFile, error) {
+func (c *StorageMinerStruct) HlmSectorFile(ctx context.Context, sid string) (*storage.SectorFile, error) {
 	return c.Internal.HlmSectorFile(ctx, sid)
 }
 func (c *StorageMinerStruct) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {

@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
+	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
 
 type ProvableStat struct {
-	Sector database.SectorFile
+	Sector storage.SectorFile
 	Used   time.Duration
 	Err    error
 }
@@ -34,7 +34,7 @@ func (g ProvableStatArr) Less(i, j int) bool {
 }
 
 // CheckProvable returns unprovable sectors
-func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []database.SectorFile, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
+func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.SectorFile, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
 	log.Info("Manager.CheckProvable in, len:", len(sectors))
 	defer log.Info("Manager.CheckProvable out, len:", len(sectors))
 
@@ -62,7 +62,7 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []database
 		all = append(all, good)
 	}
 
-	checkBad := func(ctx context.Context, sector database.SectorFile) error {
+	checkBad := func(ctx context.Context, sector storage.SectorFile) error {
 		lp := stores.SectorPaths{
 			ID:       sector.SectorID(),
 			Unsealed: sector.UnsealedFile(),
@@ -121,7 +121,7 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []database
 	routines := make(chan bool, 256)
 	done := make(chan bool, len(sectors))
 	for _, sector := range sectors {
-		go func(s database.SectorFile) {
+		go func(s storage.SectorFile) {
 			// limit the concurrency
 			routines <- true
 			defer func() {

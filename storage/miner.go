@@ -6,6 +6,7 @@ import (
 
 	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	proof0 "github.com/filecoin-project/specs-actors/actors/runtime/proof"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/go-state-types/network"
 
@@ -202,13 +203,14 @@ func (m *Miner) runPreflightChecks(ctx context.Context) error {
 }
 
 type StorageWpp struct {
-	prover   ffiwrapper.StorageProver
+	prover   storage.Prover
 	verifier ffiwrapper.Verifier
 	miner    abi.ActorID
 	winnRpt  abi.RegisteredPoStProof
 }
 
-func NewWinningPoStProver(api api.FullNode, prover ffiwrapper.StorageProver, verifier ffiwrapper.Verifier, miner dtypes.MinerID) (*StorageWpp, error) {
+func NewWinningPoStProver(api api.FullNode, prover storage.Prover, verifier ffiwrapper.Verifier, miner dtypes.MinerID) (*StorageWpp, error) {
+	log.Info("DEBUG:NewWiningPostProver")
 	ma, err := address.NewIDAddress(uint64(miner))
 	if err != nil {
 		return nil, err
@@ -259,25 +261,25 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []proof0.SectorInfo
 	log.Infof("Computing WinningPoSt ;%+v; %v", ssi, rand)
 
 	start := build.Clock.Now()
-	pFiles := []ffiwrapper.ProofSectorInfo{}
-	sFiles := []database.SectorFile{}
+	pFiles := []storage.ProofSectorInfo{}
+	sFiles := []storage.SectorFile{}
 	ssize := abi.SectorSize(0) // undefined.
 	for _, s := range ssi {
 		size, err := s.SealProof.SectorSize()
 		if err != nil {
 			return nil, err
 		}
-		if ssize < 0 {
+		if ssize == 0 {
 			ssize = size
 		}
 		if size != ssize {
-			log.Error(errors.New("ssize not match in the same miner").As(wpp.miner, s.SectorNumber))
+			log.Error(errors.New("ssize not match in the same miner").As(wpp.miner, s.SectorNumber, size, ssize))
 		}
-		sFile, err := database.GetSectorFile(database.SectorName(abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}))
+		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}))
 		if err != nil {
 			return nil, err
 		}
-		pFiles = append(pFiles, ffiwrapper.ProofSectorInfo{SectorInfo: s, SectorFile: *sFile})
+		pFiles = append(pFiles, storage.ProofSectorInfo{SectorInfo: s, SectorFile: *sFile})
 		sFiles = append(sFiles, *sFile)
 	}
 	// check files

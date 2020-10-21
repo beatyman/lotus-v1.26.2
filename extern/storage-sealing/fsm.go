@@ -14,8 +14,9 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	statemachine "github.com/filecoin-project/go-statemachine"
+	"github.com/filecoin-project/specs-storage/storage"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage"
+	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
@@ -210,7 +211,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 		return nil, 0, xerrors.Errorf("running planner for state %s failed: %w", state.State, err)
 	}
 	// checking the sector state in hlm miner
-	sInfo, err := database.GetSectorInfo(ffiwrapper.SectorName(m.minerSector(state.SectorNumber)))
+	sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSector(state.SectorNumber)))
 	if err != nil {
 		log.Warn(errors.As(err))
 	} else if state.SectorNumber > 0 && sInfo.State > database.SECTOR_STATE_DONE {
@@ -334,7 +335,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 			log.Infof("the sealer does not have sectorstorage.Manager, ignore it, sector id:%s", sInfo.ID)
 			return nil, processed, nil
 		}
-		ffi, ok := sealer.StorageProver.(*ffiwrapper.Sealer)
+		ffi, ok := sealer.Prover.(*ffiwrapper.Sealer)
 		if !ok {
 			log.Infof("the sealer does not have ffiwrapper.Sealer, ignore it, sector id:%s", sInfo.ID)
 			return nil, processed, nil

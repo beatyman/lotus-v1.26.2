@@ -75,7 +75,7 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.StorageMiner)
 	return nil
 }
 
-func (w *rpcServer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []ffiwrapper.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+func (w *rpcServer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	log.Infof("GenerateWinningPoSt RPC in:%d", minerID)
 	defer log.Infof("GenerateWinningPoSt RPC out:%d", minerID)
 	napi, err := GetNodeApi()
@@ -89,7 +89,7 @@ func (w *rpcServer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID
 
 	return w.sb.GenerateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 }
-func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []ffiwrapper.ProofSectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
+func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
 	log.Infof("GenerateWindowPoSt RPC in:%d", minerID)
 	defer log.Infof("GenerateWindowPoSt RPC out:%d", minerID)
 	napi, err := GetNodeApi()

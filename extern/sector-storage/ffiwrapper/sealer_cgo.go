@@ -65,7 +65,7 @@ func (sb *Sealer) NewSector(ctx context.Context, sector abi.SectorID) error {
 	if database.HasDB() {
 		now := time.Now()
 		seInfo := &database.SectorInfo{
-			ID:         sb.SectorName(sector),
+			ID:         sectorName(sector),
 			MinerId:    fmt.Sprintf("s-t0%d", sector.Miner),
 			UpdateTime: now,
 			State:      -1,
@@ -228,7 +228,7 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector abi.SectorID, offset s
 
 	// implements from hlm
 	repo := sb.sectors.RepoPath()
-	sName := SectorName(sector)
+	sName := storage.SectorName(sector)
 	sPath := stores.SectorPaths{
 		ID:       sector,
 		Unsealed: filepath.Join(repo, "unsealed", sName),
@@ -421,7 +421,7 @@ func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector abi.Se
 	// }
 	// defer done()
 	repo := sb.sectors.RepoPath()
-	sName := SectorName(sector)
+	sName := storage.SectorName(sector)
 	path := stores.SectorPaths{
 		ID:       sector,
 		Unsealed: filepath.Join(repo, "unsealed", sName),

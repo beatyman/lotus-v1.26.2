@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"golang.org/x/xerrors"
 
@@ -13,18 +14,12 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 
 	"go.opencensus.io/trace"
 )
 
-type ProofSectorInfo struct {
-	proof.SectorInfo
-	database.SectorFile
-}
-
-func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	randomness[31] &= 0x3f
 	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
 	if err != nil {
@@ -33,7 +28,7 @@ func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	return ffi.GenerateWinningPoSt(minerID, privsectors, randomness)
 }
 
-func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
+func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
 	randomness[31] &= 0x3f
 	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
 	if err != nil {
@@ -53,7 +48,7 @@ func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	return proof, faultyIDs, err
 }
 
-func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []ProofSectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, error) {
+func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []storage.ProofSectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, error) {
 	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}

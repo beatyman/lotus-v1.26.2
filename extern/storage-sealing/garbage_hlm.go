@@ -39,7 +39,7 @@ func (g *Pledge) PledgeSector(ctx context.Context) ([]abi.PieceInfo, error) {
 
 	log.Infof("Pledge %d, contains %+v", sectorID, existingPieceSizes)
 
-	sb := g.Sealing.sealer.(*sectorstorage.Manager).StorageProver.(*ffiwrapper.Sealer)
+	sb := g.Sealing.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
 	out := make([]abi.PieceInfo, len(sizes))
 	for i, size := range sizes {
 		ppi, err := sb.AddPiece(ctx, sectorID, existingPieceSizes, size, NewNullReader(size))
@@ -74,7 +74,7 @@ func (m *Sealing) PledgeRemoteSector() error {
 			return errors.As(err, sid)
 		}
 
-		sb := m.sealer.(*sectorstorage.Manager).StorageProver.(*ffiwrapper.Sealer)
+		sb := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
 		pieces, err := sb.PledgeSector(sectorID, []abi.UnpaddedPieceSize{size})
 		if err != nil {
 			return errors.As(err)

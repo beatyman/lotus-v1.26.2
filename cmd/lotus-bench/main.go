@@ -27,7 +27,6 @@ import (
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/go-state-types/abi"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
@@ -276,7 +275,7 @@ func action(c *cli.Context, i int) string {
 		}
 
 		var sealTimings []SealingResult
-		var sealedSectors []ffiwrapper.ProofSectorInfo
+		var sealedSectors []storage.ProofSectorInfo
 
 		if robench == "" {
 			var err error
@@ -319,13 +318,13 @@ func action(c *cli.Context, i int) string {
 			}
 
 			for _, s := range genm.Sectors {
-				sealedSectors = append(sealedSectors, ffiwrapper.ProofSectorInfo{
+				sealedSectors = append(sealedSectors, storage.ProofSectorInfo{
 					SectorInfo: proof.SectorInfo{
 						SealedCID:    s.CommR,
 						SectorNumber: s.SectorID,
 						SealProof:    s.ProofType,
 					},
-					SectorFile: database.SectorFile{
+					SectorFile: storage.SectorFile{
 						SectorId:    fmt.Sprintf("s-%s-%d", maddr.String(), s.SectorID),
 						StorageRepo: sbdir,
 					},
@@ -514,10 +513,10 @@ type ParCfg struct {
 	Commit     int
 }
 
-func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par ParCfg, mid abi.ActorID, sectorSize abi.SectorSize, ticketPreimage []byte, saveC2inp string, skipc2, skipunseal bool) ([]SealingResult, []ffiwrapper.ProofSectorInfo, error) {
+func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par ParCfg, mid abi.ActorID, sectorSize abi.SectorSize, ticketPreimage []byte, saveC2inp string, skipc2, skipunseal bool) ([]SealingResult, []storage.ProofSectorInfo, error) {
 	var pieces []abi.PieceInfo
 	sealTimings := make([]SealingResult, numSectors)
-	sealedSectors := make([]ffiwrapper.ProofSectorInfo, numSectors)
+	sealedSectors := make([]storage.ProofSectorInfo, numSectors)
 
 	preCommit2Sema := make(chan struct{}, par.PreCommit2)
 	commitSema := make(chan struct{}, par.Commit)
@@ -587,14 +586,14 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 					precommit2 := time.Now()
 					<-preCommit2Sema
 
-					sealedSectors[ix] = ffiwrapper.ProofSectorInfo{
+					sealedSectors[ix] = storage.ProofSectorInfo{
 						SectorInfo: saproof.SectorInfo{
 							SealProof:    sb.SealProofType(),
 							SectorNumber: i,
 							SealedCID:    cids.Sealed,
 						},
-						SectorFile: database.SectorFile{
-							SectorId:    database.SectorName(sid),
+						SectorFile: storage.SectorFile{
+							SectorId:    storage.SectorName(sid),
 							StorageRepo: sbfs.RepoPath(),
 						},
 					}

@@ -45,7 +45,7 @@ func (m *Sealing) RunPledgeSector() error {
 	}
 	pledgeRunning = true
 
-	sb := m.sealer.(*sectorstorage.Manager).StorageProver.(*ffiwrapper.Sealer)
+	sb := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
 
 	// if task has consumed, auto do the next pledge.
 	sb.SetAddPieceListener(func(t ffiwrapper.WorkerTask) {

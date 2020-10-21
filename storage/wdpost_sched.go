@@ -11,13 +11,13 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/dline"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/node/config"
 
@@ -27,7 +27,7 @@ import (
 type WindowPoStScheduler struct {
 	api              storageMinerApi
 	feeCfg           config.MinerFeeConfig
-	prover           ffiwrapper.StorageProver
+	prover           storage.Prover
 	faultTracker     sectorstorage.FaultTracker
 	proofType        abi.RegisteredPoStProof
 	partitionSectors uint64
@@ -43,7 +43,7 @@ type WindowPoStScheduler struct {
 	// failLk sync.Mutex
 }
 
-func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, sb ffiwrapper.StorageProver, ft sectorstorage.FaultTracker, j journal.Journal, actor address.Address, worker address.Address) (*WindowPoStScheduler, error) {
+func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, sb storage.Prover, ft sectorstorage.FaultTracker, j journal.Journal, actor address.Address, worker address.Address) (*WindowPoStScheduler, error) {
 	mi, err := api.StateMinerInfo(context.TODO(), actor, types.EmptyTSK)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sector size: %w", err)

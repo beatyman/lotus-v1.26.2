@@ -8,6 +8,7 @@ import (
 	"github.com/gwaylib/errors"
 
 	"github.com/filecoin-project/go-bitfield"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -29,7 +30,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 )
 
 func (s *WindowPoStScheduler) failPost(err error, ts *types.TipSet, deadline *dline.Info) {
@@ -196,13 +196,13 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	}
 
 	sectors := make(map[abi.SectorID]struct{})
-	var tocheck []database.SectorFile
+	var tocheck []storage.SectorFile
 	err = check.ForEach(func(snum uint64) error {
 		s := abi.SectorID{
 			Miner:  abi.ActorID(mid),
 			Number: abi.SectorNumber(snum),
 		}
-		sFile, err := database.GetSectorFile(database.SectorName(s))
+		sFile, err := database.GetSectorFile(storage.SectorName(s))
 		if err != nil {
 			return errors.As(err)
 		}
@@ -527,7 +527,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 		for retries := 0; retries < 5; retries++ {
 			var partitions []miner.PoStPartition
-			var sinfos []ffiwrapper.ProofSectorInfo
+			var sinfos []storage.ProofSectorInfo
 			for partIdx, partition := range batch {
 				// TODO: Can do this in parallel
 				toProve, err := bitfield.SubtractBitField(partition.LiveSectors, partition.FaultySectors)
@@ -682,7 +682,7 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]a
 	return batches, nil
 }
 
-func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, allSectors bitfield.BitField, ts *types.TipSet) ([]ffiwrapper.ProofSectorInfo, error) {
+func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, allSectors bitfield.BitField, ts *types.TipSet) ([]storage.ProofSectorInfo, error) {
 	sset, err := s.api.StateMinerSectors(ctx, s.actor, &goodSectors, ts.Key())
 	if err != nil {
 		return nil, err
@@ -707,7 +707,7 @@ func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, 
 		}
 	}
 
-	proofSectors := make([]ffiwrapper.ProofSectorInfo, 0, len(sset))
+	proofSectors := make([]storage.ProofSectorInfo, 0, len(sset))
 	if err := allSectors.ForEach(func(sectorNo uint64) error {
 		sector := substitute
 		if info, found := sectorByID[sectorNo]; found {
@@ -718,11 +718,11 @@ func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, 
 		if err != nil {
 			return err
 		}
-		sFile, err := database.GetSectorFile(database.SectorName(abi.SectorID{Miner: abi.ActorID(mid), Number: abi.SectorNumber(sectorNo)}))
+		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: abi.ActorID(mid), Number: abi.SectorNumber(sectorNo)}))
 		if err != nil {
 			return err
 		}
-		proofSectors = append(proofSectors, ffiwrapper.ProofSectorInfo{SectorInfo: sector, SectorFile: *sFile})
+		proofSectors = append(proofSectors, storage.ProofSectorInfo{SectorInfo: sector, SectorFile: *sFile})
 		return nil
 	}); err != nil {
 		return nil, xerrors.Errorf("iterating partition sector bitmap: %w", err)

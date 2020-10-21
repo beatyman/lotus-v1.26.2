@@ -357,7 +357,7 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector abi.SectorID, keepU
 	}
 }
 
-func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	log.Infof("DEBUG:GenerateWiningPoSt in(remote:%t),%s", sb.remoteCfg.SealSector, minerID)
 	defer log.Infof("DEBUG:GenerateWinningPoSt out,%s", minerID)
 	if sb.remoteCfg.WinningPoSt < 1 {
@@ -438,7 +438,7 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	return res.res.WinningPoStProofOut, err
 }
 
-func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
+func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
 	curSourceId := curSourceID()
 	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s-%d", sb.remoteCfg.SealSector, minerID, curSourceId)
 	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s-%d", minerID, curSourceId)

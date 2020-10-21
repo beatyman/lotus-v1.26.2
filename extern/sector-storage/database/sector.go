@@ -6,10 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
-	"golang.org/x/xerrors"
 )
 
 const (
@@ -21,54 +20,6 @@ const (
 	SECTOR_STATE_DONE   = 200
 	SECTOR_STATE_FAILED = 500
 )
-
-// copy from sector-storage/stores/filetype.go
-func ParseSectorID(baseName string) (abi.SectorID, error) {
-	var n abi.SectorNumber
-	var mid abi.ActorID
-	read, err := fmt.Sscanf(baseName, "s-t0%d-%d", &mid, &n)
-	if err != nil {
-		return abi.SectorID{}, xerrors.Errorf("sscanf sector name ('%s'): %w", baseName, err)
-	}
-
-	if read != 2 {
-		return abi.SectorID{}, xerrors.Errorf("parseSectorID expected to scan 2 values, got %d", read)
-	}
-
-	return abi.SectorID{
-		Miner:  mid,
-		Number: n,
-	}, nil
-}
-
-// copy from sector-storage/stores/filetype.go
-func SectorName(sid abi.SectorID) string {
-	return fmt.Sprintf("s-t0%d-%d", sid.Miner, sid.Number)
-}
-
-type SectorFile struct {
-	SectorId    string
-	StorageRepo string
-}
-
-func (f *SectorFile) SectorID() abi.SectorID {
-	id, err := ParseSectorID(f.SectorId)
-	if err != nil {
-		// should not reach here.
-		panic(err)
-	}
-	return id
-}
-
-func (f *SectorFile) UnsealedFile() string {
-	return filepath.Join(f.StorageRepo, "unsealed", f.SectorId)
-}
-func (f *SectorFile) SealedFile() string {
-	return filepath.Join(f.StorageRepo, "sealed", f.SectorId)
-}
-func (f *SectorFile) CachePath() string {
-	return filepath.Join(f.StorageRepo, "cache", f.SectorId)
-}
 
 type SectorInfo struct {
 	ID         string    `db:"id"` // s-t0101-1
@@ -141,11 +92,11 @@ func GetSectorState(id string) (int, error) {
 	return state, nil
 }
 
-func GetSectorFile(id string) (*SectorFile, error) {
+func GetSectorFile(id string) (*storage.SectorFile, error) {
 	mdb := GetDB()
 	storageId := uint64(0)
 	mountDir := sql.NullString{}
-	if err := mdb.QueryRow("SELECT storage_id FROM sector_info tb1 LEFT JOIN storage_info tb2 on tb1.storage_id=tb2.id WHERE tb1.id=?", id).Scan(
+	if err := mdb.QueryRow("SELECT tb1.storage_id,tb2.mount_dir FROM sector_info tb1 LEFT JOIN storage_info tb2 on tb1.storage_id=tb2.id WHERE tb1.id=?", id).Scan(
 		&storageId,
 		&mountDir,
 	); err != nil {
@@ -154,7 +105,7 @@ func GetSectorFile(id string) (*SectorFile, error) {
 		}
 		return nil, errors.As(err, id)
 	}
-	return &SectorFile{SectorId: id, StorageRepo: filepath.Join(mountDir.String, fmt.Sprintf("%d", storageId))}, nil
+	return &storage.SectorFile{SectorId: id, StorageRepo: filepath.Join(mountDir.String, fmt.Sprintf("%d", storageId))}, nil
 }
 
 type SectorList []SectorInfo
@@ -284,7 +235,7 @@ func CheckWorkingById(sid []string) (WorkingSectors, error) {
 	args := []rune{}
 	for _, s := range sid {
 		// checking sql injection
-		if _, err := ParseSectorID(s); err != nil {
+		if _, err := storage.ParseSectorID(s); err != nil {
 			return sectors, errors.As(err, sid)
 		}
 		args = append(args, []rune(",'")...)
