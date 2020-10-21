@@ -1,11 +1,12 @@
 package database
 
 import (
+	"database/sql"
 	"fmt"
-	"strconv"
-	"strings"
+	"path/filepath"
 	"time"
 
+	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
 )
@@ -58,21 +59,6 @@ func (g StorageStatusSort) Less(i, j int) bool {
 	return g[i].Used < g[j].Used
 }
 
-func SectorID(minerId string, sectorId int64) string {
-	return fmt.Sprintf("s-%s-%d", minerId, sectorId)
-}
-func ParseSectorID(id string) (string, int64, error) {
-	arr := strings.Split(id, "-")
-	if len(arr) != 3 {
-		return "", 0, errors.New("error format id").As(id)
-	}
-	sectorId, err := strconv.ParseInt(arr[2], 10, 64)
-	if err != nil {
-		return "", 0, errors.New("error format of sectorId").As(id)
-	}
-	return arr[1], sectorId, nil
-}
-
 func AddSectorInfo(info *SectorInfo) error {
 	mdb := GetDB()
 	if _, err := database.InsertStruct(mdb, info, "sector_info"); err != nil {
@@ -104,6 +90,22 @@ func GetSectorState(id string) (int, error) {
 		return state, errors.As(err, id)
 	}
 	return state, nil
+}
+
+func GetSectorFile(id string) (*storage.SectorFile, error) {
+	mdb := GetDB()
+	storageId := uint64(0)
+	mountDir := sql.NullString{}
+	if err := mdb.QueryRow("SELECT tb1.storage_id,tb2.mount_dir FROM sector_info tb1 LEFT JOIN storage_info tb2 on tb1.storage_id=tb2.id WHERE tb1.id=?", id).Scan(
+		&storageId,
+		&mountDir,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.ErrNoData.As(id)
+		}
+		return nil, errors.As(err, id)
+	}
+	return &storage.SectorFile{SectorId: id, StorageRepo: filepath.Join(mountDir.String, fmt.Sprintf("%d", storageId))}, nil
 }
 
 type SectorList []SectorInfo
@@ -233,8 +235,7 @@ func CheckWorkingById(sid []string) (WorkingSectors, error) {
 	args := []rune{}
 	for _, s := range sid {
 		// checking sql injection
-		_, _, err := ParseSectorID(s)
-		if err != nil {
+		if _, err := storage.ParseSectorID(s); err != nil {
 			return sectors, errors.As(err, sid)
 		}
 		args = append(args, []rune(",'")...)

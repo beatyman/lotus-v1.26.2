@@ -18,6 +18,6 @@ type WorkerHlmAPI interface {
 	Version(context.Context) (build.Version, error)
 
 	SealCommit2(context.Context, abi.SectorID, storage.Commit1Out) (storage.Proof, error)
-	GenerateWinningPoSt(context.Context, abi.ActorID, []proof.SectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)
-	GenerateWindowPoSt(context.Context, abi.ActorID, []proof.SectorInfo, abi.PoStRandomness) (WindowPoStResp, error)
+	GenerateWinningPoSt(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)
+	GenerateWindowPoSt(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) (WindowPoStResp, error)
 }

@@ -8,14 +8,13 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/exitcode"
 	"github.com/filecoin-project/go-statemachine"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/zerocomm"
-
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 )
 
 const minRetryTime = 1 * time.Minute
@@ -193,7 +192,7 @@ errApiLoop:
 		}
 	}
 
-	log.Infof("checkCommit:%s,%+v", ffiwrapper.SectorName(m.minerSector(sector.SectorNumber)), sector.Proof)
+	log.Infof("checkCommit:%s,%+v", storage.SectorName(m.minerSector(sector.SectorNumber)), sector.Proof)
 	if err := m.checkCommit(ctx.Context(), sector, sector.Proof, tok); err != nil {
 		switch err.(type) {
 		case *ErrApi:

@@ -11,6 +11,7 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
+	"github.com/filecoin-project/specs-storage/storage"
 )
 
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
@@ -50,7 +51,9 @@ func (sm *StorageMinerAPI) HlmSectorListAll(ctx context.Context) ([]api.SectorIn
 	}
 	return out, nil
 }
-
+func (sm *StorageMinerAPI) HlmSectorFile(ctx context.Context, sid string) (*storage.SectorFile, error) {
+	return database.GetSectorFile(sid)
+}
 func (sm *StorageMinerAPI) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).SelectCommit2Service(ctx, sector)
 }

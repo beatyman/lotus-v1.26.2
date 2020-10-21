@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
@@ -123,6 +124,7 @@ type StorageMiner interface {
 	HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error)
 	HlmSectorSetState(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)
 	HlmSectorListAll(context.Context) ([]SectorInfo, error)
+	HlmSectorFile(ctx context.Context, sid string) (*storage.SectorFile, error)
 	SelectCommit2Service(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)
 	UnlockGPUService(ctx context.Context, workerId, taskKey string) error
 	PauseSeal(ctx context.Context, pause int32) error

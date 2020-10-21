@@ -31,6 +31,7 @@ fi
 size=2048
 RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench sealing --storage-dir=/data/cache/.lotus-bench --sector-size=$size &
 #RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench sealing --storage-dir=/data/cache/.lotus-bench --sector-size=$size --hlm-parallel=2 --num-sectors=2
+pid=$!
 
 
 # set ulimit for process

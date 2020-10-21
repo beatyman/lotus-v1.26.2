@@ -27,8 +27,8 @@ type StorageSealer interface {
 }
 
 type Storage interface {
-	storage.Prover
 	StorageSealer
+	storage.Prover
 
 	UnsealPiece(ctx context.Context, sector abi.SectorID, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error
 	ReadPiece(ctx context.Context, writer io.Writer, sector abi.SectorID, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error)

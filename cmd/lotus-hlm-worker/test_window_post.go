@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
+	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
@@ -146,8 +147,8 @@ var testWdPoStCmd = &cli.Command{
 			return errors.As(err)
 		}
 		log.Info("create sinfos")
-		var sinfos []proof.SectorInfo
-		var sectors = []abi.SectorID{}
+		var sinfos []storage.ProofSectorInfo
+		var sectors = []storage.SectorFile{}
 		for partIdx, partition := range partitions {
 			pSector := partition.AllSectors
 			liveCount, err := pSector.Count()
@@ -160,38 +161,45 @@ var testWdPoStCmd = &cli.Command{
 			}
 			fmt.Printf("partition:%d,sectors:%d, sset:%d\n", partIdx, liveCount, len(sset))
 			for _, sector := range sset {
-				sectors = append(sectors, abi.SectorID{
+				sFile, err := minerApi.HlmSectorFile(ctx, storage.SectorName(abi.SectorID{
 					Miner:  abi.ActorID(mid),
 					Number: sector.SectorNumber,
-				})
-				sinfos = append(sinfos, proof.SectorInfo{
-					SectorNumber: sector.SectorNumber,
-					SealedCID:    sector.SealedCID,
-					SealProof:    sector.SealProof,
+				}))
+				if err != nil {
+					return errors.As(err)
+				}
+				sectors = append(sectors, *sFile)
+				sinfos = append(sinfos, storage.ProofSectorInfo{
+					SectorInfo: proof.SectorInfo{
+						SectorNumber: sector.SectorNumber,
+						SealedCID:    sector.SealedCID,
+						SealProof:    sector.SealProof,
+					},
+					SectorFile: *sFile,
 				})
 			}
 		}
 		fmt.Println("Start CheckProvable")
 		start := time.Now()
-		all, bad, err := ffiwrapper.CheckProvable(minerRepo, ssize, sectors, 6*time.Second)
+		all, _, bad, err := ffiwrapper.CheckProvable(ctx, ssize, sectors, 6*time.Second)
 		if err != nil {
 			return errors.As(err)
 		}
 
-		toProvInfo := []proof.SectorInfo{}
+		toProvInfo := []storage.ProofSectorInfo{}
 		for _, val := range all {
 			errStr := "nil"
 			if err := errors.ParseError(val.Err); err != nil {
 				errStr = err.Code()
 			} else {
 				for i, _ := range sectors {
-					if sectors[i].Number == val.ID.Number {
+					if sectors[i].SectorId == val.Sector.SectorId {
 						toProvInfo = append(toProvInfo, sinfos[i])
 						break
 					}
 				}
 			}
-			fmt.Printf("s-t0%d-%d,%d,%s,%+v\n", val.ID.Miner, val.ID.Number, val.Used, val.Used.String(), errStr)
+			fmt.Printf("%s,%d,%s,%+v\n", val.Sector.SectorId, val.Used, val.Used.String(), errStr)
 		}
 		fmt.Printf("used:%s,all:%d, bad:%d,toProve:%d\n", time.Now().Sub(start).String(), len(all), len(bad), len(toProvInfo))
 		//	for _, val := range toProvInfo {
