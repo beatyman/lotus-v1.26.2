@@ -63,6 +63,9 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 	}
 
 	checkBad := func(ctx context.Context, sector storage.SectorFile) error {
+		if len(sector.StorageRepo) == 0 {
+			return errors.New("StorageRepo not found").As(sector)
+		}
 		lp := stores.SectorPaths{
 			ID:       sector.SectorID(),
 			Unsealed: sector.UnsealedFile(),
@@ -91,7 +94,7 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 			// checking data
 			checkDone := make(chan error, 1)
 			go func() {
-				st, err := os.Stat(p)
+				st, err := file.Stat()
 				if err != nil {
 					checkDone <- errors.As(err, p)
 					return

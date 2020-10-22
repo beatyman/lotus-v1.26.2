@@ -197,14 +197,17 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 
 	sectors := make(map[abi.SectorID]struct{})
 	var tocheck []storage.SectorFile
+	var checkNum int
 	err = check.ForEach(func(snum uint64) error {
+		checkNum++
 		s := abi.SectorID{
 			Miner:  abi.ActorID(mid),
 			Number: abi.SectorNumber(snum),
 		}
 		sFile, err := database.GetSectorFile(storage.SectorName(s))
 		if err != nil {
-			return errors.As(err)
+			log.Error(errors.As(err))
+			return nil
 		}
 
 		tocheck = append(tocheck, *sFile)
@@ -228,7 +231,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		}
 	}
 
-	log.Warnw("Checked sectors", "checked", len(tocheck), "good", len(sectors))
+	log.Warnw("Checked sectors", "check", checkNum, "checked", len(tocheck), "good", len(sectors))
 
 	sbf := bitfield.New()
 	for s := range sectors {
