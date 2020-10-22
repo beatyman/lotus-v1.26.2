@@ -247,7 +247,7 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("could not get api info: %w", err)
 		}
-		storageAddr, err := ainfo.DialArgs()
+		storageAddr, err := ainfo.Host()
 		if err != nil {
 			return err
 		}
