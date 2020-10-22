@@ -27,6 +27,7 @@ var hlmSectorCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		getHlmSectorStateCmd,
 		setHlmSectorStateCmd,
+		checkHlmSectorCmd,
 	},
 }
 
@@ -165,7 +166,7 @@ var setHlmSectorStateCmd = &cli.Command{
 		return nil
 	},
 }
-var setHlmSectorCheckCmd = &cli.Command{
+var checkHlmSectorCmd = &cli.Command{
 	Name:  "check",
 	Usage: "checking provable of the sector",
 	Flags: []cli.Flag{
@@ -190,7 +191,7 @@ var setHlmSectorCheckCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("used:%d\n", used)
+		fmt.Printf("used:%s\n", used)
 		return nil
 	},
 }
