@@ -105,6 +105,9 @@ func GetSectorFile(id string) (*storage.SectorFile, error) {
 		}
 		return nil, errors.As(err, id)
 	}
+	if len(mountDir.String) == 0 {
+		return nil, errors.New("storage not found").As(id)
+	}
 	return &storage.SectorFile{SectorId: id, StorageRepo: filepath.Join(mountDir.String, fmt.Sprintf("%d", storageId))}, nil
 }
 

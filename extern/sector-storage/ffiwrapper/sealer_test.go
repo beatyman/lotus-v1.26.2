@@ -171,16 +171,21 @@ func (s *seal) unseal(t *testing.T, sb *Sealer, sp *basicfs.Provider, si abi.Sec
 func post(t *testing.T, sealer *Sealer, skipped []abi.SectorID, seals ...seal) {
 	randomness := abi.PoStRandomness{0, 9, 2, 7, 6, 5, 4, 3, 2, 1, 0, 9, 8, 7, 6, 45, 3, 2, 1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9, 7}
 
+	sectors := make([]storage.ProofSectorInfo, len(seals))
 	sis := make([]saproof.SectorInfo, len(seals))
 	for i, s := range seals {
-		sis[i] = saproof.SectorInfo{
+		p := saproof.SectorInfo{
 			SealProof:    sealProofType,
 			SectorNumber: s.id.Number,
 			SealedCID:    s.cids.Sealed,
 		}
+		sectors[i] = storage.ProofSectorInfo{
+			SectorInfo: p,
+		}
+		sis[i] = p
 	}
 
-	proofs, skp, err := sealer.GenerateWindowPoSt(context.TODO(), seals[0].id.Miner, sis, randomness)
+	proofs, skp, err := sealer.GenerateWindowPoSt(context.TODO(), seals[0].id.Miner, sectors, randomness)
 	if len(skipped) > 0 {
 		require.Error(t, err)
 		require.EqualValues(t, skipped, skp)
@@ -271,7 +276,7 @@ func TestSealAndVerify(t *testing.T) {
 	sp := &basicfs.Provider{
 		Root: cdir,
 	}
-	sb, err := New(false, sp, cfg)
+	sb, err := New(RemoteCfg{}, sp, cfg)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -344,7 +349,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 	sp := &basicfs.Provider{
 		Root: dir,
 	}
-	sb, err := New(false, sp, cfg)
+	sb, err := New(RemoteCfg{}, sp, cfg)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -409,7 +414,7 @@ func TestSealAndVerify3(t *testing.T) {
 	sp := &basicfs.Provider{
 		Root: dir,
 	}
-	sb, err := New(false, sp, cfg)
+	sb, err := New(RemoteCfg{}, sp, cfg)
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
