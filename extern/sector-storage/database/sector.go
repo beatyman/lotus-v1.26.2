@@ -92,7 +92,14 @@ func GetSectorState(id string) (int, error) {
 	return state, nil
 }
 
-func GetSectorFile(id string) (*storage.SectorFile, error) {
+func GetSectorFile(id, defaultRepo string) (*storage.SectorFile, error) {
+	if !HasDB() {
+		return &storage.SectorFile{
+			SectorId:    id,
+			StorageRepo: defaultRepo,
+		}, nil
+	}
+
 	mdb := GetDB()
 	storageId := uint64(0)
 	mountDir := sql.NullString{}
@@ -100,10 +107,16 @@ func GetSectorFile(id string) (*storage.SectorFile, error) {
 		&storageId,
 		&mountDir,
 	); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, errors.ErrNoData.As(id)
+		if err != sql.ErrNoRows {
+			return nil, errors.As(err, id)
 		}
-		return nil, errors.As(err, id)
+
+		// sector not found in db, return default.
+		return &storage.SectorFile{
+			SectorId:    id,
+			StorageRepo: defaultRepo,
+		}, nil
+
 	}
 	if len(mountDir.String) == 0 {
 		return nil, errors.New("storage not found").As(id)

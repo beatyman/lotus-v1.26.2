@@ -29,7 +29,9 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
+	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 )
 
 func (s *WindowPoStScheduler) failPost(err error, ts *types.TipSet, deadline *dline.Info) {
@@ -194,6 +196,17 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	if err != nil {
 		return bitfield.BitField{}, err
 	}
+	repo := ""
+	sm, ok := s.prover.(*sectorstorage.Manager)
+	if ok {
+		sb, ok := sm.Prover.(*ffiwrapper.Sealer)
+		if ok {
+			repo = sb.RepoPath()
+		}
+	}
+	if len(repo) == 0 {
+		log.Warn("not found default repo")
+	}
 
 	sectors := make(map[abi.SectorID]struct{})
 	var tocheck []storage.SectorFile
@@ -204,7 +217,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 			Miner:  abi.ActorID(mid),
 			Number: abi.SectorNumber(snum),
 		}
-		sFile, err := database.GetSectorFile(storage.SectorName(s))
+		sFile, err := database.GetSectorFile(storage.SectorName(s), repo)
 		if err != nil {
 			log.Warn(errors.As(err))
 			return nil
@@ -714,13 +727,24 @@ func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, 
 	if err != nil {
 		return nil, err
 	}
+	repo := ""
+	sm, ok := s.prover.(*sectorstorage.Manager)
+	if ok {
+		sb, ok := sm.Prover.(*ffiwrapper.Sealer)
+		if ok {
+			repo = sb.RepoPath()
+		}
+	}
+	if len(repo) == 0 {
+		log.Warn("not found default repo")
+	}
 	proofSectors := make([]storage.ProofSectorInfo, 0, len(sset))
 	if err := allSectors.ForEach(func(sectorNo uint64) error {
 		sector := substitute
 		if info, found := sectorByID[sectorNo]; found {
 			sector = info
 		}
-		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: abi.ActorID(mid), Number: sector.SectorNumber}))
+		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: abi.ActorID(mid), Number: sector.SectorNumber}), repo)
 		if err != nil {
 			log.Warn(errors.As(err))
 			return nil
