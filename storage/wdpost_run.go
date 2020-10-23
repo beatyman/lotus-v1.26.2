@@ -206,7 +206,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		}
 		sFile, err := database.GetSectorFile(storage.SectorName(s))
 		if err != nil {
-			log.Error(errors.As(err))
+			log.Warn(errors.As(err))
 			return nil
 		}
 
@@ -710,20 +710,20 @@ func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, 
 		}
 	}
 
+	mid, err := address.IDFromAddress(s.actor)
+	if err != nil {
+		return nil, err
+	}
 	proofSectors := make([]storage.ProofSectorInfo, 0, len(sset))
 	if err := allSectors.ForEach(func(sectorNo uint64) error {
 		sector := substitute
 		if info, found := sectorByID[sectorNo]; found {
 			sector = info
 		}
-
-		mid, err := address.IDFromAddress(s.actor)
+		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: abi.ActorID(mid), Number: sector.SectorNumber}))
 		if err != nil {
-			return err
-		}
-		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: abi.ActorID(mid), Number: abi.SectorNumber(sectorNo)}))
-		if err != nil {
-			return err
+			log.Warn(errors.As(err))
+			return nil
 		}
 		proofSectors = append(proofSectors, storage.ProofSectorInfo{SectorInfo: sector, SectorFile: *sFile})
 		return nil
