@@ -53,10 +53,12 @@ func (sm *StorageMinerAPI) HlmSectorListAll(ctx context.Context) ([]api.SectorIn
 	return out, nil
 }
 func (sm *StorageMinerAPI) HlmSectorFile(ctx context.Context, sid string) (*storage.SectorFile, error) {
-	return database.GetSectorFile(sid)
+	// TODO: need to set default repo?
+	return database.GetSectorFile(sid, "")
 }
 func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error) {
-	file, err := database.GetSectorFile(sid)
+	// TODO: need to set default repo?
+	file, err := database.GetSectorFile(sid, "")
 	if err != nil {
 		return 0, errors.As(err)
 	}

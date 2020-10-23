@@ -264,6 +264,17 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []proof0.SectorInfo
 	pFiles := []storage.ProofSectorInfo{}
 	sFiles := []storage.SectorFile{}
 	ssize := abi.SectorSize(0) // undefined.
+	repo := ""
+	sm, ok := wpp.prover.(*sectorstorage.Manager)
+	if ok {
+		sb, ok := sm.Prover.(*ffiwrapper.Sealer)
+		if ok {
+			repo = sb.RepoPath()
+		}
+	}
+	if len(repo) == 0 {
+		log.Warn("not found default repo")
+	}
 	for _, s := range ssi {
 		size, err := s.SealProof.SectorSize()
 		if err != nil {
@@ -275,7 +286,7 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []proof0.SectorInfo
 		if size != ssize {
 			log.Error(errors.New("ssize not match in the same miner").As(wpp.miner, s.SectorNumber, size, ssize))
 		}
-		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}))
+		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}), repo)
 		if err != nil {
 			return nil, err
 		}

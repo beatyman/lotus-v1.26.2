@@ -7,6 +7,7 @@ import (
 	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"golang.org/x/xerrors"
 
@@ -103,7 +104,7 @@ var terminateSectorCmd = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := nodeApi.MpoolPushMessage(ctx, &types.Message{
+		smsg, err := nodeApi.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: builtin.MethodsMiner.TerminateSectors,
