@@ -15,33 +15,16 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-func SectorName(sid abi.SectorID) string {
-	return fmt.Sprintf("s-t0%d-%d", sid.Miner, sid.Number)
+func sectorName(sid abi.SectorID) string {
+	return storage.SectorName(sid)
 }
-func SectorID(sid string) abi.SectorID {
-	id, err := ParseSectorID(sid)
+
+func sectorID(sid string) abi.SectorID {
+	id, err := storage.ParseSectorID(sid)
 	if err != nil {
 		panic(err)
 	}
 	return id
-}
-func ParseSectorID(sid string) (abi.SectorID, error) {
-	ids := strings.Split(sid[4:], "-")
-	if len(ids) != 2 {
-		return abi.SectorID{}, errors.New("error id format").As(sid)
-	}
-	minerId, err := strconv.ParseUint(ids[0], 10, 64)
-	if err != nil {
-		return abi.SectorID{}, errors.New("error id format").As(sid)
-	}
-	sectorId, err := strconv.ParseUint(ids[1], 10, 64)
-	if err != nil {
-		return abi.SectorID{}, errors.New("error id format").As(sid)
-	}
-	return abi.SectorID{
-		Miner:  abi.ActorID(minerId),
-		Number: abi.SectorNumber(sectorId),
-	}, nil
 }
 
 const (
@@ -191,7 +174,7 @@ type WorkerTask struct {
 	Commit1Out storage.Commit1Out
 
 	// winning PoSt
-	SectorInfo []proof.SectorInfo
+	SectorInfo []storage.ProofSectorInfo
 	Randomness abi.PoStRandomness
 
 	// window PoSt
@@ -218,7 +201,7 @@ func (w *WorkerTask) Key() string {
 }
 
 func (w *WorkerTask) GetSectorID() string {
-	return SectorName(w.SectorID)
+	return storage.SectorName(w.SectorID)
 }
 
 type workerCall struct {
@@ -440,7 +423,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 				// if no data in busy, restore from db, and waitting retry from storage-fsm
 				r.busyOnTasks[wTask.ID] = WorkerTask{
 					Type:     WorkerTaskType(wTask.State + 1),
-					SectorID: abi.SectorID(SectorID(wTask.ID)),
+					SectorID: abi.SectorID(sectorID(wTask.ID)),
 					WorkerID: wTask.WorkerId,
 					// others not implement yet, it should be update by doSealTask()
 				}

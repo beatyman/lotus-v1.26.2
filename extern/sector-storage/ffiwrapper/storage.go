@@ -9,20 +9,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
 )
 
-func (sb *Sealer) SectorName(sid abi.SectorID) string {
-	return SectorName(sid)
-}
 func (sb *Sealer) SectorPath(typ, sid string) string {
 	return filepath.Join(sb.sectors.RepoPath(), typ, sid)
 }
 
 func (sb *Sealer) MakeLink(task *WorkerTask) error {
-	sectorName := sb.SectorName(task.SectorID)
+	sectorName := sectorName(task.SectorID)
 
 	// get path
 	newCacheFile := sb.SectorPath("cache", sectorName)

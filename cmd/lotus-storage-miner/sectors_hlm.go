@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -26,6 +27,7 @@ var hlmSectorCmd = &cli.Command{
 	Subcommands: []*cli.Command{
 		getHlmSectorStateCmd,
 		setHlmSectorStateCmd,
+		checkHlmSectorCmd,
 	},
 }
 
@@ -161,6 +163,35 @@ var setHlmSectorStateCmd = &cli.Command{
 			return err
 		}
 		fmt.Println(string(output))
+		return nil
+	},
+}
+var checkHlmSectorCmd = &cli.Command{
+	Name:  "check",
+	Usage: "checking provable of the sector",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:  "timeout",
+			Usage: "the unit is second",
+			Value: 6,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		sid := cctx.Args().First()
+		if len(sid) == 0 {
+			return errors.New("need input sector-id(s-t0xxxx-xxx")
+		}
+		used, err := nodeApi.HlmSectorCheck(ctx, sid, time.Duration(cctx.Int64("timeout"))*time.Second)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("used:%s\n", used)
 		return nil
 	},
 }

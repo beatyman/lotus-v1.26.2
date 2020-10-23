@@ -11,6 +11,8 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
+	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/gwaylib/errors"
 )
 
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
@@ -49,6 +51,27 @@ func (sm *StorageMinerAPI) HlmSectorListAll(ctx context.Context) ([]api.SectorIn
 		})
 	}
 	return out, nil
+}
+func (sm *StorageMinerAPI) HlmSectorFile(ctx context.Context, sid string) (*storage.SectorFile, error) {
+	return database.GetSectorFile(sid)
+}
+func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error) {
+	file, err := database.GetSectorFile(sid)
+	if err != nil {
+		return 0, errors.As(err)
+	}
+	ssize := sm.StorageMgr.Prover.(*ffiwrapper.Sealer).SectorSize()
+	all, _, _, err := ffiwrapper.CheckProvable(ctx, ssize, []storage.SectorFile{*file}, timeout)
+	if err != nil {
+		return 0, errors.As(err)
+	}
+	if len(all) != 1 {
+		return 0, errors.New("unexpect return").As(sid, timeout, len(all))
+	}
+	if all[0].Err != nil {
+		return 0, errors.As(all[0].Err)
+	}
+	return all[0].Used, nil
 }
 
 func (sm *StorageMinerAPI) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {

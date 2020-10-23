@@ -363,6 +363,7 @@ func SetupBlockProducer(lc fx.Lifecycle, ds dtypes.MetadataDS, api lapi.FullNode
 		return nil, err
 	}
 
+	log.Info("DEBUG:SetupBlockProducer")
 	m := miner.NewMiner(api, epp, minerAddr, sf, j)
 
 	lc.Append(fx.Hook{

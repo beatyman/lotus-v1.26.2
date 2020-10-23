@@ -14,9 +14,9 @@ type WorkerHlmStruct struct {
 	Internal struct {
 		Version func(context.Context) (build.Version, error) `perm:"read"`
 
-		SealCommit2         func(context.Context, abi.SectorID, storage.Commit1Out) (storage.Proof, error)                         `perm:"admin"`
-		GenerateWinningPoSt func(context.Context, abi.ActorID, []proof.SectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)  `perm:"admin"`
-		GenerateWindowPoSt  func(context.Context, abi.ActorID, []proof.SectorInfo, abi.PoStRandomness) (api.WindowPoStResp, error) `perm:"admin"`
+		SealCommit2         func(context.Context, abi.SectorID, storage.Commit1Out) (storage.Proof, error)                                `perm:"admin"`
+		GenerateWinningPoSt func(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)  `perm:"admin"`
+		GenerateWindowPoSt  func(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) (api.WindowPoStResp, error) `perm:"admin"`
 	}
 }
 
@@ -28,9 +28,11 @@ func (w *WorkerHlmStruct) SealCommit2(ctx context.Context, sector abi.SectorID, 
 	return w.Internal.SealCommit2(ctx, sector, commit1Out)
 }
 
-func (w *WorkerHlmStruct) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.SectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+func (w *WorkerHlmStruct) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	return w.Internal.GenerateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 }
-func (w *WorkerHlmStruct) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.SectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
+func (w *WorkerHlmStruct) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
 	return w.Internal.GenerateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 }
+
+var _ api.WorkerHlmAPI = &WorkerHlmStruct{}

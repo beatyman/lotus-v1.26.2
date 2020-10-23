@@ -108,7 +108,7 @@ func newTestMgr(ctx context.Context, t *testing.T) (*Manager, *stores.Local, *st
 
 		sched: newScheduler(cfg.SealProofType),
 
-		Prover: prover,
+		StorageProver: prover,
 	}
 
 	go m.sched.runSched()

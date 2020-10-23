@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	saproof "github.com/filecoin-project/specs-actors/actors/runtime/proof"
 
 	"github.com/docker/go-units"
@@ -274,7 +275,7 @@ func action(c *cli.Context, i int) string {
 		}
 
 		var sealTimings []SealingResult
-		var sealedSectors []saproof.SectorInfo
+		var sealedSectors []storage.ProofSectorInfo
 
 		if robench == "" {
 			var err error
@@ -317,10 +318,16 @@ func action(c *cli.Context, i int) string {
 			}
 
 			for _, s := range genm.Sectors {
-				sealedSectors = append(sealedSectors, saproof.SectorInfo{
-					SealedCID:    s.CommR,
-					SectorNumber: s.SectorID,
-					SealProof:    s.ProofType,
+				sealedSectors = append(sealedSectors, storage.ProofSectorInfo{
+					SectorInfo: proof.SectorInfo{
+						SealedCID:    s.CommR,
+						SectorNumber: s.SectorID,
+						SealProof:    s.ProofType,
+					},
+					SectorFile: storage.SectorFile{
+						SectorId:    fmt.Sprintf("s-%s-%d", maddr.String(), s.SectorID),
+						StorageRepo: sbdir,
+					},
 				})
 			}
 		}
@@ -342,15 +349,19 @@ func action(c *cli.Context, i int) string {
 				return err.Error()
 			}
 
+			challengeSectors := make([]saproof.SectorInfo, len(sealedSectors))
+			for i := 0; i < len(sealedSectors); i++ {
+				challengeSectors[i] = sealedSectors[i].SectorInfo
+			}
 			candidates := make([]saproof.SectorInfo, len(fcandidates))
 			for i, fcandidate := range fcandidates {
-				candidates[i] = sealedSectors[fcandidate]
+				candidates[i] = sealedSectors[fcandidate].SectorInfo
 			}
 
 			gencandidates := time.Now()
 
 			log.Info("computing winning post snark (cold)")
-			proof1, err := sb.GenerateWinningPoSt(context.TODO(), mid, candidates, challenge[:])
+			proof1, err := sb.GenerateWinningPoSt(context.TODO(), mid, sealedSectors, challenge[:])
 			if err != nil {
 				return err.Error()
 			}
@@ -358,7 +369,7 @@ func action(c *cli.Context, i int) string {
 			winningpost1 := time.Now()
 
 			log.Info("computing winning post snark (hot)")
-			proof2, err := sb.GenerateWinningPoSt(context.TODO(), mid, candidates, challenge[:])
+			proof2, err := sb.GenerateWinningPoSt(context.TODO(), mid, sealedSectors, challenge[:])
 			if err != nil {
 				return err.Error()
 			}
@@ -368,7 +379,7 @@ func action(c *cli.Context, i int) string {
 			pvi1 := saproof.WinningPoStVerifyInfo{
 				Randomness:        abi.PoStRandomness(challenge[:]),
 				Proofs:            proof1,
-				ChallengedSectors: candidates,
+				ChallengedSectors: challengeSectors,
 				Prover:            mid,
 			}
 			ok, err := ffiwrapper.ProofVerifier.VerifyWinningPoSt(context.TODO(), pvi1)
@@ -384,7 +395,7 @@ func action(c *cli.Context, i int) string {
 			pvi2 := saproof.WinningPoStVerifyInfo{
 				Randomness:        abi.PoStRandomness(challenge[:]),
 				Proofs:            proof2,
-				ChallengedSectors: candidates,
+				ChallengedSectors: challengeSectors,
 				Prover:            mid,
 			}
 
@@ -416,7 +427,7 @@ func action(c *cli.Context, i int) string {
 			wpvi1 := saproof.WindowPoStVerifyInfo{
 				Randomness:        challenge[:],
 				Proofs:            wproof1,
-				ChallengedSectors: sealedSectors,
+				ChallengedSectors: challengeSectors,
 				Prover:            mid,
 			}
 			ok, err = ffiwrapper.ProofVerifier.VerifyWindowPoSt(context.TODO(), wpvi1)
@@ -432,7 +443,7 @@ func action(c *cli.Context, i int) string {
 			wpvi2 := saproof.WindowPoStVerifyInfo{
 				Randomness:        challenge[:],
 				Proofs:            wproof2,
-				ChallengedSectors: sealedSectors,
+				ChallengedSectors: candidates,
 				Prover:            mid,
 			}
 			ok, err = ffiwrapper.ProofVerifier.VerifyWindowPoSt(context.TODO(), wpvi2)
@@ -502,10 +513,10 @@ type ParCfg struct {
 	Commit     int
 }
 
-func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par ParCfg, mid abi.ActorID, sectorSize abi.SectorSize, ticketPreimage []byte, saveC2inp string, skipc2, skipunseal bool) ([]SealingResult, []saproof.SectorInfo, error) {
+func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par ParCfg, mid abi.ActorID, sectorSize abi.SectorSize, ticketPreimage []byte, saveC2inp string, skipc2, skipunseal bool) ([]SealingResult, []storage.ProofSectorInfo, error) {
 	var pieces []abi.PieceInfo
 	sealTimings := make([]SealingResult, numSectors)
-	sealedSectors := make([]saproof.SectorInfo, numSectors)
+	sealedSectors := make([]storage.ProofSectorInfo, numSectors)
 
 	preCommit2Sema := make(chan struct{}, par.PreCommit2)
 	commitSema := make(chan struct{}, par.Commit)
@@ -575,10 +586,16 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 					precommit2 := time.Now()
 					<-preCommit2Sema
 
-					sealedSectors[ix] = saproof.SectorInfo{
-						SealProof:    sb.SealProofType(),
-						SectorNumber: i,
-						SealedCID:    cids.Sealed,
+					sealedSectors[ix] = storage.ProofSectorInfo{
+						SectorInfo: saproof.SectorInfo{
+							SealProof:    sb.SealProofType(),
+							SectorNumber: i,
+							SealedCID:    cids.Sealed,
+						},
+						SectorFile: storage.SectorFile{
+							SectorId:    storage.SectorName(sid),
+							StorageRepo: sbfs.RepoPath(),
+						},
 					}
 
 					seed := lapi.SealSeed{
