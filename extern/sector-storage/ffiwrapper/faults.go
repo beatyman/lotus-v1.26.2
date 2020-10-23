@@ -86,15 +86,10 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 		addCachePathsForSectorSize(toCheck, lp.Cache, ssize)
 
 		for p, sz := range toCheck {
-			file, err := os.Open(p)
-			if err != nil {
-				return errors.As(err, p)
-			}
-			defer file.Close()
 			// checking data
 			checkDone := make(chan error, 1)
 			go func() {
-				st, err := file.Stat()
+				st, err := os.Stat(p)
 				if err != nil {
 					checkDone <- errors.As(err, p)
 					return
