@@ -4,18 +4,22 @@ import (
 	"fmt"
 	"strconv"
 
+	"golang.org/x/xerrors"
+
 	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
+	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
+
+	"github.com/filecoin-project/lotus/chain/actors"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/specs-actors/actors/builtin"
-	miner0 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
-	"github.com/urfave/cli/v2"
 )
 
 var sectorsCmd = &cli.Command{
@@ -70,7 +74,7 @@ var terminateSectorCmd = &cli.Command{
 			return err
 		}
 
-		terminationDeclarationParams := []miner0.TerminationDeclaration{}
+		terminationDeclarationParams := []miner2.TerminationDeclaration{}
 
 		for _, sn := range cctx.Args().Slice() {
 			sectorNum, err := strconv.ParseUint(sn, 10, 64)
@@ -86,7 +90,7 @@ var terminateSectorCmd = &cli.Command{
 				return fmt.Errorf("get state sector partition %s", err)
 			}
 
-			para := miner0.TerminationDeclaration{
+			para := miner2.TerminationDeclaration{
 				Deadline:  loca.Deadline,
 				Partition: loca.Partition,
 				Sectors:   sectorbit,
@@ -95,7 +99,7 @@ var terminateSectorCmd = &cli.Command{
 			terminationDeclarationParams = append(terminationDeclarationParams, para)
 		}
 
-		terminateSectorParams := &miner0.TerminateSectorsParams{
+		terminateSectorParams := &miner2.TerminateSectorsParams{
 			Terminations: terminationDeclarationParams,
 		}
 
@@ -107,7 +111,7 @@ var terminateSectorCmd = &cli.Command{
 		smsg, err := nodeApi.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
-			Method: builtin.MethodsMiner.TerminateSectors,
+			Method: miner.Methods.TerminateSectors,
 
 			Value:  big.Zero(),
 			Params: sp,
