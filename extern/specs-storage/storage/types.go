@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	proof "github.com/filecoin-project/specs-actors/actors/runtime/proof"
+	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
 	"golang.org/x/xerrors"
 )
 
@@ -58,6 +58,6 @@ func (f *SectorFile) CachePath() string {
 }
 
 type ProofSectorInfo struct {
-	proof.SectorInfo
+	proof2.SectorInfo
 	SectorFile
 }

@@ -12,12 +12,12 @@ import (
 
 // FaultTracker TODO: Track things more actively
 type FaultTracker interface {
-	CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []storage.SectorFile, timeout time.Duration) (all []ffiwrapper.ProvableStat, good []ffiwrapper.ProvableStat, bad []ffiwrapper.ProvableStat, err error)
+	CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorFile, timeout time.Duration) (all []ffiwrapper.ProvableStat, good []ffiwrapper.ProvableStat, bad []ffiwrapper.ProvableStat, err error)
 }
 
 // CheckProvable returns unprovable sectors
-func (m *Manager) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []storage.SectorFile, timeout time.Duration) ([]ffiwrapper.ProvableStat, []ffiwrapper.ProvableStat, []ffiwrapper.ProvableStat, error) {
-	ssize, err := spt.SectorSize()
+func (m *Manager) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorFile, timeout time.Duration) ([]ffiwrapper.ProvableStat, []ffiwrapper.ProvableStat, []ffiwrapper.ProvableStat, error) {
+	ssize, err := pp.SectorSize()
 	if err != nil {
 		return nil, nil, nil, err
 	}

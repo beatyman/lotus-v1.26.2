@@ -13,8 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
-	saproof "github.com/filecoin-project/specs-actors/actors/runtime/proof"
+	saproof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
 
 	"github.com/docker/go-units"
 	logging "github.com/ipfs/go-log/v2"
@@ -319,7 +318,7 @@ func action(c *cli.Context, i int) string {
 
 			for _, s := range genm.Sectors {
 				sealedSectors = append(sealedSectors, storage.ProofSectorInfo{
-					SectorInfo: proof.SectorInfo{
+					SectorInfo: saproof2.SectorInfo{
 						SealedCID:    s.CommR,
 						SectorNumber: s.SectorID,
 						SealProof:    s.ProofType,
@@ -349,11 +348,11 @@ func action(c *cli.Context, i int) string {
 				return err.Error()
 			}
 
-			challengeSectors := make([]saproof.SectorInfo, len(sealedSectors))
+			challengeSectors := make([]saproof2.SectorInfo, len(sealedSectors))
 			for i := 0; i < len(sealedSectors); i++ {
 				challengeSectors[i] = sealedSectors[i].SectorInfo
 			}
-			candidates := make([]saproof.SectorInfo, len(fcandidates))
+			candidates := make([]saproof2.SectorInfo, len(fcandidates))
 			for i, fcandidate := range fcandidates {
 				candidates[i] = sealedSectors[fcandidate].SectorInfo
 			}
@@ -376,7 +375,7 @@ func action(c *cli.Context, i int) string {
 
 			winnningpost2 := time.Now()
 
-			pvi1 := saproof.WinningPoStVerifyInfo{
+			pvi1 := saproof2.WinningPoStVerifyInfo{
 				Randomness:        abi.PoStRandomness(challenge[:]),
 				Proofs:            proof1,
 				ChallengedSectors: challengeSectors,
@@ -392,7 +391,7 @@ func action(c *cli.Context, i int) string {
 
 			verifyWinningPost1 := time.Now()
 
-			pvi2 := saproof.WinningPoStVerifyInfo{
+			pvi2 := saproof2.WinningPoStVerifyInfo{
 				Randomness:        abi.PoStRandomness(challenge[:]),
 				Proofs:            proof2,
 				ChallengedSectors: challengeSectors,
@@ -424,7 +423,7 @@ func action(c *cli.Context, i int) string {
 
 			windowpost2 := time.Now()
 
-			wpvi1 := saproof.WindowPoStVerifyInfo{
+			wpvi1 := saproof2.WindowPoStVerifyInfo{
 				Randomness:        challenge[:],
 				Proofs:            wproof1,
 				ChallengedSectors: challengeSectors,
@@ -440,7 +439,7 @@ func action(c *cli.Context, i int) string {
 
 			verifyWindowpost1 := time.Now()
 
-			wpvi2 := saproof.WindowPoStVerifyInfo{
+			wpvi2 := saproof2.WindowPoStVerifyInfo{
 				Randomness:        challenge[:],
 				Proofs:            wproof2,
 				ChallengedSectors: candidates,
@@ -587,7 +586,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 					<-preCommit2Sema
 
 					sealedSectors[ix] = storage.ProofSectorInfo{
-						SectorInfo: saproof.SectorInfo{
+						SectorInfo: saproof2.SectorInfo{
 							SealProof:    sb.SealProofType(),
 							SectorNumber: i,
 							SealedCID:    cids.Sealed,
@@ -644,7 +643,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 					<-commitSema
 
 					if !skipc2 {
-						svi := saproof.SealVerifyInfo{
+						svi := saproof2.SealVerifyInfo{
 							SectorID:              abi.SectorID{Miner: mid, Number: i},
 							SealedCID:             cids.Sealed,
 							SealProof:             sb.SealProofType(),

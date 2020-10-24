@@ -5,7 +5,7 @@ package ffiwrapper
 import (
 	"context"
 
-	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
+	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"golang.org/x/xerrors"
@@ -19,7 +19,7 @@ import (
 	"go.opencensus.io/trace"
 )
 
-func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, error) {
 	randomness[31] &= 0x3f
 	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
 	if err != nil {
@@ -28,7 +28,7 @@ func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	return ffi.GenerateWinningPoSt(minerID, privsectors, randomness)
 }
 
-func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
+func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, []abi.SectorID, error) {
 	randomness[31] &= 0x3f
 	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
 	if err != nil {
@@ -89,11 +89,11 @@ type proofVerifier struct{}
 
 var ProofVerifier = proofVerifier{}
 
-func (proofVerifier) VerifySeal(info proof.SealVerifyInfo) (bool, error) {
+func (proofVerifier) VerifySeal(info proof2.SealVerifyInfo) (bool, error) {
 	return ffi.VerifySeal(info)
 }
 
-func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info proof.WinningPoStVerifyInfo) (bool, error) {
+func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info proof2.WinningPoStVerifyInfo) (bool, error) {
 	info.Randomness[31] &= 0x3f
 	_, span := trace.StartSpan(ctx, "VerifyWinningPoSt")
 	defer span.End()
@@ -101,7 +101,7 @@ func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info proof.WinningPo
 	return ffi.VerifyWinningPoSt(info)
 }
 
-func (proofVerifier) VerifyWindowPoSt(ctx context.Context, info proof.WindowPoStVerifyInfo) (bool, error) {
+func (proofVerifier) VerifyWindowPoSt(ctx context.Context, info proof2.WindowPoStVerifyInfo) (bool, error) {
 	info.Randomness[31] &= 0x3f
 	_, span := trace.StartSpan(ctx, "VerifyWindowPoSt")
 	defer span.End()
