@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gwaylib/errors"
@@ -68,6 +69,8 @@ func (s *WindowPoStScheduler) recordProofsEvent(partitions []miner.PoStPartition
 	})
 }
 
+var runningIndex = sync.Map{}
+
 // startGeneratePoST kicks off the process of generating a PoST
 func (s *WindowPoStScheduler) startGeneratePoST(
 	ctx context.Context,
@@ -78,6 +81,15 @@ func (s *WindowPoStScheduler) startGeneratePoST(
 	ctx, abort := context.WithCancel(ctx)
 	go func() {
 		defer abort()
+
+		// checking does it in running.
+		_, ok := runningIndex.Load(deadline.Index)
+		if ok {
+			log.Infof("deadline has ran:%d", deadline.Index)
+			return
+		}
+		runningIndex.Store(deadline.Index, deadline)
+		defer runningIndex.Delete(deadline.Index)
 
 		s.journal.RecordEvent(s.evtTypes[evtTypeWdPoStScheduler], func() interface{} {
 			return WdPoStSchedulerEvt{
