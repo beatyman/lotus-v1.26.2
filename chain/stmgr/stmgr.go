@@ -270,6 +270,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 			CircSupplyCalc: sm.GetVMCirculatingSupply,
 			NtwkVersion:    sm.GetNtwkVersion,
 			BaseFee:        baseFee,
+			LookbackState:  LookbackStateGetterForTipset(sm, ts),
 		}
 
 		return sm.newVM(ctx, vmopt)
