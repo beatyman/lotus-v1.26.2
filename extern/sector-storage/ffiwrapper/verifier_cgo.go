@@ -4,6 +4,7 @@ package ffiwrapper
 
 import (
 	"context"
+	"time"
 
 	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
@@ -33,6 +34,13 @@ func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("gathering sector info: %w", err)
+	}
+
+	// delay for 2k testing
+	if sb.ssize == 2048 {
+		delay := 6 * time.Minute
+		log.Warnf("delay for 2k testing:%s", delay)
+		time.Sleep(delay)
 	}
 
 	proof, faulty, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
