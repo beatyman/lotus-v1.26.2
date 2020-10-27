@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
@@ -120,6 +123,7 @@ func main() {
 
 	local := []*cli.Command{
 		runCmd,
+		p1Cmd,
 		testCmd,
 	}
 
@@ -364,7 +368,7 @@ var runCmd = &cli.Command{
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}
-		if workerCfg.WdPoStSrv || workerCfg.WdPoStSrv {
+		if workerCfg.WdPoStSrv || workerCfg.WnPoStSrv {
 			if err := workerApi.loadMinerStorage(ctx, nodeApi); err != nil {
 				return errors.As(err)
 			}
@@ -407,7 +411,7 @@ var runCmd = &cli.Command{
 		if err := acceptJobs(ctx,
 			workerSealer, sealedSB,
 			workerApi,
-			uint64(ssize), act, workerAddr,
+			ssize, act, workerAddr,
 			storageAddr, ainfo.AuthHeader(),
 			r, sealedRepo, sealedMountedFile,
 			workerCfg,
@@ -420,6 +424,66 @@ var runCmd = &cli.Command{
 			ReleaseNodeApi(true)
 		}
 		log.Info("worker exit")
+		return nil
+	},
+}
+var p1Cmd = &cli.Command{
+	Name:  "precommit1",
+	Usage: "run precommit1 in process",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "miner-repo",
+			EnvVars: []string{"LOTUS_MINER_PATH", "LOTUS_STORAGE_PATH"},
+			Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
+		},
+		&cli.Uint64Flag{
+			Name:  "ssize",
+			Value: 2048,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		ctx, cancel := context.WithCancel(lcli.ReqContext(cctx))
+		defer cancel()
+
+		minerRepo, err := homedir.Expand(cctx.String("miner-repo"))
+		if err != nil {
+			return errors.As(err)
+		}
+		ssize := abi.SectorSize(cctx.Uint64("ssize"))
+		spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
+		if err != nil {
+			return errors.As(err)
+		}
+
+		input := ""
+		if _, err := fmt.Scanln(&input); err != nil {
+			return errors.As(err)
+		}
+		task := ffiwrapper.WorkerTask{}
+		if err := json.Unmarshal([]byte(input), &task); err != nil {
+			return errors.As(err)
+		}
+
+		cfg := &ffiwrapper.Config{
+			SealProofType: spt,
+		}
+		minerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
+			Root: minerRepo,
+		}, cfg)
+		if err != nil {
+			return errors.As(err)
+		}
+		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
+		if err != nil {
+			return errors.As(err)
+		}
+		rspco, err := minerSealer.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
+		if err != nil {
+			return errors.As(err)
+		}
+		if _, err := os.Stdout.Write(rspco); err != nil {
+			return errors.As(err)
+		}
 		return nil
 	},
 }

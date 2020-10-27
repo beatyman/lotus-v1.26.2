@@ -26,7 +26,7 @@ type worker struct {
 	sealedRepo    string
 	auth          http.Header
 
-	ssize   uint64
+	ssize   abi.SectorSize
 	actAddr address.Address
 
 	workerSB  *ffiwrapper.Sealer
@@ -44,7 +44,7 @@ type worker struct {
 func acceptJobs(ctx context.Context,
 	workerSB, sealedSB *ffiwrapper.Sealer,
 	rpcServer *rpcServer,
-	ssize uint64, act, workerAddr address.Address,
+	ssize abi.SectorSize, act, workerAddr address.Address,
 	minerEndpoint string, auth http.Header,
 	repo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
@@ -551,11 +551,12 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
 	case ffiwrapper.WorkerPreCommit1:
-		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
-		rspco, err := w.workerSB.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
+		//	pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
+		//	if err != nil {
+		//		return errRes(errors.As(err, w.workerCfg), &res)
+		//	}
+		//	rspco, err := w.workerSB.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
+		rspco, err := ExecPrecommit1(ctx, w.ssize, task)
 		res.PreCommit1Out = rspco
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
