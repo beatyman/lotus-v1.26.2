@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -15,7 +17,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func ExecPrecommit1(ctx context.Context, ssize abi.SectorSize, task ffiwrapper.WorkerTask) (storage.PreCommit1Out, error) {
+func ExecPrecommit1(ctx context.Context, repo string, ssize abi.SectorSize, task ffiwrapper.WorkerTask) (storage.PreCommit1Out, error) {
 	args, err := json.Marshal(task)
 	if err != nil {
 		return nil, errors.As(err)
@@ -36,9 +38,18 @@ func ExecPrecommit1(ctx context.Context, ssize abi.SectorSize, task ffiwrapper.W
 	defer returnCpu(cpuKey)
 
 	programName := os.Args[0]
-	cmd := exec.CommandContext(ctx, programName, "precommit", "ssize", strconv.FormatUint(uint64(ssize), 10))
+	cmd := exec.CommandContext(ctx, programName, "--worker-repo", repo, "precommit1", "ssize", strconv.FormatUint(uint64(ssize), 10))
+	fmt.Println(cmd.String())
 	// output the stderr log
 	cmd.Stderr = os.Stderr
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+
+	// write args to the program
+	argIn, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, errors.As(err)
+	}
 
 	if err := cmd.Start(); err != nil {
 		return nil, errors.As(err)
@@ -53,23 +64,18 @@ func ExecPrecommit1(ctx context.Context, ssize abi.SectorSize, task ffiwrapper.W
 		log.Error(errors.As(err))
 	}
 
-	// write args to the program
-	argIn, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, errors.As(err)
-	}
+	// transfer precommit1 parameters
 	if _, err := argIn.Write(args); err != nil {
 		argIn.Close()
-		return nil, errors.As(err)
+		return nil, errors.As(err, string(args))
 	}
 	argIn.Close() // write done
 
 	// wait done
 	if err := cmd.Wait(); err != nil {
-		return nil, errors.As(err)
+		return nil, errors.As(err, string(args))
 	}
 
 	// return result
-	out, err := cmd.Output()
-	return storage.PreCommit1Out(out), err
+	return storage.PreCommit1Out(stdout.Bytes()), nil
 }

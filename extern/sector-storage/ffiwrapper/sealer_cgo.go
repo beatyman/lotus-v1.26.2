@@ -477,7 +477,7 @@ func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector abi.Se
 func (sb *Sealer) sealPreCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, stores.FTUnsealed, stores.FTSealed|stores.FTCache, stores.PathSealing)
 	if err != nil {
-		return nil, xerrors.Errorf("acquiring sector paths: %w", err)
+		return nil, xerrors.Errorf("acquiring sector paths(%s): %w", sb.sectors.RepoPath(), err)
 	}
 	defer done()
 

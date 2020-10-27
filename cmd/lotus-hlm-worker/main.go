@@ -133,9 +133,9 @@ func main() {
 		Version: build.UserVersion(),
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:    "repo",
+				Name:    "worker-repo",
 				EnvVars: []string{"LOTUS_WORKER_PATH", "WORKER_PATH"},
-				Value:   "~/.lotus", // TODO: Consider XDG_DATA_HOME
+				Value:   "~/.lotusworker", // TODO: Consider XDG_DATA_HOME
 			},
 			&cli.StringFlag{
 				Name:    "miner-repo",
@@ -146,81 +146,6 @@ func main() {
 				Name:    "storage-repo",
 				EnvVars: []string{"WORKER_SEALED_PATH"},
 				Value:   "~/.lotusworker/push", // TODO: Consider XDG_DATA_HOME
-			},
-			&cli.StringFlag{
-				Name:    "id-file",
-				EnvVars: []string{"WORKER_ID_PATH"},
-				Value:   "~/.lotusworker/worker.id", // TODO: Consider XDG_DATA_HOME
-			},
-			&cli.StringFlag{
-				Name:  "report-url",
-				Value: "",
-				Usage: "report url for state",
-			},
-			&cli.StringFlag{
-				Name:  "listen-addr",
-				Value: "",
-				Usage: "listen address a local",
-			},
-			&cli.StringFlag{
-				Name:  "server-addr",
-				Value: "",
-				Usage: "server address for visit",
-			},
-			&cli.UintFlag{
-				Name:  "max-tasks",
-				Value: 1,
-				Usage: "max tasks for memory.",
-			},
-			&cli.UintFlag{
-				Name:  "transfer-buffer",
-				Value: 1,
-				Usage: "buffer for transfer when task done",
-			},
-			&cli.UintFlag{
-				Name:  "cache-mode",
-				Value: 0,
-				Usage: "cache mode. 0, tranfer mode; 1, share mode",
-			},
-			&cli.UintFlag{
-				Name:  "parallel-addpiece",
-				Value: 1,
-				Usage: "Parallel of addpice, <= max-tasks",
-			},
-			&cli.UintFlag{
-				Name:  "parallel-precommit1",
-				Value: 1,
-				Usage: "Parallel of precommit1, <= max-tasks",
-			},
-			&cli.UintFlag{
-				Name:  "parallel-precommit2",
-				Value: 1,
-				Usage: "Parallel of precommit2, <= max-tasks",
-			},
-			&cli.UintFlag{
-				Name:  "parallel-commit1",
-				Value: 1,
-				Usage: "Parallel of commit1,0< parallel <= max-tasks, undefined for 0",
-			},
-			&cli.UintFlag{
-				Name:  "parallel-commit2",
-				Value: 1,
-				Usage: "Parallel of commit2, <= max-tasks. if parallel is 0, will select a commit2 service until success",
-			},
-			&cli.BoolFlag{
-				Name:  "commit2-srv",
-				Value: false,
-				Usage: "Open commit2 service, need parallel-commit2 > 0",
-			},
-			&cli.BoolFlag{
-				Name:  "wdpost-srv",
-				Value: false,
-				Usage: "Open window PoSt service",
-			},
-			&cli.BoolFlag{
-				Name:  "wnpost-srv",
-				Value: false,
-				Usage: "Open wining PoSt service",
 			},
 		},
 
@@ -238,6 +163,83 @@ func main() {
 var runCmd = &cli.Command{
 	Name:  "run",
 	Usage: "Start lotus worker",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "id-file",
+			EnvVars: []string{"WORKER_ID_PATH"},
+			Value:   "~/.lotusworker/worker.id", // TODO: Consider XDG_DATA_HOME
+		},
+		&cli.StringFlag{
+			Name:  "report-url",
+			Value: "",
+			Usage: "report url for state",
+		},
+		&cli.StringFlag{
+			Name:  "listen-addr",
+			Value: "",
+			Usage: "listen address a local",
+		},
+		&cli.StringFlag{
+			Name:  "server-addr",
+			Value: "",
+			Usage: "server address for visit",
+		},
+		&cli.UintFlag{
+			Name:  "max-tasks",
+			Value: 1,
+			Usage: "max tasks for memory.",
+		},
+		&cli.UintFlag{
+			Name:  "transfer-buffer",
+			Value: 1,
+			Usage: "buffer for transfer when task done",
+		},
+		&cli.UintFlag{
+			Name:  "cache-mode",
+			Value: 0,
+			Usage: "cache mode. 0, tranfer mode; 1, share mode",
+		},
+		&cli.UintFlag{
+			Name:  "parallel-addpiece",
+			Value: 1,
+			Usage: "Parallel of addpice, <= max-tasks",
+		},
+		&cli.UintFlag{
+			Name:  "parallel-precommit1",
+			Value: 1,
+			Usage: "Parallel of precommit1, <= max-tasks",
+		},
+		&cli.UintFlag{
+			Name:  "parallel-precommit2",
+			Value: 1,
+			Usage: "Parallel of precommit2, <= max-tasks",
+		},
+		&cli.UintFlag{
+			Name:  "parallel-commit1",
+			Value: 1,
+			Usage: "Parallel of commit1,0< parallel <= max-tasks, undefined for 0",
+		},
+		&cli.UintFlag{
+			Name:  "parallel-commit2",
+			Value: 1,
+			Usage: "Parallel of commit2, <= max-tasks. if parallel is 0, will select a commit2 service until success",
+		},
+		&cli.BoolFlag{
+			Name:  "commit2-srv",
+			Value: false,
+			Usage: "Open commit2 service, need parallel-commit2 > 0",
+		},
+		&cli.BoolFlag{
+			Name:  "wdpost-srv",
+			Value: false,
+			Usage: "Open window PoSt service",
+		},
+		&cli.BoolFlag{
+			Name:  "wnpost-srv",
+			Value: false,
+			Usage: "Open wining PoSt service",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		nodeCCtx = cctx
 
@@ -256,7 +258,7 @@ var runCmd = &cli.Command{
 			return err
 		}
 
-		r, err := homedir.Expand(cctx.String("repo"))
+		workerRepo, err := homedir.Expand(cctx.String("worker-repo"))
 		if err != nil {
 			return err
 		}
@@ -297,8 +299,8 @@ var runCmd = &cli.Command{
 			return errors.As(err)
 		}
 
-		if err := os.MkdirAll(r, 0755); err != nil {
-			return errors.As(err, r)
+		if err := os.MkdirAll(workerRepo, 0755); err != nil {
+			return errors.As(err, workerRepo)
 		}
 		spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
 		if err != nil {
@@ -309,7 +311,7 @@ var runCmd = &cli.Command{
 		}
 
 		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
-			Root: r,
+			Root: workerRepo,
 		}, cfg)
 		if err != nil {
 			return err
@@ -378,7 +380,7 @@ var runCmd = &cli.Command{
 		rpcServer := jsonrpc.NewServer()
 		rpcServer.Register("Filecoin", apistruct.PermissionedWorkerHlmAPI(workerApi))
 		mux.Handle("/rpc/v0", rpcServer)
-		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(r).FileHttpServer)
+		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(workerRepo).FileHttpServer)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
 		ah := &auth.Handler{
@@ -413,7 +415,7 @@ var runCmd = &cli.Command{
 			workerApi,
 			ssize, act, workerAddr,
 			storageAddr, ainfo.AuthHeader(),
-			r, sealedRepo, sealedMountedFile,
+			workerRepo, sealedRepo, sealedMountedFile,
 			workerCfg,
 		); err != nil {
 			if err := umountAllPush(sealedMountedFile); err != nil {
@@ -431,11 +433,6 @@ var p1Cmd = &cli.Command{
 	Name:  "precommit1",
 	Usage: "run precommit1 in process",
 	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:    "miner-repo",
-			EnvVars: []string{"LOTUS_MINER_PATH", "LOTUS_STORAGE_PATH"},
-			Value:   "~/.lotusstorage", // TODO: Consider XDG_DATA_HOME
-		},
 		&cli.Uint64Flag{
 			Name:  "ssize",
 			Value: 2048,
@@ -445,7 +442,7 @@ var p1Cmd = &cli.Command{
 		ctx, cancel := context.WithCancel(lcli.ReqContext(cctx))
 		defer cancel()
 
-		minerRepo, err := homedir.Expand(cctx.String("miner-repo"))
+		workerRepo, err := homedir.Expand(cctx.String("worker-repo"))
 		if err != nil {
 			return errors.As(err)
 		}
@@ -467,8 +464,8 @@ var p1Cmd = &cli.Command{
 		cfg := &ffiwrapper.Config{
 			SealProofType: spt,
 		}
-		minerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
-			Root: minerRepo,
+		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
+			Root: workerRepo,
 		}, cfg)
 		if err != nil {
 			return errors.As(err)
@@ -477,7 +474,7 @@ var p1Cmd = &cli.Command{
 		if err != nil {
 			return errors.As(err)
 		}
-		rspco, err := minerSealer.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
+		rspco, err := workerSealer.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
 		if err != nil {
 			return errors.As(err)
 		}
