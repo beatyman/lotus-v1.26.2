@@ -10,7 +10,7 @@ func TestSectorInfo(t *testing.T) {
 	InitDB("./")
 	minerId := "t0101"
 	sectorId := time.Now().UnixNano()
-	id := SectorID(minerId, sectorId)
+	id := storage.SectorID(minerId, sectorId)
 	info := &SectorInfo{
 		ID:         id,
 		MinerId:    minerId,

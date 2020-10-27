@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	saproof "github.com/filecoin-project/specs-actors/actors/runtime/proof"
+	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
 
 	"github.com/ipfs/go-cid"
 
@@ -93,7 +93,7 @@ func (s *seal) commit(t *testing.T, sb *Sealer, done func()) {
 		t.Fatalf("%+v", err)
 	}
 
-	ok, err := ProofVerifier.VerifySeal(saproof.SealVerifyInfo{
+	ok, err := ProofVerifier.VerifySeal(proof2.SealVerifyInfo{
 		SectorID:              s.id,
 		SealedCID:             s.cids.Sealed,
 		SealProof:             sealProofType,
@@ -196,7 +196,7 @@ func post(t *testing.T, sealer *Sealer, skipped []abi.SectorID, seals ...seal) {
 		t.Fatalf("%+v", err)
 	}
 
-	ok, err := ProofVerifier.VerifyWindowPoSt(context.TODO(), saproof.WindowPoStVerifyInfo{
+	ok, err := ProofVerifier.VerifyWindowPoSt(context.TODO(), proof2.WindowPoStVerifyInfo{
 		Randomness:        randomness,
 		Proofs:            proofs,
 		ChallengedSectors: sis,

@@ -1,5 +1,5 @@
-// auth for wallet
-// TODO: more set for auth
+// Auth for wallet on spec node.
+// the security is depended on the login of the node.
 package build
 
 import (

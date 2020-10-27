@@ -32,3 +32,7 @@ func (sb *Sealer) SectorSize() abi.SectorSize {
 func (sb *Sealer) SealProofType() abi.RegisteredSealProof {
 	return sb.sealProofType
 }
+
+func (sb *Sealer) RepoPath() string {
+	return sb.sectors.RepoPath()
+}

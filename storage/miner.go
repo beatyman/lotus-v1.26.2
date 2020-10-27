@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
-	proof0 "github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/go-state-types/network"
@@ -29,7 +27,9 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/events"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -157,7 +157,7 @@ func (m *Miner) Run(ctx context.Context) error {
 	evts := events.NewEvents(ctx, m.api)
 	adaptedAPI := NewSealingAPIAdapter(m.api)
 	// TODO: Maybe we update this policy after actor upgrades?
-	pcp := sealing.NewBasicPreCommitPolicy(adaptedAPI, miner0.MaxSectorExpirationExtension-(miner0.WPoStProvingPeriod*2), md.PeriodStart%miner0.WPoStProvingPeriod)
+	pcp := sealing.NewBasicPreCommitPolicy(adaptedAPI, policy.GetMaxSectorExpirationExtension()-(md.WPoStProvingPeriod*2), md.PeriodStart%md.WPoStProvingPeriod)
 	m.sealing = sealing.New(adaptedAPI, fc, NewEventsAdapter(evts), m.maddr, m.ds, m.sealer, m.sc, m.verif, &pcp, sealing.GetSealingConfigFunc(m.getSealConfig), m.handleSealingNotifications)
 
 	go m.sealing.Run(ctx) //nolint:errcheck // logged intside the function
@@ -253,9 +253,9 @@ func (wpp *StorageWpp) GenerateCandidates(ctx context.Context, randomness abi.Po
 	return cds, nil
 }
 
-func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []proof0.SectorInfo, rand abi.PoStRandomness) ([]proof0.PoStProof, error) {
+func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInfo, rand abi.PoStRandomness) ([]builtin.PoStProof, error) {
 	//if build.InsecurePoStValidation {
-	//	return []proof0.PoStProof{{ProofBytes: []byte("valid proof")}}, nil
+	//	return []builtin.PoStProof{{ProofBytes: []byte("valid proof")}}, nil
 	//}
 
 	log.Infof("Computing WinningPoSt ;%+v; %v", ssi, rand)
@@ -264,6 +264,17 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []proof0.SectorInfo
 	pFiles := []storage.ProofSectorInfo{}
 	sFiles := []storage.SectorFile{}
 	ssize := abi.SectorSize(0) // undefined.
+	repo := ""
+	sm, ok := wpp.prover.(*sectorstorage.Manager)
+	if ok {
+		sb, ok := sm.Prover.(*ffiwrapper.Sealer)
+		if ok {
+			repo = sb.RepoPath()
+		}
+	}
+	if len(repo) == 0 {
+		log.Warn("not found default repo")
+	}
 	for _, s := range ssi {
 		size, err := s.SealProof.SectorSize()
 		if err != nil {
@@ -275,7 +286,7 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []proof0.SectorInfo
 		if size != ssize {
 			log.Error(errors.New("ssize not match in the same miner").As(wpp.miner, s.SectorNumber, size, ssize))
 		}
-		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}))
+		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}), repo)
 		if err != nil {
 			return nil, err
 		}

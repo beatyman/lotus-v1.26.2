@@ -9,6 +9,7 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/urfave/cli/v2"
 
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 )
@@ -110,7 +111,7 @@ var noncefix = &cli.Command{
 				GasFeeCap:  feeCap,
 				GasPremium: abi.NewTokenAmount(5),
 			}
-			smsg, err := api.WalletSignMessage(ctx, addr, msg)
+			smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), addr, msg)
 			if err != nil {
 				return err
 			}
