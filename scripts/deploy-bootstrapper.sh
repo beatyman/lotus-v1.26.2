@@ -32,8 +32,7 @@ ssh "$host" 'systemctl restart lotus-daemon'
 sleep 10
 
 log 'Extracting addr info'
-ssh "$host" 'lotus net listen' | grep -v '/172' | grep -v '/ip6' > scripts/bootstrappers.pi
-sed -i "s/127.0.0.1\/tcp\/1347/120.77.213.165\/tcp\/1346/g" scripts/bootstrappers.pi
+ssh "$host" 'lotus net listen' > scripts/bootstrappers.pi
 
 log 'Connect to t0111'
 ssh "$host" 'lotus net connect $(lotus --repo=/data/lotus/dev/.ldt0111 net listen)'
