@@ -3,29 +3,49 @@
 package build
 
 import (
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
-	"github.com/filecoin-project/specs-actors/actors/builtin"
-	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
-	"github.com/filecoin-project/specs-actors/actors/builtin/power"
+	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/chain/actors/policy"
+
+	builtin0 "github.com/filecoin-project/specs-actors/actors/builtin"
 )
 
-func init() {
-	InsecurePoStValidation = true
-	BuildType |= BuildDebug
+var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
+	0: DrandMainnet,
 }
 
+const UpgradeBreezeHeight = -1
+const BreezeGasTampingDuration = 120
+
+const UpgradeSmokeHeight = -2
+
+const UpgradeIgnitionHeight = -3
+const UpgradeRefuelHeight = -4
+
+var UpgradeActorsV2Height = abi.ChainEpoch(30)
+
+const UpgradeTapeHeight = 60
+
+// This signals our tentative epoch for mainnet launch. Can make it later, but not earlier.
+// Miners, clients, developers, custodians all need time to prepare.
+// We still have upgrades and state changes to do, but can happen after signaling timing here.
+const UpgradeLiftoffHeight = -5
+
+const UpgradeKumquatHeight = 90
+
 func init() {
-	power.ConsensusMinerMinPower = big.NewInt(1024 << 30)
-	miner.SupportedProofTypes = map[abi.RegisteredSealProof]struct{}{
-		abi.RegisteredSealProof_StackedDrg2KiBV1:   {},
-		abi.RegisteredSealProof_StackedDrg8MiBV1:   {},
-		abi.RegisteredSealProof_StackedDrg512MiBV1: {},
-		abi.RegisteredSealProof_StackedDrg32GiBV1:  {},
-		abi.RegisteredSealProof_StackedDrg64GiBV1:  {},
-	}
+	policy.SetConsensusMinerMinPower(abi.NewStoragePower(1 << 30))
+	policy.SetSupportedProofTypes(
+		abi.RegisteredSealProof_StackedDrg512MiBV1,
+		abi.RegisteredSealProof_StackedDrg32GiBV1,
+		abi.RegisteredSealProof_StackedDrg64GiBV1,
+	)
+
+	SetAddressNetwork(address.Testnet)
+
+	Devnet = true
 }
 
-const BlockDelaySecs = uint64(builtin.EpochDurationSeconds)
+const BlockDelaySecs = uint64(builtin0.EpochDurationSeconds)
 
 const PropagationDelaySecs = uint64(6)
