@@ -38,7 +38,7 @@ func ExecPrecommit1(ctx context.Context, repo string, ssize abi.SectorSize, task
 	defer returnCpu(cpuKey)
 
 	programName := os.Args[0]
-	cmd := exec.CommandContext(ctx, programName, "--worker-repo", repo, "precommit1", "ssize", strconv.FormatUint(uint64(ssize), 10))
+	cmd := exec.CommandContext(ctx, programName, "--worker-repo", repo, "precommit1", "--ssize", strconv.FormatUint(uint64(ssize), 10))
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	defer func() {

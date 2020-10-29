@@ -434,8 +434,7 @@ var p1Cmd = &cli.Command{
 	Usage: "run precommit1 in process",
 	Flags: []cli.Flag{
 		&cli.Uint64Flag{
-			Name:  "ssize",
-			Value: 2048,
+			Name: "ssize",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
