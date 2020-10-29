@@ -39,10 +39,16 @@ func ExecPrecommit1(ctx context.Context, repo string, ssize abi.SectorSize, task
 
 	programName := os.Args[0]
 	cmd := exec.CommandContext(ctx, programName, "--worker-repo", repo, "precommit1", "ssize", strconv.FormatUint(uint64(ssize), 10))
-	fmt.Println(cmd.String())
-	// output the stderr log
-	cmd.Stderr = os.Stderr
 	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	defer func() {
+		fmt.Println(cmd.String())
+		fmt.Println(string(args))
+		fmt.Println(string(stdout.Bytes()))
+		fmt.Println(string(stderr.Bytes()))
+	}()
+	// output the stderr log
+	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
 
 	// write args to the program
