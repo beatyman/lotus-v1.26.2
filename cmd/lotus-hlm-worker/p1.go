@@ -63,6 +63,7 @@ func ExecPrecommit1(ctx context.Context, repo string, ssize abi.SectorSize, task
 	for _, cpu := range cpuGroup {
 		cpuSet.Set(cpu)
 	}
+	// https://github.com/golang/go/issues/11243
 	if err := unix.SchedSetaffinity(cmd.Process.Pid, &cpuSet); err != nil {
 		log.Error(errors.As(err))
 	}

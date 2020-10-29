@@ -160,6 +160,61 @@ func main() {
 	}
 }
 
+var p1Cmd = &cli.Command{
+	Name:  "precommit1",
+	Usage: "run precommit1 in process",
+	Flags: []cli.Flag{
+		&cli.Uint64Flag{
+			Name: "ssize",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		ctx, cancel := context.WithCancel(lcli.ReqContext(cctx))
+		defer cancel()
+
+		workerRepo, err := homedir.Expand(cctx.String("worker-repo"))
+		if err != nil {
+			return errors.As(err)
+		}
+		ssize := abi.SectorSize(cctx.Uint64("ssize"))
+		spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
+		if err != nil {
+			return errors.As(err)
+		}
+
+		input := ""
+		if _, err := fmt.Scanln(&input); err != nil {
+			return errors.As(err)
+		}
+		task := ffiwrapper.WorkerTask{}
+		if err := json.Unmarshal([]byte(input), &task); err != nil {
+			return errors.As(err)
+		}
+
+		cfg := &ffiwrapper.Config{
+			SealProofType: spt,
+		}
+		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
+			Root: workerRepo,
+		}, cfg)
+		if err != nil {
+			return errors.As(err)
+		}
+		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
+		if err != nil {
+			return errors.As(err)
+		}
+		rspco, err := workerSealer.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
+		if err != nil {
+			return errors.As(err)
+		}
+		if _, err := os.Stdout.Write(rspco); err != nil {
+			return errors.As(err)
+		}
+		return nil
+	},
+}
+
 var runCmd = &cli.Command{
 	Name:  "run",
 	Usage: "Start lotus worker",
@@ -409,7 +464,6 @@ var runCmd = &cli.Command{
 			report.SetReportUrl(reportUrl)
 		}
 
-		log.Infof("Worker(%s) started, ActorSize:%s, miner:%s,srv:%s", workerCfg.ID, ssize.ShortString(), minerAddr, listenAddr)
 		if err := acceptJobs(ctx,
 			workerSealer, sealedSB,
 			workerApi,
@@ -426,60 +480,6 @@ var runCmd = &cli.Command{
 			ReleaseNodeApi(true)
 		}
 		log.Info("worker exit")
-		return nil
-	},
-}
-var p1Cmd = &cli.Command{
-	Name:  "precommit1",
-	Usage: "run precommit1 in process",
-	Flags: []cli.Flag{
-		&cli.Uint64Flag{
-			Name: "ssize",
-		},
-	},
-	Action: func(cctx *cli.Context) error {
-		ctx, cancel := context.WithCancel(lcli.ReqContext(cctx))
-		defer cancel()
-
-		workerRepo, err := homedir.Expand(cctx.String("worker-repo"))
-		if err != nil {
-			return errors.As(err)
-		}
-		ssize := abi.SectorSize(cctx.Uint64("ssize"))
-		spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
-		if err != nil {
-			return errors.As(err)
-		}
-
-		input := ""
-		if _, err := fmt.Scanln(&input); err != nil {
-			return errors.As(err)
-		}
-		task := ffiwrapper.WorkerTask{}
-		if err := json.Unmarshal([]byte(input), &task); err != nil {
-			return errors.As(err)
-		}
-
-		cfg := &ffiwrapper.Config{
-			SealProofType: spt,
-		}
-		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
-			Root: workerRepo,
-		}, cfg)
-		if err != nil {
-			return errors.As(err)
-		}
-		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
-		if err != nil {
-			return errors.As(err)
-		}
-		rspco, err := workerSealer.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
-		if err != nil {
-			return errors.As(err)
-		}
-		if _, err := os.Stdout.Write(rspco); err != nil {
-			return errors.As(err)
-		}
 		return nil
 	},
 }

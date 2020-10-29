@@ -78,6 +78,7 @@ func acceptJobs(ctx context.Context,
 			return errors.As(err)
 		}
 	}
+	log.Infof("Worker(%s) started, ActorSize:%s, Miner:%s, Srv:%s", workerCfg.ID, ssize.ShortString(), minerEndpoint, workerCfg.IP)
 
 	api, err := GetNodeApi()
 	if err != nil {
