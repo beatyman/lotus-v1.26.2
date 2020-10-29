@@ -137,13 +137,15 @@ rm -rf /data/sdb/lotus-user-1/.lotus* # 注意!!!! 需要确认此库不是正�
 shell 1, 运行链
 ```
 cd ~/hlm-miner/apps/lotus
+# 运行前注意修改脚本中的netip地址段，默认只支持10段
 ./daemon.sh # 或者直接hlmd ctl start lotus-daemon-1
 ```
 
-shell 2, 创建私网矿工, 首次运行时需要构建, 或通过浏览器来创建
+shell 2, 创建私网矿工
 ```
 cd ~/hlm-miner/script/lotus/lotus-user/
 ./init-miner-dev.sh
+./miner.sh init --sector-size=2KiB # 注意修改miner.sh中的识别到的netip，默认只支持10地址段
 ```
 
 shell 3, 运行矿工
@@ -155,6 +157,7 @@ cd ~/hlm-miner/apps/lotus
 shell 4, 运行worker
 ```
 cd ~/hlm-miner/apps/lotus
+# 运行前注意修改脚本中的netip地址段，默认只支持10段
 ./worker.sh # 或者直接hlmd ctl start lotus-worker-1
 ```
 
