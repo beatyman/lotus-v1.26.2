@@ -6,6 +6,7 @@ export IPFS_GATEWAY="https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs
 export FIL_PROOFS_USE_GPU_COLUMN_BUILDER=0
 export FIL_PROOFS_USE_GPU_TREE_BUILDER=0
 export FIL_PROOFS_MAXIMIZE_CACHING=0  # open cache for 32GB or 64GB
+export FIL_PROOFS_USE_MULTICORE_SDR=1
 export RUST_LOG=info
 export RUST_BACKTRACE=1
 
@@ -39,7 +40,7 @@ case $1 in
     "hlm")
         SECTOR_SIZE=34359738368
         #SECTOR_SIZE=536870912
-        car_name="hlmnet.car"
+        car_name="devnet-hlm.car"
         build_mode="hlm"
         FIL_PROOFS_MAXIMIZE_CACHING=1  # open cache for 32GB or 64GB
     ;;

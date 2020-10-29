@@ -14,6 +14,7 @@ import (
 
 	"github.com/dchest/blake2b"
 	// paramfetch "github.com/filecoin-project/go-paramfetch"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/gwaylib/errors"
 )
@@ -27,9 +28,9 @@ var (
 )
 
 type paramFile struct {
-	Cid        string `json:"cid"`
-	Digest     string `json:"digest"`
-	SectorSize uint64 `json:"sector_size"`
+	Cid        string         `json:"cid"`
+	Digest     string         `json:"digest"`
+	SectorSize abi.SectorSize `json:"sector_size"`
 }
 
 var checked = map[string]bool{}
@@ -72,7 +73,7 @@ func checkFile(path string, info paramFile) error {
 	return ErrChecksum.As(path, strSum, info.Digest)
 }
 
-func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ssize uint64) error {
+func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ssize abi.SectorSize) error {
 	//// for origin params
 	//if err := paramfetch.GetParams(ctx, build.ParametersJSON(), ssize); err != nil {
 	//	return errors.As(err)
@@ -88,7 +89,7 @@ func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ss
 	}
 }
 
-func (w *worker) checkParams(ctx context.Context, ssize uint64, endpoint, paramsDir string) error {
+func (w *worker) checkParams(ctx context.Context, ssize abi.SectorSize, endpoint, paramsDir string) error {
 	if err := os.MkdirAll(paramsDir, 0755); err != nil {
 		return errors.As(err)
 	}

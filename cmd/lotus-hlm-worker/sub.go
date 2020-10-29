@@ -22,11 +22,11 @@ import (
 
 type worker struct {
 	minerEndpoint string
-	repo          string
+	workerRepo    string
 	sealedRepo    string
 	auth          http.Header
 
-	ssize   uint64
+	ssize   abi.SectorSize
 	actAddr address.Address
 
 	workerSB  *ffiwrapper.Sealer
@@ -44,14 +44,14 @@ type worker struct {
 func acceptJobs(ctx context.Context,
 	workerSB, sealedSB *ffiwrapper.Sealer,
 	rpcServer *rpcServer,
-	ssize uint64, act, workerAddr address.Address,
+	ssize abi.SectorSize, act, workerAddr address.Address,
 	minerEndpoint string, auth http.Header,
-	repo, sealedRepo, mountedFile string,
+	workerRepo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
 	w := &worker{
 		minerEndpoint: minerEndpoint,
-		repo:          repo,
+		workerRepo:    workerRepo,
 		sealedRepo:    sealedRepo,
 		auth:          auth,
 
@@ -68,14 +68,17 @@ func acceptJobs(ctx context.Context,
 	}
 
 	// check params
-	to := "/var/tmp/filecoin-proof-parameters"
-	envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
-	if len(envParam) > 0 {
-		to = envParam
+	if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
+		to := "/var/tmp/filecoin-proof-parameters"
+		envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
+		if len(envParam) > 0 {
+			to = envParam
+		}
+		if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
+			return errors.As(err)
+		}
 	}
-	if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
-		return errors.As(err)
-	}
+	log.Infof("Worker(%s) started, ActorSize:%s, Miner:%s, Srv:%s", workerCfg.ID, ssize.ShortString(), minerEndpoint, workerCfg.IP)
 
 	api, err := GetNodeApi()
 	if err != nil {
@@ -85,7 +88,6 @@ func acceptJobs(ctx context.Context,
 	if err != nil {
 		return errors.As(err)
 	}
-	log.Infof("Worker(%s) started", workerCfg.ID)
 
 loop:
 	for {
@@ -159,18 +161,18 @@ func (w *worker) RemoveCache(ctx context.Context, sid string) error {
 	w.workMu.Lock()
 	defer w.workMu.Unlock()
 
-	if filepath.Base(w.repo) == ".lotusstorage" {
+	if filepath.Base(w.workerRepo) == ".lotusstorage" {
 		return nil
 	}
 
-	log.Infof("Remove cache:%s,%s", w.repo, sid)
-	if err := os.RemoveAll(filepath.Join(w.repo, "sealed", sid)); err != nil {
+	log.Infof("Remove cache:%s,%s", w.workerRepo, sid)
+	if err := os.RemoveAll(filepath.Join(w.workerRepo, "sealed", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
-	if err := os.RemoveAll(filepath.Join(w.repo, "cache", sid)); err != nil {
+	if err := os.RemoveAll(filepath.Join(w.workerRepo, "cache", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
-	if err := os.RemoveAll(filepath.Join(w.repo, "unsealed", sid)); err != nil {
+	if err := os.RemoveAll(filepath.Join(w.workerRepo, "unsealed", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
 	return nil
@@ -181,14 +183,14 @@ func (w *worker) CleanCache(ctx context.Context) error {
 	defer w.workMu.Unlock()
 
 	// not do this on miner repo
-	if filepath.Base(w.repo) == ".lotusstorage" {
+	if filepath.Base(w.workerRepo) == ".lotusstorage" {
 		return nil
 	}
 
-	sealed := filepath.Join(w.repo, "sealed")
-	cache := filepath.Join(w.repo, "cache")
-	// staged := filepath.Join(w.repo, "staging")
-	unsealed := filepath.Join(w.repo, "unsealed")
+	sealed := filepath.Join(w.workerRepo, "sealed")
+	cache := filepath.Join(w.workerRepo, "cache")
+	// staged := filepath.Join(w.workerRepo, "staging")
+	unsealed := filepath.Join(w.workerRepo, "unsealed")
 	if err := w.cleanCache(ctx, sealed); err != nil {
 		return errors.As(err)
 	}
@@ -551,11 +553,12 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
 	case ffiwrapper.WorkerPreCommit1:
-		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
-		rspco, err := w.workerSB.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
+		//	pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
+		//	if err != nil {
+		//		return errRes(errors.As(err, w.workerCfg), &res)
+		//	}
+		//	rspco, err := w.workerSB.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
+		rspco, err := ExecPrecommit1(ctx, w.workerRepo, w.ssize, task)
 		res.PreCommit1Out = rspco
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)

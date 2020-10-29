@@ -21,8 +21,14 @@ case $1 in
     ;;
     "hlm")
         cp -f scripts/bootstrappers.pi build/bootstrap/bootstrappers.pi
-        cp -f scripts/hlmnet.car build/genesis/devnet.car
+        cp -f scripts/devnet-hlm.car build/genesis/devnet.car
         make hlm
+        git checkout build
+    ;;
+    "calibration")
+        cp -f scripts/bootstrappers-calibration.pi build/bootstrap/bootstrappers.pi
+        cp -f scripts/devnet-calibration.car build/genesis/devnet.car
+        make calibration
         git checkout build
     ;;
     *)

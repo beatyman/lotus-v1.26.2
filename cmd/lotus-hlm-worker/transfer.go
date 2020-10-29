@@ -96,7 +96,7 @@ func (w *worker) fetchRemote(serverUri string, sectorID string, typ ffiwrapper.W
 func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrapper.WorkerTaskType) error {
 	// Close the fetch in the miner storage directory.
 	// TODO: fix to env
-	if filepath.Base(w.repo) == ".lotusstorage" {
+	if filepath.Base(w.workerRepo) == ".lotusstorage" {
 		return nil
 	}
 	switch typ {
@@ -104,7 +104,7 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 		// fetch unsealed
 		if err := w.fetchRemoteFile(
 			fmt.Sprintf("%s/file/storage/unsealed/%s", serverUri, sectorID),
-			filepath.Join(w.repo, "unsealed", sectorID),
+			filepath.Join(w.workerRepo, "unsealed", sectorID),
 		); err != nil {
 			return errors.As(err, typ)
 		}
@@ -113,7 +113,7 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 		// fetch unsealed, prepare for p2 or c2 failed to p1, p1 need the unsealed.
 		if err := w.fetchRemoteFile(
 			fmt.Sprintf("%s/file/storage/unsealed/%s", serverUri, sectorID),
-			filepath.Join(w.repo, "unsealed", sectorID),
+			filepath.Join(w.workerRepo, "unsealed", sectorID),
 		); err != nil {
 			return errors.As(err, typ)
 		}
@@ -141,13 +141,13 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 		if err := xml.Unmarshal(cacheRespData, cacheDir); err != nil {
 			return errors.As(err, serverUri, sectorID, typ)
 		}
-		if err := os.MkdirAll(filepath.Join(w.repo, "cache", sectorID), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(w.workerRepo, "cache", sectorID), 0755); err != nil {
 			return errors.As(err, serverUri, sectorID, typ)
 		}
 		for _, file := range cacheDir.Files {
 			if err := w.fetchRemoteFile(
 				fmt.Sprintf("%s/file/storage/cache/%s/%s", serverUri, sectorID, file.Value),
-				filepath.Join(w.repo, "cache", sectorID, file.Value),
+				filepath.Join(w.workerRepo, "cache", sectorID, file.Value),
 			); err != nil {
 				return errors.As(err, serverUri, sectorID, typ)
 			}
@@ -156,7 +156,7 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 		// fetch sealed
 		if err := w.fetchRemoteFile(
 			fmt.Sprintf("%s/file/storage/sealed/%s", serverUri, sectorID),
-			filepath.Join(w.repo, "sealed", sectorID),
+			filepath.Join(w.workerRepo, "sealed", sectorID),
 		); err != nil {
 			return errors.As(err, serverUri, sectorID, typ)
 		}
@@ -168,7 +168,7 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 func (w *worker) pushRemote(ctx context.Context, typ string, sectorID, toPath string) error {
 	// Close the fetch in the miner storage directory.
 	// TODO: fix to env
-	if filepath.Base(w.repo) == ".lotusstorage" {
+	if filepath.Base(w.workerRepo) == ".lotusstorage" {
 		return nil
 	}
 
@@ -192,7 +192,7 @@ func (w *worker) pushRemote(ctx context.Context, typ string, sectorID, toPath st
 }
 
 func (w *worker) remove(typ string, sectorID abi.SectorID) error {
-	filename := filepath.Join(w.repo, typ, storage.SectorName(sectorID))
+	filename := filepath.Join(w.workerRepo, typ, storage.SectorName(sectorID))
 	log.Infof("Remove file: %s", filename)
 	return os.RemoveAll(filename)
 }
