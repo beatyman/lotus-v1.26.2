@@ -63,6 +63,9 @@ debug: lotus lotus-miner lotus-worker lotus-seed chain-watch lotus-bench leveldb
 hlm: GOFLAGS+=-tags=hlm
 hlm: lotus lotus-miner lotus-worker lotus-seed chain-watch lotus-bench leveldb-tools
 
+calibration: GOFLAGS+=-tags=calibration
+calibration: lotus lotus-miner lotus-worker lotus-seed chain-watch lotus-bench leveldb-tools
+
 2k: GOFLAGS+=-tags=2k
 2k: lotus lotus-miner lotus-worker lotus-seed chain-watch lotus-bench leveldb-tools
 
