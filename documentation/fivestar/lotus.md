@@ -17,7 +17,7 @@
 # 安装依赖(需要ubuntu 18.04)
 apt-get update
 apt-get install aptitude
-aptitude install chrony nfs-common gcc git bzr jq pkg-config mesa-opencl-icd ocl-icd-opencl-dev libclang-dev
+aptitude install rsync chrony nfs-common make mesa-opencl-icd ocl-icd-opencl-dev gcc git bzr jq pkg-config curl clang build-essential libhwloc-dev
 ```
 
 ## 国内安装技巧 
@@ -43,8 +43,11 @@ exit # 退出sudo su -
 mkdir ~/.cargo
 
 ### 设置国内镜像代理(或设置到~/.profile中, 需要重新登录生效或source ~/.profile))
-export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
-export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
+export RUSTUP_DIST_SERVER=https://mirrors.sjtug.sjtu.edu.cn/rust-static
+export RUSTUP_UPDATE_ROOT=https://mirrors.sjtug.sjtu.edu.cn/rust-static/rustup
+# 若前面源不可用，换以下源
+#export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
+#export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
 
 cat > ~/.cargo/config <<EOF
 [source.crates-io]
@@ -76,8 +79,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```shell
 mkdir -p $HOME/go/src/github.com/filecoin-project
 cd $HOME/go/src/github.com/filecoin-project
-git clone https://github.com/filecoin-fivestar/lotus.git lotus
+# 下载慢时注意配置/etc/hosts
+# https://blog.csdn.net/random0708/article/details/106001665/
+git clone https://github.com/filecoin-fivestar/fivestar-lotus.git lotus
 cd lotus
+git checkout testing # 检出需要的分支
 # 编译
 make clean
 env RUSTFLAGS="-C target-cpu=native -g" CGO_CFLAG="-D__BLST_PORTABLE__" FFI_BUILD_FROM_SOURCE=1 make
@@ -91,12 +97,13 @@ git clone https://github.com/filecoin-fivestar/hlm-miner.git
 
 mkdir -p ~/go/src/github.com/filecoin-fivestar/
 cd ~/go/src/github.com/filecoin-fivestar/
-git clone ~/go/src/github.com/filecoin-fivestar/supd
+git clone https://github.com/filecoin-fivestar/supd
 cd ~/go/src/github.com/filecoin-fivestar/supd/cmd/supervisord
 ./publish.sh
 cp -rf supervisord ~/hlm-miner/bin/hlmd
 
 cd ~/hlm-miner/
+git checkout testing # 检出最新代码
 . env.sh
 ./install.sh install # hlmd ctl status # 有状态输出为成功
 ```
@@ -105,12 +112,16 @@ cd ~/hlm-miner/
 
 ### 搭建创世节点
 ```shell
+cd $HOME/go/src/github.com/filecoin-project/lotus
 ./clean-bootstrap.sh
 ps axu|grep lotus # 确认所有相关进程已关闭
 ./init-bootstrap.sh
-tail -f boostrap.log # 直到Heaviest tipset 有10来个高度左右, ctrl+c 退出
+tail -f boostrap.log # 直到Heaviest tipset 稳定在10秒左右输出, 高度约为10以上, ctrl+c 退出
 ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
+# 修改PermitRootLogin为yes, 参考 https://blog.csdn.net/zilaike/article/details/78922524
+ssh-copy-id root@127.0.0.1
 ./deploy-boostrap.sh # 部署水龙头及对外提供的初始节点
+# 遇错时从clean-boostrap重新开始
 ```
 
 ### 搭建存储节点
@@ -120,16 +131,18 @@ mkdir -p /data/nfs
 mkdir -p /data/zfs
 mkdir -p /data/zfs/cache
 mkdir -p /data/zfs/sealed
-chattr -V +a /data/zfs
-chattr -V +a /data/zfs/cache
-chattr -V +a /data/zfs/sealed
+chattr -V +a /data/zfs # 读写权限，不能删除
+chattr -V +a /data/zfs/cache # 读写权限，不能删除
+chattr -V +a /data/zfs/sealed # 读写权限，不能删除
 
 echo "/data/zfs/ *(rw,sync,insecure,no_root_squash)" >>/etc/exports
 systemctl reload nfs-server
+showmount -e # 校验NFS是否已共享出来
 ```
 
 ### 生成开发版lotus程序
 ```shell
+cd $HOME/go/src/github.com/filecoin-project/lotus
 ./install.sh debug # 若是使用正式，执行./install.sh进行编译, 编译完成后自动放在$FILECOIN_BIN下
 rm -rf /data/sdb/lotus-user-1/.lotus* # 注意!!!! 需要确认此库不是正式库，删掉需要重新同步数据与创建矿工，若创世节点一样，可不删除。
 ```
@@ -138,12 +151,14 @@ shell 1, 运行链
 ```
 cd ~/hlm-miner/apps/lotus
 # 运行前注意修改脚本中的netip地址段，默认只支持10段
-./daemon.sh # 或者直接hlmd ctl start lotus-daemon-1
+./daemon.sh # 或者直接hlmd ctl start lotus-daemon-1, hlmd ctl tail lotus-daemon-1 stderr -f 看日志
 ```
 
 shell 2, 创建私网矿工
 ```
 cd ~/hlm-miner/script/lotus/lotus-user/
+. env/lotus.sh
+. env/1.sh
 ./init-miner-dev.sh
 ./miner.sh init --sector-size=2KiB # 注意修改miner.sh中的识别到的netip，默认只支持10地址段
 ```
@@ -151,17 +166,10 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 shell 3, 运行矿工
 ```
 cd ~/hlm-miner/apps/lotus
-./miner.sh # 或者直接hlmd ctl start lotus-user-1
+./miner.sh # 或者直接hlmd ctl start lotus-user-1,hlmd ctl tail lotus-user-1 stderr -f 看日志
 ```
 
-shell 4, 运行worker
-```
-cd ~/hlm-miner/apps/lotus
-# 运行前注意修改脚本中的netip地址段，默认只支持10段
-./worker.sh # 或者直接hlmd ctl start lotus-worker-1
-```
-
-shell 5，操作miner
+shell 4，导入存储节点
 ```
 cd ~/hlm-miner/script/lotus/lotus-user/
 
@@ -169,10 +177,27 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 ./init-storage-dev.sh
 
 # 运行刷量
-./mshell.sh pledge-sector start
+./miner.sh pledge-sector start
 
 # miner的其他指令，参阅
-./mshell.sh --help
+./miner.sh --help
+```
+
+shell 5, 运行worker
+```
+cd ~/hlm-miner/apps/lotus
+# 运行前注意修改脚本中的netip地址段，默认只支持10段
+./worker.sh # 或者直接hlmd ctl start lotus-worker-1
+```
+shell 6，刷扇区
+```
+cd ~/hlm-miner/script/lotus/lotus-user/
+
+# 运行刷量
+./miner.sh pledge-sector start
+
+# miner的其他指令，参阅
+./miner.sh --help
 ```
 
 ## 目录规范
