@@ -68,13 +68,15 @@ func acceptJobs(ctx context.Context,
 	}
 
 	// check params
-	to := "/var/tmp/filecoin-proof-parameters"
-	envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
-	if len(envParam) > 0 {
-		to = envParam
-	}
-	if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
-		return errors.As(err)
+	if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
+		to := "/var/tmp/filecoin-proof-parameters"
+		envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
+		if len(envParam) > 0 {
+			to = envParam
+		}
+		if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
+			return errors.As(err)
+		}
 	}
 
 	api, err := GetNodeApi()
