@@ -253,7 +253,7 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("could not get api info: %w", err)
 		}
-		storageAddr, err := ainfo.Host()
+		minerAddr, err := ainfo.Host()
 		if err != nil {
 			return err
 		}
@@ -292,7 +292,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		log.Infof("Running ActorSize:%s", ssize.ShortString())
 
 		workerAddr, err := nodeApi.WorkerAddress(ctx, act, types.EmptyTSK)
 		if err != nil {
@@ -410,11 +409,12 @@ var runCmd = &cli.Command{
 			report.SetReportUrl(reportUrl)
 		}
 
+		log.Infof("Worker(%s) started, ActorSize:%s, miner:%s,srv:%s", workerCfg.ID, ssize.ShortString(), minerAddr, listenAddr)
 		if err := acceptJobs(ctx,
 			workerSealer, sealedSB,
 			workerApi,
 			ssize, act, workerAddr,
-			storageAddr, ainfo.AuthHeader(),
+			minerAddr, ainfo.AuthHeader(),
 			workerRepo, sealedRepo, sealedMountedFile,
 			workerCfg,
 		); err != nil {

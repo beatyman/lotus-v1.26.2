@@ -87,7 +87,6 @@ func acceptJobs(ctx context.Context,
 	if err != nil {
 		return errors.As(err)
 	}
-	log.Infof("Worker(%s) started", workerCfg.ID)
 
 loop:
 	for {
