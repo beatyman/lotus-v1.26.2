@@ -74,6 +74,12 @@ func checkFile(path string, info paramFile) error {
 }
 
 func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ssize abi.SectorSize) error {
+	w.paramsLock.Lock()
+	defer w.paramsLock.Unlock()
+
+	if w.paramsVerified {
+		return nil
+	}
 	//// for origin params
 	//if err := paramfetch.GetParams(ctx, build.ParametersJSON(), ssize); err != nil {
 	//	return errors.As(err)
@@ -85,6 +91,7 @@ func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ss
 			time.Sleep(10e9)
 			continue
 		}
+		w.paramsVerified = true
 		return nil
 	}
 }

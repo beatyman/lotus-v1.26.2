@@ -26,6 +26,9 @@ type worker struct {
 	sealedRepo    string
 	auth          http.Header
 
+	paramsLock     sync.Mutex
+	paramsVerified bool
+
 	ssize   abi.SectorSize
 	actAddr address.Address
 
@@ -78,16 +81,20 @@ func acceptJobs(ctx context.Context,
 			return errors.As(err)
 		}
 	}
-	log.Infof("Worker(%s) started, ActorSize:%s, Miner:%s, Srv:%s", workerCfg.ID, ssize.ShortString(), minerEndpoint, workerCfg.IP)
 
+checkingApi:
 	api, err := GetNodeApi()
 	if err != nil {
-		return errors.As(err)
+		log.Warn(errors.As(err))
+		time.Sleep(3e9)
+		goto checkingApi
 	}
+
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
 		return errors.As(err)
 	}
+	log.Infof("Worker(%s) started, ActorSize:%s, Miner:%s, Srv:%s", workerCfg.ID, ssize.ShortString(), minerEndpoint, workerCfg.IP)
 
 loop:
 	for {
