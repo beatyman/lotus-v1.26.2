@@ -22,7 +22,7 @@ func ExecPrecommit1(ctx context.Context, repo string, ssize abi.SectorSize, task
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	var cpuKey = 0
+	var cpuIdx = 0
 	var cpuGroup = []int{}
 	for {
 		idx, group, err := allocateCpu(ctx)
@@ -31,11 +31,11 @@ func ExecPrecommit1(ctx context.Context, repo string, ssize abi.SectorSize, task
 			time.Sleep(10e9)
 			continue
 		}
-		cpuKey = idx
+		cpuIdx = idx
 		cpuGroup = group
 		break
 	}
-	defer returnCpu(cpuKey)
+	defer returnCpu(cpuIdx)
 
 	programName := os.Args[0]
 	cmd := exec.CommandContext(ctx, programName, "--worker-repo", repo, "precommit1", "--ssize", strconv.FormatUint(uint64(ssize), 10))
