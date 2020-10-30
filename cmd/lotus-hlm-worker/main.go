@@ -172,23 +172,42 @@ var p1Cmd = &cli.Command{
 		ctx, cancel := context.WithCancel(lcli.ReqContext(cctx))
 		defer cancel()
 
+		resp := ExecPrecommit1Resp{
+			Exit: 0,
+		}
+		defer func() {
+			result, err := json.MarshalIndent(&resp, "", "	")
+			if err != nil {
+				os.Stderr.Write([]byte(err.Error()))
+			} else {
+				os.Stdout.Write(result)
+			}
+		}()
 		workerRepo, err := homedir.Expand(cctx.String("worker-repo"))
 		if err != nil {
-			return errors.As(err)
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
 		}
 		ssize := abi.SectorSize(cctx.Uint64("ssize"))
 		spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
 		if err != nil {
-			return errors.As(err)
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
 		}
 
 		input := ""
 		if _, err := fmt.Scanln(&input); err != nil {
-			return errors.As(err)
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
 		}
 		task := ffiwrapper.WorkerTask{}
 		if err := json.Unmarshal([]byte(input), &task); err != nil {
-			return errors.As(err)
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
 		}
 
 		cfg := &ffiwrapper.Config{
@@ -198,19 +217,23 @@ var p1Cmd = &cli.Command{
 			Root: workerRepo,
 		}, cfg)
 		if err != nil {
-			return errors.As(err)
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
 		}
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
-			return errors.As(err)
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
 		}
 		rspco, err := workerSealer.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
 		if err != nil {
-			return errors.As(err)
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
 		}
-		if _, err := os.Stdout.Write(rspco); err != nil {
-			return errors.As(err)
-		}
+		resp.Data = rspco
 		return nil
 	},
 }

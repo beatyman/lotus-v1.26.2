@@ -17,6 +17,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+type ExecPrecommit1Resp struct {
+	Exit int
+	Data []byte
+	Err  string
+}
+
 func ExecPrecommit1(ctx context.Context, repo string, ssize abi.SectorSize, task ffiwrapper.WorkerTask) (storage.PreCommit1Out, error) {
 	args, err := json.Marshal(task)
 	if err != nil {
@@ -80,6 +86,12 @@ func ExecPrecommit1(ctx context.Context, repo string, ssize abi.SectorSize, task
 		return nil, errors.As(err, string(args))
 	}
 
-	// return result
-	return storage.PreCommit1Out(stdout.Bytes()), nil
+	resp := ExecPrecommit1Resp{}
+	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
+		return nil, errors.As(err, string(stdout.Bytes()))
+	}
+	if resp.Exit != 0 {
+		return nil, errors.Parse(resp.Err)
+	}
+	return storage.PreCommit1Out(resp.Data), nil
 }
