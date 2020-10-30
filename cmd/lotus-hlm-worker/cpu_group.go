@@ -117,11 +117,11 @@ func allocateCpu(ctx context.Context) (int, []int, error) {
 		cpuKeys[idx] = true
 		return idx, cpuGroup[idx], nil
 	}
-	return -1, nil, errors.New("allocate cpu failed")
+	return -1, nil, errors.New("allocate cpu failed").As(len(cpuKeys))
 }
 
-func returnCpu(key int) {
+func returnCpu(idx int) {
 	cpuLock.Lock()
 	defer cpuLock.Unlock()
-	cpuKeys[key] = false
+	cpuKeys[idx] = false
 }
