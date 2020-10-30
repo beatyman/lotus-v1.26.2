@@ -43,7 +43,7 @@ func GroupCpuCache(ctx context.Context) ([][]int, error) {
 
 	group := [][]int{}
 	cache := []int{}
-	cacheIndex := 0
+	cacheIndex := -1
 	for _, r := range records {
 		if len(r) != 2 {
 			return nil, errors.New("error cpu format").As(records)
@@ -56,29 +56,22 @@ func GroupCpuCache(ctx context.Context) ([][]int, error) {
 		if len(caches) != 4 {
 			return nil, errors.New("error cache format").As(records)
 		}
-		//		l1d, err := strconv.Atoi(caches[0])
-		//		if err != nil {
-		//			return nil, errors.New("error cache format").As(records)
-		//		}
-		//		l1i, err := strconv.Atoi(caches[1])
-		//		if err != nil {
-		//			return nil, errors.New("error cache format").As(records)
-		//		}
-		//		l2, err := strconv.Atoi(caches[2])
-		//		if err != nil {
-		//			return nil, errors.New("error cache format").As(records)
-		//		}
 		l3, err := strconv.Atoi(caches[3])
 		if err != nil {
 			return nil, errors.New("error cache format").As(records)
 		}
-		if l3 == cacheIndex {
-			cache = append(cache, cpu)
-		} else {
-			group = append(group, cache)
+		if l3 != cacheIndex {
+			if len(cache) > 0 {
+				group = append(group, cache)
+			}
 			cache = []int{cpu}
 			cacheIndex = l3
+		} else {
+			cache = append(cache, cpu)
 		}
+	}
+	if len(cache) > 0 {
+		group = append(group, cache)
 	}
 	return group, nil
 }
@@ -110,18 +103,20 @@ func allocateCpu(ctx context.Context) (int, []int, error) {
 
 	cpuLock.Lock()
 	defer cpuLock.Unlock()
-	for idx, using := range cpuKeys {
+	for idx, cpus := range cpuGroup {
+
+		using, _ := cpuKeys[idx]
 		if using {
 			continue
 		}
 		cpuKeys[idx] = true
-		return idx, cpuGroup[idx], nil
+		return idx, cpus, nil
 	}
-	return -1, nil, errors.New("allocate cpu failed")
+	return -1, nil, errors.New("allocate cpu failed").As(len(cpuKeys))
 }
 
-func returnCpu(key int) {
+func returnCpu(idx int) {
 	cpuLock.Lock()
 	defer cpuLock.Unlock()
-	cpuKeys[key] = false
+	cpuKeys[idx] = false
 }
