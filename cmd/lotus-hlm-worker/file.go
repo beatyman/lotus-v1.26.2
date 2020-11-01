@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	append_file_new      = 0
-	append_file_continue = 1
-	append_file_complete = 2
+	append_file_new       = 0
+	append_file_continue  = 1
+	append_file_completed = 2
 )
 
 func canAppendFile(aFile, bFile *os.File, aStat, bStat os.FileInfo) (int, error) {
@@ -45,7 +45,7 @@ func canAppendFile(aFile, bFile *os.File, aStat, bStat os.FileInfo) (int, error)
 	eq := bytes.Equal(aData, bData)
 	if eq {
 		if aSize == bSize {
-			return append_file_complete, nil
+			return append_file_completed, nil
 		}
 		return append_file_continue, nil
 	}
@@ -114,9 +114,11 @@ func copyFile(ctx context.Context, from, to string) error {
 		return errors.As(err)
 	}
 	switch stats {
-	case append_file_complete:
-		// done
+	case append_file_completed:
+		// has done
 		fmt.Printf("%s ======= completed\n", to)
+		return nil
+
 	case append_file_continue:
 		appendPos := int64(toStat.Size() - 1)
 		if appendPos < 0 {
