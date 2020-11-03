@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
+	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
@@ -165,9 +165,9 @@ func parseSectorID(baseName string) (string, error) {
 }
 func ftFromString(t string) (string, error) {
 	switch t {
-	case stores.FTUnsealed.String():
-	case stores.FTSealed.String():
-	case stores.FTCache.String():
+	case storiface.FTUnsealed.String():
+	case storiface.FTSealed.String():
+	case storiface.FTCache.String():
 	case "all":
 		return t, nil
 	default:

@@ -25,7 +25,7 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-sysinfo v1.3.0
 	github.com/fatih/color v1.9.0
-	github.com/filecoin-project/filecoin-ffi v0.30.4-0.20200716204036-cddc56607e1d
+	github.com/filecoin-project/filecoin-ffi v0.30.4-0.20200910194244-f640612a1a1f
 	github.com/filecoin-project/go-address v0.0.4
 	github.com/filecoin-project/go-amt-ipld/v2 v2.1.1-0.20201006184820-924ee87a1349 // indirect
 	github.com/filecoin-project/go-bitfield v0.2.1
@@ -87,6 +87,7 @@ require (
 	github.com/ipfs/go-log v1.0.4
 	github.com/ipfs/go-log/v2 v2.1.2-0.20200626104915-0016c0b4b3e4
 	github.com/ipfs/go-merkledag v0.3.2
+	github.com/ipfs/go-metrics-interface v0.0.1
 	github.com/ipfs/go-metrics-prometheus v0.0.2
 	github.com/ipfs/go-path v0.0.7
 	github.com/ipfs/go-unixfs v0.2.4
@@ -165,6 +166,4 @@ replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/g
 
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
-replace github.com/supranational/blst => ./extern/fil-blst/blst
-
-replace github.com/filecoin-project/fil-blst => ./extern/fil-blst
+replace github.com/supranational/blst => ./extern/blst

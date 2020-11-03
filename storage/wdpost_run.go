@@ -321,13 +321,14 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 
 	msg := &types.Message{
 		To:     s.actor,
-		From:   s.worker,
 		Method: miner.Methods.DeclareFaultsRecovered,
 		Params: enc,
 		Value:  types.NewInt(0),
 	}
 	spec := &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)}
-	s.setSender(ctx, msg, spec)
+	if err := s.setSender(ctx, msg, spec); err != nil {
+		return recoveries, nil, err
+	}
 
 	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)})
 	if err != nil {
@@ -407,13 +408,14 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 
 	msg := &types.Message{
 		To:     s.actor,
-		From:   s.worker,
 		Method: miner.Methods.DeclareFaults,
 		Params: enc,
 		Value:  types.NewInt(0), // TODO: Is there a fee?
 	}
 	spec := &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)}
-	s.setSender(ctx, msg, spec)
+	if err := s.setSender(ctx, msg, spec); err != nil {
+		return faults, nil, err
+	}
 
 	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, spec)
 	if err != nil {
@@ -541,10 +543,10 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 		skipCount := uint64(0)
 		postSkipped := bitfield.New()
-		var postOut []proof2.PoStProof
-		somethingToProve := true
+		somethingToProve := false
 
-		for retries := 0; retries < 5; retries++ {
+		// Retry until we run out of sectors to prove.
+		for retries := 0; ; retries++ {
 			var partitions []miner.PoStPartition
 			var sinfos []storage.ProofSectorInfo
 			for partIdx, partition := range batch {
@@ -598,7 +600,6 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 			if len(sinfos) == 0 {
 				// nothing to prove for this batch
-				somethingToProve = false
 				break
 			}
 
@@ -616,26 +617,42 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 				return nil, err
 			}
 
-			var ps []abi.SectorID
-			postOut, ps, err = s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, abi.PoStRandomness(rand))
+			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, abi.PoStRandomness(rand))
 			elapsed := time.Since(tsStart)
 
 			log.Infow("computing window post", "batch", batchIdx, "elapsed", elapsed)
 
 			if err == nil {
-				// Proof generation successful, stop retrying
-				params.Partitions = append(params.Partitions, partitions...)
+				if len(postOut) == 0 {
+					return nil, xerrors.Errorf("received no proofs back from generate window post")
+				}
 
+				// Proof generation successful, stop retrying
+				somethingToProve = true
+				params.Partitions = partitions
+				params.Proofs = postOut
 				break
 			}
 
 			// Proof generation failed, so retry
 
 			if len(ps) == 0 {
+				// If we didn't skip any new sectors, we failed
+				// for some other reason and we need to abort.
 				return nil, xerrors.Errorf("running window post failed: %w", err)
 			}
+			// TODO: maybe mark these as faulty somewhere?
 
 			log.Warnw("generate window post skipped sectors", "sectors", ps, "error", err, "try", retries)
+
+			// Explicitly make sure we haven't aborted this PoSt
+			// (GenerateWindowPoSt may or may not check this).
+			// Otherwise, we could try to continue proving a
+			// deadline after the deadline has ended.
+			if ctx.Err() != nil {
+				log.Warnw("aborting PoSt due to context cancellation", "error", ctx.Err(), "deadline", di.Index)
+				return nil, ctx.Err()
+			}
 
 			skipCount += uint64(len(ps))
 			for _, sector := range ps {
@@ -647,12 +664,6 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 		if !somethingToProve {
 			continue
 		}
-
-		if len(postOut) == 0 {
-			return nil, xerrors.Errorf("received no proofs back from generate window post")
-		}
-
-		params.Proofs = postOut
 
 		posts = append(posts, params)
 	}
@@ -769,13 +780,14 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 
 	msg := &types.Message{
 		To:     s.actor,
-		From:   s.worker,
 		Method: miner.Methods.SubmitWindowedPoSt,
 		Params: enc,
 		Value:  types.NewInt(0),
 	}
 	spec := &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)}
-	s.setSender(ctx, msg, spec)
+	if err := s.setSender(ctx, msg, spec); err != nil {
+		return nil, err
+	}
 
 	// TODO: consider maybe caring about the output
 	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, spec)
@@ -804,21 +816,18 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	return sm, nil
 }
 
-func (s *WindowPoStScheduler) setSender(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) {
+func (s *WindowPoStScheduler) setSender(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) error {
 	mi, err := s.api.StateMinerInfo(ctx, s.actor, types.EmptyTSK)
 	if err != nil {
-		log.Errorw("error getting miner info", "error", err)
-
-		// better than just failing
-		msg.From = s.worker
-		return
+		return xerrors.Errorf("error getting miner info: %w", err)
 	}
+	// use the worker as a fallback
+	msg.From = mi.Worker
 
 	gm, err := s.api.GasEstimateMessageGas(ctx, msg, spec, types.EmptyTSK)
 	if err != nil {
 		log.Errorw("estimating gas", "error", err)
-		msg.From = s.worker
-		return
+		return nil
 	}
 	*msg = *gm
 
@@ -827,9 +836,9 @@ func (s *WindowPoStScheduler) setSender(ctx context.Context, msg *types.Message,
 	pa, err := AddressFor(ctx, s.api, mi, PoStAddr, minFunds)
 	if err != nil {
 		log.Errorw("error selecting address for window post", "error", err)
-		msg.From = s.worker
-		return
+		return nil
 	}
 
 	msg.From = pa
+	return nil
 }

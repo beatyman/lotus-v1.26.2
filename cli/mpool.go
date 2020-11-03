@@ -23,6 +23,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/node/config"
 )
 
 var mpoolCmd = &cli.Command{
@@ -663,7 +664,12 @@ var mpoolReplaceCmd = &cli.Command{
 
 			msg.GasPremium = big.Max(retm.GasPremium, minRBF)
 			msg.GasFeeCap = big.Max(retm.GasFeeCap, msg.GasPremium)
-			messagepool.CapGasFee(&msg, mss.Get().MaxFee)
+
+			mff := func() (abi.TokenAmount, error) {
+				return abi.TokenAmount(config.DefaultDefaultMaxFee), nil
+			}
+
+			messagepool.CapGasFee(mff, &msg, mss.Get().MaxFee)
 		} else {
 			msg.GasLimit = cctx.Int64("gas-limit")
 			msg.GasPremium, err = types.BigFromString(cctx.String("gas-premium"))
