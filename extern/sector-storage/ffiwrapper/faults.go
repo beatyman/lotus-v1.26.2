@@ -109,7 +109,10 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 			case <-ctx.Done():
 				return errors.New("context canceled").As(p)
 			case err := <-checkDone:
-				return errors.As(err, p)
+				if err != nil {
+					return errors.As(err, p)
+				}
+				// continue
 			}
 		}
 		return nil

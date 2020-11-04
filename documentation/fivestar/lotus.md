@@ -3,10 +3,7 @@
 - [开发环境安装](#开发环境安装)
 - [国内安装技巧](#国内安装技巧)
 - [下载lotus源代码](#下载lotus源代码)
-- [调试RUST](#调试RUST)
-- [创建本地开发网络](#搭建创世节点)
-    - [搭建存储节点](#搭建存储节点)
-    - [接入本地开发网](#接入本地开发网)
+- [创建本地开发环境](#搭建创世节点)
 - [目录规范](#目录规范)
     - [存储节点上的目录](#存储节点上的目录)
     - [链节点目录](#链节点目录)
@@ -20,7 +17,7 @@
 # 安装依赖(需要ubuntu 18.04)
 apt-get update
 apt-get install aptitude
-aptitude install chrony nfs-common gcc git bzr jq pkg-config mesa-opencl-icd ocl-icd-opencl-dev libclang-dev
+aptitude install rsync chrony nfs-common make mesa-opencl-icd ocl-icd-opencl-dev gcc git bzr jq pkg-config curl clang build-essential libhwloc-dev
 ```
 
 ## 国内安装技巧 
@@ -46,8 +43,11 @@ exit # 退出sudo su -
 mkdir ~/.cargo
 
 ### 设置国内镜像代理(或设置到~/.profile中, 需要重新登录生效或source ~/.profile))
-export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
-export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
+export RUSTUP_DIST_SERVER=https://mirrors.sjtug.sjtu.edu.cn/rust-static
+export RUSTUP_UPDATE_ROOT=https://mirrors.sjtug.sjtu.edu.cn/rust-static/rustup
+# 若前面源不可用，换以下源
+#export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
+#export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
 
 cat > ~/.cargo/config <<EOF
 [source.crates-io]
@@ -75,77 +75,54 @@ EOF
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-## 下载lotus源代码
+## 编译lotus源代码
 ```shell
 mkdir -p $HOME/go/src/github.com/filecoin-project
 cd $HOME/go/src/github.com/filecoin-project
-git clone https://github.com/filecoin-fivestar/lotus.git lotus
+# 下载慢时注意配置/etc/hosts
+# https://blog.csdn.net/random0708/article/details/106001665/
+git clone https://github.com/filecoin-fivestar/fivestar-lotus.git lotus
 cd lotus
-```
-
-## 调试RUST
-```shell
-mkdir -p $HOME/go/src/github.com/filecoin-project
-cd $HOME/go/src/github.com/filecoin-project
-git clone https://github.com/filecoin-fivestar/lotus.git lotus
-git clone https://github.com/filecoin-project/rust-fil-proofs.git
-git clone https://https://github.com/filecoin-project/rust-filecoin-proofs-api.git
-```
-### 在rust-fil-proofs下测试
-``` 
-cd $HOME/go/src/github.com/filecoin-project/rust-fil-proofs
-RUST_BACKTRACE=1 RUST_LOG=info FIL_PROOFS_USE_GPU_TREE_BUILDER=1 FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1 cargo run --release --bin benchy -- stacked --size 2
-```
-### 在lotus下测试
-1, 修改lotus/extern/filecoin-ffi/rust/Cargo.toml指向
-```
-[dependencies.filecoin-proofs-api]
-package = "filecoin-proofs-api"
-#version = "4.0.2"
-path = "../../../../rust-filecoin-proofs-api"
-```
-
-2, 切换rust-filecoin-proofs-api版本与指向
-```shell
-cd $HOME/go/src/github.com/filecoin-project/rust-filecoin-proofs-api
-git checkout v4.0.2 # 需要与lotus使用的同一版本
-```
-
-修改rust-filecoin-proofs-api/Cargo.toml指向
-```
-[dependencies]
-anyhow = "1.0.26"
-serde = "1.0.104"
-paired = "0.20.0"
-#filecoin-proofs-v1 = { package = "filecoin-proofs", version = "4.0.2" }
-filecoin-proofs-v1 = { package = "filecoin-proofs", path = "../rust-fil-proofs/filecoin-proofs" }
-```
-
-3, 切换rust-fil-proofs版本与指向
-```shell
-cd $HOME/go/src/github.com/filecoin-project/rust-filecoin-proofs-api
-git checkout releases/v4.0.2 # 需要与rust-filecoin-proofs-api使用的同一版本
-```
-
-4, 编译lotus基测程序
-```shell
-cd $HOME/go/src/github.com/filecoin-project/lotus
+git checkout testing # 检出需要的分支
+# 编译
 make clean
-env RUSTFLAGS="-C target-cpu=native -g" FFI_BUILD_FROM_SOURCE=1 make bench
-./bensh.sh
+env RUSTFLAGS="-C target-cpu=native -g" CGO_CFLAG="-D__BLST_PORTABLE__" FFI_BUILD_FROM_SOURCE=1 make
 ```
 
-## 搭建创世节点
+## 安装部署程序
+下载hlm-miner(开源版)程序管理
 ```shell
-./clean-bootstrap.sh
-ps axu|grep lotus # 确认所有相关进程已关闭
-./init-bootstrap.sh
-tail -f boostrap.log # 直到Heaviest tipset 有10来个高度左右, ctrl+c 退出
-ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
-./deploy-boostrap.sh # 部署水龙头及对外提供的初始节点
+cd ~
+git clone https://github.com/filecoin-fivestar/hlm-miner.git
+
+mkdir -p ~/go/src/github.com/filecoin-fivestar/
+cd ~/go/src/github.com/filecoin-fivestar/
+git clone https://github.com/filecoin-fivestar/supd
+cd ~/go/src/github.com/filecoin-fivestar/supd/cmd/supervisord
+./publish.sh
+cp -rf supervisord ~/hlm-miner/bin/hlmd
+
+cd ~/hlm-miner/
+git checkout testing # 检出最新代码
+. env.sh
+./install.sh install # hlmd ctl status # 有状态输出为成功
 ```
 
 ## 创建本地开发网络
+
+### 搭建创世节点
+```shell
+cd $HOME/go/src/github.com/filecoin-project/lotus
+./clean-bootstrap.sh
+ps axu|grep lotus # 确认所有相关进程已关闭
+./init-bootstrap.sh
+tail -f boostrap.log # 直到Heaviest tipset 稳定在10秒左右输出, 高度约为10以上, ctrl+c 退出
+ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
+# 修改PermitRootLogin为yes, 参考 https://blog.csdn.net/zilaike/article/details/78922524
+ssh-copy-id root@127.0.0.1
+./deploy-boostrap.sh # 部署水龙头及对外提供的初始节点
+# 遇错时从clean-boostrap重新开始
+```
 
 ### 搭建存储节点
 ```shell
@@ -154,56 +131,73 @@ mkdir -p /data/nfs
 mkdir -p /data/zfs
 mkdir -p /data/zfs/cache
 mkdir -p /data/zfs/sealed
-chattr -V +a /data/zfs
-chattr -V +a /data/zfs/cache
-chattr -V +a /data/zfs/sealed
+chattr -V +a /data/zfs # 读写权限，不能删除
+chattr -V +a /data/zfs/cache # 读写权限，不能删除
+chattr -V +a /data/zfs/sealed # 读写权限，不能删除
 
 echo "/data/zfs/ *(rw,sync,insecure,no_root_squash)" >>/etc/exports
 systemctl reload nfs-server
+showmount -e # 校验NFS是否已共享出来
 ```
 
-### 接入本地开发网
+### 生成开发版lotus程序
 ```shell
+cd $HOME/go/src/github.com/filecoin-project/lotus
 ./install.sh debug # 若是使用正式，执行./install.sh进行编译, 编译完成后自动放在$FILECOIN_BIN下
 rm -rf /data/sdb/lotus-user-1/.lotus* # 注意!!!! 需要确认此库不是正式库，删掉需要重新同步数据与创建矿工，若创世节点一样，可不删除。
 ```
 
 shell 1, 运行链
 ```
-cd ../../scripts/fivestar
-./daemon.sh
+cd ~/hlm-miner/apps/lotus
+# 运行前注意修改脚本中的netip地址段，默认只支持10段
+./daemon.sh # 或者直接hlmd ctl start lotus-daemon-1, hlmd ctl tail lotus-daemon-1 stderr -f 看日志
 ```
 
-shell 2, 创建私网矿工, 首次运行时需要构建, 或通过浏览器来创建
+shell 2, 创建私网矿工
 ```
-cd ../../scripts/fivestar
+cd ~/hlm-miner/script/lotus/lotus-user/
+. env/lotus.sh
+. env/1.sh
 ./init-miner-dev.sh
+./miner.sh init --sector-size=2KiB # 注意修改miner.sh中的识别到的netip，默认只支持10地址段
 ```
 
 shell 3, 运行矿工
 ```
-cd ../../scripts/fivestar
-./miner.sh
+cd ~/hlm-miner/apps/lotus
+./miner.sh # 或者直接hlmd ctl start lotus-user-1,hlmd ctl tail lotus-user-1 stderr -f 看日志
 ```
 
-shell 4, 运行worker
+shell 4，导入存储节点
 ```
-cd ../../scripts/fivestar
-./worker.sh
-```
-
-shell 5，操作miner
-```
-cd ../../scripts/fivestar
+cd ~/hlm-miner/script/lotus/lotus-user/
 
 # 添加存储节点
 ./init-storage-dev.sh
 
 # 运行刷量
-./mshell.sh pledge-sector start
+./miner.sh pledge-sector start
 
 # miner的其他指令，参阅
-./mshell.sh --help
+./miner.sh --help
+```
+
+shell 5, 运行worker
+```
+cd ~/hlm-miner/apps/lotus
+# 运行前注意修改脚本中的netip地址段，默认只支持10段
+./worker.sh # 或者直接hlmd ctl start lotus-worker-1
+```
+shell 6，刷扇区
+```
+cd ~/hlm-miner/script/lotus/lotus-user/
+
+# 运行刷量
+./miner.sh pledge-sector start
+
+# miner的其他指令，参阅
+./miner.sh --help
 ```
 
 ## 目录规范
@@ -215,15 +209,10 @@ cd ../../scripts/fivestar
 # 缓存盘
 /data/cache -- 缓存盘，必要时此盘数据会被清除，存放的数据要求是可损坏的，可单独挂载盘，建议挂载ssd盘
 /data/cache/filecoin-proof-parameters -- filecoin本地启动参数版本管理目录文件，此文件数据需要65G左右的空间
-/data/cache/filecoin-proof-parameters/v20 -- filecoin本地启动参数目录实际目文件
+/data/cache/filecoin-proof-parameters/v28 -- filecoin本地启动参数目录实际目文件
 /data/cache/.lotusworker -- lotus-seal-worker计算缓存目录，计算结束后会自动清除，需要1T左右空间
-/data/cache/.lotusworker/push -- 计算结果推送目录，会自动单独挂载盘，可选
 /data/cache/tmp -- 程序$TMPDIR设定的目录
-
-# lotus公共参数数据，可单独挂载盘
-/data/lotus
-/data/lotus/filecoin-proof-parameters -- lotus启动参数文件，可单独挂载盘; 可选，用于提供parameters的下载
-/data/lotus/filecoin-proof-parameters/v20 -- lotus对应版本的启动参数，若存在，worker脚本会同步复到到/data/cache/filecoin-proof-parameters下
+/data/lotus-push -- 计算结果推送目录，会自动单独挂载盘，可选
 
 # 矿工数据盘
 /data/sd(?) -- 矿工存储数据目录(前期设计多进程时对应多盘位), 可单独挂载盘，默认为/data/sdb
@@ -238,7 +227,6 @@ cd ../../scripts/fivestar
 # 启动参数链接入口
 /var/tmp/filecoin-proof-parameters # filecoin启动参数文件入口，会被软连接到/data/cache/filecoin-proof-parameters对应版本下
 ```
-
 
 ### 存储节点上的目录
 
