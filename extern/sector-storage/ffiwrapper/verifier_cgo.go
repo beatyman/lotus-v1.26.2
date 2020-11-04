@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/filecoin-project/specs-storage/storage"
+	"go.opencensus.io/trace"
 
 	"golang.org/x/xerrors"
 
@@ -64,7 +65,7 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 			continue
 		}
 
-		paths := stores.SectorPaths{
+		paths := storiface.SectorPaths{
 			ID:       s.SectorID(),
 			Unsealed: s.UnsealedFile(),
 			Sealed:   s.SealedFile(),

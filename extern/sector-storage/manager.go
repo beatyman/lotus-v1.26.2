@@ -187,7 +187,7 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, cfg
 	if sc.AllowUnseal {
 		localTasks = append(localTasks, sealtasks.TTUnseal)
 	}
-	err = m.AddWorker(ctx, NewLocalWorker(remoteCfg, WorkerConfig{
+	err = m.AddWorker(ctx, NewLocalWorker(WorkerConfig{
 		SealProof: cfg.SealProofType,
 		TaskTypes: localTasks,
 	}, stor, lstor, si, m, wss))

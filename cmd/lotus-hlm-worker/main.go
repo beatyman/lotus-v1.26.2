@@ -85,9 +85,7 @@ func GetNodeApi() (api.StorageMiner, error) {
 		return nodeApi, nil
 	}
 
-	nApi, closer, err := lcli.GetStorageMinerAPI(nodeCCtx,
-		jsonrpc.WithNoReconnect(),
-		jsonrpc.WithTimeout(120*time.Second))
+	nApi, closer, err := lcli.GetStorageMinerAPI(nodeCCtx)
 	if err != nil {
 		closeNodeApi()
 		return nil, errors.As(err)

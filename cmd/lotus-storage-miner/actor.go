@@ -812,7 +812,7 @@ var actorProposeChangeWorker = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: miner.Methods.ChangeWorkerAddress,
@@ -919,7 +919,7 @@ var actorConfirmChangeWorker = &cli.Command{
 			return nil
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: miner.Methods.ConfirmUpdateWorkerKey,

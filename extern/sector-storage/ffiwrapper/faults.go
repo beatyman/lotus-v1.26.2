@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
+	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
@@ -66,7 +66,7 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 		if len(sector.StorageRepo) == 0 {
 			return errors.New("StorageRepo not found").As(sector)
 		}
-		lp := stores.SectorPaths{
+		lp := storiface.SectorPaths{
 			ID:       sector.SectorID(),
 			Unsealed: sector.UnsealedFile(),
 			Sealed:   sector.SealedFile(),

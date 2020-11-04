@@ -228,7 +228,7 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector abi.SectorID, offset s
 	// implements from hlm
 	repo := sb.sectors.RepoPath()
 	sName := storage.SectorName(sector)
-	sPath := stores.SectorPaths{
+	sPath := storiface.SectorPaths{
 		ID:       sector,
 		Unsealed: filepath.Join(repo, "unsealed", sName),
 		Sealed:   filepath.Join(repo, "sealed", sName),
@@ -421,7 +421,7 @@ func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector abi.Se
 	// defer done()
 	repo := sb.sectors.RepoPath()
 	sName := storage.SectorName(sector)
-	path := stores.SectorPaths{
+	path := storiface.SectorPaths{
 		ID:       sector,
 		Unsealed: filepath.Join(repo, "unsealed", sName),
 		Sealed:   filepath.Join(repo, "sealed", sName),
