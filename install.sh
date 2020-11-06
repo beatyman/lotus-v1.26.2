@@ -40,7 +40,9 @@ echo "copy bin to "$install_path
 cp -rf lotus $install_path
 cp -rf lotus-miner $install_path
 cp -rf lotus-worker $install_path
-cp -rf lotus-chain-watch $install_path
+if [ -f ./lotus-shed ]; then
+    cp -rf lotus-shed $install_path
+fi
 if [ -f ./leveldb-tools ]; then
     cp -rf leveldb-tools $install_path
 fi
