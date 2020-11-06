@@ -33,7 +33,7 @@ var sectorsCmd = &cli.Command{
 var terminateSectorCmd = &cli.Command{
 	Name:      "terminate",
 	Usage:     "Forcefully terminate a sector (WARNING: This means losing power and pay a one-time termination penalty(including collateral) for the terminated sector)",
-	ArgsUsage: "[sectorNum1 sectorNum2 ...]",
+	ArgsUsage: "sector file, seperate with \\r\\n",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "really-do-it",
@@ -43,10 +43,6 @@ var terminateSectorCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() < 1 {
 			return fmt.Errorf("at least one sector must be specified")
-		}
-
-		if !cctx.Bool("really-do-it") {
-			return fmt.Errorf("this is a command for advanced users, only use it if you are sure of what you are doing")
 		}
 
 		sectorFile := cctx.Args().First()
@@ -82,11 +78,30 @@ var terminateSectorCmd = &cli.Command{
 
 		terminationDeclarationParams := []miner2.TerminationDeclaration{}
 
-		for _, sn := range sectors {
-			sectorNum, err := strconv.ParseUint(strings.TrimSpace(sn), 10, 64)
+		subPledge := abi.NewTokenAmount(0)
+		totalPledge := abi.NewTokenAmount(0)
+		for _, sector := range sectors {
+			sn := strings.TrimSpace(sector)
+			if len(sn) == 0 {
+				continue
+			}
+			sectorNum, err := strconv.ParseUint(sn, 10, 64)
 			if err != nil {
 				return fmt.Errorf("could not parse sector number: %w", err)
 			}
+
+			// check sectorNum
+			status, err := api.SectorsStatus(ctx, abi.SectorNumber(sectorNum), true)
+			if err != nil {
+				return err
+			}
+			totalPledge = big.Add(totalPledge, status.InitialPledge)
+			if status.Early == 0 {
+				fmt.Printf("%d:false, pledge:%s, deals:%+v\n", sectorNum, status.InitialPledge, status.Deals)
+				continue
+			}
+			fmt.Printf("%d:true, pledge:%s, deals:%+v\n", sectorNum, status.InitialPledge, status.Deals)
+			subPledge = big.Add(subPledge, status.InitialPledge)
 
 			sectorbit := bitfield.New()
 			sectorbit.Set(sectorNum)
@@ -103,6 +118,11 @@ var terminateSectorCmd = &cli.Command{
 			}
 
 			terminationDeclarationParams = append(terminationDeclarationParams, para)
+		}
+		fmt.Printf("total pledge:%s, punish pledge:%s \n", totalPledge, subPledge)
+
+		if !cctx.Bool("really-do-it") {
+			return fmt.Errorf("this is a command for advanced users, only use it if you are sure of what you are doing")
 		}
 
 		terminateSectorParams := &miner2.TerminateSectorsParams{
