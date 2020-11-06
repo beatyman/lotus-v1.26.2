@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"strconv"
+	"strings"
 
 	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -47,6 +49,13 @@ var terminateSectorCmd = &cli.Command{
 			return fmt.Errorf("this is a command for advanced users, only use it if you are sure of what you are doing")
 		}
 
+		sectorFile := cctx.Args().First()
+		sectorData, err := ioutil.ReadFile(sectorFile)
+		if err != nil {
+			return err
+		}
+		sectors := strings.Split(string(sectorData), "\n")
+
 		nodeApi, closer, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {
 			return err
@@ -73,8 +82,8 @@ var terminateSectorCmd = &cli.Command{
 
 		terminationDeclarationParams := []miner2.TerminationDeclaration{}
 
-		for _, sn := range cctx.Args().Slice() {
-			sectorNum, err := strconv.ParseUint(sn, 10, 64)
+		for _, sn := range sectors {
+			sectorNum, err := strconv.ParseUint(strings.TrimSpace(sn), 10, 64)
 			if err != nil {
 				return fmt.Errorf("could not parse sector number: %w", err)
 			}
