@@ -233,13 +233,11 @@ type ExecCallback func(cid.Cid, *types.Message, *vm.ApplyRet) error
 func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEpoch, pstate cid.Cid, bms []store.BlockMessages, epoch abi.ChainEpoch, r vm.Rand, cb ExecCallback, baseFee abi.TokenAmount, ts *types.TipSet) (cid.Cid, cid.Cid, error) {
 	applyBlocksStart := build.Clock.Now()
 	var (
-		handleStateForksStart     = time.Time{}
-		processedMsgsStart        = time.Time{}
-		serializeParamsStart      = time.Time{}
-		sysActStart               = time.Time{}
-		applyImplicitMessageStart = time.Time{}
-		runCronStart              = time.Time{}
-		flushStart                = time.Time{}
+		handleStateForksStart = time.Time{}
+		processedMsgsStart    = time.Time{}
+		serializeParamsStart  = time.Time{}
+		runCronStart          = time.Time{}
+		flushStart            = time.Time{}
 	)
 	defer func() {
 		applyBlocksEnd := build.Clock.Now()
@@ -251,9 +249,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 				"newVM", handleStateForksStart.Sub(applyBlocksStart),
 				"handleStateForks", processedMsgsStart.Sub(handleStateForksStart),
 				"processedMsgs", serializeParamsStart.Sub(processedMsgsStart),
-				"serializeParams", sysActStart.Sub(serializeParamsStart),
-				"sysAct", applyImplicitMessageStart.Sub(sysActStart),
-				"applyImplicitMessage", runCronStart.Sub(applyImplicitMessageStart),
+				"applyImplicitMessage", runCronStart.Sub(serializeParamsStart),
 				"runCron", flushStart.Sub(runCronStart),
 				"flush", applyBlocksEnd.Sub(flushStart),
 			)
