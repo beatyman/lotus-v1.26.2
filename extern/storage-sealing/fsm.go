@@ -221,7 +221,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSector(state.SectorNumber)))
 	if err != nil {
 		log.Warn(errors.As(err))
-	} else if state.SectorNumber > 0 && sInfo.State > database.SECTOR_STATE_DONE {
+	} else if sInfo.State > database.SECTOR_STATE_DONE {
 		log.Infof("sector(%s,%d) state(%d,%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
 		return nil, processed, nil
 	}

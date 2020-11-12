@@ -14,7 +14,7 @@ func (m *Sealing) pledgeSector(ctx context.Context, sectorID abi.SectorID, exist
 	if len(sizes) == 0 {
 		return nil, nil
 	}
-	// only one can pledge
+	// only one can pledge in miner, so miner can use cpu to do other more
 	// TODO: do it in parallel
 	limitPledge <- 1
 	defer func() {
