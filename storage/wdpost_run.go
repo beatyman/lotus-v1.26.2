@@ -160,11 +160,11 @@ func (s *WindowPoStScheduler) runSubmitPoST(
 	// Get randomness from tickets
 	// use the challenge epoch if we've upgraded to network version 4
 	// (actors version 2). We want to go back as far as possible to be safe.
-	commEpoch := deadline.Open
+	commEpoch := deadline.Challenge
 	if ver, err := s.api.StateNetworkVersion(ctx, types.EmptyTSK); err != nil {
 		log.Errorw("failed to get network version to determine PoSt epoch randomness lookback", "error", err)
-	} else if ver >= network.Version4 {
-		commEpoch = deadline.Challenge
+	} else if ver < network.Version4 {
+		commEpoch = deadline.Open
 	}
 
 	commRand, err := s.api.ChainGetRandomnessFromTickets(ctx, ts.Key(), crypto.DomainSeparationTag_PoStChainCommit, commEpoch, nil)

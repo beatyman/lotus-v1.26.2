@@ -43,6 +43,9 @@ cp -vrf lotus-worker $install_path
 if [ -f ./lotus-chain-watch ]; then
     cp -vrf lotus-chain-watch $install_path
 fi
+if [ -f ./lotus-shed ]; then
+    cp -rf lotus-shed $install_path
+fi
 if [ -f ./leveldb-tools ]; then
     cp -vrf leveldb-tools $install_path
 fi
