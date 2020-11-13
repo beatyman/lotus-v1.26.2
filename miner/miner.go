@@ -215,9 +215,35 @@ func (m *Miner) mine(ctx context.Context) {
 				time.Sleep(1e9)
 				continue
 			}
-
 			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
-			lastBase.NullRounds++
+
+			syncComplete := true
+			state, err := m.api.SyncState(ctx)
+			if err == nil {
+				var maxBaseHeight, maxTargetHeight abi.ChainEpoch
+				for _, ss := range state.ActiveSyncs {
+					if ss.Base == nil {
+						continue
+					}
+					if ss.Target == nil {
+						continue
+					}
+					if ss.Base.Height() > maxBaseHeight {
+						maxBaseHeight = ss.Base.Height()
+					}
+					if ss.Target.Height() > maxTargetHeight {
+						maxTargetHeight = ss.Target.Height()
+					}
+				}
+				// maybe > 1?
+				if maxTargetHeight-maxBaseHeight > 10 {
+					syncComplete = false
+				}
+			}
+
+			if syncComplete {
+				lastBase.NullRounds++
+			}
 			nextRound = nextRoundTime(&lastBase)
 		}
 
