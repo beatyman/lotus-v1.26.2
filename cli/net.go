@@ -150,9 +150,9 @@ var netConnect = &cli.Command{
 	ArgsUsage: "[peerMultiaddr|minerActorAddress]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
-			Name:  "boostrap",
+			Name:  "bootstrap",
 			Value: false,
-			Usage: "Also connect boostrap",
+			Usage: "Also connect bootstrap",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -164,7 +164,7 @@ var netConnect = &cli.Command{
 		ctx := ReqContext(cctx)
 		allPis := []peer.AddrInfo{}
 
-		if cctx.Bool("boostrap") {
+		if cctx.Bool("bootstrap") {
 			pis, err := build.BuiltinBootstrap()
 			if err != nil {
 				return err

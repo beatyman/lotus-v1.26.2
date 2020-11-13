@@ -39,7 +39,7 @@ func BuiltinBootstrap() ([]peer.AddrInfo, error) {
 	})
 
 	// TODO:fetch from fivestar chains server
-	if data, err := ioutil.ReadFile("/etc/lotus/boostrap.pi"); err != nil {
+	if data, err := ioutil.ReadFile("/etc/lotus/bootstrap.pi"); err != nil {
 		if !os.IsNotExist(err) {
 			log.Warn(err)
 		}

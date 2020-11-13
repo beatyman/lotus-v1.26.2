@@ -51,16 +51,22 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 		on(SectorAddPiece{}, WaitDeals),
 		on(SectorStartPacking{}, Packing),
 	),
-	Packing: planOne(on(SectorPacked{}, PreCommit1)),
+	Packing: planOne(on(SectorPacked{}, GetTicket)),
+	GetTicket: planOne(
+		on(SectorTicket{}, PreCommit1),
+		on(SectorCommitFailed{}, CommitFailed),
+	),
 	PreCommit1: planOne(
 		on(SectorPreCommit1{}, PreCommit2),
 		on(SectorSealPreCommit1Failed{}, SealPreCommit1Failed),
 		on(SectorDealsExpired{}, DealsExpired),
 		on(SectorInvalidDealIDs{}, RecoverDealIDs),
+		on(SectorOldTicket{}, GetTicket),
 	),
 	PreCommit2: planOne(
 		on(SectorPreCommit2{}, PreCommitting),
 		on(SectorSealPreCommit2Failed{}, SealPreCommit2Failed),
+		on(SectorSealPreCommit1Failed{}, SealPreCommit1Failed),
 	),
 	PreCommitting: planOne(
 		on(SectorSealPreCommit1Failed{}, SealPreCommit1Failed),
@@ -127,6 +133,7 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 		on(SectorRetryCommitWait{}, CommitWait),
 		on(SectorDealsExpired{}, DealsExpired),
 		on(SectorInvalidDealIDs{}, RecoverDealIDs),
+		on(SectorTicketExpired{}, Removing),
 	),
 	FinalizeFailed: planOne(
 		on(SectorRetryFinalize{}, FinalizeSector),
@@ -214,7 +221,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSector(state.SectorNumber)))
 	if err != nil {
 		log.Warn(errors.As(err))
-	} else if state.SectorNumber > 0 && sInfo.State > database.SECTOR_STATE_DONE {
+	} else if sInfo.State > database.SECTOR_STATE_DONE {
 		log.Infof("sector(%s,%d) state(%d,%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
 		return nil, processed, nil
 	}
@@ -233,6 +240,9 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 				*<- Packing <- incoming committed capacity
 				|   |
 				|   v
+				|   GetTicket
+				|   |   ^
+				|   v   |
 				*<- PreCommit1 <--> SealPreCommit1Failed
 				|   |       ^          ^^
 				|   |       *----------++----\
@@ -281,6 +291,8 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 		log.Infof("Waiting for deals %d", state.SectorNumber)
 	case Packing:
 		return m.handlePacking, processed, nil
+	case GetTicket:
+		return m.handleGetTicket, processed, nil
 	case PreCommit1:
 		return m.handlePreCommit1, processed, nil
 	case PreCommit2:

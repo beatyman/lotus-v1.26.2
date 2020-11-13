@@ -14,7 +14,7 @@ func (m *Sealing) pledgeSector(ctx context.Context, sectorID abi.SectorID, exist
 	if len(sizes) == 0 {
 		return nil, nil
 	}
-	// only one can pledge
+	// only one can pledge in miner, so miner can use cpu to do other more
 	// TODO: do it in parallel
 	limitPledge <- 1
 	defer func() {
@@ -62,13 +62,14 @@ func (m *Sealing) PledgeSector() error {
 			log.Errorf("%+v", err)
 			return
 		}
-		err = m.sealer.NewSector(ctx, m.minerSector(sid))
+		sectorID := m.minerSector(sid)
+		err = m.sealer.NewSector(ctx, sectorID)
 		if err != nil {
 			log.Errorf("%+v", err)
 			return
 		}
 
-		pieces, err := m.pledgeSector(ctx, m.minerSector(sid), []abi.UnpaddedPieceSize{}, size)
+		pieces, err := m.pledgeSector(ctx, sectorID, []abi.UnpaddedPieceSize{}, size)
 		if err != nil {
 			log.Errorf("%+v", err)
 			return
