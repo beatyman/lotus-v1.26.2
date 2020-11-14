@@ -21,7 +21,7 @@ var (
 
 	RecentSyncBufferSize = 10
 	MaxSyncWorkers       = 8
-	SyncWorkerHistory    = 1
+	SyncWorkerHistory    = 3
 
 	InitialSyncTimeThreshold = 15 * time.Minute
 
