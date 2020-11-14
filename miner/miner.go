@@ -395,10 +395,12 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
+		log.Info("No mbi")
 		return nil, nil
 	}
 	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
+		log.Info("No EligibleForMining")
 		return nil, nil
 	}
 
