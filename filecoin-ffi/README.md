@@ -9,7 +9,7 @@ git checkout v5.1.1
 cd -
 cp filecoin-ffi/api.toml ../rust-filecoin-proofs-api/Cargo.toml
 
-git clone https://github.com/filecoin-star/rust-fil-proofs ../
+git clone https://github.com/filecoin-fivestar/rust-fil-proofs ../
 cd ../rust-fil-proofs
 git checkout v5.2.1
 
