@@ -20,8 +20,8 @@ var (
 	BootstrapPeerThreshold = 4
 
 	RecentSyncBufferSize = 10
-	MaxSyncWorkers       = 5
-	SyncWorkerHistory    = 3
+	MaxSyncWorkers       = 8
+	SyncWorkerHistory    = 1
 
 	InitialSyncTimeThreshold = 15 * time.Minute
 

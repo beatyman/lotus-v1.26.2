@@ -168,6 +168,7 @@ func (m *Miner) mine(ctx context.Context) {
 
 		default:
 		}
+	miningBegin:
 
 		oldbase := lastBase
 		prebase, err := m.GetBestMiningCandidate(ctx)
@@ -215,35 +216,37 @@ func (m *Miner) mine(ctx context.Context) {
 				time.Sleep(1e9)
 				continue
 			}
-			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
 
-			syncComplete := true
+		syncLoop:
+			syncing:=false
 			state, err := m.api.SyncState(ctx)
 			if err == nil {
-				var maxBaseHeight, maxTargetHeight abi.ChainEpoch
+				var maxCurHeight, maxTargetHeight abi.ChainEpoch
 				for _, ss := range state.ActiveSyncs {
-					if ss.Base == nil {
-						continue
-					}
 					if ss.Target == nil {
 						continue
 					}
-					if ss.Base.Height() > maxBaseHeight {
-						maxBaseHeight = ss.Base.Height()
+					if ss.Height > maxCurHeight {
+						maxCurHeight = ss.Height
 					}
 					if ss.Target.Height() > maxTargetHeight {
 						maxTargetHeight = ss.Target.Height()
 					}
 				}
 				// maybe > 1?
-				if maxTargetHeight-maxBaseHeight > 10 {
-					syncComplete = false
+				if maxTargetHeight == 0 || maxTargetHeight-maxCurHeight > 0 {
+					syncing = true
+					log.Infof("Waiting chain syncing, current:%d, target:%d", maxCurHeight, maxTargetHeight)
+					time.Sleep(5e9)
+					goto syncLoop
+				}
+				if syncing {
+					goto miningBegin
 				}
 			}
 
-			if syncComplete {
-				lastBase.NullRounds++
-			}
+			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
+			lastBase.NullRounds++
 			nextRound = nextRoundTime(&lastBase)
 		}
 
