@@ -154,6 +154,8 @@ func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
 	defer span.End()
 
+	go m.doWinPoStWarmup(ctx)
+
 	var lastBase MiningBase
 	var nextRound time.Time
 
@@ -215,10 +217,13 @@ func (m *Miner) mine(ctx context.Context) {
 			if lastBase.TipSet == nil || (now.Unix() < nextRound.Unix()+int64(2*build.PropagationDelaySecs)) {
 				time.Sleep(1e9)
 				continue
+			} else if now.Unix() > (nextRound.Unix() + int64(build.BlockDelaySecs)) {
+				// slowly down to mining a null round.
+				time.Sleep(time.Duration(build.PropagationDelaySecs) * 1e9)
 			}
 
 		syncLoop:
-			syncing:=false
+			syncing := false
 			state, err := m.api.SyncState(ctx)
 			if err == nil {
 				var maxCurHeight, maxTargetHeight abi.ChainEpoch
