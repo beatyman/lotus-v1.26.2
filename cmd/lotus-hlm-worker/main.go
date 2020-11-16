@@ -117,8 +117,6 @@ func AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 func main() {
 	lotuslog.SetupLogLevels()
 
-	log.Info("Starting lotus worker")
-
 	local := []*cli.Command{
 		runCmd,
 		p1Cmd,
@@ -167,7 +165,7 @@ var p1Cmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		ctx, cancel := context.WithCancel(lcli.ReqContext(cctx))
+		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 
 		resp := ExecPrecommit1Resp{
@@ -317,6 +315,8 @@ var runCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		log.Info("Starting lotus worker")
+
 		nodeCCtx = cctx
 
 		nodeApi, err := GetNodeApi()
