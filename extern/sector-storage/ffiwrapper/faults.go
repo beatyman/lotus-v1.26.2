@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
+	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
@@ -66,7 +66,7 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 		if len(sector.StorageRepo) == 0 {
 			return errors.New("StorageRepo not found").As(sector)
 		}
-		lp := stores.SectorPaths{
+		lp := storiface.SectorPaths{
 			ID:       sector.SectorID(),
 			Unsealed: sector.UnsealedFile(),
 			Sealed:   sector.SealedFile(),
@@ -165,7 +165,8 @@ func addCachePathsForSectorSize(chk map[string]int64, cacheDir string, ssize abi
 	case 32 << 30:
 		// chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", 0))] = 4586976 // just check one file cause it use a lots of time to check every files.
 		for i := 0; i < 8; i++ {
-			chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 4586976
+			//chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 4586976
+			chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", i))] = 0
 		}
 	case 64 << 30:
 		//chk[filepath.Join(cacheDir, fmt.Sprintf("sc-02-data-tree-r-last-%d.dat", 0))] = 4586976

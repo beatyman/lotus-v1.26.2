@@ -154,6 +154,8 @@ func (m *Miner) mine(ctx context.Context) {
 	ctx, span := trace.StartSpan(ctx, "/mine")
 	defer span.End()
 
+	go m.doWinPoStWarmup(ctx)
+
 	var lastBase MiningBase
 	var nextRound time.Time
 
@@ -168,6 +170,7 @@ func (m *Miner) mine(ctx context.Context) {
 
 		default:
 		}
+	miningBegin:
 
 		oldbase := lastBase
 		prebase, err := m.GetBestMiningCandidate(ctx)
@@ -214,6 +217,37 @@ func (m *Miner) mine(ctx context.Context) {
 			if lastBase.TipSet == nil || (now.Unix() < nextRound.Unix()+int64(2*build.PropagationDelaySecs)) {
 				time.Sleep(1e9)
 				continue
+			} else if now.Unix() > (nextRound.Unix() + int64(build.BlockDelaySecs)) {
+				// slowly down to mining a null round.
+				time.Sleep(time.Duration(build.PropagationDelaySecs) * 1e9)
+			}
+
+		syncLoop:
+			syncing := false
+			state, err := m.api.SyncState(ctx)
+			if err == nil {
+				var maxCurHeight, maxTargetHeight abi.ChainEpoch
+				for _, ss := range state.ActiveSyncs {
+					if ss.Target == nil {
+						continue
+					}
+					if ss.Height > maxCurHeight {
+						maxCurHeight = ss.Height
+					}
+					if ss.Target.Height() > maxTargetHeight {
+						maxTargetHeight = ss.Target.Height()
+					}
+				}
+				// maybe > 1?
+				if maxTargetHeight == 0 || maxTargetHeight-maxCurHeight > 0 {
+					syncing = true
+					log.Infof("Waiting chain sync, current:%d, target:%d", maxCurHeight, maxTargetHeight)
+					time.Sleep(5e9)
+					goto syncLoop
+				}
+				if syncing {
+					goto miningBegin
+				}
 			}
 
 			log.Infof("BestMiningCandidate from the previous(%d) round: %s (nulls:%d)", lastBase.TipSet.Height(), lastBase.TipSet.Cids(), lastBase.NullRounds)
@@ -361,10 +395,12 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
+		log.Info("No mbi")
 		return nil, nil
 	}
 	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
+		log.Info("No EligibleForMining")
 		return nil, nil
 	}
 

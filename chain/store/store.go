@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"errors"
 	"io"
 	"os"
 	"strconv"
@@ -45,10 +46,10 @@ import (
 	"github.com/ipfs/go-datastore/query"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	logging "github.com/ipfs/go-log/v2"
-	car "github.com/ipld/go-car"
+	"github.com/ipld/go-car"
 	carutil "github.com/ipld/go-car/util"
 	cbg "github.com/whyrusleeping/cbor-gen"
-	pubsub "github.com/whyrusleeping/pubsub"
+	"github.com/whyrusleeping/pubsub"
 	"golang.org/x/xerrors"
 )
 
@@ -59,6 +60,8 @@ var blockValidationCacheKeyPrefix = dstore.NewKey("blockValidation")
 
 var DefaultTipSetCacheSize = 8192
 var DefaultMsgMetaCacheSize = 2048
+
+var ErrNotifeeDone = errors.New("notifee is done and should be removed")
 
 func init() {
 	if s := os.Getenv("LOTUS_CHAIN_TIPSET_CACHE"); s != "" {
@@ -105,8 +108,11 @@ type HeadChangeEvt struct {
 //   1. a tipset cache
 //   2. a block => messages references cache.
 type ChainStore struct {
-	bs bstore.Blockstore
-	ds dstore.Batching
+	bs      bstore.Blockstore
+	localbs bstore.Blockstore
+	ds      dstore.Batching
+
+	localviewer bstore.Viewer
 
 	heaviestLk sync.Mutex
 	heaviest   *types.TipSet
@@ -131,7 +137,8 @@ type ChainStore struct {
 	journal  journal.Journal
 }
 
-func NewChainStore(bs bstore.Blockstore, ds dstore.Batching, vmcalls vm.SyscallBuilder, j journal.Journal) *ChainStore {
+// localbs is guaranteed to fail Get* if requested block isn't stored locally
+func NewChainStore(bs bstore.Blockstore, localbs bstore.Blockstore, ds dstore.Batching, vmcalls vm.SyscallBuilder, j journal.Journal) *ChainStore {
 	c, _ := lru.NewARC(DefaultMsgMetaCacheSize)
 	tsc, _ := lru.NewARC(DefaultTipSetCacheSize)
 	if j == nil {
@@ -139,6 +146,7 @@ func NewChainStore(bs bstore.Blockstore, ds dstore.Batching, vmcalls vm.SyscallB
 	}
 	cs := &ChainStore{
 		bs:       bs,
+		localbs:  localbs,
 		ds:       ds,
 		bestTips: pubsub.New(64),
 		tipsets:  make(map[abi.ChainEpoch][]cid.Cid),
@@ -146,6 +154,10 @@ func NewChainStore(bs bstore.Blockstore, ds dstore.Batching, vmcalls vm.SyscallB
 		tsCache:  tsc,
 		vmcalls:  vmcalls,
 		journal:  j,
+	}
+
+	if v, ok := localbs.(bstore.Viewer); ok {
+		cs.localviewer = v
 	}
 
 	cs.evtTypes = [1]journal.EventType{
@@ -262,7 +274,7 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 					log.Warn("chain head sub exit loop")
 					return
 				}
-				if len(out) > 0 {
+				if len(out) > 5 {
 					log.Warnf("head change sub is slow, has %d buffered entries", len(out))
 				}
 				select {
@@ -360,8 +372,30 @@ func (cs *ChainStore) MaybeTakeHeavierTipSet(ctx context.Context, ts *types.TipS
 		// difference between 'bootstrap sync' and 'caught up' sync, we need
 		// some other heuristic.
 		return cs.takeHeaviestTipSet(ctx, ts)
+	} else if w.Equals(heaviestW) && !ts.Equals(cs.heaviest) {
+		log.Errorw("weight draw", "currTs", cs.heaviest, "ts", ts)
 	}
 	return nil
+}
+
+// ForceHeadSilent forces a chain head tipset without triggering a reorg
+// operation.
+//
+// CAUTION: Use it only for testing, such as to teleport the chain to a
+// particular tipset to carry out a benchmark, verification, etc. on a chain
+// segment.
+func (cs *ChainStore) ForceHeadSilent(_ context.Context, ts *types.TipSet) error {
+	log.Warnf("(!!!) forcing a new head silently; only use this only for testing; new head: %s", ts)
+
+	cs.heaviestLk.Lock()
+	defer cs.heaviestLk.Unlock()
+	cs.heaviest = ts
+
+	err := cs.writeHead(ts)
+	if err != nil {
+		err = xerrors.Errorf("failed to write chain head: %s", err)
+	}
+	return err
 }
 
 type reorg struct {
@@ -406,11 +440,36 @@ func (cs *ChainStore) reorgWorker(ctx context.Context, initialNotifees []ReorgNo
 					apply[i], apply[opp] = apply[opp], apply[i]
 				}
 
-				for _, hcf := range notifees {
-					if err := hcf(revert, apply); err != nil {
+				var toremove map[int]struct{}
+				for i, hcf := range notifees {
+					err := hcf(revert, apply)
+
+					switch err {
+					case nil:
+
+					case ErrNotifeeDone:
+						if toremove == nil {
+							toremove = make(map[int]struct{})
+						}
+						toremove[i] = struct{}{}
+
+					default:
 						log.Error("head change func errored (BAD): ", err)
 					}
 				}
+
+				if len(toremove) > 0 {
+					newNotifees := make([]ReorgNotifee, 0, len(notifees)-len(toremove))
+					for i, hcf := range notifees {
+						_, remove := toremove[i]
+						if remove {
+							continue
+						}
+						newNotifees = append(newNotifees, hcf)
+					}
+					notifees = newNotifees
+				}
+
 			case <-ctx.Done():
 				return
 			}
@@ -531,12 +590,20 @@ func (cs *ChainStore) Contains(ts *types.TipSet) (bool, error) {
 // GetBlock fetches a BlockHeader with the supplied CID. It returns
 // blockstore.ErrNotFound if the block was not found in the BlockStore.
 func (cs *ChainStore) GetBlock(c cid.Cid) (*types.BlockHeader, error) {
-	sb, err := cs.bs.Get(c)
-	if err != nil {
-		return nil, err
+	if cs.localviewer == nil {
+		sb, err := cs.localbs.Get(c)
+		if err != nil {
+			return nil, err
+		}
+		return types.DecodeBlock(sb.RawData())
 	}
 
-	return types.DecodeBlock(sb.RawData())
+	var blk *types.BlockHeader
+	err := cs.localviewer.View(c, func(b []byte) (err error) {
+		blk, err = types.DecodeBlock(b)
+		return err
+	})
+	return blk, err
 }
 
 func (cs *ChainStore) LoadTipSet(tsk types.TipSetKey) (*types.TipSet, error) {
@@ -781,12 +848,7 @@ func (cs *ChainStore) GetGenesis() (*types.BlockHeader, error) {
 		return nil, err
 	}
 
-	genb, err := cs.bs.Get(c)
-	if err != nil {
-		return nil, err
-	}
-
-	return types.DecodeBlock(genb.RawData())
+	return cs.GetBlock(c)
 }
 
 func (cs *ChainStore) GetCMessage(c cid.Cid) (types.ChainMsg, error) {
@@ -802,23 +864,39 @@ func (cs *ChainStore) GetCMessage(c cid.Cid) (types.ChainMsg, error) {
 }
 
 func (cs *ChainStore) GetMessage(c cid.Cid) (*types.Message, error) {
-	sb, err := cs.bs.Get(c)
-	if err != nil {
-		log.Errorf("get message get failed: %s: %s", c, err)
-		return nil, err
+	if cs.localviewer == nil {
+		sb, err := cs.localbs.Get(c)
+		if err != nil {
+			log.Errorf("get message get failed: %s: %s", c, err)
+			return nil, err
+		}
+		return types.DecodeMessage(sb.RawData())
 	}
 
-	return types.DecodeMessage(sb.RawData())
+	var msg *types.Message
+	err := cs.localviewer.View(c, func(b []byte) (err error) {
+		msg, err = types.DecodeMessage(b)
+		return err
+	})
+	return msg, err
 }
 
 func (cs *ChainStore) GetSignedMessage(c cid.Cid) (*types.SignedMessage, error) {
-	sb, err := cs.bs.Get(c)
-	if err != nil {
-		log.Errorf("get message get failed: %s: %s", c, err)
-		return nil, err
+	if cs.localviewer == nil {
+		sb, err := cs.localbs.Get(c)
+		if err != nil {
+			log.Errorf("get message get failed: %s: %s", c, err)
+			return nil, err
+		}
+		return types.DecodeSignedMessage(sb.RawData())
 	}
 
-	return types.DecodeSignedMessage(sb.RawData())
+	var msg *types.SignedMessage
+	err := cs.localviewer.View(c, func(b []byte) (err error) {
+		msg, err = types.DecodeSignedMessage(b)
+		return err
+	})
+	return msg, err
 }
 
 func (cs *ChainStore) readAMTCids(root cid.Cid) ([]cid.Cid, error) {
@@ -948,7 +1026,7 @@ func (cs *ChainStore) ReadMsgMetaCids(mmc cid.Cid) ([]cid.Cid, []cid.Cid, error)
 		return mmcids.bls, mmcids.secpk, nil
 	}
 
-	cst := cbor.NewCborStore(cs.bs)
+	cst := cbor.NewCborStore(cs.localbs)
 	var msgmeta types.MsgMeta
 	if err := cst.Get(context.TODO(), mmc, &msgmeta); err != nil {
 		return nil, nil, xerrors.Errorf("failed to load msgmeta (%s): %w", mmc, err)

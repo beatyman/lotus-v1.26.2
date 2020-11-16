@@ -302,6 +302,10 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, auth []byte, addr addres
 	w.lk.Lock()
 	defer w.lk.Unlock()
 
+	if err := w.keystore.Delete(KTrashPrefix + k.Address.String()); err != nil && !xerrors.Is(err, types.ErrKeyInfoNotFound) {
+		return xerrors.Errorf("failed to purge trashed key %s: %w", addr, err)
+	}
+
 	if err := w.keystore.Put(KTrashPrefix+k.Address.String(), k.KeyInfo); err != nil {
 		return xerrors.Errorf("failed to mark key %s as trashed: %w", addr, err)
 	}
@@ -319,6 +323,18 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, auth []byte, addr addres
 	_ = w.keystore.Delete(KNamePrefix + tAddr)
 
 	delete(w.keys, addr)
+
+	def, err := w.GetDefault()
+	if err != nil {
+		return xerrors.Errorf("getting default address: %w", err)
+	}
+
+	if def == addr {
+		err = w.SetDefault(address.Undef)
+		if err != nil {
+			return xerrors.Errorf("unsetting default address: %w", err)
+		}
+	}
 
 	return nil
 }

@@ -60,12 +60,8 @@ func (s *WindowPoStScheduler) checkWindowPoSt(ctx context.Context, height abi.Ch
 	if !submit {
 		return
 	}
-	for i := range posts {
-		post := &posts[i]
-		_, err := s.submitPost(ctx, post)
-		if err != nil {
-			log.Errorf("submit window post failed: %+v", err)
-		}
+	if s.runSubmitPoST(ctx, new, deadline, posts); err != nil {
+		log.Errorf("submit window post failed: %+v", err)
 	}
 	return
 }
