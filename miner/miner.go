@@ -241,7 +241,7 @@ func (m *Miner) mine(ctx context.Context) {
 				// maybe > 1?
 				if maxTargetHeight == 0 || maxTargetHeight-maxCurHeight > 0 {
 					syncing = true
-					log.Infof("Waiting chain syncing, current:%d, target:%d", maxCurHeight, maxTargetHeight)
+					log.Infof("Waiting chain sync, current:%d, target:%d", maxCurHeight, maxTargetHeight)
 					time.Sleep(5e9)
 					goto syncLoop
 				}
@@ -395,10 +395,12 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
+		log.Info("No mbi")
 		return nil, nil
 	}
 	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
+		log.Info("No EligibleForMining")
 		return nil, nil
 	}
 
