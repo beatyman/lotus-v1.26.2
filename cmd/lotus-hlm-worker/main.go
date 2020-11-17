@@ -160,6 +160,9 @@ var p1Cmd = &cli.Command{
 	Name:  "precommit1",
 	Usage: "run precommit1 in process",
 	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name: "name", // just for process debug
+		},
 		&cli.Uint64Flag{
 			Name: "ssize",
 		},
