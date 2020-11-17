@@ -239,7 +239,7 @@ func (m *Miner) mine(ctx context.Context) {
 					}
 				}
 				// maybe > 1?
-				if maxTargetHeight == 0 || maxTargetHeight-maxCurHeight > 0 {
+				if maxTargetHeight > 0 && maxTargetHeight-maxCurHeight > 0 {
 					syncing = true
 					log.Infof("Waiting chain sync, current:%d, target:%d", maxCurHeight, maxTargetHeight)
 					time.Sleep(5e9)
