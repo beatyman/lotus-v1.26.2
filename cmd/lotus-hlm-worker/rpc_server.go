@@ -50,10 +50,12 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.StorageMiner)
 		return nil
 	}
 
-	sumVer := int64(0)
+	maxVer := int64(0)
 	// mount storage data
 	for _, info := range list {
-		sumVer += info.Version
+		if maxVer < info.Version {
+			maxVer = info.Version
+		}
 		cacheInfo, ok := w.storageCache[info.ID]
 		if ok && cacheInfo.Version == info.Version {
 			continue
@@ -70,7 +72,7 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.StorageMiner)
 		}
 		w.storageCache[info.ID] = info
 	}
-	w.storageVer = sumVer
+	w.storageVer = maxVer
 
 	return nil
 }
