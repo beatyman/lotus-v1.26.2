@@ -20,7 +20,6 @@ import (
 	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/xerrors"
 )
 
 var testCmd = &cli.Command{
@@ -87,17 +86,9 @@ var testWdPoStCmd = &cli.Command{
 		}
 		log.Infof("Running ActorSize:%s", ssize.ShortString())
 
-		spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
-		if err != nil {
-			return xerrors.Errorf("getting proof type: %w", err)
-		}
-		cfg := &ffiwrapper.Config{
-			SealProofType: spt,
-		}
-
 		minerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: minerRepo,
-		}, cfg)
+		})
 		if err != nil {
 			return err
 		}

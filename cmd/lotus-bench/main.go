@@ -585,12 +585,12 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 
 					sealedSectors[ix] = storage.ProofSectorInfo{
 						SectorInfo: saproof2.SectorInfo{
-							SealProof:    sb.SealProofType(),
+							SealProof:    sid.ProofType,
 							SectorNumber: i,
 							SealedCID:    cids.Sealed,
 						},
 						SectorFile: storage.SectorFile{
-							SectorId:    storage.SectorName(sid),
+							SectorId:    storage.SectorName(sid.ID),
 							StorageRepo: sbfs.RepoPath(),
 						},
 					}
