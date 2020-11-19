@@ -81,8 +81,8 @@ func hasMarketRemotes() bool {
 
 func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 	sectorID := call.task.SectorID
-	log.Infof("DEBUG:pledgeRemote in,%s", sectorID)
-	defer log.Infof("DEBUG:pledgeRemote out,%s", sectorID)
+	log.Infof("DEBUG:pledgeRemote in,%+v", sectorID)
+	defer log.Infof("DEBUG:pledgeRemote out,%+v", sectorID)
 
 	select {
 	case ret := <-call.ret:
@@ -96,8 +96,8 @@ func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 	}
 }
 func (sb *Sealer) PledgeSector(sector storage.SectorRef, pieceSize []abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
-	log.Infof("DEBUG:PledgeSector in(remote:%t),%s", sb.remoteCfg.SealSector, sectorID)
-	defer log.Infof("DEBUG:PledgeSector out,%s", sectorID)
+	log.Infof("DEBUG:PledgeSector in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
+	defer log.Infof("DEBUG:PledgeSector out,%+v", sector)
 	atomic.AddInt32(&_addPieceWait, 1)
 	if !sb.remoteCfg.SealSector {
 		panic("no local mode for pledge sector")
@@ -114,17 +114,17 @@ func (sb *Sealer) PledgeSector(sector storage.SectorRef, pieceSize []abi.Unpadde
 		ret: make(chan SealRes),
 	}
 
-	log.Infof("DEBUG:PledgeSector prefer remote,%s", sectorID)
+	log.Infof("DEBUG:PledgeSector prefer remote,%+v", sector)
 	select { // prefer remote
 	case _addPieceTasks <- call:
-		log.Infof("DEBUG:PledgeSector prefer remote called,%d", sectorID)
+		log.Infof("DEBUG:PledgeSector prefer remote called,%+v", sector)
 		return sb.pledgeRemote(call)
 	}
 }
 
 func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storage.PreCommit1Out, error) {
-	log.Infof("DEBUG:sealPreCommit1Remote in,%s", call.task.SectorID)
-	defer log.Infof("DEBUG:sealPreCommit1Remote out,%s", call.task.SectorID)
+	log.Infof("DEBUG:sealPreCommit1Remote in,%+v", call.task.SectorID)
+	defer log.Infof("DEBUG:sealPreCommit1Remote out,%+v", call.task.SectorID)
 	select {
 	case ret := <-call.ret:
 		var err error
@@ -137,8 +137,8 @@ func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storage.PreCommit1Out, 
 	}
 }
 func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
-	log.Infof("DEBUG:SealPreCommit1 in(remote:%t),%s", sb.remoteCfg.SealSector, sector)
-	defer log.Infof("DEBUG:SealPreCommit1 out,%s", sector)
+	log.Infof("DEBUG:SealPreCommit1 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
+	defer log.Infof("DEBUG:SealPreCommit1 out,%+v", sector)
 	atomic.AddInt32(&_precommit1Wait, 1)
 	if !sb.remoteCfg.SealSector {
 		atomic.AddInt32(&_precommit1Wait, -1)
@@ -156,10 +156,10 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 		},
 		ret: make(chan SealRes),
 	}
-	log.Infof("DEBUG:SealPreCommit1 prefer remote,%s", sector)
+	log.Infof("DEBUG:SealPreCommit1 prefer remote,%+v", sector)
 	select { // prefer remote
 	case _precommit1Tasks <- call:
-		log.Infof("DEBUG:SealPreCommit1 prefer remote called,%s", sector)
+		log.Infof("DEBUG:SealPreCommit1 prefer remote called,%+v", sector)
 		return sb.sealPreCommit1Remote(call)
 	case <-ctx.Done():
 		return storage.PreCommit1Out{}, ctx.Err()
@@ -167,8 +167,8 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 }
 
 func (sb *Sealer) sealPreCommit2Remote(call workerCall) (storage.SectorCids, error) {
-	log.Infof("DEBUG:sealPreCommit2Remote in,%s", call.task.SectorID)
-	defer log.Infof("DEBUG:sealPreCommit2Remote out,%s", call.task.SectorID)
+	log.Infof("DEBUG:sealPreCommit2Remote in,%+v", call.task.SectorID)
+	defer log.Infof("DEBUG:sealPreCommit2Remote out,%+v", call.task.SectorID)
 	select {
 	case ret := <-call.ret:
 		var err error
@@ -185,8 +185,8 @@ func (sb *Sealer) sealPreCommit2Remote(call workerCall) (storage.SectorCids, err
 	}
 }
 func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.PreCommit1Out) (storage.SectorCids, error) {
-	log.Infof("DEBUG:SealPreCommit2 in(remote:%t),%s", sb.remoteCfg.SealSector, sector)
-	defer log.Infof("DEBUG:SealPreCommit2 out,%s", sector)
+	log.Infof("DEBUG:SealPreCommit2 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
+	defer log.Infof("DEBUG:SealPreCommit2 out,%+v", sector)
 
 	atomic.AddInt32(&_precommit2Wait, 1)
 	if !sb.remoteCfg.SealSector {
@@ -205,10 +205,10 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 		ret: make(chan SealRes),
 	}
 
-	log.Infof("DEBUG:SealPreCommit2 prefer remote,%s", sector)
+	log.Infof("DEBUG:SealPreCommit2 prefer remote,%+v", sector)
 	select { // prefer remote
 	case _precommit2Tasks <- call:
-		log.Infof("DEBUG:SealPreCommit2 prefer remote called,%s", sector)
+		log.Infof("DEBUG:SealPreCommit2 prefer remote called,%+v", sector)
 		return sb.sealPreCommit2Remote(call)
 	case <-ctx.Done():
 		return storage.SectorCids{}, ctx.Err()
@@ -216,8 +216,8 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 }
 
 func (sb *Sealer) sealCommit1Remote(call workerCall) (storage.Commit1Out, error) {
-	log.Infof("DEBUG:sealCommit1Remote in,%s", call.task.SectorID)
-	defer log.Infof("DEBUG:sealCommit1Remote out,%s", call.task.SectorID)
+	log.Infof("DEBUG:sealCommit1Remote in,%+v", call.task.SectorID)
+	defer log.Infof("DEBUG:sealCommit1Remote out,%+v", call.task.SectorID)
 
 	select {
 	case ret := <-call.ret:
@@ -231,8 +231,8 @@ func (sb *Sealer) sealCommit1Remote(call workerCall) (storage.Commit1Out, error)
 }
 
 func (sb *Sealer) SealCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) {
-	log.Infof("DEBUG:SealCommit1 in(remote:%t),%s", sb.remoteCfg.SealSector, sector)
-	defer log.Infof("DEBUG:SealCommit1 out,%s", sector)
+	log.Infof("DEBUG:SealCommit1 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
+	defer log.Infof("DEBUG:SealCommit1 out,%+v", sector)
 	atomic.AddInt32(&_commit1Wait, 1)
 	if !sb.remoteCfg.SealSector {
 		atomic.AddInt32(&_commit1Wait, -1)
@@ -256,11 +256,11 @@ func (sb *Sealer) SealCommit1(ctx context.Context, sector storage.SectorRef, tic
 		},
 		ret: make(chan SealRes),
 	}
-	log.Infof("DEBUG:SealCommit1 prefer remote,%s", sector)
+	log.Infof("DEBUG:SealCommit1 prefer remote,%+v", sector)
 	// send to remote worker
 	select {
 	case _commit1Tasks <- call:
-		log.Infof("DEBUG:SealCommit1 prefer remote called,%s", sector)
+		log.Infof("DEBUG:SealCommit1 prefer remote called,%+v", sector)
 		return sb.sealCommit1Remote(call)
 	case <-ctx.Done():
 		return storage.Commit1Out{}, ctx.Err()
@@ -268,8 +268,8 @@ func (sb *Sealer) SealCommit1(ctx context.Context, sector storage.SectorRef, tic
 }
 
 func (sb *Sealer) sealCommit2Remote(call workerCall) (storage.Proof, error) {
-	log.Infof("DEBUG:sealCommit2Remote in,%s", call.task.SectorID)
-	defer log.Infof("DEBUG:sealCommit2Remote out,%s", call.task.SectorID)
+	log.Infof("DEBUG:sealCommit2Remote in,%+v", call.task.SectorID)
+	defer log.Infof("DEBUG:sealCommit2Remote out,%+v", call.task.SectorID)
 
 	select {
 	case ret := <-call.ret:
@@ -283,8 +283,8 @@ func (sb *Sealer) sealCommit2Remote(call workerCall) (storage.Proof, error) {
 }
 
 func (sb *Sealer) SealCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.Commit1Out) (storage.Proof, error) {
-	log.Infof("DEBUG:SealCommit2 in(remote:%t),%s", sb.remoteCfg.SealSector, sector)
-	defer log.Infof("DEBUG:SealCommit2 out,%s", sector)
+	log.Infof("DEBUG:SealCommit2 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
+	defer log.Infof("DEBUG:SealCommit2 out,%+v", sector)
 
 	atomic.AddInt32(&_commit2Wait, 1)
 	if !sb.remoteCfg.SealSector {
@@ -303,11 +303,11 @@ func (sb *Sealer) SealCommit2(ctx context.Context, sector storage.SectorRef, pha
 		ret: make(chan SealRes),
 	}
 
-	log.Infof("DEBUG:SealCommit2 prefer remote,%s", sector)
+	log.Infof("DEBUG:SealCommit2 prefer remote,%+v", sector)
 	// send to remote worker
 	select {
 	case _commit2Tasks <- call:
-		log.Infof("DEBUG:SealCommit2 prefer remote called,%s", sector)
+		log.Infof("DEBUG:SealCommit2 prefer remote called,%+v", sector)
 		return sb.sealCommit2Remote(call)
 	case <-ctx.Done():
 		return storage.Proof{}, ctx.Err()
@@ -315,8 +315,8 @@ func (sb *Sealer) SealCommit2(ctx context.Context, sector storage.SectorRef, pha
 }
 
 func (sb *Sealer) finalizeSectorRemote(call workerCall) error {
-	log.Infof("DEBUG:finalizeSectorRemote in,%s", call.task.SectorID)
-	defer log.Infof("DEBUG:finalizeSectorRemote out,%s", call.task.SectorID)
+	log.Infof("DEBUG:finalizeSectorRemote in,%+v", call.task.SectorID)
+	defer log.Infof("DEBUG:finalizeSectorRemote out,%+v", call.task.SectorID)
 
 	select {
 	case ret := <-call.ret:
@@ -330,8 +330,8 @@ func (sb *Sealer) finalizeSectorRemote(call workerCall) error {
 }
 
 func (sb *Sealer) FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {
-	log.Infof("DEBUG:FinalizeSector in(remote:%t),%s", sb.remoteCfg.SealSector, sector)
-	defer log.Infof("DEBUG:FinalizeSector out,%s", sector)
+	log.Infof("DEBUG:FinalizeSector in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
+	defer log.Infof("DEBUG:FinalizeSector out,%+v", sector)
 	// return sb.finalizeSector(ctx, sector)
 
 	atomic.AddInt32(&_finalizeWait, 1)
@@ -352,11 +352,11 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 		ret: make(chan SealRes),
 	}
 
-	log.Infof("DEBUG:FinalizeSector prefer remote,%s", sector)
+	log.Infof("DEBUG:FinalizeSector prefer remote,%+v", sector)
 	// send to remote worker
 	select {
 	case _finalizeTasks <- call:
-		log.Infof("DEBUG:FinalizeSector prefer remote called,%s", sector)
+		log.Infof("DEBUG:FinalizeSector prefer remote called,%+v", sector)
 		return sb.finalizeSectorRemote(call)
 	case <-ctx.Done():
 		return ctx.Err()
@@ -364,8 +364,8 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 }
 
 func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
-	log.Infof("DEBUG:GenerateWiningPoSt in(remote:%t),%s", sb.remoteCfg.SealSector, minerID)
-	defer log.Infof("DEBUG:GenerateWinningPoSt out,%s", minerID)
+	log.Infof("DEBUG:GenerateWiningPoSt in(remote:%t),%+v", sb.remoteCfg.SealSector, minerID)
+	defer log.Infof("DEBUG:GenerateWinningPoSt out,%+v", minerID)
 	if sb.remoteCfg.WinningPoSt < 1 {
 		// TODO: when the storage broken, it will be block here.
 		// TODO: make rust with a timeout mechanism
