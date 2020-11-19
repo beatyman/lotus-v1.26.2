@@ -112,6 +112,7 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 	),
 	PreCommitFailed: planOne(
 		on(SectorRetryPreCommit{}, PreCommitting),
+		on(SectorRetryPreCommitWait{}, PreCommitWait),
 		on(SectorRetryWaitSeed{}, WaitSeed),
 		on(SectorSealPreCommit1Failed{}, SealPreCommit1Failed),
 		on(SectorPreCommitLanded{}, WaitSeed),
@@ -131,6 +132,7 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 		on(SectorChainPreCommitFailed{}, PreCommitFailed),
 		on(SectorRetryPreCommit{}, PreCommitting),
 		on(SectorRetryCommitWait{}, CommitWait),
+		on(SectorRetrySubmitCommit{}, SubmitCommit),
 		on(SectorDealsExpired{}, DealsExpired),
 		on(SectorInvalidDealIDs{}, RecoverDealIDs),
 		on(SectorTicketExpired{}, Removing),
@@ -218,7 +220,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 		return nil, 0, xerrors.Errorf("running planner for state %s failed: %w", state.State, err)
 	}
 	// checking the sector state in hlm miner
-	sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSector(state.SectorNumber)))
+	sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSectorID(state.SectorNumber)))
 	if err != nil {
 		log.Warn(errors.As(err))
 	} else if sInfo.State > database.SECTOR_STATE_DONE {
@@ -281,7 +283,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 
 	*/
 
-	m.stats.updateSector(m.minerSector(state.SectorNumber), state.State)
+	m.stats.updateSector(m.minerSectorID(state.SectorNumber), state.State)
 
 	switch state.State {
 	// Happy path
@@ -426,6 +428,15 @@ func (m *Sealing) restartSectors(ctx context.Context) error {
 		return xerrors.Errorf("getting the sealing delay: %w", err)
 	}
 
+	spt, err := m.currentSealProof(ctx)
+	if err != nil {
+		return xerrors.Errorf("getting current seal proof: %w", err)
+	}
+	ssize, err := spt.SectorSize()
+	if err != nil {
+		return err
+	}
+
 	m.unsealedInfoMap.lk.Lock()
 	defer m.unsealedInfoMap.lk.Unlock()
 	for _, sector := range trackedSectors {
@@ -440,7 +451,9 @@ func (m *Sealing) restartSectors(ctx context.Context) error {
 				// something's funky here, but probably safe to move on
 				log.Warnf("sector %v was already in the unsealedInfoMap when restarting", sector.SectorNumber)
 			} else {
-				ui := UnsealedSectorInfo{}
+				ui := UnsealedSectorInfo{
+					ssize: ssize,
+				}
 				for _, p := range sector.Pieces {
 					if p.DealInfo != nil {
 						ui.numDeals++

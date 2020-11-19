@@ -6,11 +6,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 )
 
 var limitPledge = make(chan int, 1)
 
-func (m *Sealing) pledgeSector(ctx context.Context, sectorID abi.SectorID, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+func (m *Sealing) pledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	if len(sizes) == 0 {
 		return nil, nil
 	}
@@ -55,21 +56,31 @@ func (m *Sealing) PledgeSector() error {
 		// this, as we run everything here async, and it's cancelled when the
 		// command exits
 
-		size := abi.PaddedPieceSize(m.sealer.SectorSize()).Unpadded()
+		spt, err := m.currentSealProof(ctx)
+		if err != nil {
+			log.Errorf("%+v", err)
+			return
+		}
+
+		size, err := spt.SectorSize()
+		if err != nil {
+			log.Errorf("%+v", err)
+			return
+		}
 
 		sid, err := m.sc.Next()
 		if err != nil {
 			log.Errorf("%+v", err)
 			return
 		}
-		sectorID := m.minerSector(sid)
+		sectorID := m.minerSector(spt, sid)
 		err = m.sealer.NewSector(ctx, sectorID)
 		if err != nil {
 			log.Errorf("%+v", err)
 			return
 		}
 
-		pieces, err := m.pledgeSector(ctx, sectorID, []abi.UnpaddedPieceSize{}, size)
+		pieces, err := m.pledgeSector(ctx, sectorID, []abi.UnpaddedPieceSize{}, abi.PaddedPieceSize(size).Unpadded())
 		if err != nil {
 			log.Errorf("%+v", err)
 			return
@@ -83,7 +94,7 @@ func (m *Sealing) PledgeSector() error {
 			}
 		}
 
-		if err := m.newSectorCC(sid, ps); err != nil {
+		if err := m.newSectorCC(ctx, sid, ps); err != nil {
 			log.Errorf("%+v", err)
 			return
 		}

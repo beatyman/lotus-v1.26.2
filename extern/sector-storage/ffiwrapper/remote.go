@@ -95,7 +95,7 @@ func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 		return []abi.PieceInfo{}, xerrors.New("sectorbuilder stopped")
 	}
 }
-func (sb *Sealer) PledgeSector(sectorID abi.SectorID, pieceSize []abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+func (sb *Sealer) PledgeSector(sector storage.SectorRef, pieceSize []abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	log.Infof("DEBUG:PledgeSector in(remote:%t),%s", sb.remoteCfg.SealSector, sectorID)
 	defer log.Infof("DEBUG:PledgeSector out,%s", sectorID)
 	atomic.AddInt32(&_addPieceWait, 1)
@@ -107,7 +107,8 @@ func (sb *Sealer) PledgeSector(sectorID abi.SectorID, pieceSize []abi.UnpaddedPi
 		// no need worker id
 		task: WorkerTask{
 			Type:       WorkerAddPiece,
-			SectorID:   sectorID,
+			ProofType:  sector.ProofType,
+			SectorID:   sector.ID,
 			PieceSizes: pieceSize,
 		},
 		ret: make(chan SealRes),
@@ -135,7 +136,7 @@ func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storage.PreCommit1Out, 
 		return storage.PreCommit1Out{}, xerrors.New("sectorbuilder stopped")
 	}
 }
-func (sb *Sealer) SealPreCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
+func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
 	log.Infof("DEBUG:SealPreCommit1 in(remote:%t),%s", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:SealPreCommit1 out,%s", sector)
 	atomic.AddInt32(&_precommit1Wait, 1)
@@ -146,8 +147,9 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector abi.SectorID, ticke
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:     WorkerPreCommit1,
-			SectorID: sector,
+			Type:      WorkerPreCommit1,
+			ProofType: sector.ProofType,
+			SectorID:  sector.ID,
 
 			SealTicket: ticket,
 			Pieces:     EncodePieceInfo(pieces),
@@ -182,7 +184,7 @@ func (sb *Sealer) sealPreCommit2Remote(call workerCall) (storage.SectorCids, err
 		return storage.SectorCids{}, xerrors.New("sectorbuilder stopped")
 	}
 }
-func (sb *Sealer) SealPreCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage.PreCommit1Out) (storage.SectorCids, error) {
+func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.PreCommit1Out) (storage.SectorCids, error) {
 	log.Infof("DEBUG:SealPreCommit2 in(remote:%t),%s", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:SealPreCommit2 out,%s", sector)
 
@@ -194,8 +196,9 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector abi.SectorID, phase
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:     WorkerPreCommit2,
-			SectorID: sector,
+			Type:      WorkerPreCommit2,
+			ProofType: sector.ProofType,
+			SectorID:  sector.ID,
 
 			PreCommit1Out: phase1Out,
 		},
@@ -227,7 +230,7 @@ func (sb *Sealer) sealCommit1Remote(call workerCall) (storage.Commit1Out, error)
 	}
 }
 
-func (sb *Sealer) SealCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) {
+func (sb *Sealer) SealCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) {
 	log.Infof("DEBUG:SealCommit1 in(remote:%t),%s", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:SealCommit1 out,%s", sector)
 	atomic.AddInt32(&_commit1Wait, 1)
@@ -238,8 +241,9 @@ func (sb *Sealer) SealCommit1(ctx context.Context, sector abi.SectorID, ticket a
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:     WorkerCommit1,
-			SectorID: sector,
+			Type:      WorkerCommit1,
+			ProofType: sector.ProofType,
+			SectorID:  sector.ID,
 
 			SealTicket: ticket,
 			Pieces:     EncodePieceInfo(pieces),
@@ -278,7 +282,7 @@ func (sb *Sealer) sealCommit2Remote(call workerCall) (storage.Proof, error) {
 	}
 }
 
-func (sb *Sealer) SealCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage.Commit1Out) (storage.Proof, error) {
+func (sb *Sealer) SealCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.Commit1Out) (storage.Proof, error) {
 	log.Infof("DEBUG:SealCommit2 in(remote:%t),%s", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:SealCommit2 out,%s", sector)
 
@@ -290,8 +294,9 @@ func (sb *Sealer) SealCommit2(ctx context.Context, sector abi.SectorID, phase1Ou
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:     WorkerCommit2,
-			SectorID: sector,
+			Type:      WorkerCommit2,
+			ProofType: sector.ProofType,
+			SectorID:  sector.ID,
 
 			Commit1Out: phase1Out,
 		},
@@ -324,7 +329,7 @@ func (sb *Sealer) finalizeSectorRemote(call workerCall) error {
 	}
 }
 
-func (sb *Sealer) FinalizeSector(ctx context.Context, sector abi.SectorID, keepUnsealed []storage.Range) error {
+func (sb *Sealer) FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {
 	log.Infof("DEBUG:FinalizeSector in(remote:%t),%s", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:FinalizeSector out,%s", sector)
 	// return sb.finalizeSector(ctx, sector)
@@ -340,8 +345,9 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector abi.SectorID, keepU
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:     WorkerFinalize,
-			SectorID: sector,
+			Type:      WorkerFinalize,
+			ProofType: sector.ProofType,
+			SectorID:  sector.ID,
 		},
 		ret: make(chan SealRes),
 	}
