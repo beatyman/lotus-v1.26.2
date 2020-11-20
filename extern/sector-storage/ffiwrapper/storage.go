@@ -257,7 +257,7 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 	done := make(chan bool, len(result))
 	for i, s := range result {
 		// no check for disable
-		if s.disable {
+		if s.Disable {
 			continue
 		}
 
