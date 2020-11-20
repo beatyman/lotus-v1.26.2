@@ -194,7 +194,7 @@ func (s *WindowPoStScheduler) runSubmitPoST(
 	return submitErr
 }
 
-func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.BitField, timeout time.Duration) (bitfield.BitField, error) {
+func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.BitField, tsk types.TipSetKey, timeout time.Duration) (bitfield.BitField, error) {
 	mid, err := address.IDFromAddress(s.actor)
 	if err != nil {
 		return bitfield.BitField{}, err
@@ -211,27 +211,29 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		log.Warn("not found default repo")
 	}
 
-	sectors := make(map[abi.SectorID]struct{})
+	sectorInfos, err := s.api.StateMinerSectors(ctx, s.actor, &check, tsk)
+	if err != nil {
+		return bitfield.BitField{}, err
+	}
+
+	sectors := make(map[abi.SectorNumber]struct{})
 	var tocheck []storage.SectorFile
 	var checkNum int
-	err = check.ForEach(func(snum uint64) error {
+	for _, info := range sectorInfos {
 		checkNum++
 		s := abi.SectorID{
 			Miner:  abi.ActorID(mid),
-			Number: abi.SectorNumber(snum),
+			Number: info.SectorNumber,
 		}
 		sFile, err := database.GetSectorFile(storage.SectorName(s), repo)
 		if err != nil {
 			log.Warn(errors.As(err))
-			return nil
+			continue
 		}
 
 		tocheck = append(tocheck, *sFile)
-		sectors[s] = struct{}{}
-		return nil
-	})
-	if err != nil {
-		return bitfield.BitField{}, xerrors.Errorf("iterating over bitfield: %w", err)
+		sectors[info.SectorNumber] = struct{}{}
+
 	}
 
 	all, _, _, err := s.faultTracker.CheckProvable(ctx, s.proofType, tocheck, timeout)
@@ -243,7 +245,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		if val.Err != nil {
 			sectorId := val.Sector.SectorID()
 			log.Warnf("sid:%s,storage:%s,used:%s,err:%s", val.Sector.SectorId, val.Sector.StorageRepo, val.Used.String(), errors.ParseError(val.Err))
-			delete(sectors, sectorId)
+			delete(sectors, sectorId.Number)
 		}
 	}
 
@@ -251,13 +253,13 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 
 	sbf := bitfield.New()
 	for s := range sectors {
-		sbf.Set(uint64(s.Number))
+		sbf.Set(uint64(s))
 	}
 
 	return sbf, nil
 }
 
-func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uint64, partitions []api.Partition) ([]miner.RecoveryDeclaration, *types.SignedMessage, error) {
+func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uint64, partitions []api.Partition, tsk types.TipSetKey) ([]miner.RecoveryDeclaration, *types.SignedMessage, error) {
 	ctx, span := trace.StartSpan(ctx, "storage.checkNextRecoveries")
 	defer span.End()
 
@@ -283,7 +285,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 
 		faulty += uc
 
-		recovered, err := s.checkSectors(ctx, unrecovered, 60*time.Second)
+		recovered, err := s.checkSectors(ctx, unrecovered, tsk, 60*time.Second)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("checking unrecovered sectors: %w", err)
 		}
@@ -351,7 +353,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 	return recoveries, sm, nil
 }
 
-func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64, partitions []api.Partition) ([]miner.FaultDeclaration, *types.SignedMessage, error) {
+func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64, partitions []api.Partition, tsk types.TipSetKey) ([]miner.FaultDeclaration, *types.SignedMessage, error) {
 	ctx, span := trace.StartSpan(ctx, "storage.checkNextFaults")
 	defer span.End()
 
@@ -366,7 +368,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 			return nil, nil, xerrors.Errorf("determining non faulty sectors: %w", err)
 		}
 
-		good, err := s.checkSectors(ctx, nonFaulty, 60*time.Second)
+		good, err := s.checkSectors(ctx, nonFaulty, tsk, 60*time.Second)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("checking sectors: %w", err)
 		}
@@ -470,7 +472,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 			}
 		)
 
-		if recoveries, sigmsg, err = s.checkNextRecoveries(context.TODO(), declDeadline, partitions); err != nil {
+		if recoveries, sigmsg, err = s.checkNextRecoveries(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
 			log.Errorf("checking sector recoveries: %v", err)
 		}
@@ -489,7 +491,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 			return // FORK: declaring faults after ignition upgrade makes no sense
 		}
 
-		if faults, sigmsg, err = s.checkNextFaults(context.TODO(), declDeadline, partitions); err != nil {
+		if faults, sigmsg, err = s.checkNextFaults(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is also potentially really bad, but we try to post anyways
 			log.Errorf("checking sector faults: %v", err)
 		}
@@ -560,7 +562,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 					return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
 				}
 
-				good, err := s.checkSectors(ctx, toProve, 6*time.Second)
+				good, err := s.checkSectors(ctx, toProve, ts.Key(), 6*time.Second)
 				if err != nil {
 					return nil, xerrors.Errorf("checking sectors to skip: %w", err)
 				}

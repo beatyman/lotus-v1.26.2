@@ -80,6 +80,34 @@ errApiLoop:
 		goto errApiLoop
 	}
 
+	if sector.PreCommitMessage != nil {
+		mw, err := m.api.StateSearchMsg(ctx.Context(), *sector.PreCommitMessage)
+		if err != nil {
+			// API error
+			if err := failedCooldown(ctx, sector); err != nil {
+				return err
+			}
+
+			return ctx.Send(SectorRetryPreCommitWait{})
+		}
+
+		if mw == nil {
+			// API error in precommit
+			return ctx.Send(SectorRetryPreCommitWait{})
+		}
+
+		switch mw.Receipt.ExitCode {
+		case exitcode.Ok:
+			// API error in PreCommitWait
+			return ctx.Send(SectorRetryPreCommitWait{})
+		case exitcode.SysErrOutOfGas:
+			// API error in PreCommitWait AND gas estimator guessed a wrong number in PreCommit
+			return ctx.Send(SectorRetryPreCommit{})
+		default:
+			// something else went wrong
+		}
+	}
+
 	if err := checkPrecommit(ctx.Context(), m.Address(), sector, tok, height, m.api); err != nil {
 		switch err.(type) {
 		case *ErrApi:
@@ -165,6 +193,34 @@ errApiLoop:
 		goto errApiLoop
 	}
 
+	if sector.CommitMessage != nil {
+		mw, err := m.api.StateSearchMsg(ctx.Context(), *sector.CommitMessage)
+		if err != nil {
+			// API error
+			if err := failedCooldown(ctx, sector); err != nil {
+				return err
+			}
+
+			return ctx.Send(SectorRetryCommitWait{})
+		}
+
+		if mw == nil {
+			// API error in commit
+			return ctx.Send(SectorRetryCommitWait{})
+		}
+
+		switch mw.Receipt.ExitCode {
+		case exitcode.Ok:
+			// API error in CcommitWait
+			return ctx.Send(SectorRetryCommitWait{})
+		case exitcode.SysErrOutOfGas:
+			// API error in CommitWait AND gas estimator guessed a wrong number in SubmitCommit
+			return ctx.Send(SectorRetrySubmitCommit{})
+		default:
+			// something else went wrong
+		}
+	}
+
 	if err := checkPrecommit(ctx.Context(), m.maddr, sector, tok, height, m.api); err != nil {
 		switch err.(type) {
 		case *ErrApi:
@@ -192,7 +248,7 @@ errApiLoop:
 		}
 	}
 
-	log.Infof("checkCommit:%s,%+v", storage.SectorName(m.minerSector(sector.SectorNumber)), sector.Proof)
+	log.Infof("checkCommit:%s,%+v", storage.SectorName(m.minerSectorID(sector.SectorNumber)), sector.Proof)
 	if err := m.checkCommit(ctx.Context(), sector, sector.Proof, tok); err != nil {
 		switch err.(type) {
 		case *ErrApi:

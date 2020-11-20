@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
-	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
+	"github.com/filecoin-project/specs-storage/storage"
 	mux "github.com/gorilla/mux"
 	"github.com/mitchellh/go-homedir"
 
@@ -163,9 +163,6 @@ var p1Cmd = &cli.Command{
 		&cli.StringFlag{
 			Name: "name", // just for process debug
 		},
-		&cli.Uint64Flag{
-			Name: "ssize",
-		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx, cancel := context.WithCancel(context.TODO())
@@ -188,13 +185,6 @@ var p1Cmd = &cli.Command{
 			resp.Err = errors.As(err).Error()
 			return nil
 		}
-		ssize := abi.SectorSize(cctx.Uint64("ssize"))
-		spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
-		if err != nil {
-			resp.Exit = 1
-			resp.Err = errors.As(err).Error()
-			return nil
-		}
 
 		input := ""
 		if _, err := fmt.Scanln(&input); err != nil {
@@ -209,12 +199,9 @@ var p1Cmd = &cli.Command{
 			return nil
 		}
 
-		cfg := &ffiwrapper.Config{
-			SealProofType: spt,
-		}
 		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: workerRepo,
-		}, cfg)
+		})
 		if err != nil {
 			resp.Exit = 1
 			resp.Err = errors.As(err).Error()
@@ -226,7 +213,7 @@ var p1Cmd = &cli.Command{
 			resp.Err = errors.As(err).Error()
 			return nil
 		}
-		rspco, err := workerSealer.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
+		rspco, err := workerSealer.SealPreCommit1(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.SealTicket, pieceInfo)
 		if err != nil {
 			resp.Exit = 1
 			resp.Err = errors.As(err).Error()
@@ -367,10 +354,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		ssize, err := nodeApi.ActorSectorSize(ctx, act)
-		if err != nil {
-			return err
-		}
 
 		workerAddr, err := nodeApi.WorkerAddress(ctx, act, types.EmptyTSK)
 		if err != nil {
@@ -380,23 +363,16 @@ var runCmd = &cli.Command{
 		if err := os.MkdirAll(workerRepo, 0755); err != nil {
 			return errors.As(err, workerRepo)
 		}
-		spt, err := ffiwrapper.SealProofTypeFromSectorSize(ssize)
-		if err != nil {
-			return xerrors.Errorf("getting proof type: %w", err)
-		}
-		cfg := &ffiwrapper.Config{
-			SealProofType: spt,
-		}
 
 		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: workerRepo,
-		}, cfg)
+		})
 		if err != nil {
 			return err
 		}
 		minerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: minerRepo,
-		}, cfg)
+		})
 		if err != nil {
 			return err
 		}
@@ -405,7 +381,7 @@ var runCmd = &cli.Command{
 		}
 		sealedSB, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: sealedRepo,
-		}, cfg)
+		})
 		if err != nil {
 			return errors.As(err, sealedRepo)
 		}
@@ -491,7 +467,7 @@ var runCmd = &cli.Command{
 		if err := acceptJobs(ctx,
 			workerSealer, sealedSB,
 			workerApi,
-			ssize, act, workerAddr,
+			act, workerAddr,
 			minerAddr, ainfo.AuthHeader(),
 			workerRepo, sealedRepo, sealedMountedFile,
 			workerCfg,

@@ -8,5 +8,4 @@ require (
 	github.com/ipfs/go-cid v0.0.7
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550 // indirect
 	golang.org/x/sys v0.0.0-20190826190057-c7b8b68b1456 // indirect
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 )

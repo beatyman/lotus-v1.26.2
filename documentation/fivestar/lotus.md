@@ -27,8 +27,11 @@ aptitude install rsync chrony nfs-common make mesa-opencl-icd ocl-icd-opencl-dev
 ```shell
 sudo su -
 cd /usr/local/
-wget https://studygolang.com/dl/golang/go1.14.4.linux-amd64.tar.gz # 其他版本请参考https://studygolang.com/dl
-tar -xzf go1.14.4.linux-amd64.tar.gz
+wget https://studygolang.com/dl/golang/go1.15.5.linux-amd64.tar.gz # 其他版本请参考https://studygolang.com/dl
+#wget https://golang.org/dl/go1.15.5.linux-amd64.tar.gz
+#scp root@10.1.1.33:/root/rsync/go1.15.5.linux-amd64.tar.gz .
+
+tar -xzf go1.15.5.linux-amd64.tar.gz
 ### 配置/etc/profile环境变量(需要重新登录生效或source /etc/profile)
 export GOROOT=/usr/local/go
 export GOPROXY="https://goproxy.io,direct"

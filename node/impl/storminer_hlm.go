@@ -57,12 +57,20 @@ func (sm *StorageMinerAPI) HlmSectorFile(ctx context.Context, sid string) (*stor
 	return database.GetSectorFile(sid, "")
 }
 func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error) {
-	// TODO: need to set default repo?
+	maddr, err := sm.ActorAddress(ctx)
+	if err != nil {
+		return 0, err
+	}
+	ssize, err := sm.ActorSectorSize(ctx, maddr)
+	if err != nil {
+		return 0, err
+	}
+
+	// TODO: need the default repo?
 	file, err := database.GetSectorFile(sid, "")
 	if err != nil {
 		return 0, errors.As(err)
 	}
-	ssize := sm.StorageMgr.Prover.(*ffiwrapper.Sealer).SectorSize()
 	all, _, _, err := ffiwrapper.CheckProvable(ctx, ssize, []storage.SectorFile{*file}, timeout)
 	if err != nil {
 		return 0, errors.As(err)

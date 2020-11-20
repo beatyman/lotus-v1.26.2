@@ -5,7 +5,6 @@ package ffiwrapper
 import (
 	"context"
 
-	"github.com/filecoin-project/specs-storage/storage"
 	"go.opencensus.io/trace"
 
 	"golang.org/x/xerrors"
@@ -13,6 +12,7 @@ import (
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
 	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 )

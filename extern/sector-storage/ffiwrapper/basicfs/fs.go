@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 )
@@ -30,7 +31,7 @@ func (b *Provider) RepoPath() string {
 	return b.Root
 }
 
-func (b *Provider) AcquireSector(ctx context.Context, id abi.SectorID, existing storiface.SectorFileType, allocate storiface.SectorFileType, ptype storiface.PathType) (storiface.SectorPaths, func(), error) {
+func (b *Provider) AcquireSector(ctx context.Context, id storage.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, ptype storiface.PathType) (storiface.SectorPaths, func(), error) {
 	if err := os.Mkdir(filepath.Join(b.Root, storiface.FTUnsealed.String()), 0755); err != nil && !os.IsExist(err) { // nolint
 		return storiface.SectorPaths{}, nil, err
 	}
@@ -45,7 +46,7 @@ func (b *Provider) AcquireSector(ctx context.Context, id abi.SectorID, existing 
 	done := func() {}
 
 	out := storiface.SectorPaths{
-		ID: id,
+		ID: id.ID,
 	}
 
 	for _, fileType := range storiface.PathTypes {
@@ -57,10 +58,10 @@ func (b *Provider) AcquireSector(ctx context.Context, id abi.SectorID, existing 
 		if b.waitSector == nil {
 			b.waitSector = map[sectorFile]chan struct{}{}
 		}
-		ch, found := b.waitSector[sectorFile{id, fileType}]
+		ch, found := b.waitSector[sectorFile{id.ID, fileType}]
 		if !found {
 			ch = make(chan struct{}, 1)
-			b.waitSector[sectorFile{id, fileType}] = ch
+			b.waitSector[sectorFile{id.ID, fileType}] = ch
 		}
 		b.lk.Unlock()
 
@@ -71,7 +72,7 @@ func (b *Provider) AcquireSector(ctx context.Context, id abi.SectorID, existing 
 			return storiface.SectorPaths{}, nil, ctx.Err()
 		}
 
-		path := filepath.Join(b.Root, fileType.String(), storiface.SectorName(id))
+		path := filepath.Join(b.Root, fileType.String(), storiface.SectorName(id.ID))
 
 		prevDone := done
 		done = func() {

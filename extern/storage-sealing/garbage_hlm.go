@@ -5,6 +5,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	abi "github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 	xerrors "golang.org/x/xerrors"
 
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
@@ -13,7 +14,7 @@ import (
 )
 
 type Pledge struct {
-	SectorID abi.SectorID
+	SectorID storage.SectorRef
 	Sealing  *Sealing
 
 	SectorBuilder *ffiwrapper.Sealer
@@ -63,19 +64,27 @@ func (m *Sealing) PledgeRemoteSector() error {
 		// this, as we run everything here async, and it's cancelled when the
 		// command exits
 
-		size := abi.PaddedPieceSize(m.sealer.SectorSize()).Unpadded()
+		spt, err := m.currentSealProof(ctx)
+		if err != nil {
+			return errors.As(err)
+		}
+
+		size, err := spt.SectorSize()
+		if err != nil {
+			return errors.As(err)
+		}
 
 		sid, err := m.sc.Next()
 		if err != nil {
 			return errors.As(err)
 		}
-		sectorID := m.minerSector(sid)
+		sectorID := m.minerSector(spt, sid)
 		if err := m.sealer.NewSector(ctx, sectorID); err != nil {
 			return errors.As(err, sid)
 		}
 
 		sb := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
-		pieces, err := sb.PledgeSector(sectorID, []abi.UnpaddedPieceSize{size})
+		pieces, err := sb.PledgeSector(sectorID, []abi.UnpaddedPieceSize{abi.PaddedPieceSize(size).Unpadded()})
 		if err != nil {
 			return errors.As(err)
 		}
@@ -87,7 +96,7 @@ func (m *Sealing) PledgeRemoteSector() error {
 				DealInfo: nil,
 			}
 		}
-		if err := m.newSectorCC(sid, ps); err != nil {
+		if err := m.newSectorCC(ctx, sid, ps); err != nil {
 			return errors.As(err)
 		}
 		return nil
