@@ -63,19 +63,18 @@ mkdir -p $staging
 make $build_mode
 make lotus-shed
 make lotus-fountain
- if [[  "`ls -A ${sdt0111}`" = ""  &&  "`ls -A ${staging}`" = ""  ]];
- then
-    ./lotus-seed genesis new "${staging}/genesis.json"
-     if [ $SECTOR_SIZE -gt 536870912 ]
-     then
-         FIL_PROOFS_MAXIMIZE_CACHING=1  ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
-     else
-        ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
-      fi
-      ./lotus-seed genesis add-miner "${staging}/genesis.json" "${sdt0111}/pre-seal-t01000.json"
- else
-   echo "genesis sectos already exists"
-  fi
+./lotus-seed genesis new "${staging}/genesis.json"
+if [ $SECTOR_SIZE -gt 536870912 ]; then
+     ./lotus-seed --sector-dir="${sdt0111}" pre-seal --fake-sectors --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+#    if [ -d "$sdt0111/cache" ]; then
+#        ./lotus-seed --sector-dir="${sdt0111}" pre-seal --fake-sectors --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+#    else
+#        ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+#    fi
+else
+    ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+fi
+./lotus-seed genesis add-miner "${staging}/genesis.json" "${sdt0111}/pre-seal-t01000.json"
 ldt0111=/data/lotus/dev/.ldt0111 # $(mktemp -d)
 rm -rf $ldt0111 && mkdir -p $ldt0111
 

@@ -297,14 +297,15 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInf
 		pFiles = append(pFiles, storage.ProofSectorInfo{SectorInfo: s, SectorFile: *sFile})
 		sFiles = append(sFiles, *sFile)
 	}
-	// check files
-	_, _, bad, err := ffiwrapper.CheckProvable(ctx, ssize, sFiles, 6*time.Second)
-	if err != nil {
-		return nil, errors.As(err)
-	}
-	if len(bad) > 0 {
-		return nil, xerrors.Errorf("pubSectorToPriv skipped sectors: %+v", bad)
-	}
+	// TODO: confirm here need to check the files
+	//// check files
+	//_, _, bad, err := ffiwrapper.CheckProvable(ctx, ssize, sFiles, 6*time.Second)
+	//if err != nil {
+	//	return nil, errors.As(err)
+	//}
+	//if len(bad) > 0 {
+	//	return nil, xerrors.Errorf("pubSectorToPriv skipped sectors: %+v", bad)
+	//}
 	log.Infof("GenerateWinningPoSt checking %s", time.Since(start))
 
 	proof, err := wpp.prover.GenerateWinningPoSt(ctx, wpp.miner, pFiles, rand)
