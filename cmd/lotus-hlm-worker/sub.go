@@ -563,12 +563,16 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
 	case ffiwrapper.WorkerPreCommit1:
-		//	pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
-		//	if err != nil {
-		//		return errRes(errors.As(err, w.workerCfg), &res)
-		//	}
-		//	rspco, err := w.workerSB.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
-		rspco, err := ExecPrecommit1(ctx, w.workerRepo, task)
+		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+		rspco, err := w.workerSB.SealPreCommit1(ctx, storage.SectorRef{
+			ID:        task.SectorID,
+			ProofType: task.ProofType,
+		}, task.SealTicket, pieceInfo)
+
+		//rspco, err := ExecPrecommit1(ctx, w.workerRepo, task)
 		res.PreCommit1Out = rspco
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
