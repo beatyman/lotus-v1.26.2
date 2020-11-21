@@ -3,7 +3,6 @@
 package build
 
 import (
-	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
@@ -29,20 +28,17 @@ var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 }
 
 func init() {
-	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
 	policy.SetSupportedProofTypes(
 		abi.RegisteredSealProof_StackedDrg512MiBV1,
 		abi.RegisteredSealProof_StackedDrg32GiBV1,
 		abi.RegisteredSealProof_StackedDrg64GiBV1,
 	)
-
-	SetAddressNetwork(address.Testnet)
-
-	Devnet = true
+	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
+	BuildType |= Build2k
 }
 
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
 
 const PropagationDelaySecs = uint64(6)
 
-const BootstrapPeerThreshold = 4
+const BootstrapPeerThreshold = 1
