@@ -36,6 +36,21 @@ type paramFile struct {
 var checked = map[string]bool{}
 var checkedLk sync.Mutex
 
+func addChecked(file string) {
+	checkedLk.Lock()
+	checked[file] = true
+	checkedLk.Unlock()
+}
+func delChecked(file string) {
+	log.Warnf("Parameter file %s sum failed", file)
+	if err := os.RemoveAll(file); err != nil {
+		log.Error(errors.As(err))
+	}
+	checkedLk.Lock()
+	delete(checked, file)
+	checkedLk.Unlock()
+}
+
 func checkFile(path string, info paramFile) error {
 	if os.Getenv("TRUST_PARAMS") == "1" {
 		log.Warn("Assuming parameter files are ok. DO NOT USE IN PRODUCTION")
@@ -48,29 +63,40 @@ func checkFile(path string, info paramFile) error {
 	if ok {
 		return nil
 	}
+	// ignore blk2b checking
+	_, err := os.Stat(path)
+	if err != nil {
+		delChecked(path)
+		return err
+	}
 
 	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
-	h := blake2b.New512()
-	if _, err := io.Copy(h, f); err != nil {
-		return err
-	}
+	addChecked(path)
 
-	sum := h.Sum(nil)
-	strSum := hex.EncodeToString(sum[:16])
-	if strSum == info.Digest {
-		checkedLk.Lock()
-		checked[path] = true
-		checkedLk.Unlock()
-		log.Infof("Parameter file %s is ok", path)
-		return nil
-	}
+	go func() {
+		defer f.Close()
+		h := blake2b.New512()
+		if _, err := io.Copy(h, f); err != nil {
+			log.Error(errors.As(err))
+			delChecked(path)
+			return
+		}
 
-	return ErrChecksum.As(path, strSum, info.Digest)
+		sum := h.Sum(nil)
+		strSum := hex.EncodeToString(sum[:16])
+		if strSum == info.Digest {
+			log.Infof("Parameter file %s is ok", path)
+			addChecked(path)
+			return
+		}
+		delChecked(path)
+	}()
+
+	return nil
 }
 
 func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ssize abi.SectorSize) error {

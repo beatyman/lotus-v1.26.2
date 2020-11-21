@@ -78,6 +78,22 @@ checkingApi:
 		goto checkingApi
 	}
 
+	to := "/var/tmp/filecoin-proof-parameters"
+	envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
+	if len(envParam) > 0 {
+		to = envParam
+	}
+	if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
+		// get ssize from miner
+		ssize, err := nodeApi.ActorSectorSize(ctx, act)
+		if err != nil {
+			return err
+		}
+		if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
+			return err
+		}
+	}
+
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
 		return errors.As(err)
@@ -99,11 +115,6 @@ loop:
 		case task := <-tasks:
 			// check params
 			if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
-				to := "/var/tmp/filecoin-proof-parameters"
-				envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
-				if len(envParam) > 0 {
-					to = envParam
-				}
 				ssize, err := task.ProofType.SectorSize()
 				if err != nil {
 					return errors.As(err)
