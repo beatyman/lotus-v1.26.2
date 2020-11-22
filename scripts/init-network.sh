@@ -92,8 +92,8 @@ make $build_mode
 ./lotus --repo="${ldt0111}" daemon --api "3000$i" --bootstrap=false &
 sleep 30
 
-./lotus --repo="${lotus_path}" net listen|grep "127.0.0.1" > build/bootstrap/bootstrappers.pi
-./lotus --repo="${lotus_path}" net listen|grep "127.0.0.1" > scripts/bootstrappers-$build_mode.pi
+./lotus --repo="${lotus_path}" net listen|grep "127.0.0.1" > scripts/bootstrappers.pi
+cp scripts/bootstrappers.pi build/boostrap/bootstrappers.pi 
 make $build_mode
 git checkout build
 

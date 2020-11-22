@@ -20,7 +20,7 @@ case $1 in
         git checkout build
     ;;
     "hlm")
-        cp -f scripts/bootstrappers-hlm.pi build/bootstrap/bootstrappers.pi
+        cp -f scripts/bootstrappers.pi build/bootstrap/bootstrappers.pi
         cp -f scripts/devnet-hlm.car build/genesis/devnet.car
         make hlm
         git checkout build
