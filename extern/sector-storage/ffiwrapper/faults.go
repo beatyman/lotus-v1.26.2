@@ -79,7 +79,7 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 
 		toCheck := map[string]int64{
 			lp.Sealed:                        int64(ssize),
-			filepath.Join(lp.Cache, "t_aux"): 0,
+			//filepath.Join(lp.Cache, "t_aux"): 0, // no check for fake
 			filepath.Join(lp.Cache, "p_aux"): 0,
 		}
 
