@@ -93,7 +93,7 @@ make $build_mode
 sleep 30
 
 ./lotus --repo="${lotus_path}" net listen|grep "127.0.0.1" > scripts/bootstrappers.pi
-cp scripts/bootstrappers.pi build/boostrap/bootstrappers.pi 
+cp scripts/bootstrappers.pi build/bootstrap/bootstrappers.pi 
 make $build_mode
 git checkout build
 
