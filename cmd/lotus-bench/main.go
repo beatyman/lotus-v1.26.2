@@ -353,7 +353,7 @@ func action(c *cli.Context, i int) string {
 			SealingResults: sealTimings,
 		}
 		if err := bo.SumSealingTime(); err != nil {
-			return err
+			return err.Error()
 		}
 
 		var challenge [32]byte
@@ -614,7 +614,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 					precommit2 := time.Now()
 					<-preCommit2Sema
 
-					sealedSectors[ix] = storage.ProofSectorInfo{
+					sealedSectors[i] = storage.ProofSectorInfo{
 						SectorInfo: saproof2.SectorInfo{
 							SealProof:    sid.ProofType,
 							SectorNumber: i,
