@@ -22,6 +22,8 @@ var UpgradeActorsV2Height = abi.ChainEpoch(10)
 var UpgradeLiftoffHeight = abi.ChainEpoch(-5)
 
 const UpgradeKumquatHeight = 15
+const UpgradeCalicoHeight = 20
+const UpgradePersianHeight = 25
 
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandMainnet,
@@ -43,7 +45,7 @@ func init() {
 // Seconds
 const BlockDelaySecs = uint64(10)
 
-const PropagationDelaySecs = uint64(2)
+const PropagationDelaySecs = uint64(1)
 
 // SlashablePowerDelay is the number of epochs after ElectionPeriodStart, after
 // which the miner is slashed

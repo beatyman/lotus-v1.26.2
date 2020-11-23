@@ -5,7 +5,7 @@ export IPFS_GATEWAY="https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs
 # So be sure to use both if you want both built on the GPU
 export FIL_PROOFS_USE_GPU_COLUMN_BUILDER=0
 export FIL_PROOFS_USE_GPU_TREE_BUILDER=0
-export FIL_PROOFS_MAXIMIZE_CACHING=0  # open cache for 32GB or 64GB
+export FIL_PROOFS_MAXIMIZE_CACHING=1  # open cache for 32GB or 64GB
 export FIL_PROOFS_USE_MULTICORE_SDR=1
 export RUST_LOG=info
 export RUST_BACKTRACE=1
@@ -42,7 +42,6 @@ case $1 in
         #SECTOR_SIZE=536870912
         car_name="devnet-hlm.car"
         build_mode="hlm"
-        FIL_PROOFS_MAXIMIZE_CACHING=1  # open cache for 32GB or 64GB
     ;;
 
     *)
@@ -63,43 +62,40 @@ mkdir -p $staging
 make $build_mode
 make lotus-shed
 make lotus-fountain
- if [[  "`ls -A ${sdt0111}`" = ""  &&  "`ls -A ${staging}`" = ""  ]];
- then
-    ./lotus-seed genesis new "${staging}/genesis.json"
-     if [ $SECTOR_SIZE -gt 536870912 ]
-     then
-         FIL_PROOFS_MAXIMIZE_CACHING=1  ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
-     else
-        ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
-      fi
-      ./lotus-seed genesis add-miner "${staging}/genesis.json" "${sdt0111}/pre-seal-t01000.json"
- else
-   echo "genesis sectos already exists"
-  fi
+./lotus-seed genesis new "${staging}/genesis.json"
+if [ $SECTOR_SIZE -gt 536870912 ]; then
+     ./lotus-seed --sector-dir="${sdt0111}" pre-seal --fake-sectors --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+#    if [ -d "$sdt0111/cache" ]; then
+#        ./lotus-seed --sector-dir="${sdt0111}" pre-seal --fake-sectors --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+#    else
+#        ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+#    fi
+else
+    ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
+fi
+./lotus-seed genesis add-miner "${staging}/genesis.json" "${sdt0111}/pre-seal-t01000.json"
 ldt0111=/data/lotus/dev/.ldt0111 # $(mktemp -d)
 rm -rf $ldt0111 && mkdir -p $ldt0111
 
 lotus_path=$ldt0111
 ./lotus --repo="${lotus_path}" daemon --lotus-make-genesis="${staging}/devnet.car" --import-key="${sdt0111}/pre-seal-t01000.key" --genesis-template="${staging}/genesis.json" --bootstrap=false &
 lpid=$!
-
-sleep 10
-
+sleep 30
 kill "$lpid"
-
 wait
 
 cp "${staging}/devnet.car" build/genesis/devnet.car
 cp "${staging}/devnet.car" scripts/$car_name
 
 make $build_mode
-git checkout build
 
 ./lotus --repo="${ldt0111}" daemon --api "3000$i" --bootstrap=false &
-sleep 10
-# make the wallet address to default, so it can send by ${ldlist[0]}
-#./lotus --repo="${ldt0111}" wallet import ${sdt0111}/pre-seal-t01000.key
-#./lotus --repo="${ldt0111}" wallet set-default $(./lotus --repo="${ldt0111}" wallet list)
+sleep 30
+
+./lotus --repo="${lotus_path}" net listen|grep "127.0.0.1" > scripts/bootstrappers.pi
+cp scripts/bootstrappers.pi build/bootstrap/bootstrappers.pi 
+make $build_mode
+git checkout build
 
 mdt0111=/data/lotus/dev/.mdt0111 # $(mktemp -d)
 rm -rf $mdt0111 && mkdir -p $mdt0111

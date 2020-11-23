@@ -29,7 +29,7 @@ scp scripts/bootstrap.toml "${host}:.lotus/config.toml"
 ssh "$host" "echo -e '[Metrics]\nNickname=\"Boot-$host\"' >> .lotus/config.toml"
 ssh "$host" 'systemctl restart lotus-daemon'
 
-sleep 10
+sleep 30
 
 log 'Extracting addr info'
 ssh "$host" 'lotus net listen' > scripts/bootstrappers.pi

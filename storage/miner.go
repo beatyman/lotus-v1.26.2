@@ -101,6 +101,8 @@ type storageMinerApi interface {
 	MpoolPushMessage(context.Context, []byte, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
 
 	GasEstimateMessageGas(context.Context, *types.Message, *api.MessageSendSpec, types.TipSetKey) (*types.Message, error)
+	GasEstimateFeeCap(context.Context, *types.Message, int64, types.TipSetKey) (types.BigInt, error)
+	GasEstimateGasPremium(_ context.Context, nblocksincl uint64, sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error)
 
 	ChainHead(context.Context) (*types.TipSet, error)
 	ChainNotify(context.Context) (<-chan []*api.HeadChange, error)
@@ -230,12 +232,7 @@ func NewWinningPoStProver(api api.FullNode, prover storage.Prover, verifier ffiw
 		return nil, errors.As(err, "getting sector size", ma)
 	}
 
-	spt, err := ffiwrapper.SealProofTypeFromSectorSize(mi.SectorSize)
-	if err != nil {
-		return nil, err
-	}
-
-	wpt, err := spt.RegisteredWinningPoStProof()
+	wpt, err := mi.SealProofType.RegisteredWinningPoStProof()
 	if err != nil {
 		return nil, err
 	}
@@ -302,6 +299,7 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInf
 		pFiles = append(pFiles, storage.ProofSectorInfo{SectorInfo: s, SectorFile: *sFile})
 		sFiles = append(sFiles, *sFile)
 	}
+	// TODO: confirm here need to check the files
 	// check files
 	_, _, bad, err := ffiwrapper.CheckProvable(ctx, ssize, sFiles, 6*time.Second)
 	if err != nil {

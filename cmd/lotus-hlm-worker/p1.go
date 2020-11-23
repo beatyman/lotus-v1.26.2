@@ -7,10 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"time"
 
-	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
@@ -23,7 +21,7 @@ type ExecPrecommit1Resp struct {
 	Err  string
 }
 
-func ExecPrecommit1(ctx context.Context, repo string, ssize abi.SectorSize, task ffiwrapper.WorkerTask) (storage.PreCommit1Out, error) {
+func ExecPrecommit1(ctx context.Context, repo string, task ffiwrapper.WorkerTask) (storage.PreCommit1Out, error) {
 	args, err := json.Marshal(task)
 	if err != nil {
 		return nil, errors.As(err)
@@ -47,7 +45,7 @@ func ExecPrecommit1(ctx context.Context, repo string, ssize abi.SectorSize, task
 	cmd := exec.CommandContext(ctx, programName, "--worker-repo", repo,
 		"precommit1",
 		"--name", task.SectorStorage.SectorInfo.ID,
-		"--ssize", strconv.FormatUint(uint64(ssize), 10))
+	)
 	var stdout bytes.Buffer
 	defer func() {
 		fmt.Println(cmd.String())

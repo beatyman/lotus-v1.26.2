@@ -6,7 +6,6 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
-
 	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
 )
 
@@ -33,6 +32,9 @@ const UpgradeLiftoffHeight = -5
 
 const UpgradeKumquatHeight = 90
 
+const UpgradeCalicoHeight = 92000
+const UpgradePersianHeight = UpgradeCalicoHeight + (builtin2.EpochsInHour * 60)
+
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
 	policy.SetSupportedProofTypes(
@@ -49,3 +51,5 @@ func init() {
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
 
 const PropagationDelaySecs = uint64(6)
+
+const BootstrapPeerThreshold = 4

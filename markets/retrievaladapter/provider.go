@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/go-state-types/abi"
+	specstorage "github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/ipfs/go-cid"
 
@@ -55,9 +56,12 @@ func (rpn *retrievalProviderNode) UnsealSector(ctx context.Context, sectorID abi
 		return nil, err
 	}
 
-	sid := abi.SectorID{
-		Miner:  abi.ActorID(mid),
-		Number: sectorID,
+	ref := specstorage.SectorRef{
+		ID: abi.SectorID{
+			Miner:  abi.ActorID(mid),
+			Number: sectorID,
+		},
+		ProofType: si.SectorType,
 	}
 
 	r, w := io.Pipe()
@@ -66,9 +70,9 @@ func (rpn *retrievalProviderNode) UnsealSector(ctx context.Context, sectorID abi
 		if si.CommD != nil {
 			commD = *si.CommD
 		}
-		err := rpn.sealer.ReadPiece(ctx, w, sid, storiface.UnpaddedByteIndex(offset), length, si.TicketValue, commD)
+		err := rpn.sealer.ReadPiece(ctx, w, ref, storiface.UnpaddedByteIndex(offset), length, si.TicketValue, commD)
 		if err != nil {
-			log.Error(errors.As(err, sid))
+			log.Error(errors.As(err, ref))
 		}
 		_ = w.CloseWithError(err)
 	}()

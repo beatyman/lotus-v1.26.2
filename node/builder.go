@@ -8,6 +8,7 @@ import (
 
 	metricsi "github.com/ipfs/go-metrics-interface"
 
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/chain"
 	"github.com/filecoin-project/lotus/chain/exchange"
 	"github.com/filecoin-project/lotus/chain/store"
@@ -25,6 +26,7 @@ import (
 	"github.com/libp2p/go-libp2p-peerstore/pstoremem"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	record "github.com/libp2p/go-libp2p-record"
+	"github.com/libp2p/go-libp2p/p2p/net/conngater"
 	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
@@ -55,7 +57,6 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
 	"github.com/filecoin-project/lotus/journal"
-	"github.com/filecoin-project/lotus/lib/blockstore"
 	"github.com/filecoin-project/lotus/lib/peermgr"
 	_ "github.com/filecoin-project/lotus/lib/sigs/bls"
 	_ "github.com/filecoin-project/lotus/lib/sigs/secp"
@@ -98,6 +99,7 @@ var (
 	ConnectionManagerKey = special{9}  // Libp2p option
 	AutoNATSvcKey        = special{10} // Libp2p option
 	BandwidthReporterKey = special{11} // Libp2p option
+	ConnGaterKey         = special{12} // libp2p option
 )
 
 type invoke int
@@ -220,6 +222,9 @@ func libp2p() Option {
 
 		Override(PstoreAddSelfKeysKey, lp2p.PstoreAddSelfKeys),
 		Override(StartListeningKey, lp2p.StartListening(config.DefaultFullNode().Libp2p.ListenAddresses)),
+
+		Override(new(*conngater.BasicConnectionGater), lp2p.ConnGater),
+		Override(ConnGaterKey, lp2p.ConnGaterOption),
 	)
 }
 
@@ -264,8 +269,6 @@ func Online() Option {
 			Override(new(api.WalletAPI), From(new(wallet.MultiWallet))),
 			Override(new(*messagesigner.MessageSigner), messagesigner.NewMessageSigner),
 
-			Override(new(dtypes.ChainGCLocker), blockstore.NewGCLocker),
-			Override(new(dtypes.ChainGCBlockstore), modules.ChainGCBlockstore),
 			Override(new(dtypes.ChainBitswap), modules.ChainBitswap),
 			Override(new(dtypes.ChainBlockService), modules.ChainBlockService),
 
@@ -342,7 +345,7 @@ func Online() Option {
 			Override(new(stores.SectorIndex), From(new(*stores.Index))),
 			Override(new(dtypes.MinerID), modules.MinerID),
 			Override(new(dtypes.MinerAddress), modules.MinerAddress),
-			Override(new(*ffiwrapper.Config), modules.ProofsConfig),
+			Override(new(abi.RegisteredSealProof), modules.SealProofType),
 			Override(new(stores.LocalStorage), From(new(repo.LockedRepo))),
 			Override(new(sealing.SectorIDCounter), modules.SectorIDCounter),
 			Override(new(*sectorstorage.Manager), modules.SectorStorage),

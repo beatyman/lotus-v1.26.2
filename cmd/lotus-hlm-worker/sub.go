@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/gwaylib/errors"
 )
@@ -47,7 +48,7 @@ type worker struct {
 func acceptJobs(ctx context.Context,
 	workerSB, sealedSB *ffiwrapper.Sealer,
 	rpcServer *rpcServer,
-	ssize abi.SectorSize, act, workerAddr address.Address,
+	act, workerAddr address.Address,
 	minerEndpoint string, auth http.Header,
 	workerRepo, sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
@@ -58,7 +59,6 @@ func acceptJobs(ctx context.Context,
 		sealedRepo:    sealedRepo,
 		auth:          auth,
 
-		ssize:     ssize,
 		actAddr:   act,
 		workerSB:  workerSB,
 		rpcServer: rpcServer,
@@ -70,18 +70,6 @@ func acceptJobs(ctx context.Context,
 		sealedMountedFile: mountedFile,
 	}
 
-	// check params
-	if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
-		to := "/var/tmp/filecoin-proof-parameters"
-		envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
-		if len(envParam) > 0 {
-			to = envParam
-		}
-		if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
-			return errors.As(err)
-		}
-	}
-
 checkingApi:
 	api, err := GetNodeApi()
 	if err != nil {
@@ -90,11 +78,27 @@ checkingApi:
 		goto checkingApi
 	}
 
+	to := "/var/tmp/filecoin-proof-parameters"
+	envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
+	if len(envParam) > 0 {
+		to = envParam
+	}
+	if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
+		// get ssize from miner
+		ssize, err := nodeApi.ActorSectorSize(ctx, act)
+		if err != nil {
+			return err
+		}
+		if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
+			return err
+		}
+	}
+
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
 		return errors.As(err)
 	}
-	log.Infof("Worker(%s) started, ActorSize:%s, Miner:%s, Srv:%s", workerCfg.ID, ssize.ShortString(), minerEndpoint, workerCfg.IP)
+	log.Infof("Worker(%s) started, Miner:%s, Srv:%s", workerCfg.ID, minerEndpoint, workerCfg.IP)
 
 loop:
 	for {
@@ -109,6 +113,16 @@ loop:
 				log.Warn(errors.As(err))
 			}
 		case task := <-tasks:
+			// check params
+			if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
+				ssize, err := task.ProofType.SectorSize()
+				if err != nil {
+					return errors.As(err)
+				}
+				if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
+					return errors.As(err)
+				}
+			}
 			if task.SectorID.Miner == 0 {
 				// connection is down.
 				return errors.New("server shutdown").As(task)
@@ -155,7 +169,7 @@ func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]ab
 
 	s := sealing.NewSealPiece(w.actAddr, w.workerSB)
 	g := &sealing.Pledge{
-		SectorID:      task.SectorID,
+		SectorID:      storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType},
 		Sealing:       s,
 		SectorBuilder: w.workerSB,
 		ActAddr:       w.actAddr,
@@ -560,12 +574,16 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
 	case ffiwrapper.WorkerPreCommit1:
-		//	pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
-		//	if err != nil {
-		//		return errRes(errors.As(err, w.workerCfg), &res)
-		//	}
-		//	rspco, err := w.workerSB.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
-		rspco, err := ExecPrecommit1(ctx, w.workerRepo, w.ssize, task)
+		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+		rspco, err := w.workerSB.SealPreCommit1(ctx, storage.SectorRef{
+			ID:        task.SectorID,
+			ProofType: task.ProofType,
+		}, task.SealTicket, pieceInfo)
+
+		//rspco, err := ExecPrecommit1(ctx, w.workerRepo, task)
 		res.PreCommit1Out = rspco
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
@@ -574,7 +592,10 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 	case ffiwrapper.WorkerPreCommit2:
-		out, err := w.workerSB.SealPreCommit2(ctx, task.SectorID, task.PreCommit1Out)
+		out, err := w.workerSB.SealPreCommit2(ctx, storage.SectorRef{
+			ID:        task.SectorID,
+			ProofType: task.ProofType,
+		}, task.PreCommit1Out)
 		res.PreCommit2Out = ffiwrapper.SectorCids{
 			Unsealed: out.Unsealed.String(),
 			Sealed:   out.Sealed.String(),
@@ -591,7 +612,10 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-		out, err := w.workerSB.SealCommit1(ctx, task.SectorID, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+		out, err := w.workerSB.SealCommit1(ctx, storage.SectorRef{
+			ID:        task.SectorID,
+			ProofType: task.ProofType,
+		}, task.SealTicket, task.SealSeed, pieceInfo, *cids)
 		res.Commit1Out = out
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
@@ -613,7 +637,10 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 		// call gpu service failed, using local instead.
 		if len(res.Commit2Out) == 0 {
-			res.Commit2Out, err = w.workerSB.SealCommit2(ctx, task.SectorID, task.Commit1Out)
+			res.Commit2Out, err = w.workerSB.SealCommit2(ctx, storage.SectorRef{
+				ID:        task.SectorID,
+				ProofType: task.ProofType,
+			}, task.Commit1Out)
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
@@ -629,7 +656,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 				return errRes(errors.As(err, sealedFile), &res)
 			}
 		} else {
-			if err := w.workerSB.FinalizeSector(ctx, task.SectorID, nil); err != nil {
+			if err := w.workerSB.FinalizeSector(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 			if err := w.pushCommit(ctx, task); err != nil {

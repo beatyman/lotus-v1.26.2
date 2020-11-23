@@ -11,6 +11,7 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
@@ -79,8 +80,11 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 
 		toCheck := map[string]int64{
 			lp.Sealed:                        int64(ssize),
-			filepath.Join(lp.Cache, "t_aux"): 0,
 			filepath.Join(lp.Cache, "p_aux"): 0,
+		}
+		//filepath.Join(lp.Cache, "t_aux"): 0, // no check for fake
+		if _, ok := miner0.SupportedProofTypes[abi.RegisteredSealProof_StackedDrg2KiBV1]; !ok {
+			toCheck[filepath.Join(lp.Cache, "t_aux")] = 0
 		}
 
 		addCachePathsForSectorSize(toCheck, lp.Cache, ssize)

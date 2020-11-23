@@ -14,7 +14,7 @@ type WorkerHlmStruct struct {
 	Internal struct {
 		Version func(context.Context) (build.Version, error) `perm:"read"`
 
-		SealCommit2         func(context.Context, abi.SectorID, storage.Commit1Out) (storage.Proof, error)                                `perm:"admin"`
+		SealCommit2         func(context.Context, storage.SectorRef, storage.Commit1Out) (storage.Proof, error)                           `perm:"admin"`
 		GenerateWinningPoSt func(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)  `perm:"admin"`
 		GenerateWindowPoSt  func(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) (api.WindowPoStResp, error) `perm:"admin"`
 	}
@@ -24,7 +24,7 @@ func (w *WorkerHlmStruct) Version(ctx context.Context) (build.Version, error) {
 	return w.Internal.Version(ctx)
 }
 
-func (w *WorkerHlmStruct) SealCommit2(ctx context.Context, sector abi.SectorID, commit1Out storage.Commit1Out) (storage.Proof, error) {
+func (w *WorkerHlmStruct) SealCommit2(ctx context.Context, sector storage.SectorRef, commit1Out storage.Commit1Out) (storage.Proof, error) {
 	return w.Internal.SealCommit2(ctx, sector, commit1Out)
 }
 

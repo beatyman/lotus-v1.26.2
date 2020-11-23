@@ -152,6 +152,7 @@ type WorkerTask struct {
 	Type WorkerTaskType
 	// TaskID uint64 // using SecotrID instead
 
+	ProofType     abi.RegisteredSealProof
 	SectorID      abi.SectorID
 	WorkerID      string
 	SectorStorage database.SectorStorage
