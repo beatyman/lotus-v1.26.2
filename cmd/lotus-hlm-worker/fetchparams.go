@@ -51,7 +51,26 @@ func delChecked(file string) {
 	checkedLk.Unlock()
 }
 
-func checkFile(path string, info paramFile) error {
+func sumFile(path string, info paramFile) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	h := blake2b.New512()
+	if _, err := io.Copy(h, f); err != nil {
+		return errors.As(err)
+	}
+
+	sum := h.Sum(nil)
+	strSum := hex.EncodeToString(sum[:16])
+	if strSum != info.Digest {
+		return ErrChecksum.As(path)
+	}
+	return nil
+}
+
+func checkFile(path string, info paramFile, ignoreSum bool) error {
 	if os.Getenv("TRUST_PARAMS") == "1" {
 		log.Warn("Assuming parameter files are ok. DO NOT USE IN PRODUCTION")
 		return nil
@@ -66,36 +85,21 @@ func checkFile(path string, info paramFile) error {
 	// ignore blk2b checking
 	_, err := os.Stat(path)
 	if err != nil {
-		delChecked(path)
-		return err
+		return errors.As(err)
 	}
 
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	addChecked(path)
-
+	done := make(chan error, 1)
 	go func() {
-		defer f.Close()
-		h := blake2b.New512()
-		if _, err := io.Copy(h, f); err != nil {
-			log.Error(errors.As(err))
-			delChecked(path)
-			return
-		}
-
-		sum := h.Sum(nil)
-		strSum := hex.EncodeToString(sum[:16])
-		if strSum == info.Digest {
-			log.Infof("Parameter file %s is ok", path)
-			addChecked(path)
-			return
-		}
-		delChecked(path)
+		done <- sumFile(path, info)
 	}()
-
+	if !ignoreSum {
+		err := <-done
+		if err != nil {
+			delChecked(path)
+			return errors.As(err)
+		}
+	}
+	addChecked(path)
 	return nil
 }
 
@@ -135,22 +139,22 @@ func (w *worker) checkParams(ctx context.Context, ssize abi.SectorSize, endpoint
 		if ssize != info.SectorSize && strings.HasSuffix(name, ".params") {
 			continue
 		}
-		to := filepath.Join(paramsDir, name)
-		if err := checkFile(to, info); err != nil {
+		fPath := filepath.Join(paramsDir, name)
+		if err := checkFile(fPath, info, true); err != nil {
 			log.Info(errors.As(err))
-			if ErrChecksum.Equal(err) {
-				if err := os.RemoveAll(to); err != nil {
-					return errors.As(err)
-				}
-			}
-
 			if err := w.fetchParams(ctx, endpoint, paramsDir, name); err != nil {
 				return errors.As(err)
 			}
 			// checksum again
-			if err := checkFile(to, info); err != nil {
+			if err := checkFile(fPath, info, false); err != nil {
+				if ErrChecksum.Equal(err) {
+					if err := os.RemoveAll(fPath); err != nil {
+						return errors.As(err)
+					}
+				}
 				return errors.As(err)
 			}
+			// pass download
 		}
 	}
 	return nil
