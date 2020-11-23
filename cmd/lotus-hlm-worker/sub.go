@@ -78,6 +78,22 @@ checkingApi:
 		goto checkingApi
 	}
 
+	to := "/var/tmp/filecoin-proof-parameters"
+	envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
+	if len(envParam) > 0 {
+		to = envParam
+	}
+	if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
+		// get ssize from miner
+		ssize, err := nodeApi.ActorSectorSize(ctx, act)
+		if err != nil {
+			return err
+		}
+		if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
+			return err
+		}
+	}
+
 	tasks, err := api.WorkerQueue(ctx, workerCfg)
 	if err != nil {
 		return errors.As(err)
@@ -99,11 +115,6 @@ loop:
 		case task := <-tasks:
 			// check params
 			if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
-				to := "/var/tmp/filecoin-proof-parameters"
-				envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
-				if len(envParam) > 0 {
-					to = envParam
-				}
 				ssize, err := task.ProofType.SectorSize()
 				if err != nil {
 					return errors.As(err)
@@ -563,12 +574,16 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
 	case ffiwrapper.WorkerPreCommit1:
-		//	pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
-		//	if err != nil {
-		//		return errRes(errors.As(err, w.workerCfg), &res)
-		//	}
-		//	rspco, err := w.workerSB.SealPreCommit1(ctx, task.SectorID, task.SealTicket, pieceInfo)
-		rspco, err := ExecPrecommit1(ctx, w.workerRepo, task)
+		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+		rspco, err := w.workerSB.SealPreCommit1(ctx, storage.SectorRef{
+			ID:        task.SectorID,
+			ProofType: task.ProofType,
+		}, task.SealTicket, pieceInfo)
+
+		//rspco, err := ExecPrecommit1(ctx, w.workerRepo, task)
 		res.PreCommit1Out = rspco
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
