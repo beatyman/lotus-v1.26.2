@@ -150,6 +150,18 @@ recheck:
 			continue
 		}
 		fPath := filepath.Join(paramsDir, name)
+		if _, err := os.Stat(fPath); err != nil {
+			ignoreCheckSum = false
+			log.Warn(errors.As(err))
+			break
+		}
+	}
+
+	for name, info := range params {
+		if ssize != info.SectorSize && strings.HasSuffix(name, ".params") {
+			continue
+		}
+		fPath := filepath.Join(paramsDir, name)
 		if err := checkFile(fPath, info, ignoreCheckSum); err != nil {
 			log.Info(errors.As(err))
 
