@@ -583,7 +583,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		//	ProofType: task.ProofType,
 		//}, task.SealTicket, pieceInfo)
 
-		rspco, err := ExecPrecommit1(ctx, w.workerRepo, task)
+		rspco, err := ffiwrapper.ExecPrecommit1(ctx, w.workerRepo, task)
 		res.PreCommit1Out = rspco
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
@@ -596,7 +596,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		//	ID:        task.SectorID,
 		//	ProofType: task.ProofType,
 		//}, task.PreCommit1Out)
-		out, err := ExecPrecommit2(ctx, w.workerRepo, task)
+		out, err := ffiwrapper.ExecPrecommit2(ctx, w.workerRepo, task)
 		res.PreCommit2Out = ffiwrapper.SectorCids{
 			Unsealed: out.Unsealed.String(),
 			Sealed:   out.Sealed.String(),

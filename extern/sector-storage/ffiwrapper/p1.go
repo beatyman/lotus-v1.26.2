@@ -1,4 +1,4 @@
-package main
+package ffiwrapper
 
 import (
 	"bytes"
@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
@@ -18,16 +17,16 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type ExecPrecommit2Resp struct {
+type ExecPrecommit1Resp struct {
 	Exit int
-	Data storage.SectorCids
+	Data []byte
 	Err  string
 }
 
-func ExecPrecommit2(ctx context.Context, repo string, task ffiwrapper.WorkerTask) (storage.SectorCids, error) {
+func ExecPrecommit1(ctx context.Context, repo string, task WorkerTask) (storage.PreCommit1Out, error) {
 	args, err := json.Marshal(task)
 	if err != nil {
-		return storage.SectorCids{}, errors.As(err)
+		return nil, errors.As(err)
 	}
 	var cpuIdx = 0
 	var cpuGroup = []int{}
@@ -46,7 +45,7 @@ func ExecPrecommit2(ctx context.Context, repo string, task ffiwrapper.WorkerTask
 
 	programName := os.Args[0]
 	cmd := exec.CommandContext(ctx, programName, "--worker-repo", repo,
-		"precommit2",
+		"precommit1",
 		"--name", task.SectorStorage.SectorInfo.ID,
 	)
 	// set the env
@@ -71,11 +70,11 @@ func ExecPrecommit2(ctx context.Context, repo string, task ffiwrapper.WorkerTask
 	// write args to the program
 	argIn, err := cmd.StdinPipe()
 	if err != nil {
-		return storage.SectorCids{}, errors.As(err)
+		return nil, errors.As(err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		return storage.SectorCids{}, errors.As(err)
+		return nil, errors.As(err)
 	}
 
 	// set cpu affinity
@@ -91,28 +90,28 @@ func ExecPrecommit2(ctx context.Context, repo string, task ffiwrapper.WorkerTask
 	// transfer precommit1 parameters
 	if _, err := argIn.Write(args); err != nil {
 		argIn.Close()
-		return storage.SectorCids{}, errors.As(err, string(args))
+		return nil, errors.As(err, string(args))
 	}
 	argIn.Close() // write done
 
-	// wait donDatae
+	// wait done
 	if err := cmd.Wait(); err != nil {
-		return storage.SectorCids{}, errors.As(err, string(args))
+		return nil, errors.As(err, string(args))
 	}
 
-	resp := ExecPrecommit2Resp{}
+	resp := ExecPrecommit1Resp{}
 	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
-		return storage.SectorCids{}, errors.As(err, string(stdout.Bytes()))
+		return nil, errors.As(err, string(stdout.Bytes()))
 	}
 	if resp.Exit != 0 {
-		return storage.SectorCids{}, errors.Parse(resp.Err)
+		return nil, errors.Parse(resp.Err)
 	}
-	return resp.Data, nil
+	return storage.PreCommit1Out(resp.Data), nil
 }
 
-var p2Cmd = &cli.Command{
-	Name:  "precommit2",
-	Usage: "run precommit2 in process",
+var P1Cmd = &cli.Command{
+	Name:  "precommit1",
+	Usage: "run precommit1 in process",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name: "name", // just for process debug
@@ -122,7 +121,7 @@ var p2Cmd = &cli.Command{
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 
-		resp := ExecPrecommit2Resp{
+		resp := ExecPrecommit1Resp{
 			Exit: 0,
 		}
 		defer func() {
@@ -146,14 +145,14 @@ var p2Cmd = &cli.Command{
 			resp.Err = errors.As(err).Error()
 			return nil
 		}
-		task := ffiwrapper.WorkerTask{}
+		task := WorkerTask{}
 		if err := json.Unmarshal([]byte(input), &task); err != nil {
 			resp.Exit = 1
 			resp.Err = errors.As(err).Error()
 			return nil
 		}
 
-		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
+		workerSealer, err := New(RemoteCfg{}, &basicfs.Provider{
 			Root: workerRepo,
 		})
 		if err != nil {
@@ -161,13 +160,19 @@ var p2Cmd = &cli.Command{
 			resp.Err = errors.As(err).Error()
 			return nil
 		}
-		out, err := workerSealer.SealPreCommit2(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.PreCommit1Out)
+		pieceInfo, err := DecodePieceInfo(task.Pieces)
 		if err != nil {
 			resp.Exit = 1
 			resp.Err = errors.As(err).Error()
 			return nil
 		}
-		resp.Data = out
+		rspco, err := workerSealer.SealPreCommit1(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.SealTicket, pieceInfo)
+		if err != nil {
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
+		}
+		resp.Data = rspco
 		return nil
 	},
 }
