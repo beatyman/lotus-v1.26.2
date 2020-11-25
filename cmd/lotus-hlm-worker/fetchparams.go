@@ -89,15 +89,24 @@ func checkFile(path string, info paramFile, ignoreSum bool) error {
 	}
 
 	done := make(chan error, 1)
-	go func() {
-		done <- sumFile(path, info)
-	}()
+	go func(p string, ignSum bool) {
+		log.Infof("checksum %s", p)
+		err := sumFile(p, info)
+		if err != nil {
+			delChecked(path)
+			if ignSum {
+				// checksum has ignore, exit the worker to make worker down
+				os.Exit(1)
+			}
+		}
+		done <- err
+	}(path, ignoreSum)
 	if !ignoreSum {
 		err := <-done
 		if err != nil {
-			delChecked(path)
 			return errors.As(err)
 		}
+		log.Infof("checksum %s done", path)
 	} else {
 		log.Warnf("Ingore checksum parameters file: %s", path)
 	}
@@ -109,9 +118,6 @@ func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ss
 	w.paramsLock.Lock()
 	defer w.paramsLock.Unlock()
 
-	if w.paramsVerified {
-		return nil
-	}
 	//// for origin params
 	//if err := paramfetch.GetParams(ctx, build.ParametersJSON(), ssize); err != nil {
 	//	return errors.As(err)
@@ -123,7 +129,6 @@ func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ss
 			time.Sleep(10e9)
 			continue
 		}
-		w.paramsVerified = true
 		return nil
 	}
 }
