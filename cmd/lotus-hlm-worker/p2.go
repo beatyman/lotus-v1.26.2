@@ -18,16 +18,16 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type ExecPrecommit1Resp struct {
+type ExecPrecommit2Resp struct {
 	Exit int
-	Data []byte
+	Data storage.SectorCids
 	Err  string
 }
 
-func ExecPrecommit1(ctx context.Context, repo string, task ffiwrapper.WorkerTask) (storage.PreCommit1Out, error) {
+func ExecPrecommit2(ctx context.Context, repo string, task ffiwrapper.WorkerTask) (storage.SectorCids, error) {
 	args, err := json.Marshal(task)
 	if err != nil {
-		return nil, errors.As(err)
+		return storage.SectorCids{}, errors.As(err)
 	}
 	var cpuIdx = 0
 	var cpuGroup = []int{}
@@ -46,7 +46,7 @@ func ExecPrecommit1(ctx context.Context, repo string, task ffiwrapper.WorkerTask
 
 	programName := os.Args[0]
 	cmd := exec.CommandContext(ctx, programName, "--worker-repo", repo,
-		"precommit1",
+		"precommit2",
 		"--name", task.SectorStorage.SectorInfo.ID,
 	)
 	// set the env
@@ -71,11 +71,11 @@ func ExecPrecommit1(ctx context.Context, repo string, task ffiwrapper.WorkerTask
 	// write args to the program
 	argIn, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, errors.As(err)
+		return storage.SectorCids{}, errors.As(err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		return nil, errors.As(err)
+		return storage.SectorCids{}, errors.As(err)
 	}
 
 	// set cpu affinity
@@ -91,28 +91,28 @@ func ExecPrecommit1(ctx context.Context, repo string, task ffiwrapper.WorkerTask
 	// transfer precommit1 parameters
 	if _, err := argIn.Write(args); err != nil {
 		argIn.Close()
-		return nil, errors.As(err, string(args))
+		return storage.SectorCids{}, errors.As(err, string(args))
 	}
 	argIn.Close() // write done
 
-	// wait done
+	// wait donDatae
 	if err := cmd.Wait(); err != nil {
-		return nil, errors.As(err, string(args))
+		return storage.SectorCids{}, errors.As(err, string(args))
 	}
 
-	resp := ExecPrecommit1Resp{}
+	resp := ExecPrecommit2Resp{}
 	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
-		return nil, errors.As(err, string(stdout.Bytes()))
+		return storage.SectorCids{}, errors.As(err, string(stdout.Bytes()))
 	}
 	if resp.Exit != 0 {
-		return nil, errors.Parse(resp.Err)
+		return storage.SectorCids{}, errors.Parse(resp.Err)
 	}
-	return storage.PreCommit1Out(resp.Data), nil
+	return resp.Data, nil
 }
 
-var p1Cmd = &cli.Command{
-	Name:  "precommit1",
-	Usage: "run precommit1 in process",
+var p2Cmd = &cli.Command{
+	Name:  "precommit2",
+	Usage: "run precommit2 in process",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name: "name", // just for process debug
@@ -122,7 +122,7 @@ var p1Cmd = &cli.Command{
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 
-		resp := ExecPrecommit1Resp{
+		resp := ExecPrecommit2Resp{
 			Exit: 0,
 		}
 		defer func() {
@@ -161,19 +161,13 @@ var p1Cmd = &cli.Command{
 			resp.Err = errors.As(err).Error()
 			return nil
 		}
-		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
+		out, err := workerSealer.SealPreCommit2(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.PreCommit1Out)
 		if err != nil {
 			resp.Exit = 1
 			resp.Err = errors.As(err).Error()
 			return nil
 		}
-		rspco, err := workerSealer.SealPreCommit1(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.SealTicket, pieceInfo)
-		if err != nil {
-			resp.Exit = 1
-			resp.Err = errors.As(err).Error()
-			return nil
-		}
-		resp.Data = rspco
+		resp.Data = out
 		return nil
 	},
 }

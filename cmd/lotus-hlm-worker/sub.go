@@ -592,10 +592,11 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 	case ffiwrapper.WorkerPreCommit2:
-		out, err := w.workerSB.SealPreCommit2(ctx, storage.SectorRef{
-			ID:        task.SectorID,
-			ProofType: task.ProofType,
-		}, task.PreCommit1Out)
+		//out, err := w.workerSB.SealPreCommit2(ctx, storage.SectorRef{
+		//	ID:        task.SectorID,
+		//	ProofType: task.ProofType,
+		//}, task.PreCommit1Out)
+		out, err := ExecPrecommit2(ctx, w.workerRepo, task)
 		res.PreCommit2Out = ffiwrapper.SectorCids{
 			Unsealed: out.Unsealed.String(),
 			Sealed:   out.Sealed.String(),
