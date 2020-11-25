@@ -98,6 +98,8 @@ func checkFile(path string, info paramFile, ignoreSum bool) error {
 			delChecked(path)
 			return errors.As(err)
 		}
+	} else {
+		log.Warnf("Ingore checksum parameters file: %s", path)
 	}
 	addChecked(path)
 	return nil
