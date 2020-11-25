@@ -101,6 +101,7 @@ func checkFile(path string, info paramFile, needCheckSum bool) error {
 				return
 			}
 		}
+		log.Infof("checksum %s done", path)
 		done <- err
 	}(path, needCheckSum)
 	if needCheckSum {
@@ -108,7 +109,6 @@ func checkFile(path string, info paramFile, needCheckSum bool) error {
 		if err != nil {
 			return errors.As(err)
 		}
-		log.Infof("checksum %s done", path)
 	} else {
 		log.Warnf("Ingore checksum parameters file: %s", path)
 	}
