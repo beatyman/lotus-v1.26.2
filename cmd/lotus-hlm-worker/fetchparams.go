@@ -70,7 +70,7 @@ func sumFile(path string, info paramFile) error {
 	return nil
 }
 
-func checkFile(path string, info paramFile, ignoreSum bool) error {
+func checkFile(path string, info paramFile, needCheckSum bool) error {
 	if os.Getenv("TRUST_PARAMS") == "1" {
 		log.Warn("Assuming parameter files are ok. DO NOT USE IN PRODUCTION")
 		return nil
@@ -89,19 +89,21 @@ func checkFile(path string, info paramFile, ignoreSum bool) error {
 	}
 
 	done := make(chan error, 1)
-	go func(p string, ignSum bool) {
-		log.Infof("checksum %s", p)
+	go func(p string, checksum bool) {
+		log.Infof("checking %s", p)
 		err := sumFile(p, info)
 		if err != nil {
 			delChecked(path)
-			if ignSum {
-				// checksum has ignore, exit the worker to make worker down
+			if !checksum {
+				// checksum has ignored, exit the worker to make the worker down
+				time.Sleep(3e9) // waiting log output
 				os.Exit(1)
+				return
 			}
 		}
 		done <- err
-	}(path, ignoreSum)
-	if !ignoreSum {
+	}(path, needCheckSum)
+	if needCheckSum {
 		err := <-done
 		if err != nil {
 			return errors.As(err)
@@ -174,7 +176,7 @@ recheck:
 				return errors.As(err)
 			}
 			// checksum again
-			if err := checkFile(fPath, info, false); err != nil {
+			if err := checkFile(fPath, info, true); err != nil {
 				if ErrChecksum.Equal(err) {
 					if err := os.RemoveAll(fPath); err != nil {
 						return errors.As(err)
