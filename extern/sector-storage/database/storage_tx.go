@@ -7,6 +7,10 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+var (
+	ErrNoStorage = errors.New("No storage node for allocation")
+)
+
 // simulate transaction.
 type StorageTx struct {
 	SectorId string
@@ -67,6 +71,9 @@ WHERE
 	ORDER BY cast(cur_work as real)/cast(max_work as real), max_size-used_size desc
 	LIMIT 1
 	`); err != nil {
+				if errors.ErrNoData.Equal(err) {
+					return nil, nil, ErrNoStorage.As(sectorId)
+				}
 				return nil, nil, errors.As(err, sectorId)
 			}
 		}

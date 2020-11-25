@@ -13,6 +13,10 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+var (
+	ErrNoGpuSrv = errors.New("No Gpu service for allocation")
+)
+
 func (sb *Sealer) WorkerStats() WorkerStats {
 	infos, err := database.AllWorkerInfo()
 	if err != nil {
@@ -291,7 +295,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		return false
 	})
 	if r == nil {
-		return nil, errors.ErrNoData.As(sid, task)
+		return nil, ErrNoGpuSrv.As(sid, task)
 	}
 	return r, nil
 }
