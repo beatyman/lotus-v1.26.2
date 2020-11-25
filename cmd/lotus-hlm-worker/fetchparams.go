@@ -143,7 +143,6 @@ func (w *worker) checkParams(ctx context.Context, ssize abi.SectorSize, endpoint
 		return errors.As(err)
 	}
 
-	ignoreCheckSum := true
 recheck:
 	for name, info := range params {
 		if ssize != info.SectorSize && strings.HasSuffix(name, ".params") {
@@ -151,7 +150,7 @@ recheck:
 		}
 		fPath := filepath.Join(paramsDir, name)
 		if _, err := os.Stat(fPath); err != nil {
-			ignoreCheckSum = false
+			w.needCheckSum = true
 			log.Warn(errors.As(err))
 			break
 		}
@@ -162,11 +161,11 @@ recheck:
 			continue
 		}
 		fPath := filepath.Join(paramsDir, name)
-		if err := checkFile(fPath, info, ignoreCheckSum); err != nil {
+		if err := checkFile(fPath, info, w.needCheckSum); err != nil {
 			log.Info(errors.As(err))
 
-			if ignoreCheckSum {
-				ignoreCheckSum = false
+			if !w.needCheckSum {
+				w.needCheckSum = true
 				goto recheck
 			}
 

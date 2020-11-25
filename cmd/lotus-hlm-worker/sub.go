@@ -27,7 +27,8 @@ type worker struct {
 	sealedRepo    string
 	auth          http.Header
 
-	paramsLock sync.Mutex
+	paramsLock   sync.Mutex
+	needCheckSum bool
 
 	ssize   abi.SectorSize
 	actAddr address.Address
