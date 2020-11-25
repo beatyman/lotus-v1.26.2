@@ -275,6 +275,8 @@ type remote struct {
 	sealTasks   chan<- WorkerTask
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
 	disable     bool                  // disable for new sector task
+
+	srvConn int64
 }
 
 func (r *remote) busyOn(sid string) bool {

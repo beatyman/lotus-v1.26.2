@@ -3,7 +3,9 @@ package ffiwrapper
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +18,47 @@ import (
 var (
 	ErrNoGpuSrv = errors.New("No Gpu service for allocation")
 )
+
+var workerConnLock = sync.Mutex{}
+
+func (sb *Sealer) AddWorkerConn(id string, num int) error {
+	workerConnLock.Lock()
+	defer workerConnLock.Unlock()
+	r, ok := _remotes.Load(id)
+	if ok {
+		r.(*remote).srvConn += int64(num)
+		_remotes.Store(id, r)
+	}
+	return database.AddWorkerConn(id, num)
+
+}
+
+// prepare worker connection will auto increment the connections
+func (sb *Sealer) PrepareWorkerConn() (*database.WorkerInfo, error) {
+	workerConnLock.Lock()
+	defer workerConnLock.Unlock()
+
+	var minConnRemote *remote
+	minConns := int64(math.MaxInt64)
+	_remotes.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
+		if r.cfg.ParallelCommit2 > 0 || r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv {
+			if minConns > r.srvConn {
+				minConnRemote = r
+			}
+		}
+		return true
+	})
+	workerId := minConnRemote.cfg.ID
+	info, err := database.GetWorkerInfo(workerId)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	minConnRemote.srvConn++
+	_remotes.Store(workerId, minConnRemote)
+	database.AddWorkerConn(workerId, 1)
+	return info, nil
+}
 
 func (sb *Sealer) WorkerStats() WorkerStats {
 	infos, err := database.AllWorkerInfo()
