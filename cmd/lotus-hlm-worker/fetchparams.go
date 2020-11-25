@@ -142,13 +142,23 @@ func (w *worker) checkParams(ctx context.Context, ssize abi.SectorSize, endpoint
 	if err := json.Unmarshal(paramBytes, &params); err != nil {
 		return errors.As(err)
 	}
+
+	ignoreCheckSum := true
+recheck:
 	for name, info := range params {
 		if ssize != info.SectorSize && strings.HasSuffix(name, ".params") {
 			continue
 		}
 		fPath := filepath.Join(paramsDir, name)
-		if err := checkFile(fPath, info, true); err != nil {
+		if err := checkFile(fPath, info, ignoreCheckSum); err != nil {
 			log.Info(errors.As(err))
+
+			if ignoreCheckSum {
+				ignoreCheckSum = false
+				goto recheck
+			}
+
+			// try to fetch the params
 			if err := w.fetchParams(ctx, endpoint, paramsDir, name); err != nil {
 				return errors.As(err)
 			}
