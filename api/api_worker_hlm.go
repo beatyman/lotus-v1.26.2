@@ -14,10 +14,16 @@ type WindowPoStResp struct {
 	Ignore []abi.SectorID
 }
 
+// 兼容老c2
+type SectorRef struct {
+	abi.SectorID
+	ProofType abi.RegisteredSealProof
+}
+
 type WorkerHlmAPI interface {
 	Version(context.Context) (build.Version, error)
 
-	SealCommit2(context.Context, storage.SectorRef, storage.Commit1Out) (storage.Proof, error)
+	SealCommit2(context.Context, SectorRef, storage.Commit1Out) (storage.Proof, error)
 	GenerateWinningPoSt(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)
 	GenerateWindowPoSt(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) (WindowPoStResp, error)
 }
