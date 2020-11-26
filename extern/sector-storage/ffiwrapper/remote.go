@@ -29,6 +29,7 @@ var (
 	_remotes        = sync.Map{}
 	_remoteResultLk = sync.RWMutex{}
 	_remoteResult   = make(map[string]chan<- SealRes)
+	_remoteGpuLk    = sync.Mutex{}
 
 	// if set, should call back the task consume event with goroutine.
 	_addPieceListenerLk = sync.Mutex{}

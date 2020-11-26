@@ -195,7 +195,7 @@ func (sb *Sealer) WorkerRemoteStats() ([]WorkerRemoteStats, error) {
 		busyOn := []string{}
 		r.lock.Lock()
 		for _, b := range r.busyOnTasks {
-			busyOn = append(busyOn, b.GetSectorID())
+			busyOn = append(busyOn, b.Key())
 		}
 		r.lock.Unlock()
 
@@ -307,6 +307,9 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 
 // call UnlockService to release
 func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerTask) (*remote, error) {
+	_remoteGpuLk.Lock()
+	defer _remoteGpuLk.Unlock()
+
 	// select a remote worker
 	var r *remote
 	_remotes.Range(func(key, val interface{}) bool {
@@ -344,6 +347,9 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 }
 
 func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
+	_remoteGpuLk.Lock()
+	defer _remoteGpuLk.Unlock()
+
 	_r, ok := _remotes.Load(workerId)
 	if !ok {
 		log.Warnf("worker not found:%s", workerId)
