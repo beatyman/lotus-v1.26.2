@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net/http"
 	"strings"
@@ -71,6 +72,15 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask) (storag
 	}
 	defer rClient.Close()
 
+	v, n := binary.Varint(task.Commit1Out)
+	if n <= 0 {
+		return nil, errors.New("Commit1Out overflow").As(task.Commit1Out)
+	}
+	v -= 5
+	buf := make([]byte, binary.MaxVarintLen64)
+	n = binary.PutVarint(buf, v)
+	oldCommit1Out := storage.Commit1Out(buf[:n])
+
 	// do work
-	return rClient.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType}, task.Commit1Out)
+	return rClient.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType}, oldCommit1Out)
 }
