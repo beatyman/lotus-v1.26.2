@@ -156,7 +156,7 @@ recheck:
 		fPath := filepath.Join(paramsDir, name)
 		if _, err := os.Stat(fPath); err != nil {
 			w.needCheckSum = true
-			log.Warnf("miss %s, checksum all parameter files", fpath)
+			log.Warnf("miss %s, checksum all parameter files", fPath)
 			break
 		}
 	}
