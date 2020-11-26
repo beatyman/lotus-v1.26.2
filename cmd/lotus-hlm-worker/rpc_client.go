@@ -72,5 +72,5 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask) (storag
 	defer rClient.Close()
 
 	// do work
-	return rClient.SealCommit2(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.Commit1Out)
+	return rClient.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType}, task.Commit1Out)
 }
