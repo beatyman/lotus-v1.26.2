@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -72,15 +72,21 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask) (storag
 	}
 	defer rClient.Close()
 
-	v, n := binary.Varint(task.Commit1Out)
-	if n <= 0 {
-		return nil, errors.New("Commit1Out overflow").As(task.Commit1Out)
+	output := map[string]interface{}{}
+	if err := json.Unmarshal(task.Commit1Out, &output); err != nil {
+		log.Info(errors.As(err))
+	} else {
+		log.Infof("c1 len:%d, version:%v", len(task.Commit1Out), output["registered_proof"])
 	}
-	v -= 5
-	buf := make([]byte, binary.MaxVarintLen64)
-	n = binary.PutVarint(buf, v)
-	oldCommit1Out := storage.Commit1Out(buf[:n])
+
+	// "registered_proof": "StackedDrg32GiBV1_1"
+	//output["registered_proof"] = "StackedDrg32GiBV1"
+	////c1data, err:= json.MarshalIndent(output, ""," ")
+	//c1o, err := json.Marshal(output)
+	//if err != nil {
+	//	return nil, errors.As(err)
+	//}
 
 	// do work
-	return rClient.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType}, oldCommit1Out)
+	return rClient.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType}, task.Commit1Out)
 }
