@@ -128,6 +128,9 @@ func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ss
 	for {
 		if err := w.checkParams(ctx, ssize, endpoint, paramsDir); err != nil {
 			log.Info(errors.As(err))
+			if errors.ErrNoData.Equal(err) {
+				continue
+			}
 			time.Sleep(10e9)
 			continue
 		}
@@ -153,7 +156,7 @@ recheck:
 		fPath := filepath.Join(paramsDir, name)
 		if _, err := os.Stat(fPath); err != nil {
 			w.needCheckSum = true
-			log.Warn(errors.As(err))
+			log.Warnf("miss %s, checksum all parameter files", fpath)
 			break
 		}
 	}
