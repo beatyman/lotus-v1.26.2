@@ -107,6 +107,7 @@ func main() {
 		Version: build.UserVersion(),
 		Commands: []*cli.Command{
 			proveCmd,
+			hlmBenchCmd,
 			sealBenchCmd,
 			importBenchCmd,
 		},
