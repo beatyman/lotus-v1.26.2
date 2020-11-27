@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -108,30 +109,32 @@ type HlmBenchResult struct {
 }
 
 var (
-	apQueue  int32
-	apLimit  int32
-	apChan   chan *HlmBenchTask
-	apResult = map[string]HlmBenchResult{}
+	parallelLock = sync.Mutex{}
 
-	p1Queue  int32
-	p1Limit  int32
-	p1Chan   chan *HlmBenchTask
-	p1Result = map[string]HlmBenchResult{}
+	apParallel int32
+	apLimit    int32
+	apChan     chan *HlmBenchTask
+	apResult   = sync.Map{}
 
-	p2Queue  int32
-	p2Limit  int32
-	p2Chan   chan *HlmBenchTask
-	p2Result = map[string]HlmBenchResult{}
+	p1Parallel int32
+	p1Limit    int32
+	p1Chan     chan *HlmBenchTask
+	p1Result   = sync.Map{}
 
-	c1Queue  int32
-	c1Limit  int32
-	c1Chan   chan *HlmBenchTask
-	c1Result = map[string]HlmBenchResult{}
+	p2Parallel int32
+	p2Limit    int32
+	p2Chan     chan *HlmBenchTask
+	p2Result   = sync.Map{}
 
-	c2Queue  int32
-	c2Limit  int32
-	c2Chan   chan *HlmBenchTask
-	c2Result = map[string]HlmBenchResult{}
+	c1Parallel int32
+	c1Limit    int32
+	c1Chan     chan *HlmBenchTask
+	c1Result   = sync.Map{}
+
+	c2Parallel int32
+	c2Limit    int32
+	c2Chan     chan *HlmBenchTask
+	c2Result   = sync.Map{}
 
 	doneEvent chan *HlmBenchTask
 )
@@ -145,41 +148,63 @@ const (
 )
 
 func canParallel(kind int) bool {
+	apRunning := atomic.LoadInt32(&apParallel) > 0
+	p1Running := atomic.LoadInt32(&p1Parallel) > 0
+	p2Running := atomic.LoadInt32(&p2Parallel) > 0
+	c2Running := atomic.LoadInt32(&c2Parallel) > 0
 	switch kind {
 	case TASK_KIND_ADDPIECE:
-		return atomic.LoadInt32(&apQueue) <= apLimit
+		return atomic.LoadInt32(&apParallel) < apLimit
 	case TASK_KIND_PRECOMMIT1:
-		return atomic.LoadInt32(&p1Queue) <= apLimit && atomic.LoadInt32(&apQueue) <= 0
+		return atomic.LoadInt32(&p1Parallel) < p1Limit && !apRunning && !p2Running && !c2Running
 	case TASK_KIND_PRECOMMIT2:
-		return atomic.LoadInt32(&p2Queue) <= apLimit && atomic.LoadInt32(&c2Queue) <= 0
+		return atomic.LoadInt32(&p2Parallel) < p2Limit && !apRunning && !p1Running && !c2Running
 	case TASK_KIND_COMMIT1:
-		return atomic.LoadInt32(&c1Queue) <= apLimit
+		return atomic.LoadInt32(&c1Parallel) < c1Limit
 	case TASK_KIND_COMMIT2:
-		return atomic.LoadInt32(&c2Queue) <= apLimit && atomic.LoadInt32(&p2Queue) <= 0
+		return atomic.LoadInt32(&c2Parallel) < c2Limit && !apRunning && !p1Running && !p2Running
 	}
 	panic("not reach here")
 }
 
-func returnTask(task *HlmBenchTask) {
+func offsetParallel(task *HlmBenchTask, offset int32) {
 	switch task.Type {
 	case TASK_KIND_ADDPIECE:
-		atomic.AddInt32(&apQueue, -1)
+		atomic.AddInt32(&apParallel, offset)
+		return
+	case TASK_KIND_PRECOMMIT1:
+		atomic.AddInt32(&p1Parallel, offset)
+		return
+	case TASK_KIND_PRECOMMIT2:
+		atomic.AddInt32(&p2Parallel, offset)
+		return
+	case TASK_KIND_COMMIT1:
+		atomic.AddInt32(&c1Parallel, offset)
+		return
+	case TASK_KIND_COMMIT2:
+		atomic.AddInt32(&c2Parallel, offset)
+		return
+	}
+	panic(fmt.Sprintf("not reach here:%d", task.Type))
+
+}
+
+func returnTask(task *HlmBenchTask) {
+	time.Sleep(10e9)
+	switch task.Type {
+	case TASK_KIND_ADDPIECE:
 		apChan <- task
 		return
 	case TASK_KIND_PRECOMMIT1:
-		atomic.AddInt32(&p1Queue, -1)
 		p1Chan <- task
 		return
 	case TASK_KIND_PRECOMMIT2:
-		atomic.AddInt32(&p2Queue, -1)
 		p2Chan <- task
 		return
 	case TASK_KIND_COMMIT1:
-		atomic.AddInt32(&c1Queue, -1)
 		c1Chan <- task
 		return
 	case TASK_KIND_COMMIT2:
-		atomic.AddInt32(&c2Queue, -1)
 		c2Chan <- task
 		return
 	}
@@ -230,39 +255,33 @@ func doBench(c *cli.Context) error {
 	}
 
 	ctx := lcli.ReqContext(c)
-	// send task event
-	go func() {
-		for i := 0; i < maxTask; i++ {
-			apChan <- &HlmBenchTask{
-				Type:      TASK_KIND_ADDPIECE,
-				ProofType: 0, // TODO
-				SectorID: abi.SectorID{
-					1000,
-					abi.SectorNumber(i),
-				},
-				TicketPreimage: []byte(uuid.New().String()),
-			}
+
+	// event producer
+	for i := 0; i < maxTask; i++ {
+		apChan <- &HlmBenchTask{
+			Type:      TASK_KIND_ADDPIECE,
+			ProofType: 0, // TODO
+			SectorID: abi.SectorID{
+				1000,
+				abi.SectorNumber(i),
+			},
+			TicketPreimage: []byte(uuid.New().String()),
 		}
-	}()
+	}
 
 	end := maxTask
 	for {
 		select {
 		case task := <-apChan:
-			atomic.AddInt32(&apQueue, 1)
-			go prepareTask(ctx, sb, task)
+			prepareTask(ctx, sb, task)
 		case task := <-p1Chan:
-			atomic.AddInt32(&p1Queue, 1)
-			go prepareTask(ctx, sb, task)
+			prepareTask(ctx, sb, task)
 		case task := <-p2Chan:
-			atomic.AddInt32(&p2Queue, 1)
-			go prepareTask(ctx, sb, task)
+			prepareTask(ctx, sb, task)
 		case task := <-c1Chan:
-			atomic.AddInt32(&c1Queue, 1)
-			go prepareTask(ctx, sb, task)
+			prepareTask(ctx, sb, task)
 		case task := <-c2Chan:
-			atomic.AddInt32(&c2Queue, 1)
-			go prepareTask(ctx, sb, task)
+			prepareTask(ctx, sb, task)
 		case <-ctx.Done():
 			// exit
 			return nil
@@ -277,16 +296,25 @@ func doBench(c *cli.Context) error {
 }
 
 func prepareTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
+	parallelLock.Lock()
 	if !canParallel(task.Type) {
+		parallelLock.Unlock()
 		log.Infof("parallel limitted, return task type:%d", task.Type)
-		time.Sleep(10e9)
-		returnTask(task)
+		go returnTask(task)
 		return
 	}
-	runTask(ctx, sb, task)
+	offsetParallel(task, 1)
+	parallelLock.Unlock()
+	go runTask(ctx, sb, task)
 }
 
 func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
+	defer func() {
+		parallelLock.Lock()
+		offsetParallel(task, -1)
+		parallelLock.Unlock()
+	}()
+
 	sectorSize := abi.SectorSize(2048) // TODO: get from proof type
 	sid := storage.SectorRef{
 		ID:        task.SectorID,
@@ -294,29 +322,26 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
 	}
 	switch task.Type {
 	case TASK_KIND_ADDPIECE:
-		defer atomic.AddInt32(&apQueue, -1)
-
 		startTime := time.Now()
 		r := rand.New(rand.NewSource(100 + int64(task.SectorID.Number)))
 		pi, err := sb.AddPiece(ctx, sid, nil, abi.PaddedPieceSize(sectorSize).Unpadded(), r)
 		if err != nil {
 			panic(err) // failed
 		}
-		apResult[task.SectorName()] = HlmBenchResult{
+		apResult.Store(task.SectorName(), HlmBenchResult{
 			startTime: startTime,
 			endTime:   time.Now(),
-		}
+		})
 
-		task.Type = TASK_KIND_PRECOMMIT1
-		task.Pieces = []abi.PieceInfo{
+		newTask := *task
+		newTask.Type = TASK_KIND_PRECOMMIT1
+		newTask.Pieces = []abi.PieceInfo{
 			pi,
 		}
-		p1Chan <- task
+		p1Chan <- &newTask
 		return
 
 	case TASK_KIND_PRECOMMIT1:
-		defer atomic.AddInt32(&p1Queue, -1)
-
 		startTime := time.Now()
 		trand := blake2b.Sum256(task.TicketPreimage)
 		ticket := abi.SealRandomness(trand[:])
@@ -324,34 +349,33 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
 		if err != nil {
 			panic(err)
 		}
-		p1Result[task.SectorName()] = HlmBenchResult{
+		p1Result.Store(task.SectorName(), HlmBenchResult{
 			startTime: startTime,
 			endTime:   time.Now(),
-		}
+		})
 
-		task.Type = TASK_KIND_PRECOMMIT2
-		task.PreCommit1Out = pc1o
-		p2Chan <- task
+		newTask := *task
+		newTask.Type = TASK_KIND_PRECOMMIT2
+		newTask.PreCommit1Out = pc1o
+		p2Chan <- &newTask
 		return
 	case TASK_KIND_PRECOMMIT2:
-		defer atomic.AddInt32(&p2Queue, -1)
 		startTime := time.Now()
 		cids, err := sb.SealPreCommit2(ctx, sid, task.PreCommit1Out)
 		if err != nil {
 			panic(err)
 		}
-		p2Result[task.SectorName()] = HlmBenchResult{
+		p2Result.Store(task.SectorName(), HlmBenchResult{
 			startTime: startTime,
 			endTime:   time.Now(),
-		}
+		})
 
-		task.Type = TASK_KIND_COMMIT1
-		task.Cids = cids
-		c1Chan <- task
+		newTask := *task
+		newTask.Type = TASK_KIND_COMMIT1
+		newTask.Cids = cids
+		c1Chan <- &newTask
 		return
 	case TASK_KIND_COMMIT1:
-		defer atomic.AddInt32(&c1Queue, -1)
-
 		startTime := time.Now()
 		seed := lapi.SealSeed{
 			Epoch: 101,
@@ -363,31 +387,32 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
 		if err != nil {
 			panic(err)
 		}
-		c1Result[task.SectorName()] = HlmBenchResult{
+		c1Result.Store(task.SectorName(), HlmBenchResult{
 			startTime: startTime,
 			endTime:   time.Now(),
-		}
+		})
 
-		task.Type = TASK_KIND_COMMIT2
-		task.Commit1Out = c1o
-		c2Chan <- task
+		newTask := *task
+		newTask.Type = TASK_KIND_COMMIT2
+		newTask.Commit1Out = c1o
+		c2Chan <- &newTask
 		return
 
 	case TASK_KIND_COMMIT2:
-		defer atomic.AddInt32(&c2Queue, -1)
 		startTime := time.Now()
 		proof, err := sb.SealCommit2(ctx, sid, task.Commit1Out)
 		if err != nil {
 			panic(err)
 		}
-		c2Result[task.SectorName()] = HlmBenchResult{
+		c2Result.Store(task.SectorName(), HlmBenchResult{
 			startTime: startTime,
 			endTime:   time.Now(),
-		}
+		})
 
-		task.Type = 200
-		task.Proof = proof
-		doneEvent <- task
+		newTask := *task
+		newTask.Type = 200
+		newTask.Proof = proof
+		doneEvent <- &newTask
 		return
 	}
 	panic(fmt.Sprintf("not reach here:%d", task.Type))
