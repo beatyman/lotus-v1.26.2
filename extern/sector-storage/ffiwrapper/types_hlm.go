@@ -201,7 +201,7 @@ func (w *WorkerTask) Key() string {
 	return fmt.Sprintf("s-t0%d-%d_%d", w.SectorID.Miner, w.SectorID.Number, w.Type)
 }
 
-func (w *WorkerTask) GetSectorID() string {
+func (w *WorkerTask) SectorName() string {
 	return storage.SectorName(w.SectorID)
 }
 
@@ -248,13 +248,9 @@ type WorkerRemoteStats struct {
 }
 
 func (w *WorkerRemoteStats) String() string {
-	tasks := []string{}
-	for _, s := range w.SectorOn {
-		tasks = append(tasks, fmt.Sprintf("%s:%d", s.ID, s.State))
-	}
 	return fmt.Sprintf(
-		"id:%s,disable:%t,online:%t,srv:%t,ip:%s,busy:%s,sectors:%+v",
-		w.ID, w.Disable, w.Online, w.Srv, w.IP, w.BusyOn, tasks,
+		"id:%s,disable:%t,online:%t,srv:%t,ip:%s,busy:%s",
+		w.ID, w.Disable, w.Online, w.Srv, w.IP, w.BusyOn,
 	)
 }
 
@@ -424,8 +420,12 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 			_, ok := r.busyOnTasks[wTask.ID]
 			if !ok {
 				// if no data in busy, restore from db, and waitting retry from storage-fsm
+				stateOff := 0
+				if (wTask.State % 10) == 0 {
+					stateOff = 1
+				}
 				r.busyOnTasks[wTask.ID] = WorkerTask{
-					Type:     WorkerTaskType(wTask.State + 1),
+					Type:     WorkerTaskType(wTask.State + stateOff),
 					SectorID: abi.SectorID(sectorID(wTask.ID)),
 					WorkerID: wTask.WorkerId,
 					// others not implement yet, it should be update by doSealTask()

@@ -384,7 +384,7 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 			SectorInfo: sectorInfo,
 			Randomness: randomness,
 		}
-		sid := task.GetSectorID()
+		sid := task.SectorName()
 
 		r, err := sb.selectGPUService(ctx, sid, task)
 		if err != nil {
@@ -466,7 +466,7 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 			SectorInfo: sectorInfo,
 			Randomness: randomness,
 		}
-		sid := task.GetSectorID()
+		sid := task.SectorName()
 		r, err := sb.selectGPUService(ctx, sid, task)
 		if err != nil {
 			continue
@@ -535,7 +535,7 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 		Type:     WorkerCommit2,
 		SectorID: sector,
 	}
-	sid := task.GetSectorID()
+	sid := task.SectorName()
 	r, err := sb.selectGPUService(ctx, sid, task)
 	if err != nil {
 		return nil, errors.As(err)

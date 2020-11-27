@@ -844,7 +844,7 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 // return the if retask
 func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 	// Get status in database
-	ss, err := database.GetSectorStorage(task.task.GetSectorID())
+	ss, err := database.GetSectorStorage(task.task.SectorName())
 	if err != nil {
 		log.Error(errors.As(err))
 		sb.returnTask(task)
@@ -901,14 +901,14 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			go sb.returnTask(task)
 			return
 		}
-		if (r.disable || r.fullTask()) && !r.busyOn(task.task.GetSectorID()) {
+		if (r.disable || r.fullTask()) && !r.busyOn(task.task.SectorName()) {
 			log.Infof("Worker(%s,%s) is in full tasks:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
 			go sb.toRemoteFree(task)
 			return
 		}
 
 		// because on miner start, the busyOn is not exact, so, need to check the database for cache.
-		if fullCache, err := r.checkCache(false, []string{task.task.GetSectorID()}); err != nil {
+		if fullCache, err := r.checkCache(false, []string{task.task.SectorName()}); err != nil {
 			log.Error(errors.As(err))
 			go sb.returnTask(task)
 			return
@@ -927,7 +927,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			return
 		}
 
-		if task.task.Type != WorkerFinalize && r.fullTask() && !r.busyOn(task.task.GetSectorID()) {
+		if task.task.Type != WorkerFinalize && r.fullTask() && !r.busyOn(task.task.SectorName()) {
 			log.Infof("Worker(%s,%s) in full working:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
 			// remote worker is locking for the task, and should not accept a new task.
 			go sb.toRemoteFree(task)
@@ -943,7 +943,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 	}
 	// make worker busy
 	r.lock.Lock()
-	r.busyOnTasks[task.task.GetSectorID()] = task.task
+	r.busyOnTasks[task.task.SectorName()] = task.task
 	r.lock.Unlock()
 
 	go func() {
@@ -957,7 +957,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			return
 		}
 		// Reload state because the state should change in TaskSend
-		ss, err := database.GetSectorStorage(task.task.GetSectorID())
+		ss, err := database.GetSectorStorage(task.task.SectorName())
 		if err != nil {
 			log.Error(errors.As(err))
 			sb.returnTask(task)
@@ -1023,7 +1023,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 
 	defer func() {
 		state := int(task.Type) + 1
-		r.UpdateTask(task.GetSectorID(), state) // set state to done
+		r.UpdateTask(task.SectorName(), state) // set state to done
 
 		log.Infof("Delete task result waiting :%s", taskKey)
 		_remoteResultLk.Lock()
