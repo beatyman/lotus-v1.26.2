@@ -295,21 +295,23 @@ func doBench(c *cli.Context) error {
 	ctx := lcli.ReqContext(c)
 
 	// event producer
-	for i := 0; i < maxTask; i++ {
-		apChan <- &ParallelBenchTask{
-			Type:       TASK_KIND_ADDPIECE,
-			SectorSize: sectorSize,
-			SectorID: abi.SectorID{
-				1000,
-				abi.SectorNumber(i),
-			},
+	go func() {
+		for i := 0; i < maxTask; i++ {
+			apChan <- &ParallelBenchTask{
+				Type:       TASK_KIND_ADDPIECE,
+				SectorSize: sectorSize,
+				SectorID: abi.SectorID{
+					1000,
+					abi.SectorNumber(i),
+				},
 
-			TaskSet: taskset,
-			Repo:    sdir,
+				TaskSet: taskset,
+				Repo:    sdir,
 
-			TicketPreimage: []byte(uuid.New().String()),
+				TicketPreimage: []byte(uuid.New().String()),
+			}
 		}
-	}
+	}()
 
 	end := maxTask
 consumer:
