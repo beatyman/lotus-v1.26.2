@@ -330,7 +330,7 @@ consumer:
 			fmt.Println("user canceled")
 			return nil
 		case task := <-doneEvent:
-			fmt.Printf("get done event:%s_%d\n", task.SectorName(), task.Type)
+			fmt.Printf("done event:%s_%d\n", task.SectorName(), task.Type)
 			end--
 			if end > 0 {
 				continue consumer
@@ -370,21 +370,26 @@ consumer:
 		maxTask, apLimit, p1Limit, p2Limit, c1Limit, c2Limit,
 	)
 	fmt.Println("=================")
-	if apLimit > 0 {
-		fmt.Printf("addpiece   avg:%s, min:%s, max:%s\n", apSum/time.Duration(apLimit), apMin, apMax)
+	if apLimit <= 0 {
+		return nil
 	}
-	if p1Limit > 0 {
-		fmt.Printf("precommit1 avg:%s, min:%s, max:%s\n", p1Sum/time.Duration(p1Limit), p1Min, p1Max)
+	fmt.Printf("addpiece   avg:%s, min:%s, max:%s\n", apSum/time.Duration(apLimit), apMin, apMax)
+	if p1Limit <= 0 {
+		return nil
 	}
-	if p2Limit > 0 {
-		fmt.Printf("precommit2 avg:%s, min:%s, max:%s\n", p2Sum/time.Duration(p2Limit), p2Min, p2Max)
+	fmt.Printf("precommit1 avg:%s, min:%s, max:%s\n", p1Sum/time.Duration(p1Limit), p1Min, p1Max)
+	if p2Limit <= 0 {
+		return nil
 	}
-	if c1Limit > 0 {
-		fmt.Printf("commit1    avg:%s, min:%s, max:%s\n", c1Sum/time.Duration(c1Limit), c1Min, c1Max)
+	fmt.Printf("precommit2 avg:%s, min:%s, max:%s\n", p2Sum/time.Duration(p2Limit), p2Min, p2Max)
+	if c1Limit <= 0 {
+		return nil
 	}
-	if c2Limit > 0 {
-		fmt.Printf("commit2    avg:%s, min:%s, max:%s\n", c2Sum/time.Duration(c2Limit), c2Min, c2Max)
+	fmt.Printf("commit1    avg:%s, min:%s, max:%s\n", c1Sum/time.Duration(c1Limit), c1Min, c1Max)
+	if c2Limit <= 0 {
+		return nil
 	}
+	fmt.Printf("commit2    avg:%s, min:%s, max:%s\n", c2Sum/time.Duration(c2Limit), c2Min, c2Max)
 
 	return nil
 }
@@ -432,7 +437,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 		newTask.Pieces = []abi.PieceInfo{
 			pi,
 		}
-		if apLimit == 0 {
+		if p1Limit == 0 {
 			doneEvent <- &newTask
 		} else {
 			p1Chan <- &newTask
@@ -471,7 +476,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 		newTask := *task
 		newTask.Type = TASK_KIND_PRECOMMIT2
 		newTask.PreCommit1Out = pc1o
-		if p1Limit == 0 {
+		if p2Limit == 0 {
 			doneEvent <- &newTask
 		} else {
 			p2Chan <- &newTask
@@ -504,7 +509,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 		newTask := *task
 		newTask.Type = TASK_KIND_COMMIT1
 		newTask.Cids = cids
-		if p2Limit == 0 {
+		if c1Limit == 0 {
 			doneEvent <- &newTask
 		} else {
 			c1Chan <- &newTask
