@@ -37,8 +37,19 @@ fi
 RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench sealing --storage-dir=/data/cache/.lotus-bench --sector-size=$size &
 
 # fivestar bench
+#################
+# --max-tasks 需要运行的任务数，需要注意硬盘空间是否足够
+# --taskset   是否使用golang进程进行cpu锁核，true为启用，会在p1与p2启用独立的进程进行锁核计算; false会直接使用rust原生计算 
+# --parallel-addpiece addpiece可同时并行的数量
+# --parallel-precommit1 precommit1可同时并行的数量
+# --parallel-precommit2 precommit2可同时并行的数量
+# --parallel-commit1 commit1可同时并行的数量
+# --parallel-commit2 commit2可同时并行的数量
+#################
+#
 #RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench p-run --storage-dir=/data/cache/.lotus-bench --sector-size=$size \
 #    --max-tasks=2 \
+#    --taskset=false \ 
 #    --parallel-addpiece=2 \
 #    --parallel-precommit1=2 \
 #    --parallel-precommit2=1 \
