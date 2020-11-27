@@ -23,9 +23,9 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var hlmBenchCmd = &cli.Command{
-	Name:  "hlm-run",
-	Usage: "Benchmark seal and winning post and window post",
+var pBenchCmd = &cli.Command{
+	Name:  "p-run",
+	Usage: "Benchmark for parallel seal",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "storage-dir",
