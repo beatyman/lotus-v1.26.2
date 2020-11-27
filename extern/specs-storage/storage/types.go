@@ -15,7 +15,10 @@ func ParseSectorID(baseName string) (abi.SectorID, error) {
 	var mid abi.ActorID
 	read, err := fmt.Sscanf(baseName, "s-t0%d-%d", &mid, &n)
 	if err != nil {
-		return abi.SectorID{}, xerrors.Errorf("sscanf sector name ('%s'): %w", baseName, err)
+		read, err = fmt.Sscanf(baseName, "s-f0%d-%d", &mid, &n)
+		if err != nil {
+			return abi.SectorID{}, xerrors.Errorf("sscanf sector name ('%s'): %w", baseName, err)
+		}
 	}
 
 	if read != 2 {

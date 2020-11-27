@@ -266,7 +266,6 @@ var sealBenchCmd = &cli.Command{
 
 		var sealTimings []SealingResult
 		var sealedSectors []saproof2.SectorInfo
-		var provenSectors []storage.ProofSectorInfo
 
 		if robench == "" {
 			var err error
@@ -307,18 +306,17 @@ var sealBenchCmd = &cli.Command{
 					SectorNumber: s.SectorID,
 					SealProof:    s.ProofType,
 				})
-				provenSectors = append(provenSectors, storage.ProofSectorInfo{
-					SectorInfo: saproof2.SectorInfo{
-						SealedCID:    s.CommR,
-						SectorNumber: s.SectorID,
-						SealProof:    s.ProofType,
-					},
-					SectorFile: storage.SectorFile{
-						SectorId:    fmt.Sprintf("s-%s-%d", maddr.String(), s.SectorID),
-						StorageRepo: sbdir,
-					},
-				})
 			}
+		}
+		var provenSectors []storage.ProofSectorInfo
+		for _, c := range sealedSectors {
+			provenSectors = append(provenSectors, storage.ProofSectorInfo{
+				SectorInfo: c,
+				SectorFile: storage.SectorFile{
+					SectorId:    fmt.Sprintf("s-t0%s-%d", mid, c.SectorNumber),
+					StorageRepo: sbdir,
+				},
+			})
 		}
 
 		bo := BenchResults{
@@ -512,7 +510,6 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 	var pieces []abi.PieceInfo
 	sealTimings := make([]SealingResult, numSectors)
 	sealedSectors := make([]saproof2.SectorInfo, numSectors)
-	provenSectors := make([]storage.ProofSectorInfo, numSectors)
 
 	preCommit2Sema := make(chan struct{}, par.PreCommit2)
 	commitSema := make(chan struct{}, par.Commit)
@@ -590,17 +587,6 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 						SealProof:    sid.ProofType,
 						SectorNumber: i,
 						SealedCID:    cids.Sealed,
-					}
-					provenSectors[i] = storage.ProofSectorInfo{
-						SectorInfo: saproof2.SectorInfo{
-							SealProof:    sid.ProofType,
-							SectorNumber: i,
-							SealedCID:    cids.Sealed,
-						},
-						SectorFile: storage.SectorFile{
-							SectorId:    storage.SectorName(sid.ID),
-							StorageRepo: sbfs.RepoPath(),
-						},
 					}
 
 					seed := lapi.SealSeed{
