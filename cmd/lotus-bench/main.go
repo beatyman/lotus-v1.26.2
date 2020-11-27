@@ -104,8 +104,11 @@ func main() {
 		Usage:   "Benchmark performance of lotus on your hardware",
 		Version: build.UserVersion(),
 		Commands: []*cli.Command{
-			proveCmd,
 			pBenchCmd,
+			ffiwrapper.P1Cmd,
+			ffiwrapper.P2Cmd,
+
+			proveCmd,
 			sealBenchCmd,
 			importBenchCmd,
 		},

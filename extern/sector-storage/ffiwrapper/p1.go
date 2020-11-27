@@ -44,13 +44,14 @@ func ExecPrecommit1(ctx context.Context, repo string, task WorkerTask) (storage.
 	defer returnCpu(cpuIdx)
 
 	programName := os.Args[0]
-	cmd := exec.CommandContext(ctx, programName, "--worker-repo", repo,
+	cmd := exec.CommandContext(ctx, programName,
 		"precommit1",
-		"--name", task.SectorStorage.SectorInfo.ID,
+		"--worker-repo", repo,
+		"--name", task.SectorName(),
 	)
 	// set the env
 	cmd.Env = os.Environ()
-	if len(cpuGroup)<2{
+	if len(cpuGroup) < 2 {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=0"))
 	} else {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=%d", len(cpuGroup)-1))
@@ -112,6 +113,11 @@ var P1Cmd = &cli.Command{
 	Name:  "precommit1",
 	Usage: "run precommit1 in process",
 	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "worker-repo",
+			EnvVars: []string{"LOTUS_WORKER_PATH", "WORKER_PATH"},
+			Value:   "~/.lotusworker", // TODO: Consider XDG_DATA_HOME
+		},
 		&cli.StringFlag{
 			Name: "name", // just for process debug
 		},

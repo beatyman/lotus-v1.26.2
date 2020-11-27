@@ -33,6 +33,7 @@ fi
 size=2048
 #RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench sealing --storage-dir=/data/cache/.lotus-bench --sector-size=$size &
 RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench p-run --storage-dir=/data/cache/.lotus-bench --sector-size=$size \
+    --taskset=true \
     --max-tasks=2 \
     --parallel-addpiece=2 \
     --parallel-precommit1=2 \
