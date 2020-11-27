@@ -6,6 +6,10 @@
 # tail -f nohup.out
 # REAME end
 
+#size=34359738368 # 32GB
+#size=536870912 # 512MB
+size=2048 # 2KB
+
 export IPFS_GATEWAY="https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs/"
 
 # Note that FIL_PROOFS_USE_GPU_TREE_BUILDER=1 is for tree_r_last building and FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1 is for tree_c.  
@@ -14,6 +18,7 @@ export FIL_PROOFS_USE_GPU_COLUMN_BUILDER=0
 export FIL_PROOFS_USE_GPU_TREE_BUILDER=0 
 export FIL_PROOFS_MAXIMIZE_CACHING=1  # open cache for 32GB or 64GB
 export FIL_PROOFS_USE_MULTICORE_SDR=1
+export BELLMAN_NO_GPU=1
 
 # checking gpu
 gpu=""
@@ -24,13 +29,22 @@ fi
 if [ ! -z "$gpu" ]; then
     FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1
     FIL_PROOFS_USE_GPU_TREE_BUILDER=1
+    BELLMAN_NO_GPU=0
 fi
 
-#size=34359738368 # 32GB
-#size=536870912 # 512MB
-size=2048
+
+# offical bench
 RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench sealing --storage-dir=/data/cache/.lotus-bench --sector-size=$size &
-#RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench sealing --storage-dir=/data/cache/.lotus-bench --sector-size=$size --hlm-parallel=2 --num-sectors=2
+
+# fivestar bench
+#RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench p-run --storage-dir=/data/cache/.lotus-bench --sector-size=$size \
+#    --max-tasks=2 \
+#    --parallel-addpiece=2 \
+#    --parallel-precommit1=2 \
+#    --parallel-precommit2=1 \
+#    --parallel-commit1=1 \
+#    --parallel-commit2=1 &
+
 pid=$!
 
 
