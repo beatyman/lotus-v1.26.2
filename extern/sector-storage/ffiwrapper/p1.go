@@ -50,11 +50,10 @@ func ExecPrecommit1(ctx context.Context, repo string, task WorkerTask) (storage.
 	)
 	// set the env
 	cmd.Env = os.Environ()
-	if len(cpuGroup) < 2 {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=1"))
+	if len(cpuGroup)<2{
 		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=0"))
 	} else {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=%d", len(cpuGroup)))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=%d", len(cpuGroup)-1))
 		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=1"))
 	}
 
