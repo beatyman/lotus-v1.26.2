@@ -1,4 +1,4 @@
-package main
+package ffiwrapper
 
 import (
 	"bytes"
@@ -9,9 +9,11 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
+	"github.com/mitchellh/go-homedir"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/sys/unix"
 )
 
@@ -21,7 +23,7 @@ type ExecPrecommit1Resp struct {
 	Err  string
 }
 
-func ExecPrecommit1(ctx context.Context, repo string, task ffiwrapper.WorkerTask) (storage.PreCommit1Out, error) {
+func ExecPrecommit1(ctx context.Context, repo string, task WorkerTask) (storage.PreCommit1Out, error) {
 	args, err := json.Marshal(task)
 	if err != nil {
 		return nil, errors.As(err)
@@ -48,11 +50,10 @@ func ExecPrecommit1(ctx context.Context, repo string, task ffiwrapper.WorkerTask
 	)
 	// set the env
 	cmd.Env = os.Environ()
-	if len(cpuGroup) < 2 {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=1"))
+	if len(cpuGroup)<2{
 		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=0"))
 	} else {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=%d", len(cpuGroup)))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=%d", len(cpuGroup)-1))
 		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=1"))
 	}
 
@@ -105,4 +106,72 @@ func ExecPrecommit1(ctx context.Context, repo string, task ffiwrapper.WorkerTask
 		return nil, errors.Parse(resp.Err)
 	}
 	return storage.PreCommit1Out(resp.Data), nil
+}
+
+var P1Cmd = &cli.Command{
+	Name:  "precommit1",
+	Usage: "run precommit1 in process",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name: "name", // just for process debug
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
+
+		resp := ExecPrecommit1Resp{
+			Exit: 0,
+		}
+		defer func() {
+			result, err := json.MarshalIndent(&resp, "", "	")
+			if err != nil {
+				os.Stderr.Write([]byte(err.Error()))
+			} else {
+				os.Stdout.Write(result)
+			}
+		}()
+		workerRepo, err := homedir.Expand(cctx.String("worker-repo"))
+		if err != nil {
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
+		}
+
+		input := ""
+		if _, err := fmt.Scanln(&input); err != nil {
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
+		}
+		task := WorkerTask{}
+		if err := json.Unmarshal([]byte(input), &task); err != nil {
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
+		}
+
+		workerSealer, err := New(RemoteCfg{}, &basicfs.Provider{
+			Root: workerRepo,
+		})
+		if err != nil {
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
+		}
+		pieceInfo, err := DecodePieceInfo(task.Pieces)
+		if err != nil {
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
+		}
+		rspco, err := workerSealer.SealPreCommit1(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.SealTicket, pieceInfo)
+		if err != nil {
+			resp.Exit = 1
+			resp.Err = errors.As(err).Error()
+			return nil
+		}
+		resp.Data = rspco
+		return nil
+	},
 }

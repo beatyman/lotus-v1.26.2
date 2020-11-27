@@ -70,7 +70,7 @@ func sumFile(path string, info paramFile) error {
 	return nil
 }
 
-func checkFile(path string, info paramFile, ignoreSum bool) error {
+func checkFile(path string, info paramFile, needCheckSum bool) error {
 	if os.Getenv("TRUST_PARAMS") == "1" {
 		log.Warn("Assuming parameter files are ok. DO NOT USE IN PRODUCTION")
 		return nil
@@ -89,15 +89,28 @@ func checkFile(path string, info paramFile, ignoreSum bool) error {
 	}
 
 	done := make(chan error, 1)
-	go func() {
-		done <- sumFile(path, info)
-	}()
-	if !ignoreSum {
-		err := <-done
+	go func(p string, checksum bool) {
+		log.Infof("checking %s", p)
+		err := sumFile(p, info)
 		if err != nil {
 			delChecked(path)
+			if !checksum {
+				// checksum has ignored, exit the worker to make the worker down
+				time.Sleep(3e9) // waiting log output
+				os.Exit(1)
+				return
+			}
+		}
+		log.Infof("checksum %s done", path)
+		done <- err
+	}(path, needCheckSum)
+	if needCheckSum {
+		err := <-done
+		if err != nil {
 			return errors.As(err)
 		}
+	} else {
+		log.Warnf("Ingore checksum parameters file: %s", path)
 	}
 	addChecked(path)
 	return nil
@@ -107,9 +120,6 @@ func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ss
 	w.paramsLock.Lock()
 	defer w.paramsLock.Unlock()
 
-	if w.paramsVerified {
-		return nil
-	}
 	//// for origin params
 	//if err := paramfetch.GetParams(ctx, build.ParametersJSON(), ssize); err != nil {
 	//	return errors.As(err)
@@ -118,10 +128,12 @@ func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ss
 	for {
 		if err := w.checkParams(ctx, ssize, endpoint, paramsDir); err != nil {
 			log.Info(errors.As(err))
+			if errors.ErrNoData.Equal(err) {
+				continue
+			}
 			time.Sleep(10e9)
 			continue
 		}
-		w.paramsVerified = true
 		return nil
 	}
 }
@@ -135,18 +147,39 @@ func (w *worker) checkParams(ctx context.Context, ssize abi.SectorSize, endpoint
 	if err := json.Unmarshal(paramBytes, &params); err != nil {
 		return errors.As(err)
 	}
+
+recheck:
 	for name, info := range params {
 		if ssize != info.SectorSize && strings.HasSuffix(name, ".params") {
 			continue
 		}
 		fPath := filepath.Join(paramsDir, name)
-		if err := checkFile(fPath, info, true); err != nil {
+		if _, err := os.Stat(fPath); err != nil {
+			w.needCheckSum = true
+			log.Warnf("miss %s, checksum all parameter files", fPath)
+			break
+		}
+	}
+
+	for name, info := range params {
+		if ssize != info.SectorSize && strings.HasSuffix(name, ".params") {
+			continue
+		}
+		fPath := filepath.Join(paramsDir, name)
+		if err := checkFile(fPath, info, w.needCheckSum); err != nil {
 			log.Info(errors.As(err))
+
+			if !w.needCheckSum {
+				w.needCheckSum = true
+				goto recheck
+			}
+
+			// try to fetch the params
 			if err := w.fetchParams(ctx, endpoint, paramsDir, name); err != nil {
 				return errors.As(err)
 			}
 			// checksum again
-			if err := checkFile(fPath, info, false); err != nil {
+			if err := checkFile(fPath, info, true); err != nil {
 				if ErrChecksum.Equal(err) {
 					if err := os.RemoveAll(fPath); err != nil {
 						return errors.As(err)

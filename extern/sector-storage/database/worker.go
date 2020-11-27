@@ -89,21 +89,3 @@ func AddWorkerConn(id string, num int) error {
 	}
 	return nil
 }
-
-// prepare worker connection will auto increment the connections
-func PrepareWorkerConn() (*WorkerInfo, error) {
-	db := GetDB()
-	wInfo := &WorkerInfo{}
-	mdblk.Lock()
-	defer mdblk.Unlock()
-	if err := database.QueryStruct(db, wInfo,
-		"SELECT * FROM worker_info WHERE online=1 ORDER BY svc_conn,random() LIMIT 1",
-	); err != nil {
-		return nil, errors.As(err)
-	}
-	if _, err := db.Exec("UPDATE worker_info SET svc_conn=svc_conn+1 WHERE id=?", wInfo.ID); err != nil {
-		return nil, errors.As(err)
-	}
-	wInfo.SvcConn++
-	return wInfo, nil
-}

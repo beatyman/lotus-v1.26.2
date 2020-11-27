@@ -3,7 +3,9 @@ package ffiwrapper
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -12,6 +14,51 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
 )
+
+var (
+	ErrNoGpuSrv = errors.New("No Gpu service for allocation")
+)
+
+var workerConnLock = sync.Mutex{}
+
+func (sb *Sealer) AddWorkerConn(id string, num int) error {
+	workerConnLock.Lock()
+	defer workerConnLock.Unlock()
+	r, ok := _remotes.Load(id)
+	if ok {
+		r.(*remote).srvConn += int64(num)
+		_remotes.Store(id, r)
+	}
+	return database.AddWorkerConn(id, num)
+
+}
+
+// prepare worker connection will auto increment the connections
+func (sb *Sealer) PrepareWorkerConn() (*database.WorkerInfo, error) {
+	workerConnLock.Lock()
+	defer workerConnLock.Unlock()
+
+	var minConnRemote *remote
+	minConns := int64(math.MaxInt64)
+	_remotes.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
+		if r.cfg.ParallelCommit2 > 0 || r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv {
+			if minConns > r.srvConn {
+				minConnRemote = r
+			}
+		}
+		return true
+	})
+	workerId := minConnRemote.cfg.ID
+	info, err := database.GetWorkerInfo(workerId)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	minConnRemote.srvConn++
+	_remotes.Store(workerId, minConnRemote)
+	database.AddWorkerConn(workerId, 1)
+	return info, nil
+}
 
 func (sb *Sealer) WorkerStats() WorkerStats {
 	infos, err := database.AllWorkerInfo()
@@ -148,7 +195,7 @@ func (sb *Sealer) WorkerRemoteStats() ([]WorkerRemoteStats, error) {
 		busyOn := []string{}
 		r.lock.Lock()
 		for _, b := range r.busyOnTasks {
-			busyOn = append(busyOn, b.GetSectorID())
+			busyOn = append(busyOn, b.Key())
 		}
 		r.lock.Unlock()
 
@@ -260,6 +307,9 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 
 // call UnlockService to release
 func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerTask) (*remote, error) {
+	_remoteGpuLk.Lock()
+	defer _remoteGpuLk.Unlock()
+
 	// select a remote worker
 	var r *remote
 	_remotes.Range(func(key, val interface{}) bool {
@@ -291,12 +341,15 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		return false
 	})
 	if r == nil {
-		return nil, errors.ErrNoData.As(sid, task)
+		return nil, ErrNoGpuSrv.As(sid, task)
 	}
 	return r, nil
 }
 
 func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
+	_remoteGpuLk.Lock()
+	defer _remoteGpuLk.Unlock()
+
 	_r, ok := _remotes.Load(workerId)
 	if !ok {
 		log.Warnf("worker not found:%s", workerId)
@@ -791,7 +844,7 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 // return the if retask
 func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 	// Get status in database
-	ss, err := database.GetSectorStorage(task.task.GetSectorID())
+	ss, err := database.GetSectorStorage(task.task.SectorName())
 	if err != nil {
 		log.Error(errors.As(err))
 		sb.returnTask(task)
@@ -848,14 +901,14 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			go sb.returnTask(task)
 			return
 		}
-		if (r.disable || r.fullTask()) && !r.busyOn(task.task.GetSectorID()) {
+		if (r.disable || r.fullTask()) && !r.busyOn(task.task.SectorName()) {
 			log.Infof("Worker(%s,%s) is in full tasks:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
 			go sb.toRemoteFree(task)
 			return
 		}
 
 		// because on miner start, the busyOn is not exact, so, need to check the database for cache.
-		if fullCache, err := r.checkCache(false, []string{task.task.GetSectorID()}); err != nil {
+		if fullCache, err := r.checkCache(false, []string{task.task.SectorName()}); err != nil {
 			log.Error(errors.As(err))
 			go sb.returnTask(task)
 			return
@@ -874,7 +927,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			return
 		}
 
-		if task.task.Type != WorkerFinalize && r.fullTask() && !r.busyOn(task.task.GetSectorID()) {
+		if task.task.Type != WorkerFinalize && r.fullTask() && !r.busyOn(task.task.SectorName()) {
 			log.Infof("Worker(%s,%s) in full working:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
 			// remote worker is locking for the task, and should not accept a new task.
 			go sb.toRemoteFree(task)
@@ -890,7 +943,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 	}
 	// make worker busy
 	r.lock.Lock()
-	r.busyOnTasks[task.task.GetSectorID()] = task.task
+	r.busyOnTasks[task.task.SectorName()] = task.task
 	r.lock.Unlock()
 
 	go func() {
@@ -904,7 +957,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			return
 		}
 		// Reload state because the state should change in TaskSend
-		ss, err := database.GetSectorStorage(task.task.GetSectorID())
+		ss, err := database.GetSectorStorage(task.task.SectorName())
 		if err != nil {
 			log.Error(errors.As(err))
 			sb.returnTask(task)
@@ -970,7 +1023,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 
 	defer func() {
 		state := int(task.Type) + 1
-		r.UpdateTask(task.GetSectorID(), state) // set state to done
+		r.UpdateTask(task.SectorName(), state) // set state to done
 
 		log.Infof("Delete task result waiting :%s", taskKey)
 		_remoteResultLk.Lock()
