@@ -59,10 +59,6 @@ func ExecPrecommit1(ctx context.Context, repo string, task WorkerTask) (storage.
 	}
 
 	var stdout bytes.Buffer
-	defer func() {
-		fmt.Println(cmd.String())
-		fmt.Println(string(args))
-	}()
 	// output the stderr log
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = &stdout

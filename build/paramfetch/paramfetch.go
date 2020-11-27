@@ -154,7 +154,7 @@ func (ft *fetch) maybeFetchAsync(ctx context.Context, name string, info paramFil
 
 		path := filepath.Join(getParamDir(), name)
 
-		err := checkFile(path, info, true)
+		err := checkFile(path, info, false)
 		if err == nil {
 			return
 		}
