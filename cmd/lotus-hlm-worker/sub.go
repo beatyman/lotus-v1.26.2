@@ -128,7 +128,7 @@ loop:
 				return errors.New("server shutdown").As(task)
 			}
 
-			log.Infof("New task: %s, sector %s, action: %d", task.Key(), task.GetSectorID(), task.Type)
+			log.Infof("New task: %s, sector %s, action: %d", task.Key(), task.SectorName(), task.Type)
 			go func(task ffiwrapper.WorkerTask) {
 				taskKey := task.Key()
 				w.workMu.Lock()
@@ -344,7 +344,7 @@ var (
 )
 
 func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
-	sid := task.GetSectorID()
+	sid := task.SectorName()
 	log.Infof("PushCache:%+v", sid)
 	defer log.Infof("PushCache exit:%+v", sid)
 
@@ -430,7 +430,7 @@ repush:
 			time.Sleep(60e9)
 			goto repush
 		}
-		if err := w.RemoveCache(ctx, task.GetSectorID()); err != nil {
+		if err := w.RemoveCache(ctx, task.SectorName()); err != nil {
 			log.Warn(errors.As(err))
 		}
 	}
@@ -592,11 +592,11 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 	case ffiwrapper.WorkerPreCommit2:
-		//out, err := w.workerSB.SealPreCommit2(ctx, storage.SectorRef{
-		//	ID:        task.SectorID,
-		//	ProofType: task.ProofType,
-		//}, task.PreCommit1Out)
-		out, err := ffiwrapper.ExecPrecommit2(ctx, w.workerRepo, task)
+		out, err := w.workerSB.SealPreCommit2(ctx, storage.SectorRef{
+			ID:        task.SectorID,
+			ProofType: task.ProofType,
+		}, task.PreCommit1Out)
+		//out, err := ffiwrapper.ExecPrecommit2(ctx, w.workerRepo, task)
 		res.PreCommit2Out = ffiwrapper.SectorCids{
 			Unsealed: out.Unsealed.String(),
 			Sealed:   out.Sealed.String(),
@@ -650,7 +650,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
-		sealedFile := w.workerSB.SectorPath("sealed", task.GetSectorID())
+		sealedFile := w.workerSB.SectorPath("sealed", task.SectorName())
 		_, err := os.Stat(string(sealedFile))
 		if err != nil {
 			if !os.IsNotExist(err) {
