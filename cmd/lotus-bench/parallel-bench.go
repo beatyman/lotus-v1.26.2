@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/docker/go-units"
 	"github.com/filecoin-project/go-state-types/abi"
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
@@ -42,6 +44,10 @@ var pBenchCmd = &cli.Command{
 			Name:  "no-gpu",
 			Usage: "disable gpu usage for the benchmark run",
 		},
+		&cli.BoolFlag{
+			Name:  "taskset",
+			Usage: "using golang cpu affinity, need run with binary program",
+		},
 		&cli.IntFlag{
 			Name:  "max-tasks",
 			Value: 1,
@@ -74,13 +80,16 @@ var pBenchCmd = &cli.Command{
 	},
 }
 
-type HlmBenchTask struct {
+type ParallelBenchTask struct {
 	Type int
 
 	TicketPreimage []byte
 
-	ProofType abi.RegisteredSealProof
-	SectorID  abi.SectorID
+	SectorSize abi.SectorSize
+	SectorID   abi.SectorID
+
+	TaskSet bool
+	Repo    string
 
 	// preCommit1
 	Pieces []abi.PieceInfo // commit1 is need too.
@@ -98,14 +107,17 @@ type HlmBenchTask struct {
 	Proof storage.Proof
 }
 
-func (t *HlmBenchTask) SectorName() string {
+func (t *ParallelBenchTask) SectorName() string {
 	return storage.SectorName(t.SectorID)
 }
 
-type HlmBenchResult struct {
-	err       error
+type ParallelBenchResult struct {
 	startTime time.Time
 	endTime   time.Time
+}
+
+func (p *ParallelBenchResult) String() string {
+	return fmt.Sprintf("used:%s,start:%s,end:%s", p.endTime.Sub(p.startTime), p.startTime.Format(time.RFC3339Nano), p.endTime.Format(time.RFC3339Nano))
 }
 
 var (
@@ -113,31 +125,50 @@ var (
 
 	apParallel int32
 	apLimit    int32
-	apChan     chan *HlmBenchTask
+	apChan     chan *ParallelBenchTask
 	apResult   = sync.Map{}
 
 	p1Parallel int32
 	p1Limit    int32
-	p1Chan     chan *HlmBenchTask
+	p1Chan     chan *ParallelBenchTask
 	p1Result   = sync.Map{}
 
 	p2Parallel int32
 	p2Limit    int32
-	p2Chan     chan *HlmBenchTask
+	p2Chan     chan *ParallelBenchTask
 	p2Result   = sync.Map{}
 
 	c1Parallel int32
 	c1Limit    int32
-	c1Chan     chan *HlmBenchTask
+	c1Chan     chan *ParallelBenchTask
 	c1Result   = sync.Map{}
 
 	c2Parallel int32
 	c2Limit    int32
-	c2Chan     chan *HlmBenchTask
+	c2Chan     chan *ParallelBenchTask
 	c2Result   = sync.Map{}
 
-	doneEvent chan *HlmBenchTask
+	doneEvent chan *ParallelBenchTask
 )
+
+func Statistics(result sync.Map) (sum, min, max time.Duration) {
+	min = time.Duration(math.MaxInt64)
+	result.Range(func(k, v interface{}) bool {
+		sectorName := k.(string)
+		res := v.(ParallelBenchResult)
+		used := res.endTime.Sub(res.startTime)
+		if min > used {
+			min = used
+		}
+		if max < used {
+			max = used
+		}
+		sum += used
+		fmt.Printf("%s	%s\n", sectorName, res.String())
+		return true
+	})
+	return
+}
 
 const (
 	TASK_KIND_ADDPIECE   = 0
@@ -167,7 +198,7 @@ func canParallel(kind int) bool {
 	panic("not reach here")
 }
 
-func offsetParallel(task *HlmBenchTask, offset int32) {
+func offsetParallel(task *ParallelBenchTask, offset int32) {
 	switch task.Type {
 	case TASK_KIND_ADDPIECE:
 		atomic.AddInt32(&apParallel, offset)
@@ -189,7 +220,7 @@ func offsetParallel(task *HlmBenchTask, offset int32) {
 
 }
 
-func returnTask(task *HlmBenchTask) {
+func returnTask(task *ParallelBenchTask) {
 	time.Sleep(10e9)
 	switch task.Type {
 	case TASK_KIND_ADDPIECE:
@@ -218,18 +249,25 @@ func doBench(c *cli.Context) error {
 			return xerrors.Errorf("setting no-gpu flag: %w", err)
 		}
 	}
+	// sector size
+	sectorSizeInt, err := units.RAMInBytes(c.String("sector-size"))
+	if err != nil {
+		return err
+	}
+	sectorSize := abi.SectorSize(sectorSizeInt)
+	taskset := c.Bool("taskset")
 	maxTask := c.Int("max-tasks")
 	apLimit = int32(c.Int("parallel-addpiece"))
 	p1Limit = int32(c.Int("parallel-precommit1"))
 	p2Limit = int32(c.Int("parallel-precommit2"))
 	c1Limit = int32(c.Int("parallel-commit1"))
 	c2Limit = int32(c.Int("parallel-commit2"))
-	apChan = make(chan *HlmBenchTask, apLimit)
-	p1Chan = make(chan *HlmBenchTask, p1Limit)
-	p2Chan = make(chan *HlmBenchTask, p2Limit)
-	c1Chan = make(chan *HlmBenchTask, c1Limit)
-	c2Chan = make(chan *HlmBenchTask, c2Limit)
-	doneEvent = make(chan *HlmBenchTask, maxTask)
+	apChan = make(chan *ParallelBenchTask, apLimit)
+	p1Chan = make(chan *ParallelBenchTask, p1Limit)
+	p2Chan = make(chan *ParallelBenchTask, p2Limit)
+	c1Chan = make(chan *ParallelBenchTask, c1Limit)
+	c2Chan = make(chan *ParallelBenchTask, c2Limit)
+	doneEvent = make(chan *ParallelBenchTask, maxTask)
 
 	// build repo
 	sdir, err := homedir.Expand(c.String("storage-dir"))
@@ -258,18 +296,23 @@ func doBench(c *cli.Context) error {
 
 	// event producer
 	for i := 0; i < maxTask; i++ {
-		apChan <- &HlmBenchTask{
-			Type:      TASK_KIND_ADDPIECE,
-			ProofType: 0, // TODO
+		apChan <- &ParallelBenchTask{
+			Type:       TASK_KIND_ADDPIECE,
+			SectorSize: sectorSize,
 			SectorID: abi.SectorID{
 				1000,
 				abi.SectorNumber(i),
 			},
+
+			TaskSet: taskset,
+			Repo:    sdir,
+
 			TicketPreimage: []byte(uuid.New().String()),
 		}
 	}
 
 	end := maxTask
+consumer:
 	for {
 		select {
 		case task := <-apChan:
@@ -284,22 +327,73 @@ func doBench(c *cli.Context) error {
 			prepareTask(ctx, sb, task)
 		case <-ctx.Done():
 			// exit
+			fmt.Println("user canceled")
 			return nil
-		case <-doneEvent:
+		case task := <-doneEvent:
+			fmt.Printf("get done event:%s_%d\n", task.SectorName(), task.Type)
 			end--
-			if end == 0 {
-				// TODO: pring the result
-				return nil
+			if end > 0 {
+				continue consumer
 			}
+			break consumer
 		}
 	}
+
+	// output the result
+	fmt.Println("addpiece detail:")
+	fmt.Println("=================")
+	apSum, apMin, apMax := Statistics(apResult)
+	fmt.Println()
+
+	fmt.Println("precommit1 detail:")
+	fmt.Println("=================")
+	p1Sum, p1Min, p1Max := Statistics(p1Result)
+	fmt.Println()
+
+	fmt.Println("precommit2 detail:")
+	fmt.Println("=================")
+	p2Sum, p2Min, p2Max := Statistics(p2Result)
+	fmt.Println()
+
+	fmt.Println("commit1 detail:")
+	fmt.Println("=================")
+	c1Sum, c1Min, c1Max := Statistics(c1Result)
+	fmt.Println()
+
+	fmt.Println("commit2 detail:")
+	fmt.Println("=================")
+	c2Sum, c2Min, c2Max := Statistics(c2Result)
+	fmt.Println()
+
+	fmt.Printf(
+		"total sectors:%d, parallel-addpiece:%d, parallel-precommit1:%d, parallel-precommit2:%d, parallel-commit1:%d,parallel-commit2:%d\n",
+		maxTask, apLimit, p1Limit, p2Limit, c1Limit, c2Limit,
+	)
+	fmt.Println("=================")
+	if apLimit > 0 {
+		fmt.Printf("addpiece   avg:%s, min:%s, max:%s\n", apSum/time.Duration(apLimit), apMin, apMax)
+	}
+	if p1Limit > 0 {
+		fmt.Printf("precommit1 avg:%s, min:%s, max:%s\n", p1Sum/time.Duration(p1Limit), p1Min, p1Max)
+	}
+	if p2Limit > 0 {
+		fmt.Printf("precommit2 avg:%s, min:%s, max:%s\n", p2Sum/time.Duration(p2Limit), p2Min, p2Max)
+	}
+	if c1Limit > 0 {
+		fmt.Printf("commit1    avg:%s, min:%s, max:%s\n", c1Sum/time.Duration(c1Limit), c1Min, c1Max)
+	}
+	if c2Limit > 0 {
+		fmt.Printf("commit2    avg:%s, min:%s, max:%s\n", c2Sum/time.Duration(c2Limit), c2Min, c2Max)
+	}
+
+	return nil
 }
 
-func prepareTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
+func prepareTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask) {
 	parallelLock.Lock()
 	if !canParallel(task.Type) {
 		parallelLock.Unlock()
-		log.Infof("parallel limitted, return task type:%d", task.Type)
+		log.Infof("parallel limitted, retry task: %s_%d", task.SectorName(), task.Type)
 		go returnTask(task)
 		return
 	}
@@ -308,14 +402,14 @@ func prepareTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask)
 	go runTask(ctx, sb, task)
 }
 
-func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
+func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask) {
 	defer func() {
 		parallelLock.Lock()
 		offsetParallel(task, -1)
 		parallelLock.Unlock()
 	}()
+	sectorSize := task.SectorSize
 
-	sectorSize := abi.SectorSize(2048) // TODO: get from proof type
 	sid := storage.SectorRef{
 		ID:        task.SectorID,
 		ProofType: spt(sectorSize),
@@ -328,7 +422,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
 		if err != nil {
 			panic(err) // failed
 		}
-		apResult.Store(task.SectorName(), HlmBenchResult{
+		apResult.Store(task.SectorName(), ParallelBenchResult{
 			startTime: startTime,
 			endTime:   time.Now(),
 		})
@@ -338,18 +432,38 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
 		newTask.Pieces = []abi.PieceInfo{
 			pi,
 		}
-		p1Chan <- &newTask
+		if apLimit == 0 {
+			doneEvent <- &newTask
+		} else {
+			p1Chan <- &newTask
+		}
 		return
 
 	case TASK_KIND_PRECOMMIT1:
 		startTime := time.Now()
 		trand := blake2b.Sum256(task.TicketPreimage)
 		ticket := abi.SealRandomness(trand[:])
-		pc1o, err := sb.SealPreCommit1(ctx, sid, ticket, task.Pieces)
-		if err != nil {
-			panic(err)
+
+		var pc1o storage.PreCommit1Out
+		var err error
+		if !task.TaskSet {
+			pc1o, err = sb.SealPreCommit1(ctx, sid, ticket, task.Pieces)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			pc1o, err = ffiwrapper.ExecPrecommit1(ctx, task.Repo, ffiwrapper.WorkerTask{
+				Type:      ffiwrapper.WorkerTaskType(task.Type),
+				ProofType: sid.ProofType,
+				SectorID:  sid.ID,
+
+				// p1
+				SealTicket: ticket,
+				Pieces:     ffiwrapper.EncodePieceInfo(task.Pieces),
+			})
+
 		}
-		p1Result.Store(task.SectorName(), HlmBenchResult{
+		p1Result.Store(task.SectorName(), ParallelBenchResult{
 			startTime: startTime,
 			endTime:   time.Now(),
 		})
@@ -357,15 +471,32 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
 		newTask := *task
 		newTask.Type = TASK_KIND_PRECOMMIT2
 		newTask.PreCommit1Out = pc1o
-		p2Chan <- &newTask
+		if p1Limit == 0 {
+			doneEvent <- &newTask
+		} else {
+			p2Chan <- &newTask
+		}
 		return
 	case TASK_KIND_PRECOMMIT2:
 		startTime := time.Now()
-		cids, err := sb.SealPreCommit2(ctx, sid, task.PreCommit1Out)
-		if err != nil {
-			panic(err)
+		var cids storage.SectorCids
+		var err error
+		if !task.TaskSet {
+			cids, err = sb.SealPreCommit2(ctx, sid, task.PreCommit1Out)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			cids, err = ffiwrapper.ExecPrecommit2(ctx, task.Repo, ffiwrapper.WorkerTask{
+				Type:      ffiwrapper.WorkerTaskType(task.Type),
+				ProofType: sid.ProofType,
+				SectorID:  sid.ID,
+
+				// p2
+				PreCommit1Out: task.PreCommit1Out,
+			})
 		}
-		p2Result.Store(task.SectorName(), HlmBenchResult{
+		p2Result.Store(task.SectorName(), ParallelBenchResult{
 			startTime: startTime,
 			endTime:   time.Now(),
 		})
@@ -373,7 +504,11 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
 		newTask := *task
 		newTask.Type = TASK_KIND_COMMIT1
 		newTask.Cids = cids
-		c1Chan <- &newTask
+		if p2Limit == 0 {
+			doneEvent <- &newTask
+		} else {
+			c1Chan <- &newTask
+		}
 		return
 	case TASK_KIND_COMMIT1:
 		startTime := time.Now()
@@ -387,7 +522,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
 		if err != nil {
 			panic(err)
 		}
-		c1Result.Store(task.SectorName(), HlmBenchResult{
+		c1Result.Store(task.SectorName(), ParallelBenchResult{
 			startTime: startTime,
 			endTime:   time.Now(),
 		})
@@ -395,7 +530,11 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
 		newTask := *task
 		newTask.Type = TASK_KIND_COMMIT2
 		newTask.Commit1Out = c1o
-		c2Chan <- &newTask
+		if c2Limit == 0 {
+			doneEvent <- &newTask
+		} else {
+			c2Chan <- &newTask
+		}
 		return
 
 	case TASK_KIND_COMMIT2:
@@ -404,7 +543,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *HlmBenchTask) {
 		if err != nil {
 			panic(err)
 		}
-		c2Result.Store(task.SectorName(), HlmBenchResult{
+		c2Result.Store(task.SectorName(), ParallelBenchResult{
 			startTime: startTime,
 			endTime:   time.Now(),
 		})
