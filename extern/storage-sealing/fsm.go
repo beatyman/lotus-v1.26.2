@@ -224,8 +224,14 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	if err != nil {
 		log.Warn(errors.As(err))
 	} else if sInfo.State > database.SECTOR_STATE_DONE {
-		log.Infof("sector(%s,%d) state(%d,%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
-		return nil, processed, nil
+		switch state.State {
+		case Removing:
+			// continue the offical remove logic.
+			break
+		default:
+			log.Infof("sector(%s,%d) state(%d,%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
+			return nil, processed, nil
+		}
 	}
 
 	/////
