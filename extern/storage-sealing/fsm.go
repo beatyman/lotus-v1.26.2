@@ -229,7 +229,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 			// continue the offical remove logic.
 			break
 		default:
-			log.Infof("sector(%s,%d) state(%d,%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
+			log.Infof("sector(%s:%d) state(%d:%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
 			return nil, processed, nil
 		}
 	}
