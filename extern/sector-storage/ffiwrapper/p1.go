@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
@@ -21,6 +22,25 @@ type ExecPrecommit1Resp struct {
 	Exit int
 	Data []byte
 	Err  string
+}
+
+func AutoPrecommit1Env(ctx context.Context) error {
+	if err := initCpuGroup(ctx); err != nil {
+		return err
+	}
+	cpuLock.Lock()
+	defer cpuLock.Unlock()
+	if len(cpuGroup) == 0 {
+		return os.Setenv("FIL_PROOFS_USE_MULTICORE_SDR", "0")
+	}
+	if len(cpuGroup[0]) < 2 {
+		return os.Setenv("FIL_PROOFS_USE_MULTICORE_SDR", "0")
+	}
+	if err := os.Setenv("FIL_PROOFS_USE_MULTICORE_SDR", "1"); err != nil {
+		return err
+	}
+	return os.Setenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS", strconv.Itoa(len(cpuGroup[0])-1))
+
 }
 
 func ExecPrecommit1(ctx context.Context, repo string, task WorkerTask) (storage.PreCommit1Out, error) {

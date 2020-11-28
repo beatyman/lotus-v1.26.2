@@ -330,7 +330,7 @@ consumer:
 		case <-ctx.Done():
 			// exit
 			fmt.Println("user canceled")
-			return nil
+			break consumer
 		case task := <-doneEvent:
 			fmt.Printf("done event:%s_%d\n", task.SectorName(), task.Type)
 			end--
