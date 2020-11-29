@@ -172,7 +172,6 @@ func (m *Miner) mine(ctx context.Context) {
 		}
 	miningBegin:
 
-		log.Info("Getting prebase")
 		oldbase := lastBase
 		prebase, err := m.GetBestMiningCandidate(ctx)
 		if err != nil {
@@ -184,7 +183,6 @@ func (m *Miner) mine(ctx context.Context) {
 		if lastBase.TipSet != nil && lastBase.TipSet.Height()+lastBase.NullRounds > prebase.TipSet.Height() {
 			miningHeight = lastBase.TipSet.Height() + lastBase.NullRounds + 1
 		}
-		log.Info("Getting beacon")
 		// just wait for the beacon entry to become available before we select our final mining base
 		_, err = m.api.BeaconGetEntry(ctx, miningHeight)
 		if err != nil {
@@ -257,6 +255,7 @@ func (m *Miner) mine(ctx context.Context) {
 			nextRound = nextRoundTime(&lastBase)
 		}
 
+		log.Infof("trying mineOne")
 		b, err := m.mineOne(ctx, &oldbase, &lastBase)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
