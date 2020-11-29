@@ -108,40 +108,8 @@ func (mp *MessagePool) selectMessagesOptimal(curTs, ts *types.TipSet, tq float64
 	// 1. Create a list of dependent message chains with maximal gas reward per limit consumed
 	startChains := time.Now()
 	var chains []*msgChain
-
-	// hlm start
-	selfLimit := 0
-	priority := mp.cfg.PriorityAddrs
-	for {
-		for _, specActor := range priority {
-			_, ok := pending[specActor]
-			if ok {
-				selfLimit++
-			}
-		}
-	}
-	// hlm end
-
-selectLoop:
 	for actor, mset := range pending {
-		// select the special address
-		// is there should consensus error in other peer?
-		// by hlm
-		if selfLimit > 0 {
-			foundSelf := false
-			for _, specActor := range priority {
-				if specActor.String() == actor.String() {
-					foundSelf = true
-				}
-			}
-			if !foundSelf {
-				continue selectLoop
-			}
-			log.Info("selected prioity:%s,len:%d", actor.String(), len(mset))
-		}
-		// hlm end
-
-		next := mp.createMessageChains(actor, mset, baseFee, ts)
+		next := mp.createMessageChains(false, actor, mset, baseFee, ts)
 		chains = append(chains, next...)
 	}
 	if dt := time.Since(startChains); dt > time.Millisecond {
@@ -464,24 +432,8 @@ func (mp *MessagePool) selectMessagesGreedy(curTs, ts *types.TipSet) ([]*types.S
 	// 1. Create a list of dependent message chains with maximal gas reward per limit consumed
 	startChains := time.Now()
 	var chains []*msgChain
-
-	// hlm start
-	priority := mp.cfg.PriorityAddrs
-	for _, actor := range priority {
-		mset := pending[actor]
-		next := mp.createMessageChains(actor, mset, baseFee, ts)
-		chains = append(chains, next...)
-		log.Info("selected prioity:%s,len:%d", actor.String(), len(next))
-	}
-	// hlm end
-selectLoop:
 	for actor, mset := range pending {
-		for _, specActor := range priority {
-			if specActor.String() == actor.String() {
-				continue selectLoop
-			}
-		}
-		next := mp.createMessageChains(actor, mset, baseFee, ts)
+		next := mp.createMessageChains(false, actor, mset, baseFee, ts)
 		chains = append(chains, next...)
 	}
 	if dt := time.Since(startChains); dt > time.Millisecond {
@@ -591,9 +543,6 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 	gasLimit := int64(build.BlockGasLimit)
 	minGas := int64(gasguess.MinGas)
 
-	// close by hlm
-	return result, gasLimit
-
 	// 1. Get priority actor chains
 	var chains []*msgChain
 	priority := mp.cfg.PriorityAddrs
@@ -603,7 +552,7 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 			// remove actor from pending set as we are already processed these messages
 			delete(pending, actor)
 			// create chains for the priority actor
-			next := mp.createMessageChains(actor, mset, baseFee, ts)
+			next := mp.createMessageChains(true, actor, mset, baseFee, ts)
 			chains = append(chains, next...)
 		}
 	}
@@ -751,7 +700,7 @@ func (*MessagePool) getGasPerf(gasReward *big.Int, gasLimit int64) float64 {
 	return r
 }
 
-func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint64]*types.SignedMessage, baseFee types.BigInt, ts *types.TipSet) []*msgChain {
+func (mp *MessagePool) createMessageChains(isPriority bool, actor address.Address, mset map[uint64]*types.SignedMessage, baseFee types.BigInt, ts *types.TipSet) []*msgChain {
 	// collect all messages
 	msgs := make([]*types.SignedMessage, 0, len(mset))
 	for _, m := range mset {
@@ -819,7 +768,11 @@ func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint6
 		}
 		balance = new(big.Int).Sub(balance, value)
 
+		zeroReward := new(big.Int)
 		gasReward := mp.getGasReward(m, baseFee)
+		if isPriority && gasReward.Cmp(zeroReward) < 0 {
+			gasReward = zeroReward
+		}
 		rewards = append(rewards, gasReward)
 	}
 
