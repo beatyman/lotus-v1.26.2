@@ -255,7 +255,7 @@ func (m *Miner) mine(ctx context.Context) {
 			nextRound = nextRoundTime(&lastBase)
 		}
 
-		log.Infof("trying mineOne")
+		log.Infof("Trying mineOne")
 		b, err := m.mineOne(ctx, &oldbase, &lastBase)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
