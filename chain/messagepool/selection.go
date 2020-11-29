@@ -432,7 +432,38 @@ func (mp *MessagePool) selectMessagesGreedy(curTs, ts *types.TipSet) ([]*types.S
 	// 1. Create a list of dependent message chains with maximal gas reward per limit consumed
 	startChains := time.Now()
 	var chains []*msgChain
+
+	// hlm start
+	selfLimit := 0
+	priority := mp.cfg.PriorityAddrs
+	for {
+		for _, specActor := range priority {
+			_, ok := pending[specActor]
+			if ok {
+				selfLimit++
+			}
+		}
+	}
+	// hlm end
+
+selectLoop:
 	for actor, mset := range pending {
+		// select the special address
+		// is there should consensus error in other peer?
+		// by hlm
+		if selfLimit > 0 {
+			foundSelf := false
+			for _, specActor := range priority {
+				if specActor.String() == actor.String() {
+					foundSelf = true
+				}
+			}
+			if !foundSelf {
+				continue selectLoop
+			}
+		}
+		// hlm end
+
 		next := mp.createMessageChains(actor, mset, baseFee, ts)
 		chains = append(chains, next...)
 	}
