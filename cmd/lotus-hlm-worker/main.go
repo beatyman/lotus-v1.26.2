@@ -245,6 +245,7 @@ var runCmd = &cli.Command{
 		}
 		defer ReleaseNodeApi(true)
 
+		log.Infof("getting ainfo for StorageMiner")
 		ainfo, err := lcli.GetAPIInfo(cctx, repo.StorageMiner)
 		if err != nil {
 			return xerrors.Errorf("could not get api info: %w", err)
@@ -280,11 +281,13 @@ var runCmd = &cli.Command{
 		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
 		defer cancel()
 
+		log.Infof("getting miner actor")
 		act, err := nodeApi.ActorAddress(ctx)
 		if err != nil {
 			return err
 		}
 
+		log.Infof("getting worker actor")
 		workerAddr, err := nodeApi.WorkerAddress(ctx, act, types.EmptyTSK)
 		if err != nil {
 			return errors.As(err)
@@ -327,6 +330,7 @@ var runCmd = &cli.Command{
 			serverAddr = listenAddr
 		}
 
+		log.Info("umounting history sealed")
 		// init and clean the sealed dir who has mounted.
 		sealedMountedFile := workerIdFile + ".lock"
 		if err := umountAllPush(sealedMountedFile); err != nil {
@@ -382,6 +386,7 @@ var runCmd = &cli.Command{
 			return err
 		}
 
+		log.Infof("starting serve :%s", listenAddr)
 		go func() {
 			if err := srv.Serve(nl); err != nil {
 				log.Error(err)
@@ -394,6 +399,7 @@ var runCmd = &cli.Command{
 			report.SetReportUrl(reportUrl)
 		}
 
+		log.Info("starting acceptJobs")
 		if err := acceptJobs(ctx,
 			workerSealer, sealedSB,
 			workerApi,

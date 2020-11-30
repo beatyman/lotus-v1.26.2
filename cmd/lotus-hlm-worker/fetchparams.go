@@ -71,6 +71,7 @@ func sumFile(path string, info paramFile) error {
 }
 
 func checkFile(path string, info paramFile, needCheckSum bool) error {
+	log.Infof("checking: %s", path)
 	if os.Getenv("TRUST_PARAMS") == "1" {
 		log.Warn("Assuming parameter files are ok. DO NOT USE IN PRODUCTION")
 		return nil
@@ -80,6 +81,7 @@ func checkFile(path string, info paramFile, needCheckSum bool) error {
 	_, ok := checked[path]
 	checkedLk.Unlock()
 	if ok {
+		log.Infof("from cached: %s", path)
 		return nil
 	}
 	// ignore blk2b checking
@@ -90,7 +92,6 @@ func checkFile(path string, info paramFile, needCheckSum bool) error {
 
 	done := make(chan error, 1)
 	go func(p string, checksum bool) {
-		log.Infof("checking %s", p)
 		err := sumFile(p, info)
 		if err != nil {
 			delChecked(path)
