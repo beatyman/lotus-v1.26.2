@@ -84,7 +84,7 @@ mkdir -p $HOME/go/src/github.com/filecoin-project
 cd $HOME/go/src/github.com/filecoin-project
 # 下载慢时注意配置/etc/hosts
 # https://blog.csdn.net/random0708/article/details/106001665/
-git clone https://github.com/filecoin-fivestar/fivestar-lotus.git lotus
+git clone --origin fivestar https://github.com/filecoin-fivestar/fivestar-lotus.git lotus
 cd lotus
 git checkout testing # 检出需要的分支
 # 编译

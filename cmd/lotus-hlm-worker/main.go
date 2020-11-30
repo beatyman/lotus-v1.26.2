@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -14,7 +12,6 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/specs-storage/storage"
 	mux "github.com/gorilla/mux"
 	"github.com/mitchellh/go-homedir"
 
@@ -119,7 +116,8 @@ func main() {
 
 	local := []*cli.Command{
 		runCmd,
-		p1Cmd,
+		ffiwrapper.P1Cmd,
+		ffiwrapper.P2Cmd,
 		testCmd,
 	}
 
@@ -154,74 +152,6 @@ func main() {
 		log.Warnf("%+v", err)
 		return
 	}
-}
-
-var p1Cmd = &cli.Command{
-	Name:  "precommit1",
-	Usage: "run precommit1 in process",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name: "name", // just for process debug
-		},
-	},
-	Action: func(cctx *cli.Context) error {
-		ctx, cancel := context.WithCancel(context.TODO())
-		defer cancel()
-
-		resp := ExecPrecommit1Resp{
-			Exit: 0,
-		}
-		defer func() {
-			result, err := json.MarshalIndent(&resp, "", "	")
-			if err != nil {
-				os.Stderr.Write([]byte(err.Error()))
-			} else {
-				os.Stdout.Write(result)
-			}
-		}()
-		workerRepo, err := homedir.Expand(cctx.String("worker-repo"))
-		if err != nil {
-			resp.Exit = 1
-			resp.Err = errors.As(err).Error()
-			return nil
-		}
-
-		input := ""
-		if _, err := fmt.Scanln(&input); err != nil {
-			resp.Exit = 1
-			resp.Err = errors.As(err).Error()
-			return nil
-		}
-		task := ffiwrapper.WorkerTask{}
-		if err := json.Unmarshal([]byte(input), &task); err != nil {
-			resp.Exit = 1
-			resp.Err = errors.As(err).Error()
-			return nil
-		}
-
-		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
-			Root: workerRepo,
-		})
-		if err != nil {
-			resp.Exit = 1
-			resp.Err = errors.As(err).Error()
-			return nil
-		}
-		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
-		if err != nil {
-			resp.Exit = 1
-			resp.Err = errors.As(err).Error()
-			return nil
-		}
-		rspco, err := workerSealer.SealPreCommit1(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.SealTicket, pieceInfo)
-		if err != nil {
-			resp.Exit = 1
-			resp.Err = errors.As(err).Error()
-			return nil
-		}
-		resp.Data = rspco
-		return nil
-	},
 }
 
 var runCmd = &cli.Command{
@@ -315,6 +245,7 @@ var runCmd = &cli.Command{
 		}
 		defer ReleaseNodeApi(true)
 
+		log.Infof("getting ainfo for StorageMiner")
 		ainfo, err := lcli.GetAPIInfo(cctx, repo.StorageMiner)
 		if err != nil {
 			return xerrors.Errorf("could not get api info: %w", err)
@@ -350,11 +281,13 @@ var runCmd = &cli.Command{
 		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
 		defer cancel()
 
+		log.Infof("getting miner actor")
 		act, err := nodeApi.ActorAddress(ctx)
 		if err != nil {
 			return err
 		}
 
+		log.Infof("getting worker actor")
 		workerAddr, err := nodeApi.WorkerAddress(ctx, act, types.EmptyTSK)
 		if err != nil {
 			return errors.As(err)
@@ -397,6 +330,7 @@ var runCmd = &cli.Command{
 			serverAddr = listenAddr
 		}
 
+		log.Info("umounting history sealed")
 		// init and clean the sealed dir who has mounted.
 		sealedMountedFile := workerIdFile + ".lock"
 		if err := umountAllPush(sealedMountedFile); err != nil {
@@ -452,6 +386,7 @@ var runCmd = &cli.Command{
 			return err
 		}
 
+		log.Infof("starting serve :%s", listenAddr)
 		go func() {
 			if err := srv.Serve(nl); err != nil {
 				log.Error(err)
@@ -464,6 +399,7 @@ var runCmd = &cli.Command{
 			report.SetReportUrl(reportUrl)
 		}
 
+		log.Info("starting acceptJobs")
 		if err := acceptJobs(ctx,
 			workerSealer, sealedSB,
 			workerApi,

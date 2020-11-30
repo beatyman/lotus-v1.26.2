@@ -104,6 +104,11 @@ func Umount(mountPoint string) (bool, error) {
 
 // if the mountUri is local file, it would make a link.
 func Mount(mountType, mountUri, mountPoint, mountOpts string) error {
+	// close for customer protocal
+	if mountType == "custom" {
+		return nil
+	}
+
 	// umount
 	if _, err := Umount(mountPoint); err != nil {
 		return errors.As(err, mountPoint)

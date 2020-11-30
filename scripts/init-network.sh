@@ -7,6 +7,8 @@ export FIL_PROOFS_USE_GPU_COLUMN_BUILDER=0
 export FIL_PROOFS_USE_GPU_TREE_BUILDER=0
 export FIL_PROOFS_MAXIMIZE_CACHING=1  # open cache for 32GB or 64GB
 export FIL_PROOFS_USE_MULTICORE_SDR=1
+export BELLMAN_NO_GPU=1
+
 export RUST_LOG=info
 export RUST_BACKTRACE=1
 
@@ -24,6 +26,7 @@ fi
 if [ ! -z "$gpu" ]; then
     FIL_PROOFS_USE_GPU_COLUMN_BUILDER=1
     FIL_PROOFS_USE_GPU_TREE_BUILDER=1
+    BELLMAN_NO_GPU=0
 fi
 
 set -xeo
@@ -63,16 +66,7 @@ make $build_mode
 make lotus-shed
 make lotus-fountain
 ./lotus-seed genesis new "${staging}/genesis.json"
-if [ $SECTOR_SIZE -gt 536870912 ]; then
-     ./lotus-seed --sector-dir="${sdt0111}" pre-seal --fake-sectors --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
-#    if [ -d "$sdt0111/cache" ]; then
-#        ./lotus-seed --sector-dir="${sdt0111}" pre-seal --fake-sectors --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
-#    else
-#        ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
-#    fi
-else
-    ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
-fi
+./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
 ./lotus-seed genesis add-miner "${staging}/genesis.json" "${sdt0111}/pre-seal-t01000.json"
 ldt0111=/data/lotus/dev/.ldt0111 # $(mktemp -d)
 rm -rf $ldt0111 && mkdir -p $ldt0111
@@ -118,7 +112,7 @@ do
 done
 
 env LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner init --genesis-miner --actor=t01000 --pre-sealed-sectors="${sdt0111}" --pre-sealed-metadata="${sdt0111}/pre-seal-t01000.json" --nosync=true --sector-size="${SECTOR_SIZE}" || true
-env LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner run --nosync &
+env BELLMAN_NO_GPU=0 LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner run --nosync & # force using cpu to run cause by gpu will conflict
 
 wait
 

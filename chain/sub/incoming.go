@@ -459,7 +459,7 @@ func (bv *BlockValidator) checkPowerAndGetWorkerKey(ctx context.Context, bh *typ
 	}
 
 	if !eligible {
-		log.Warnf("incoming block's miner is ineligible")
+		log.Warnf("incoming block's miner(%s) is ineligible", bh.Miner.String())
 		return address.Undef, ErrInsufficientPower
 	}
 

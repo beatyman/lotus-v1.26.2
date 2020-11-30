@@ -29,6 +29,7 @@ var (
 	_remotes        = sync.Map{}
 	_remoteResultLk = sync.RWMutex{}
 	_remoteResult   = make(map[string]chan<- SealRes)
+	_remoteGpuLk    = sync.Mutex{}
 
 	// if set, should call back the task consume event with goroutine.
 	_addPieceListenerLk = sync.Mutex{}
@@ -366,11 +367,29 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	log.Infof("DEBUG:GenerateWiningPoSt in(remote:%t),%+v", sb.remoteCfg.SealSector, minerID)
 	defer log.Infof("DEBUG:GenerateWinningPoSt out,%+v", minerID)
-	if sb.remoteCfg.WinningPoSt < 1 {
-		// TODO: when the storage broken, it will be block here.
-		// TODO: make rust with a timeout mechanism
-		return sb.generateWinningPoSt(ctx, minerID, sectorInfo, randomness)
+
+	timeoutCtx,cancel := context.WithTimeout(ctx, 30*1e9)
+	defer cancel()
+
+	result := make(chan struct {
+		proofs []proof.PoStProof
+		err    error
+	}, 1)
+	go func() {
+		p, err := sb.generateWinningPoStWithTimeout(timeoutCtx, minerID, sectorInfo, randomness)
+		result <- struct {
+			proofs []proof.PoStProof
+			err    error
+		}{p, err}
+	}()
+	select {
+	case p := <-result:
+		return p.proofs, p.err
+	case <-ctx.Done():
+		return []proof.PoStProof{}, errors.New("Generate winning post timeout")
 	}
+}
+func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	type req = struct {
 		remote *remote
 		task   *WorkerTask
@@ -383,7 +402,7 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 			SectorInfo: sectorInfo,
 			Randomness: randomness,
 		}
-		sid := task.GetSectorID()
+		sid := task.SectorName()
 
 		r, err := sb.selectGPUService(ctx, sid, task)
 		if err != nil {
@@ -403,18 +422,16 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	}
 	result := make(chan resp, len(remotes))
 
-	workerCtx, workerCancel := context.WithCancel(ctx)
 	for _, r := range remotes {
 		go func(req *req) {
-			defer sb.UnlockGPUService(workerCtx, req.remote.cfg.ID, req.task.Key())
+			defer sb.UnlockGPUService(ctx, req.remote.cfg.ID, req.task.Key())
 
 			// send to remote worker
-			res, interrupt := sb.TaskSend(workerCtx, req.remote, *req.task)
+			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
 			result <- resp{res, interrupt}
 		}(r)
 	}
 
-	timeout := time.After(30e9)
 	var err error
 	var res resp
 	for i := len(remotes); i > 0; i-- {
@@ -436,9 +453,6 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 			return res.res.WinningPoStProofOut, nil
 		case <-ctx.Done():
 			return nil, errors.New("cancel winning post")
-		case <-timeout:
-			workerCancel()
-			return nil, errors.New("worker timeout")
 		}
 	}
 	return res.res.WinningPoStProofOut, err
@@ -448,10 +462,6 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	curSourceId := curSourceID()
 	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s-%d", sb.remoteCfg.SealSector, minerID, curSourceId)
 	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s-%d", minerID, curSourceId)
-
-	if sb.remoteCfg.WindowPoSt < 1 {
-		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
-	}
 
 	type req = struct {
 		remote *remote
@@ -465,7 +475,7 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 			SectorInfo: sectorInfo,
 			Randomness: randomness,
 		}
-		sid := task.GetSectorID()
+		sid := task.SectorName()
 		r, err := sb.selectGPUService(ctx, sid, task)
 		if err != nil {
 			continue
@@ -534,7 +544,7 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 		Type:     WorkerCommit2,
 		SectorID: sector,
 	}
-	sid := task.GetSectorID()
+	sid := task.SectorName()
 	r, err := sb.selectGPUService(ctx, sid, task)
 	if err != nil {
 		return nil, errors.As(err)

@@ -1,4 +1,4 @@
-package main
+package ffiwrapper
 
 import (
 	"context"
