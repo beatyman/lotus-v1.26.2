@@ -534,14 +534,14 @@ tailLoop:
 
 func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[uint64]*types.SignedMessage, baseFee types.BigInt, ts *types.TipSet) ([]*types.SignedMessage, int64) {
 	result := make([]*types.SignedMessage, 0, mp.cfg.SizeLimitLow)
+	gasLimit := int64(build.BlockGasLimit)
+	minGas := int64(gasguess.MinGas)
 	start := time.Now()
 	defer func() {
 		dt := time.Since(start)
-		log.Infow("select priority messages done", "took", dt, "len", len(result))
+		log.Infow("select priority messages done", "took", dt, "len", len(result), "gasLimit", gasLimit)
 	}()
 
-	gasLimit := int64(build.BlockGasLimit)
-	minGas := int64(gasguess.MinGas)
 
 	// 1. Get priority actor chains
 	var chains []*msgChain
