@@ -80,7 +80,7 @@ func (mp *MessagePool) pruneMessages(ctx context.Context, ts *types.TipSet) erro
 		for _, m := range mset {
 			pruneMsgs[m.Message.Cid()] = m
 		}
-		actorChains := mp.createMessageChains(actor, mset, baseFeeLowerBound, ts)
+		actorChains := mp.createMessageChains(false, actor, mset, baseFeeLowerBound, ts)
 		chains = append(chains, actorChains...)
 	}
 

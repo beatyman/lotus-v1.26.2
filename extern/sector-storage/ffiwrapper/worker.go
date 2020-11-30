@@ -49,6 +49,9 @@ func (sb *Sealer) PrepareWorkerConn() (*database.WorkerInfo, error) {
 		}
 		return true
 	})
+	if minConnRemote == nil {
+		return nil, errors.ErrNoData
+	}
 	workerId := minConnRemote.cfg.ID
 	info, err := database.GetWorkerInfo(workerId)
 	if err != nil {

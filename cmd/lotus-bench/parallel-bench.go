@@ -375,7 +375,7 @@ consumer:
 	if apLimit <= 0 {
 		return nil
 	}
-	fmt.Printf("addpiece   avg:%s, min:%s, max:%s\n", apSum/time.Duration(apLimit), apMin, apMax)
+	fmt.Printf("addpiece    avg:%s, min:%s, max:%s\n", apSum/time.Duration(apLimit), apMin, apMax)
 	if p1Limit <= 0 {
 		return nil
 	}
