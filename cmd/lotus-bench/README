@@ -13,6 +13,9 @@ tail -f nohup.out
 nohup ./fivestar-bench.sh &
 tail -f nohup.out
 
+特殊环境变量说明
+# FIL_PROOFS_MULTICORE_SDR_PRODUCERS=n # 若设定此值，将使用此值进行p1计算，未设定时此值系统自动填写(单任务自动为3，多任务基测中为自动取值), 应设定为`lscpu -e`的拥有的核数减1
+
 多任务基测说明
 #################
 # --max-tasks 需要运行的任务数，需要注意硬盘空间是否足够
