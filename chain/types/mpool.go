@@ -13,6 +13,7 @@ type MpoolConfig struct {
 	ReplaceByFeeRatio      float64
 	PruneCooldown          time.Duration
 	GasLimitOverestimation float64
+	MinGasCap int64
 }
 
 func (mc *MpoolConfig) Clone() *MpoolConfig {

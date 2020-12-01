@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+//	logging "github.com/ipfs/go-log/v2"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/ipfs/go-datastore"
@@ -19,6 +20,9 @@ var (
 
 	ConfigKey = datastore.NewKey("/mpool/config")
 )
+
+var minGasCap int64 =0
+//var log = logging.Logger("messagepoolconfig")
 
 func loadConfig(ds dtypes.MetadataDS) (*types.MpoolConfig, error) {
 	haveCfg, err := ds.Has(ConfigKey)
@@ -44,12 +48,15 @@ func saveConfig(cfg *types.MpoolConfig, ds dtypes.MetadataDS) error {
 	if err != nil {
 		return err
 	}
+	minGasCap = cfg.MinGasCap
+	log.Info("messagepoolconfig",string(cfgBytes))
 	return ds.Put(ConfigKey, cfgBytes)
 }
 
 func (mp *MessagePool) GetConfig() *types.MpoolConfig {
 	mp.cfgLk.Lock()
 	defer mp.cfgLk.Unlock()
+	log.Info("messagepoolconfig",*(mp.cfg.Clone()))
 	return mp.cfg.Clone()
 }
 
