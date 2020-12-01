@@ -20,6 +20,8 @@ export FIL_PROOFS_MAXIMIZE_CACHING=1  # open cache for 32GB or 64GB
 export FIL_PROOFS_USE_MULTICORE_SDR=1
 export BELLMAN_NO_GPU=1
 
+# export FIL_PROOFS_MULTICORE_SDR_PRODUCERS=3
+
 # checking gpu
 gpu=""
 type nvidia-smi
@@ -48,6 +50,7 @@ fi
 #################
 
 RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench p-run --storage-dir=/data/cache/.lotus-bench --sector-size=$size \
+    --taskset=false \
     --max-tasks=12 \
     --parallel-addpiece=12 \
     --parallel-precommit1=12 \
