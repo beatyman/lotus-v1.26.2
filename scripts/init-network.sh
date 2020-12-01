@@ -31,7 +31,7 @@ fi
 
 set -xeo
 
-NUM_SECTORS=2
+NUM_SECTORS=1
 
 SECTOR_SIZE=2048
 #SECTOR_SIZE=536870912
@@ -78,19 +78,6 @@ sleep 30
 kill "$lpid"
 wait
 
-cp "${staging}/devnet.car" build/genesis/devnet.car
-cp "${staging}/devnet.car" scripts/$car_name
-
-make $build_mode
-
-./lotus --repo="${ldt0111}" daemon --api "3000$i" --bootstrap=false &
-sleep 30
-
-./lotus --repo="${lotus_path}" net listen|grep "127.0.0.1" > scripts/bootstrappers.pi
-cp scripts/bootstrappers.pi build/bootstrap/bootstrappers.pi 
-make $build_mode
-git checkout build
-
 mdt0111=/data/lotus/dev/.mdt0111 # $(mktemp -d)
 rm -rf $mdt0111 && mkdir -p $mdt0111
 
@@ -111,8 +98,25 @@ do
     ln -s ${sdt0111}/unsealed/$sector ${mdt0111}/unsealed/$sector
 done
 
-env LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner init --genesis-miner --actor=t01000 --pre-sealed-sectors="${sdt0111}" --pre-sealed-metadata="${sdt0111}/pre-seal-t01000.json" --nosync=true --sector-size="${SECTOR_SIZE}" || true
-env BELLMAN_NO_GPU=0 LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner run --nosync & # force using cpu to run cause by gpu will conflict
+cp "${staging}/devnet.car" build/genesis/devnet.car
+cp "${staging}/devnet.car" scripts/$car_name
 
-wait
+make $build_mode
 
+./lotus --repo="${ldt0111}" daemon --api "3000" --bootstrap=false &
+lpid=$!
+sleep 30
+
+env LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner init --genesis-miner --actor=t01000 --pre-sealed-sectors="${sdt0111}" --pre-sealed-metadata="${sdt0111}/pre-seal-t01000.json" --nosync=true --sector-size="${SECTOR_SIZE}"
+
+kill $lpid
+
+wait $lpid
+
+
+nohup ./scripts/run-genesis-lotus.sh >> bootstrap-lotus.log 2>&1 & 
+sleep 30
+nohup ./scripts/run-genesis-miner.sh >> bootstrap-miner.log 2>&1 & 
+
+echo "'tail -f bootstrap-lotus.log' to see the lotus log"
+echo "'tail -f bootstrap-miner.log' to see the miner log"

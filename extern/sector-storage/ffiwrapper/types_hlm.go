@@ -248,9 +248,13 @@ type WorkerRemoteStats struct {
 }
 
 func (w *WorkerRemoteStats) String() string {
+	history := []string{}
+	for _, info := range w.SectorOn {
+		history = append(history, fmt.Sprintf("%s_%d", info.ID, info.State))
+	}
 	return fmt.Sprintf(
-		"id:%s,disable:%t,online:%t,srv:%t,ip:%s,busy:%s",
-		w.ID, w.Disable, w.Online, w.Srv, w.IP, w.BusyOn,
+		"id:%s,disable:%t,online:%t,srv:%t,ip:%s,busy:%s,history:%+v",
+		w.ID, w.Disable, w.Online, w.Srv, w.IP, w.BusyOn, history,
 	)
 }
 
@@ -345,7 +349,7 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	switch typ {
 	case WorkerAddPiece:
 		// mutex cpu for addpiece and precommit1
-		return busyAddPieceNum >= r.cfg.ParallelAddPiece || (busyPrecommit1Num > 0)
+		return busyAddPieceNum >= r.cfg.ParallelAddPiece || len(r.busyOnTasks) >= r.cfg.MaxTaskNum
 	case WorkerPreCommit1:
 		return busyPrecommit1Num >= r.cfg.ParallelPrecommit1 || (busyAddPieceNum > 0)
 	case WorkerPreCommit2:
