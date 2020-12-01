@@ -248,9 +248,13 @@ type WorkerRemoteStats struct {
 }
 
 func (w *WorkerRemoteStats) String() string {
+	history := []string{}
+	for _, info := range w.SectorOn {
+		history = append(history, fmt.Sprintf("%s_%d", info.ID, info.State))
+	}
 	return fmt.Sprintf(
-		"id:%s,disable:%t,online:%t,srv:%t,ip:%s,busy:%s",
-		w.ID, w.Disable, w.Online, w.Srv, w.IP, w.BusyOn,
+		"id:%s,disable:%t,online:%t,srv:%t,ip:%s,busy:%s,history:%+v",
+		w.ID, w.Disable, w.Online, w.Srv, w.IP, w.BusyOn, history,
 	)
 }
 
