@@ -349,7 +349,7 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	switch typ {
 	case WorkerAddPiece:
 		// mutex cpu for addpiece and precommit1
-		return busyAddPieceNum >= r.cfg.ParallelAddPiece || (busyPrecommit1Num > 0)
+		return busyAddPieceNum >= r.cfg.ParallelAddPiece || len(r.busyOnTasks) >= r.cfg.MaxTaskNum
 	case WorkerPreCommit1:
 		return busyPrecommit1Num >= r.cfg.ParallelPrecommit1 || (busyAddPieceNum > 0)
 	case WorkerPreCommit2:
