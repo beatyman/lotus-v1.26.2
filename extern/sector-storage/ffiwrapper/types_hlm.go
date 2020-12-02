@@ -253,8 +253,8 @@ func (w *WorkerRemoteStats) String() string {
 		history = append(history, fmt.Sprintf("%s_%d", info.ID, info.State))
 	}
 	return fmt.Sprintf(
-		"id:%s,disable:%t,online:%t,srv:%t,ip:%s,busy:%s,history:%d",
-		w.ID, w.Disable, w.Online, w.Srv, w.IP, w.BusyOn, len(history),
+		"id:%s,disable:%t,online:%t,srv:%t,ip:%s,busy(%d):%s,cache(%d):%+v",
+		w.ID, w.Disable, w.Online, w.Srv, w.IP, len(w.BusyOn), w.BusyOn, len(history), history,
 	)
 }
 

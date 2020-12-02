@@ -36,8 +36,6 @@ func (g ProvableStatArr) Less(i, j int) bool {
 
 // CheckProvable returns unprovable sectors
 func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.SectorFile, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
-	log.Info("Manager.CheckProvable in, len:", len(sectors))
-	defer log.Info("Manager.CheckProvable out, len:", len(sectors))
 
 	var good = []ProvableStat{}
 	var goodLk = sync.Mutex{}
@@ -54,6 +52,8 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 		defer badLk.Unlock()
 		bad = append(bad, sid)
 	}
+	log.Infof("Manager.CheckProvable in, len:%d", len(sectors))
+	defer log.Infof("Manager.CheckProvable out, good:%d,bad:%d", len(good), len(bad))
 
 	var all = ProvableStatArr{}
 	var allLk = sync.Mutex{}
