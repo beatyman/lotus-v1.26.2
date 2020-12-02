@@ -542,7 +542,6 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 		log.Infow("select priority messages done", "took", dt, "len", len(result), "gasLimit", gasLimit)
 	}()
 
-
 	// 1. Get priority actor chains
 	var chains []*msgChain
 	priority := mp.cfg.PriorityAddrs
@@ -552,7 +551,7 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 			// remove actor from pending set as we are already processed these messages
 			delete(pending, actor)
 			// create chains for the priority actor
-			next := mp.createMessageChains(true, actor, mset, baseFee, ts)
+			next := mp.createMessageChains(mp.cfg.Force, actor, mset, baseFee, ts)
 			chains = append(chains, next...)
 		}
 	}
@@ -771,6 +770,7 @@ func (mp *MessagePool) createMessageChains(isPriority bool, actor address.Addres
 		zeroReward := new(big.Int)
 		gasReward := mp.getGasReward(m, baseFee)
 		if isPriority && gasReward.Cmp(zeroReward) < 0 {
+			// if isPriority {
 			gasReward = zeroReward
 		}
 		rewards = append(rewards, gasReward)

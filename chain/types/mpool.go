@@ -7,6 +7,11 @@ import (
 )
 
 type MpoolConfig struct {
+	// Kubuxu said:
+	//If you pack negative performance messages the miner has to pay penalty.
+	//Which is equivalent to 3x missing payments from messages.
+	Force bool // force to pack, if
+
 	PriorityAddrs          []address.Address
 	SizeLimitHigh          int
 	SizeLimitLow           int
