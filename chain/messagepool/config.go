@@ -40,6 +40,7 @@ func loadConfig(ds dtypes.MetadataDS) (*types.MpoolConfig, error) {
 	}
 	cfg := new(types.MpoolConfig)
 	err = json.Unmarshal(cfgBytes, cfg)
+	minGasCap = cfg.MinGasCap
 	return cfg, err
 }
 
