@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"os/signal"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
-	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/specs-storage/storage"
@@ -292,8 +292,6 @@ func doBench(c *cli.Context) error {
 		return errors.As(err)
 	}
 
-	ctx := lcli.ReqContext(c)
-
 	// event producer
 	go func() {
 		for i := 0; i < maxTask; i++ {
@@ -313,6 +311,11 @@ func doBench(c *cli.Context) error {
 		}
 	}()
 
+	fmt.Println("[ctrl+c to exit]")
+	exit := make(chan os.Signal, 2)
+	signal.Notify(exit, os.Interrupt, os.Kill)
+	ctx, cancel := context.WithCancel(context.TODO())
+
 	end := maxTask
 consumer:
 	for {
@@ -327,16 +330,20 @@ consumer:
 			prepareTask(ctx, sb, task)
 		case task := <-c2Chan:
 			prepareTask(ctx, sb, task)
-		case <-ctx.Done():
-			// exit
-			fmt.Println("user canceled")
-			break consumer
+
 		case task := <-doneEvent:
 			fmt.Printf("done event:%s_%d\n", task.SectorName(), task.Type)
 			end--
 			if end > 0 {
 				continue consumer
 			}
+			break consumer
+
+		case <-exit:
+			cancel()
+		case <-ctx.Done():
+			// exit
+			fmt.Println("user canceled")
 			break consumer
 		}
 	}
@@ -454,6 +461,12 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 		var pc1o storage.PreCommit1Out
 		var err error
 		if !task.TaskSet {
+			// if the FIL_PROOFS_MULTICORE_SDR_PRODUCERS haven't set, set it by auto.
+			if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
+				if err := ffiwrapper.AutoPrecommit1Env(ctx); err != nil {
+					panic(err)
+				}
+			}
 			pc1o, err = sb.SealPreCommit1(ctx, sid, ticket, task.Pieces)
 			if err != nil {
 				panic(err)

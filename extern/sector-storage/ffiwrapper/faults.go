@@ -36,8 +36,6 @@ func (g ProvableStatArr) Less(i, j int) bool {
 
 // CheckProvable returns unprovable sectors
 func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.SectorFile, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
-	log.Info("Manager.CheckProvable in, len:", len(sectors))
-	defer log.Info("Manager.CheckProvable out, len:", len(sectors))
 
 	var good = []ProvableStat{}
 	var goodLk = sync.Mutex{}
@@ -54,6 +52,8 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 		defer badLk.Unlock()
 		bad = append(bad, sid)
 	}
+	log.Infof("Manager.CheckProvable in, len:%d", len(sectors))
+	defer log.Infof("Manager.CheckProvable out, good:%d,bad:%d", len(good), len(bad))
 
 	var all = ProvableStatArr{}
 	var allLk = sync.Mutex{}
@@ -63,7 +63,7 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 		all = append(all, good)
 	}
 
-	checkBad := func(ctx context.Context, sector storage.SectorFile) error {
+	checkBad := func(ctx context.Context, sector storage.SectorFile, timeout time.Duration) error {
 		if len(sector.StorageRepo) == 0 {
 			return errors.New("StorageRepo not found").As(sector)
 		}
@@ -91,6 +91,8 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 
 		for p, sz := range toCheck {
 			// checking data
+			checkCtx, checkCancel := context.WithTimeout(ctx, timeout)
+			defer checkCancel()
 			checkDone := make(chan error, 1)
 			go func() {
 				st, err := os.Stat(p)
@@ -110,6 +112,8 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 			}()
 
 			select {
+			case <-checkCtx.Done():
+				return errors.New("context timeout").As(p)
 			case <-ctx.Done():
 				return errors.New("context canceled").As(p)
 			case err := <-checkDone:
@@ -132,11 +136,8 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 			defer func() {
 				<-routines
 			}()
-
-			checkCtx, cancel := context.WithTimeout(ctx, timeout)
-			defer cancel()
 			start := time.Now()
-			err := checkBad(checkCtx, s)
+			err := checkBad(ctx, s, timeout)
 			used := time.Now().Sub(start)
 			pState := ProvableStat{Sector: s, Used: used, Err: err}
 			if err != nil {

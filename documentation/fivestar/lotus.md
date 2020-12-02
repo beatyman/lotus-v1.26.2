@@ -119,12 +119,19 @@ cd $HOME/go/src/github.com/filecoin-project/lotus
 ./clean-bootstrap.sh
 ps axu|grep lotus # 确认所有相关进程已关闭
 ./init-bootstrap.sh
-tail -f boostrap.log # 直到Heaviest tipset 稳定在10秒左右输出, 高度约为10以上, ctrl+c 退出
+tail -f bootstrap-init.log # 直到'nohup ./scripts/run-genesis-miner.sh', ctrl+c 退出, 进一步查询bootstrap-miner.log
 ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
 # 修改PermitRootLogin为yes, 参考 https://blog.csdn.net/zilaike/article/details/78922524
 ssh-copy-id root@127.0.0.1
 ./deploy-boostrap.sh # 部署水龙头及对外提供的初始节点
 # 遇错时从clean-boostrap重新开始
+
+# 重启创世节点
+ps axu|grep lotus
+kill -9 xxxx # 相关进程pid
+nohup ./scripts/run-genesis-lotus.sh >> bootstrap-lotus.log 2>&1 & # 启动创世节点链
+nohup ./scripts/run-genesis-miner.sh >> bootstrap-miner.log 2>&1 & # 启动创世节点矿工
+
 ```
 
 ### 搭建存储节点
