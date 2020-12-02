@@ -258,6 +258,8 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 	for i, s := range result {
 		// no check for disable
 		if s.Disable {
+			result[i].Err = errors.New("node has disabled").As(s.StorageId).Error()
+			done <- true
 			continue
 		}
 
@@ -279,10 +281,10 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 			select {
 			case <-ctx.Done():
 				// user canceled
-				errResult = errors.New("ctx canceled")
+				errResult = errors.New("ctx canceled").As(c.StorageId)
 			case <-time.After(timeout):
 				// read sector timeout
-				errResult = errors.New("sector stat timeout").As(timeout)
+				errResult = errors.New("sector stat timeout").As(timeout, c.StorageId)
 			case err := <-checkDone:
 				errResult = err
 			}
