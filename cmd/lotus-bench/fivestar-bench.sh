@@ -51,12 +51,13 @@ fi
 
 RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench p-run --storage-dir=/data/cache/.lotus-bench --sector-size=$size \
     --taskset=false \
+    --order=true \
     --max-tasks=12 \
     --parallel-addpiece=12 \
     --parallel-precommit1=12 \
-    --parallel-precommit2=0 \
-    --parallel-commit1=0 \
-    --parallel-commit2=0 &
+    --parallel-precommit2=2 \
+    --parallel-commit1=12 \
+    --parallel-commit2=1 &
 
 pid=$!
 

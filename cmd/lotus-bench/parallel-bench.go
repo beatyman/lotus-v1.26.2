@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -47,6 +48,11 @@ var pBenchCmd = &cli.Command{
 		&cli.BoolFlag{
 			Name:  "taskset",
 			Usage: "using golang cpu affinity, need run with binary program",
+		},
+		&cli.BoolFlag{
+			Name:  "order",
+			Usage: "order the task run",
+			Value: true,
 		},
 		&cli.IntFlag{
 			Name:  "max-tasks",
@@ -112,51 +118,68 @@ func (t *ParallelBenchTask) SectorName() string {
 }
 
 type ParallelBenchResult struct {
-	startTime time.Time
-	endTime   time.Time
+	sectorName string
+	startTime  time.Time
+	endTime    time.Time
 }
 
 func (p *ParallelBenchResult) String() string {
-	return fmt.Sprintf("used:%s,start:%s,end:%s", p.endTime.Sub(p.startTime), p.startTime.Format(time.RFC3339Nano), p.endTime.Format(time.RFC3339Nano))
+	return fmt.Sprintf("%s used:%s,start:%s,end:%s", p.sectorName, p.endTime.Sub(p.startTime), p.startTime.Format(time.RFC3339Nano), p.endTime.Format(time.RFC3339Nano))
+}
+
+type ParallelBenchResultSort []ParallelBenchResult
+
+func (ps ParallelBenchResultSort) Len() int {
+	return len(ps)
+}
+func (ps ParallelBenchResultSort) Swap(i, j int) {
+	ps[i], ps[j] = ps[j], ps[i]
+}
+func (ps ParallelBenchResultSort) Less(i, j int) bool {
+	return ps[i].startTime.Sub(ps[j].startTime) < 0
 }
 
 var (
 	parallelLock = sync.Mutex{}
+	resultLk     = sync.Mutex{}
 
 	apParallel int32
 	apLimit    int32
 	apChan     chan *ParallelBenchTask
-	apResult   = sync.Map{}
+	apResult   = []ParallelBenchResult{}
 
 	p1Parallel int32
 	p1Limit    int32
 	p1Chan     chan *ParallelBenchTask
-	p1Result   = sync.Map{}
+	p1Result   = []ParallelBenchResult{}
 
 	p2Parallel int32
 	p2Limit    int32
 	p2Chan     chan *ParallelBenchTask
-	p2Result   = sync.Map{}
+	p2Result   = []ParallelBenchResult{}
 
 	c1Parallel int32
 	c1Limit    int32
 	c1Chan     chan *ParallelBenchTask
-	c1Result   = sync.Map{}
+	c1Result   = []ParallelBenchResult{}
 
 	c2Parallel int32
 	c2Limit    int32
 	c2Chan     chan *ParallelBenchTask
-	c2Result   = sync.Map{}
+	c2Result   = []ParallelBenchResult{}
 
 	doneEvent chan *ParallelBenchTask
 )
 
-func Statistics(result sync.Map) (sum, min, max time.Duration) {
+func Statistics(result ParallelBenchResultSort) (sum, min, max time.Duration) {
+	resultLk.Lock()
+	defer resultLk.Unlock()
+
+	sort.Sort(result)
+
 	min = time.Duration(math.MaxInt64)
-	result.Range(func(k, v interface{}) bool {
-		sectorName := k.(string)
-		res := v.(ParallelBenchResult)
-		used := res.endTime.Sub(res.startTime)
+	for _, r := range result {
+		used := r.endTime.Sub(r.startTime)
 		if min > used {
 			min = used
 		}
@@ -164,9 +187,8 @@ func Statistics(result sync.Map) (sum, min, max time.Duration) {
 			max = used
 		}
 		sum += used
-		fmt.Printf("%s	%s\n", sectorName, res.String())
-		return true
-	})
+		fmt.Printf("%s\n", r.String())
+	}
 	return
 }
 
@@ -178,7 +200,7 @@ const (
 	TASK_KIND_COMMIT2    = 40
 )
 
-func canParallel(kind int) bool {
+func canParallel(kind int, order bool) bool {
 	apRunning := atomic.LoadInt32(&apParallel) > 0
 	p1Running := atomic.LoadInt32(&p1Parallel) > 0
 	p2Running := atomic.LoadInt32(&p2Parallel) > 0
@@ -187,13 +209,22 @@ func canParallel(kind int) bool {
 	case TASK_KIND_ADDPIECE:
 		return atomic.LoadInt32(&apParallel) < apLimit
 	case TASK_KIND_PRECOMMIT1:
-		return atomic.LoadInt32(&p1Parallel) < p1Limit && !apRunning && !p2Running && !c2Running
+		if order {
+			return atomic.LoadInt32(&p1Parallel) < p1Limit && !apRunning && !p2Running && !c2Running
+		}
+		return atomic.LoadInt32(&p1Parallel) < p1Limit
 	case TASK_KIND_PRECOMMIT2:
-		return atomic.LoadInt32(&p2Parallel) < p2Limit && !apRunning && !p1Running && !c2Running
+		if order {
+			return atomic.LoadInt32(&p2Parallel) < p2Limit && !apRunning && !p1Running && !c2Running
+		}
+		return atomic.LoadInt32(&p2Parallel) < p2Limit
 	case TASK_KIND_COMMIT1:
 		return atomic.LoadInt32(&c1Parallel) < c1Limit
 	case TASK_KIND_COMMIT2:
-		return atomic.LoadInt32(&c2Parallel) < c2Limit && !apRunning && !p1Running && !p2Running
+		if order {
+			return atomic.LoadInt32(&c2Parallel) < c2Limit && !apRunning && !p1Running && !p2Running
+		}
+		return atomic.LoadInt32(&c2Parallel) < c2Limit
 	}
 	panic("not reach here")
 }
@@ -256,6 +287,7 @@ func doBench(c *cli.Context) error {
 	}
 	sectorSize := abi.SectorSize(sectorSizeInt)
 	taskset := c.Bool("taskset")
+	orderRun := c.Bool("order")
 	maxTask := c.Int("max-tasks")
 	apLimit = int32(c.Int("parallel-addpiece"))
 	p1Limit = int32(c.Int("parallel-precommit1"))
@@ -321,15 +353,15 @@ consumer:
 	for {
 		select {
 		case task := <-apChan:
-			prepareTask(ctx, sb, task)
+			prepareTask(ctx, sb, task, orderRun)
 		case task := <-p1Chan:
-			prepareTask(ctx, sb, task)
+			prepareTask(ctx, sb, task, orderRun)
 		case task := <-p2Chan:
-			prepareTask(ctx, sb, task)
+			prepareTask(ctx, sb, task, orderRun)
 		case task := <-c1Chan:
-			prepareTask(ctx, sb, task)
+			prepareTask(ctx, sb, task, orderRun)
 		case task := <-c2Chan:
-			prepareTask(ctx, sb, task)
+			prepareTask(ctx, sb, task, orderRun)
 
 		case task := <-doneEvent:
 			fmt.Printf("done event:%s_%d\n", task.SectorName(), task.Type)
@@ -403,9 +435,9 @@ consumer:
 	return nil
 }
 
-func prepareTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask) {
+func prepareTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask, orderRun bool) {
 	parallelLock.Lock()
-	if !canParallel(task.Type) {
+	if !canParallel(task.Type, orderRun) {
 		parallelLock.Unlock()
 		log.Infof("parallel limitted, retry task: %s_%d", task.SectorName(), task.Type)
 		go returnTask(task)
@@ -436,10 +468,13 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 		if err != nil {
 			panic(err) // failed
 		}
-		apResult.Store(task.SectorName(), ParallelBenchResult{
-			startTime: startTime,
-			endTime:   time.Now(),
+		resultLk.Lock()
+		apResult = append(apResult, ParallelBenchResult{
+			sectorName: task.SectorName(),
+			startTime:  startTime,
+			endTime:    time.Now(),
 		})
+		resultLk.Unlock()
 
 		newTask := *task
 		newTask.Type = TASK_KIND_PRECOMMIT1
@@ -483,10 +518,13 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 			})
 
 		}
-		p1Result.Store(task.SectorName(), ParallelBenchResult{
-			startTime: startTime,
-			endTime:   time.Now(),
+		resultLk.Lock()
+		p1Result = append(p1Result, ParallelBenchResult{
+			sectorName: task.SectorName(),
+			startTime:  startTime,
+			endTime:    time.Now(),
 		})
+		resultLk.Unlock()
 
 		newTask := *task
 		newTask.Type = TASK_KIND_PRECOMMIT2
@@ -516,10 +554,13 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 				PreCommit1Out: task.PreCommit1Out,
 			})
 		}
-		p2Result.Store(task.SectorName(), ParallelBenchResult{
-			startTime: startTime,
-			endTime:   time.Now(),
+		resultLk.Lock()
+		p2Result = append(p2Result, ParallelBenchResult{
+			sectorName: task.SectorName(),
+			startTime:  startTime,
+			endTime:    time.Now(),
 		})
+		resultLk.Unlock()
 
 		newTask := *task
 		newTask.Type = TASK_KIND_COMMIT1
@@ -542,10 +583,13 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 		if err != nil {
 			panic(err)
 		}
-		c1Result.Store(task.SectorName(), ParallelBenchResult{
-			startTime: startTime,
-			endTime:   time.Now(),
+		resultLk.Lock()
+		c1Result = append(c1Result, ParallelBenchResult{
+			sectorName: task.SectorName(),
+			startTime:  startTime,
+			endTime:    time.Now(),
 		})
+		resultLk.Unlock()
 
 		newTask := *task
 		newTask.Type = TASK_KIND_COMMIT2
@@ -563,10 +607,13 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 		if err != nil {
 			panic(err)
 		}
-		c2Result.Store(task.SectorName(), ParallelBenchResult{
-			startTime: startTime,
-			endTime:   time.Now(),
+		resultLk.Lock()
+		c2Result = append(c2Result, ParallelBenchResult{
+			sectorName: task.SectorName(),
+			startTime:  startTime,
+			endTime:    time.Now(),
 		})
+		resultLk.Unlock()
 
 		newTask := *task
 		newTask.Type = 200
