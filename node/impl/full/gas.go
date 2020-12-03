@@ -302,6 +302,5 @@ func (m *GasModule) GasEstimateMessageGas(ctx context.Context, msg *types.Messag
 	}
 
 	messagepool.CapGasFee(m.GetMaxFee, msg, spec.Get().MaxFee)
-	log.Info("messageCid:",msg.Cid(),msg)
 	return msg, nil
 }

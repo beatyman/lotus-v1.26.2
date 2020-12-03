@@ -22,7 +22,6 @@ var (
 )
 
 var minGasCap int64 =0
-//var log = logging.Logger("messagepoolconfig")
 
 func loadConfig(ds dtypes.MetadataDS) (*types.MpoolConfig, error) {
 	haveCfg, err := ds.Has(ConfigKey)
@@ -40,9 +39,7 @@ func loadConfig(ds dtypes.MetadataDS) (*types.MpoolConfig, error) {
 	}
 	cfg := new(types.MpoolConfig)
 	err = json.Unmarshal(cfgBytes, cfg)
-	//log.Info("change minGasCap in func LoadConfig",minGasCap,cfg,err)
 	minGasCap = cfg.MinGasCap
-	log.Info("change minGasCap in func LoadConfig",minGasCap,cfg,err)
 	return cfg, err
 }
 
@@ -52,14 +49,12 @@ func saveConfig(cfg *types.MpoolConfig, ds dtypes.MetadataDS) error {
 		return err
 	}
 	minGasCap = cfg.MinGasCap
-	log.Info("messagepoolconfig",string(cfgBytes))
 	return ds.Put(ConfigKey, cfgBytes)
 }
 
 func (mp *MessagePool) GetConfig() *types.MpoolConfig {
 	mp.cfgLk.Lock()
 	defer mp.cfgLk.Unlock()
-	log.Info("messagepoolconfig",*(mp.cfg.Clone()))
 	return mp.cfg.Clone()
 }
 

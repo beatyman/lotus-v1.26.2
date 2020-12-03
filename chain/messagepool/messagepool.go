@@ -182,7 +182,6 @@ func ComputeMinRBF(curPrem abi.TokenAmount) abi.TokenAmount {
 }
 
 func CapGasFee(mff dtypes.DefaultMaxFeeFunc, msg *types.Message, maxFee abi.TokenAmount) {
-	log.Info("mincapgas:",minGasCap)
 	if maxFee.Equals(big.Zero()) {
 		mf, err := mff()
 		if err != nil {
