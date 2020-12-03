@@ -61,7 +61,7 @@ func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeo
 	if err != nil {
 		return 0, err
 	}
-	ssize, err := sm.ActorSectorSize(ctx, maddr)
+	mi, err := sm.Full.StateMinerInfo(ctx, maddr, types.EmptyTSK)
 	if err != nil {
 		return 0, err
 	}
@@ -71,7 +71,14 @@ func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeo
 	if err != nil {
 		return 0, errors.As(err)
 	}
-	all, _, _, err := ffiwrapper.CheckProvable(ctx, ssize, []storage.SectorFile{*file}, timeout)
+	id, err := storage.ParseSectorID(sid)
+	all, _, _, err := ffiwrapper.CheckProvable(ctx, []storage.SectorRef{
+		storage.SectorRef{
+			ID:         id,
+			ProofType:  mi.SealProofType,
+			SectorFile: *file,
+		},
+	}, nil, timeout)
 	if err != nil {
 		return 0, errors.As(err)
 	}

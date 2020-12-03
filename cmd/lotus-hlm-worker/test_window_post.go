@@ -15,7 +15,6 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
@@ -139,7 +138,7 @@ var testWdPoStCmd = &cli.Command{
 		}
 		log.Info("create sinfos")
 		var sinfos []storage.ProofSectorInfo
-		var sectors = []storage.SectorFile{}
+		var sectors = []storage.SectorRef{}
 		for partIdx, partition := range partitions {
 			pSector := partition.AllSectors
 			liveCount, err := pSector.Count()
@@ -152,27 +151,29 @@ var testWdPoStCmd = &cli.Command{
 			}
 			fmt.Printf("partition:%d,sectors:%d, sset:%d\n", partIdx, liveCount, len(sset))
 			for _, sector := range sset {
-				sFile, err := minerApi.HlmSectorFile(ctx, storage.SectorName(abi.SectorID{
+				id := abi.SectorID{
 					Miner:  abi.ActorID(mid),
 					Number: sector.SectorNumber,
-				}))
+				}
+				sFile, err := minerApi.HlmSectorFile(ctx, storage.SectorName(id))
 				if err != nil {
 					return errors.As(err)
 				}
-				sectors = append(sectors, *sFile)
-				sinfos = append(sinfos, storage.ProofSectorInfo{
-					SectorInfo: proof.SectorInfo{
-						SectorNumber: sector.SectorNumber,
-						SealedCID:    sector.SealedCID,
-						SealProof:    sector.SealProof,
-					},
+				sRef := storage.SectorRef{
+					ID:         id,
+					ProofType:  sector.SealProof,
 					SectorFile: *sFile,
+				}
+				sectors = append(sectors, sRef)
+				sinfos = append(sinfos, storage.ProofSectorInfo{
+					SectorRef: sRef,
+					SealedCID: sector.SealedCID,
 				})
 			}
 		}
 		fmt.Println("Start CheckProvable")
 		start := time.Now()
-		all, _, bad, err := ffiwrapper.CheckProvable(ctx, ssize, sectors, 6*time.Second)
+		all, _, bad, err := ffiwrapper.CheckProvable(ctx, sectors, nil, 6*time.Second)
 		if err != nil {
 			return errors.As(err)
 		}

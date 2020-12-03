@@ -37,6 +37,7 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/storage"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
+	sto "github.com/filecoin-project/specs-storage/storage"
 )
 
 type StorageMinerAPI struct {
@@ -541,6 +542,35 @@ func (sm *StorageMinerAPI) PiecesGetCIDInfo(ctx context.Context, payloadCid cid.
 
 func (sm *StorageMinerAPI) CreateBackup(ctx context.Context, fpath string) error {
 	return backup(sm.DS, fpath)
+}
+
+func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, sectors []sto.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error) {
+	var rg storiface.RGetter
+	if expensive {
+		rg = func(ctx context.Context, id abi.SectorID) (cid.Cid, error) {
+			si, err := sm.Miner.GetSectorInfo(id.Number)
+			if err != nil {
+				return cid.Undef, err
+			}
+			if si.CommR == nil {
+				return cid.Undef, xerrors.Errorf("commr is nil")
+			}
+
+			return *si.CommR, nil
+		}
+	}
+
+	_, _, bad, err := sm.StorageMgr.CheckProvable(ctx, sectors, rg, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	var out = make(map[abi.SectorNumber]string)
+	for _, stat := range bad {
+		out[stat.Sector.ID.Number] = stat.Err.Error()
+	}
+
+	return out, nil
 }
 
 var _ api.StorageMiner = &StorageMinerAPI{}

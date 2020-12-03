@@ -5,16 +5,20 @@ import (
 	"os"
 	"strconv"
 	"text/tabwriter"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api/apibstore"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/specs-storage/storage"
 )
 
 var provingCmd = &cli.Command{
@@ -25,6 +29,7 @@ var provingCmd = &cli.Command{
 		provingDeadlinesCmd,
 		provingDeadlineInfoCmd,
 		provingFaultsCmd,
+		provingCheckProvableCmd,
 	},
 }
 
@@ -369,5 +374,100 @@ var provingDeadlineInfoCmd = &cli.Command{
 			fmt.Printf("Faulty Sectors:           %d\n", fn)
 		}
 		return nil
+	},
+}
+
+var provingCheckProvableCmd = &cli.Command{
+	Name:      "check",
+	Usage:     "Check sectors provable",
+	ArgsUsage: "<deadlineIdx>",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "only-bad",
+			Usage: "print only bad sectors",
+			Value: false,
+		},
+		&cli.BoolFlag{
+			Name:  "slow",
+			Usage: "run slower checks",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() != 1 {
+			return xerrors.Errorf("must pass deadline index")
+		}
+
+		dlIdx, err := strconv.ParseUint(cctx.Args().Get(0), 10, 64)
+		if err != nil {
+			return xerrors.Errorf("could not parse deadline index: %w", err)
+		}
+
+		api, closer, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		sapi, scloser, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer scloser()
+
+		ctx := lcli.ReqContext(cctx)
+
+		addr, err := sapi.ActorAddress(ctx)
+		if err != nil {
+			return err
+		}
+
+		mid, err := address.IDFromAddress(addr)
+		if err != nil {
+			return err
+		}
+
+		partitions, err := api.StateMinerPartitions(ctx, addr, dlIdx, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		tw := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "deadline\tpartition\tsector\tstatus")
+
+		for parIdx, par := range partitions {
+			sectors := make(map[abi.SectorNumber]struct{})
+
+			sectorInfos, err := api.StateMinerSectors(ctx, addr, &par.AllSectors, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+
+			var tocheck []storage.SectorRef
+			for _, info := range sectorInfos {
+				sectors[info.SectorNumber] = struct{}{}
+				tocheck = append(tocheck, storage.SectorRef{
+					ProofType: info.SealProof,
+					ID: abi.SectorID{
+						Miner:  abi.ActorID(mid),
+						Number: info.SectorNumber,
+					},
+				})
+			}
+
+			bad, err := sapi.CheckProvable(ctx, tocheck, cctx.Bool("slow"), 6*time.Second)
+			if err != nil {
+				return err
+			}
+
+			for s := range sectors {
+				if err, exist := bad[s]; exist {
+					_, _ = fmt.Fprintf(tw, "%d\t%d\t%d\t%s\n", dlIdx, parIdx, s, color.RedString("bad")+fmt.Sprintf(" (%s)", err))
+				} else if !cctx.Bool("only-bad") {
+					_, _ = fmt.Fprintf(tw, "%d\t%d\t%d\t%s\n", dlIdx, parIdx, s, color.GreenString("good"))
+				}
+			}
+		}
+
+		return tw.Flush()
 	},
 }

@@ -462,6 +462,7 @@ var mpoolStat = &cli.Command{
 			addr                 string
 			past, cur, future    uint64
 			belowCurr, belowPast uint64
+			gasLimit             big.Int
 		}
 
 		buckets := map[address.Address]*statBucket{}
@@ -503,6 +504,7 @@ var mpoolStat = &cli.Command{
 
 			var s mpStat
 			s.addr = a.String()
+			s.gasLimit = big.Zero()
 
 			for _, m := range bkt.msgs {
 				if m.Message.Nonce < act.Nonce {
@@ -519,6 +521,8 @@ var mpoolStat = &cli.Command{
 				if m.Message.GasFeeCap.LessThan(minBF) {
 					s.belowPast++
 				}
+
+				s.gasLimit = big.Add(s.gasLimit, types.NewInt(uint64(m.Message.GasLimit)))
 			}
 
 			out = append(out, s)
@@ -529,6 +533,7 @@ var mpoolStat = &cli.Command{
 		})
 
 		var total mpStat
+		total.gasLimit = big.Zero()
 
 		for _, stat := range out {
 			total.past += stat.past
@@ -536,12 +541,13 @@ var mpoolStat = &cli.Command{
 			total.future += stat.future
 			total.belowCurr += stat.belowCurr
 			total.belowPast += stat.belowPast
+			total.gasLimit = big.Add(total.gasLimit, stat.gasLimit)
 
-			fmt.Printf("%s: Nonce past: %d, cur: %d, future: %d; FeeCap cur: %d, min-%d: %d \n", stat.addr, stat.past, stat.cur, stat.future, stat.belowCurr, cctx.Int("basefee-lookback"), stat.belowPast)
+			fmt.Printf("%s: Nonce past: %d, cur: %d, future: %d; FeeCap cur: %d, min-%d: %d, gasLimit: %s\n", stat.addr, stat.past, stat.cur, stat.future, stat.belowCurr, cctx.Int("basefee-lookback"), stat.belowPast, stat.gasLimit)
 		}
 
 		fmt.Println("-----")
-		fmt.Printf("total: Nonce past: %d, cur: %d, future: %d; FeeCap cur: %d, min-%d: %d \n", total.past, total.cur, total.future, total.belowCurr, cctx.Int("basefee-lookback"), total.belowPast)
+		fmt.Printf("total: Nonce past: %d, cur: %d, future: %d; FeeCap cur: %d, min-%d: %d, gasLimit: %s\n", total.past, total.cur, total.future, total.belowCurr, cctx.Int("basefee-lookback"), total.belowPast, total.gasLimit)
 
 		return nil
 	},
@@ -676,7 +682,9 @@ var mpoolReplaceCmd = &cli.Command{
 
 			messagepool.CapGasFee(mff, &msg, mss.Get().MaxFee)
 		} else {
-			msg.GasLimit = cctx.Int64("gas-limit")
+			if cctx.IsSet("gas-limit") {
+				msg.GasLimit = cctx.Int64("gas-limit")
+			}
 			msg.GasPremium, err = types.BigFromString(cctx.String("gas-premium"))
 			if err != nil {
 				return fmt.Errorf("parsing gas-premium: %w", err)

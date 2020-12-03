@@ -61,7 +61,7 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 
 	var out []ffi.PrivateSectorInfo
 	for _, s := range sectorInfo {
-		if _, faulty := fmap[s.SectorNumber]; faulty {
+		if _, faulty := fmap[s.ID.Number]; faulty {
 			continue
 		}
 
@@ -72,7 +72,7 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 			Cache:    s.CachePath(),
 		}
 
-		postProofType, err := rpt(s.SealProof)
+		postProofType, err := rpt(s.ProofType)
 		if err != nil {
 			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("acquiring registered PoSt proof from sector info %+v: %w", s, err)
 		}
@@ -81,7 +81,11 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 			CacheDirPath:     paths.Cache,
 			PoStProofType:    postProofType,
 			SealedSectorPath: paths.Sealed,
-			SectorInfo:       s.SectorInfo,
+			SectorInfo: proof2.SectorInfo{
+				SealProof:    s.ProofType,
+				SectorNumber: s.ID.Number,
+				SealedCID:    s.SealedCID,
+			},
 		})
 	}
 
