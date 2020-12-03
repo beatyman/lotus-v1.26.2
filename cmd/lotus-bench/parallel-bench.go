@@ -204,25 +204,32 @@ func canParallel(kind int, order bool) bool {
 	apRunning := atomic.LoadInt32(&apParallel) > 0
 	p1Running := atomic.LoadInt32(&p1Parallel) > 0
 	p2Running := atomic.LoadInt32(&p2Parallel) > 0
+	c1Running := atomic.LoadInt32(&c1Parallel) > 0
 	c2Running := atomic.LoadInt32(&c2Parallel) > 0
 	switch kind {
 	case TASK_KIND_ADDPIECE:
+		if order {
+			return atomic.LoadInt32(&apParallel) < apLimit && !p1Running && !p2Running && !c1Running && !c2Running
+		}
 		return atomic.LoadInt32(&apParallel) < apLimit
 	case TASK_KIND_PRECOMMIT1:
 		if order {
-			return atomic.LoadInt32(&p1Parallel) < p1Limit && !apRunning && !p2Running && !c2Running
+			return atomic.LoadInt32(&p1Parallel) < p1Limit && !apRunning && !p2Running && !c1Running && !c2Running
 		}
 		return atomic.LoadInt32(&p1Parallel) < p1Limit
 	case TASK_KIND_PRECOMMIT2:
 		if order {
-			return atomic.LoadInt32(&p2Parallel) < p2Limit && !apRunning && !p1Running && !c2Running
+			return atomic.LoadInt32(&p2Parallel) < p2Limit && !apRunning && !p1Running && !c1Running && !c2Running
 		}
 		return atomic.LoadInt32(&p2Parallel) < p2Limit
 	case TASK_KIND_COMMIT1:
+		if order {
+			return atomic.LoadInt32(&c1Parallel) < c1Limit && !apRunning && !p1Running && !p2Running && !c2Running
+		}
 		return atomic.LoadInt32(&c1Parallel) < c1Limit
 	case TASK_KIND_COMMIT2:
 		if order {
-			return atomic.LoadInt32(&c2Parallel) < c2Limit && !apRunning && !p1Running && !p2Running
+			return atomic.LoadInt32(&c2Parallel) < c2Limit && !apRunning && !p1Running && !p2Running && !c1Running
 		}
 		return atomic.LoadInt32(&c2Parallel) < c2Limit
 	}
