@@ -382,23 +382,23 @@ consumer:
 	if apLimit <= 0 {
 		return nil
 	}
-	fmt.Printf("addpiece    avg:%s, min:%s, max:%s\n", apSum/time.Duration(apLimit), apMin, apMax)
+	fmt.Printf("addpiece    avg:%s, min:%s, max:%s\n", apSum/time.Duration(maxTask), apMin, apMax)
 	if p1Limit <= 0 {
 		return nil
 	}
-	fmt.Printf("precommit1 avg:%s, min:%s, max:%s\n", p1Sum/time.Duration(p1Limit), p1Min, p1Max)
+	fmt.Printf("precommit1 avg:%s, min:%s, max:%s\n", p1Sum/time.Duration(maxTask), p1Min, p1Max)
 	if p2Limit <= 0 {
 		return nil
 	}
-	fmt.Printf("precommit2 avg:%s, min:%s, max:%s\n", p2Sum/time.Duration(p2Limit), p2Min, p2Max)
+	fmt.Printf("precommit2 avg:%s, min:%s, max:%s\n", p2Sum/time.Duration(maxTask), p2Min, p2Max)
 	if c1Limit <= 0 {
 		return nil
 	}
-	fmt.Printf("commit1    avg:%s, min:%s, max:%s\n", c1Sum/time.Duration(c1Limit), c1Min, c1Max)
+	fmt.Printf("commit1    avg:%s, min:%s, max:%s\n", c1Sum/time.Duration(maxTask), c1Min, c1Max)
 	if c2Limit <= 0 {
 		return nil
 	}
-	fmt.Printf("commit2    avg:%s, min:%s, max:%s\n", c2Sum/time.Duration(c2Limit), c2Min, c2Max)
+	fmt.Printf("commit2    avg:%s, min:%s, max:%s\n", c2Sum/time.Duration(maxTask), c2Min, c2Max)
 
 	return nil
 }
