@@ -56,7 +56,7 @@ func (a *WalletAPI) WalletSignMessage(ctx context.Context, auth []byte, k addres
 		return nil, xerrors.Errorf("serializing message: %w", err)
 	}
 
-	sig, err := a.WalletAPI.WalletSign(ctx, auth, k, mb.Cid().Bytes(), api.MsgMeta{
+	sig, err := a.WalletAPI.WalletSign(ctx, auth, keyAddr, mb.Cid().Bytes(), api.MsgMeta{
 		Type:  api.MTChainMsg,
 		Extra: mb.RawData(),
 	})

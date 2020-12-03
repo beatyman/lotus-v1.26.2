@@ -10,6 +10,8 @@
 * [Auth](#Auth)
   * [AuthNew](#AuthNew)
   * [AuthVerify](#AuthVerify)
+* [Check](#Check)
+  * [CheckProvable](#CheckProvable)
 * [Create](#Create)
   * [CreateBackup](#CreateBackup)
 * [Deals](#Deals)
@@ -217,6 +219,30 @@ Inputs:
 ```
 
 Response: `null`
+
+## Check
+
+
+### CheckProvable
+There are not yet any comments for this method.
+
+Perms: admin
+
+Inputs:
+```json
+[
+  8,
+  null,
+  true
+]
+```
+
+Response:
+```json
+{
+  "123": "can't acquire read lock"
+}
+```
 
 ## Create
 
@@ -552,7 +578,8 @@ Response:
     "Initiator": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
     "Responder": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
     "ID": 3
-  }
+  },
+  "SectorNumber": 9
 }
 ```
 

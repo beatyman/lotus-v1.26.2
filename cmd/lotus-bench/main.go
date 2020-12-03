@@ -311,11 +311,18 @@ var sealBenchCmd = &cli.Command{
 		var provenSectors []storage.ProofSectorInfo
 		for _, c := range sealedSectors {
 			provenSectors = append(provenSectors, storage.ProofSectorInfo{
-				SectorInfo: c,
-				SectorFile: storage.SectorFile{
-					SectorId:    fmt.Sprintf("s-t0%s-%d", mid, c.SectorNumber),
-					StorageRepo: sbdir,
+				SectorRef: storage.SectorRef{
+					ID: abi.SectorID{
+						Number: c.SectorNumber,
+						Miner:  mid,
+					},
+					ProofType: c.SealProof,
+					SectorFile: storage.SectorFile{
+						SectorId:    fmt.Sprintf("s-t0%s-%d", mid, c.SectorNumber),
+						StorageRepo: sbdir,
+					},
 				},
+				SealedCID: c.SealedCID,
 			})
 		}
 

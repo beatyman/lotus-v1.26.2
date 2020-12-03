@@ -6,19 +6,18 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/crypto"
 	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/go-address"
-
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
-	_ "github.com/filecoin-project/lotus/lib/sigs/bls"  // enable bls signatures
-	_ "github.com/filecoin-project/lotus/lib/sigs/secp" // enable secp signatures
 
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/sigs"
+	_ "github.com/filecoin-project/lotus/lib/sigs/bls"  // enable bls signatures
+	_ "github.com/filecoin-project/lotus/lib/sigs/secp" // enable secp signatures
 )
 
 var log = logging.Logger("wallet")
@@ -283,7 +282,7 @@ func (w *LocalWallet) WalletHas(ctx context.Context, addr address.Address) (bool
 	return k != nil, nil
 }
 
-func (w *LocalWallet) WalletDelete(ctx context.Context, auth []byte, addr address.Address) error {
+func (w *LocalWallet) walletDelete(ctx context.Context, auth []byte, addr address.Address) error {
 	// implement hlm auth
 	if !build.IsHlmAuth(auth) {
 		return xerrors.Errorf("wallet auth failed, please conntact administrator.")
@@ -324,18 +323,29 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, auth []byte, addr addres
 
 	delete(w.keys, addr)
 
-	def, err := w.GetDefault()
-	if err != nil {
-		return xerrors.Errorf("getting default address: %w", err)
-	}
+	return nil
+}
 
-	if def == addr {
-		err = w.SetDefault(address.Undef)
-		if err != nil {
-			return xerrors.Errorf("unsetting default address: %w", err)
+func (w *LocalWallet) deleteDefault() {
+	w.lk.Lock()
+	defer w.lk.Unlock()
+	if err := w.keystore.Delete(KDefault); err != nil {
+		if !xerrors.Is(err, types.ErrKeyInfoNotFound) {
+			log.Warnf("failed to unregister current default key: %s", err)
 		}
 	}
+}
 
+func (w *LocalWallet) WalletDelete(ctx context.Context, auth []byte, addr address.Address) error {
+	if err := w.walletDelete(ctx, auth, addr); err != nil {
+		return xerrors.Errorf("wallet delete: %w", err)
+	}
+
+	if def, err := w.GetDefault(); err == nil {
+		if def == addr {
+			w.deleteDefault()
+		}
+	}
 	return nil
 }
 

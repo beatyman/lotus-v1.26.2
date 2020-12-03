@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
 	"golang.org/x/xerrors"
 )
 
@@ -58,9 +57,4 @@ func (f *SectorFile) SealedFile() string {
 }
 func (f *SectorFile) CachePath() string {
 	return filepath.Join(f.StorageRepo, "cache", f.SectorId)
-}
-
-type ProofSectorInfo struct {
-	proof2.SectorInfo
-	SectorFile
 }

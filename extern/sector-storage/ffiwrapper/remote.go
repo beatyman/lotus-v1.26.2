@@ -368,7 +368,7 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	log.Infof("DEBUG:GenerateWiningPoSt in(remote:%t),%+v", sb.remoteCfg.SealSector, minerID)
 	defer log.Infof("DEBUG:GenerateWinningPoSt out,%+v", minerID)
 
-	timeoutCtx,cancel := context.WithTimeout(ctx, 30*1e9)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*1e9)
 	defer cancel()
 
 	result := make(chan struct {

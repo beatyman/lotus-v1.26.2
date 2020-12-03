@@ -2,6 +2,7 @@ package ffiwrapper
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,15 +10,17 @@ import (
 	"sync"
 	"time"
 
+	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
+	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
 
 type ProvableStat struct {
-	Sector storage.SectorFile
+	Sector storage.SectorRef
 	Used   time.Duration
 	Err    error
 }
@@ -35,7 +38,7 @@ func (g ProvableStatArr) Less(i, j int) bool {
 }
 
 // CheckProvable returns unprovable sectors
-func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.SectorFile, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
+func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storiface.RGetter, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
 
 	var good = []ProvableStat{}
 	var goodLk = sync.Mutex{}
@@ -63,7 +66,7 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 		all = append(all, good)
 	}
 
-	checkBad := func(ctx context.Context, sector storage.SectorFile, timeout time.Duration) error {
+	checkBad := func(ctx context.Context, sector storage.SectorRef, rg storiface.RGetter, timeout time.Duration) error {
 		if len(sector.StorageRepo) == 0 {
 			return errors.New("StorageRepo not found").As(sector)
 		}
@@ -78,6 +81,10 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 			return errors.New("CheckProvable Sector FAULT: cache an/or sealed paths not found").As(sector, lp.Sealed, lp.Cache)
 		}
 
+		ssize, err := sector.ProofType.SectorSize()
+		if err != nil {
+			return errors.As(err)
+		}
 		toCheck := map[string]int64{
 			lp.Sealed:                        int64(ssize),
 			filepath.Join(lp.Cache, "p_aux"): 0,
@@ -123,6 +130,43 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 				// continue
 			}
 		}
+		if rg != nil {
+			wpp, err := sector.ProofType.RegisteredWindowPoStProof()
+			if err != nil {
+				return err
+			}
+
+			var pr abi.PoStRandomness = make([]byte, abi.RandomnessLength)
+			_, _ = rand.Read(pr)
+			pr[31] &= 0x3f
+
+			ch, err := ffi.GeneratePoStFallbackSectorChallenges(wpp, sector.ID.Miner, pr, []abi.SectorNumber{
+				sector.ID.Number,
+			})
+			if err != nil {
+				return errors.As(err)
+			}
+
+			commr, err := rg(ctx, sector.ID)
+			if err != nil {
+				return errors.As(err)
+			}
+
+			_, err = ffi.GenerateSingleVanillaProof(ffi.PrivateSectorInfo{
+				SectorInfo: proof.SectorInfo{
+					SealProof:    sector.ProofType,
+					SectorNumber: sector.ID.Number,
+					SealedCID:    commr,
+				},
+				CacheDirPath:     lp.Cache,
+				PoStProofType:    wpp,
+				SealedSectorPath: lp.Sealed,
+			}, ch.Challenges[sector.ID.Number])
+			if err != nil {
+				return errors.As(err)
+			}
+		}
+
 		return nil
 	}
 	// limit the gorouting to checking the bad, the sectors would be so a lots.
@@ -130,25 +174,26 @@ func CheckProvable(ctx context.Context, ssize abi.SectorSize, sectors []storage.
 	routines := make(chan bool, 256)
 	done := make(chan bool, len(sectors))
 	for _, sector := range sectors {
-		go func(s storage.SectorFile) {
+		go func(s storage.SectorRef) {
 			// limit the concurrency
 			routines <- true
 			defer func() {
+				// thread end
+				done <- true
 				<-routines
 			}()
 			start := time.Now()
-			err := checkBad(ctx, s, timeout)
+			err := checkBad(ctx, s, rg, timeout)
 			used := time.Now().Sub(start)
+
 			pState := ProvableStat{Sector: s, Used: used, Err: err}
+			appendAll(pState)
 			if err != nil {
 				appendBad(pState)
 			} else {
 				appendGood(pState)
 			}
-			appendAll(pState)
 
-			// thread end
-			done <- true
 		}(sector)
 	}
 	for waits := len(sectors); waits > 0; waits-- {

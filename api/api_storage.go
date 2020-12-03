@@ -124,6 +124,8 @@ type StorageMiner interface {
 	// the path specified when calling CreateBackup is within the base path
 	CreateBackup(ctx context.Context, fpath string) error
 
+	CheckProvable(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error)
+
 	// implements by hlm
 	Testing(ctx context.Context, fnName string, args []string) error
 	RunPledgeSector(context.Context) error
