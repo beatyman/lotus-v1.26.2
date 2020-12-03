@@ -476,6 +476,7 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcs beacon.Schedule
 
 	act, err := sm.LoadActorRaw(ctx, maddr, lbst)
 	if xerrors.Is(err, types.ErrActorNotFound) {
+		log.Error(err)
 		_, err := sm.LoadActor(ctx, maddr, ts)
 		if err != nil {
 			return nil, xerrors.Errorf("loading miner in current state: %w", err)
@@ -510,6 +511,7 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcs beacon.Schedule
 	}
 
 	if len(sectors) == 0 {
+		log.Error("No sector for winning post")
 		return nil, nil
 	}
 
