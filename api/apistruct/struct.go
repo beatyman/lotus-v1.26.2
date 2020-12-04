@@ -400,7 +400,7 @@ type StorageMinerStruct struct {
 		WorkerSearch         func(ctx context.Context, ip string) ([]database.WorkerInfo, error)                       `perm:"read"`
 		WorkerDisable        func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
 		WorkerAddConn        func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
-		WorkerPreConn        func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
+		WorkerPreConn        func(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)                 `perm:"read"`
 		WorkerMinerConn      func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
 		Testing           func(ctx context.Context, fnName string, args []string) error                                `perm:"admin"`
@@ -1359,8 +1359,8 @@ func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disa
 func (c *StorageMinerStruct) WorkerAddConn(ctx context.Context, wid string, num int) error {
 	return c.Internal.WorkerAddConn(ctx, wid, num)
 }
-func (c *StorageMinerStruct) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
-	return c.Internal.WorkerPreConn(ctx)
+func (c *StorageMinerStruct) WorkerPreConn(ctx context.Context, skipWid []string) (*database.WorkerInfo, error) {
+	return c.Internal.WorkerPreConn(ctx, skipWid)
 }
 func (c *StorageMinerStruct) WorkerMinerConn(ctx context.Context) (int, error) {
 	return c.Internal.WorkerMinerConn(ctx)

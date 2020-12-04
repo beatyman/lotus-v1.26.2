@@ -42,7 +42,7 @@ func addChecked(file string) {
 	checkedLk.Unlock()
 }
 func delChecked(file string) {
-	log.Warnf("Parameter file %s sum failed", file)
+	log.Warnf("Parameter file sum failed, remove:%s", file)
 	if err := os.RemoveAll(file); err != nil {
 		log.Error(errors.As(err))
 	}
@@ -98,7 +98,7 @@ func checkFile(path string, info paramFile, needCheckSum bool) error {
 			if !checksum {
 				// checksum has ignored, exit the worker to make the worker down
 				time.Sleep(3e9) // waiting log output
-				os.Exit(1)
+				os.Exit(1)      // TODO: this cann't interrupt the connection
 				return
 			}
 		}
@@ -194,6 +194,8 @@ recheck:
 	return nil
 }
 
+var skipDownloadSrv = []string{""}
+
 func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName string) error {
 	napi, err := GetNodeApi()
 	if err != nil {
@@ -201,24 +203,19 @@ func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName 
 	}
 	paramUri := ""
 	dlWorkerUsed := false
+	skipDownloadSrv[0] = w.workerCfg.ID
 	// try download from worker
-	dlWorker, err := napi.WorkerPreConn(ctx)
+	dlWorker, err := napi.WorkerPreConn(ctx, skipDownloadSrv)
 	if err != nil {
 		if !errors.ErrNoData.Equal(err) {
 			return errors.As(err)
 		}
 		// pass, using miner's
 	} else {
-		if dlWorker.SvcConn < 2 {
-			dlWorkerUsed = true
-			paramUri = "http://" + dlWorker.SvcUri + PARAMS_PATH
-		} else {
-			// return preconn
-			if err := napi.WorkerAddConn(ctx, dlWorker.ID, -1); err != nil {
-				log.Warn(err)
-			}
-			// worker all busy, using miner's
-		}
+		// mark the server has used
+		dlWorkerUsed = true
+		paramUri = "http://" + dlWorker.SvcUri + PARAMS_PATH
+		skipDownloadSrv = append(skipDownloadSrv, dlWorker.ID)
 	}
 	defer func() {
 		if !dlWorkerUsed {

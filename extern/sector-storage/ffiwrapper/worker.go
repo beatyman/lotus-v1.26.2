@@ -34,7 +34,7 @@ func (sb *Sealer) AddWorkerConn(id string, num int) error {
 }
 
 // prepare worker connection will auto increment the connections
-func (sb *Sealer) PrepareWorkerConn() (*database.WorkerInfo, error) {
+func (sb *Sealer) PrepareWorkerConn(skipWid []string) (*database.WorkerInfo, error) {
 	workerConnLock.Lock()
 	defer workerConnLock.Unlock()
 
@@ -42,6 +42,11 @@ func (sb *Sealer) PrepareWorkerConn() (*database.WorkerInfo, error) {
 	minConns := int64(math.MaxInt64)
 	_remotes.Range(func(key, val interface{}) bool {
 		r := val.(*remote)
+		for _, skip := range skipWid {
+			if skip == r.cfg.ID {
+				return true
+			}
+		}
 		if r.cfg.ParallelCommit2 > 0 || r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv {
 			if minConns > r.srvConn {
 				minConnRemote = r
