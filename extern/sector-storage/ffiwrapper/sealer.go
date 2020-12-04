@@ -1,6 +1,8 @@
 package ffiwrapper
 
 import (
+	"sync"
+
 	logging "github.com/ipfs/go-log/v2"
 )
 
@@ -15,6 +17,7 @@ type Sealer struct {
 	pauseSeal int32     // pause seal for base fee, zero is not pause, not zero is true.
 	//// for remote worker end
 
+	postLk sync.Mutex
 }
 
 func (sb *Sealer) Stop() {

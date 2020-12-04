@@ -574,9 +574,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
 	case ffiwrapper.WorkerPreCommit1:
-		if err := ffiwrapper.AutoPrecommit1Env(ctx); err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)

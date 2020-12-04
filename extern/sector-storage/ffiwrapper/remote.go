@@ -2,6 +2,7 @@ package ffiwrapper
 
 import (
 	"context"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -140,6 +141,14 @@ func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storage.PreCommit1Out, 
 func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
 	log.Infof("DEBUG:SealPreCommit1 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:SealPreCommit1 out,%+v", sector)
+
+	// if the FIL_PROOFS_MULTICORE_SDR_PRODUCERS haven't set, set it by auto.
+	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
+		if err := autoPrecommit1Env(ctx); err != nil {
+			return storage.PreCommit1Out{}, errors.As(err)
+		}
+	}
+
 	atomic.AddInt32(&_precommit1Wait, 1)
 	if !sb.remoteCfg.SealSector {
 		atomic.AddInt32(&_precommit1Wait, -1)
