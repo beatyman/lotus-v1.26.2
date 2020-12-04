@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/gwaylib/errors"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -445,12 +446,19 @@ var provingCheckProvableCmd = &cli.Command{
 			var tocheck []storage.SectorRef
 			for _, info := range sectorInfos {
 				sectors[info.SectorNumber] = struct{}{}
+
+				id := abi.SectorID{
+					Miner:  abi.ActorID(mid),
+					Number: info.SectorNumber,
+				}
+				sFile, err := sapi.HlmSectorFile(ctx, storage.SectorName(id))
+				if err != nil {
+					return errors.As(err)
+				}
 				tocheck = append(tocheck, storage.SectorRef{
-					ProofType: info.SealProof,
-					ID: abi.SectorID{
-						Miner:  abi.ActorID(mid),
-						Number: info.SectorNumber,
-					},
+					ProofType:  info.SealProof,
+					ID:         id,
+					SectorFile: *sFile,
 				})
 			}
 
