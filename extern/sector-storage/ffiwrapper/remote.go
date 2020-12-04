@@ -421,7 +421,7 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 		log.Infof("Selected GpuService:%s", r.cfg.SvcUri)
 	}
 	if len(remotes) == 0 {
-		log.Info("No GpuServie Found, using local mode")
+		log.Info("No GpuService Found, using local mode")
 		return sb.generateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 	}
 
@@ -493,7 +493,7 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		log.Infof("Selected GpuService:%s", r.cfg.SvcUri)
 	}
 	if len(remotes) == 0 {
-		log.Info("No GpuServie Found, using local mode")
+		log.Info("No GpuService Found, using local mode")
 		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 	}
 
