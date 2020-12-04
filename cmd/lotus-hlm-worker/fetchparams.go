@@ -127,6 +127,12 @@ func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ss
 	//}
 
 	for {
+		select {
+		case <-ctx.Done():
+			return errors.New("ctx done")
+		default:
+			// go to check
+		}
 		if err := w.checkParams(ctx, ssize, endpoint, paramsDir); err != nil {
 			log.Info(errors.As(err))
 			if errors.ErrNoData.Equal(err) {
