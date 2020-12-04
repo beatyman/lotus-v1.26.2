@@ -15,7 +15,7 @@ import (
 	"runtime/pprof"
 	"strings"
 
-	paramfetch "github.com/filecoin-project/lotus/build/paramfetch"
+	paramfetch "github.com/filecoin-project/go-paramfetch"
 	metricsprom "github.com/ipfs/go-metrics-prometheus"
 	"github.com/mitchellh/go-homedir"
 	"github.com/multiformats/go-multiaddr"
