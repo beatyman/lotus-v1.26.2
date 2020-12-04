@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/dchest/blake2b"
-	// paramfetch "github.com/filecoin-project/go-paramfetch"
+	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/gwaylib/errors"
@@ -24,7 +24,8 @@ const (
 )
 
 var (
-	ErrChecksum = errors.New("checksum failed")
+	ErrChecksum  = errors.New("checksum failed")
+	ErrMinerDone = errors.New("miner download failed")
 )
 
 type paramFile struct {
@@ -120,32 +121,39 @@ func checkFile(path string, info paramFile, needCheckSum bool) error {
 func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ssize abi.SectorSize) error {
 	w.paramsLock.Lock()
 	defer w.paramsLock.Unlock()
-
-	//// for origin params
-	//if err := paramfetch.GetParams(ctx, build.ParametersJSON(), ssize); err != nil {
-	//	return errors.As(err)
-	//}
+	log.Infof("CheckParams:%s,%s,%s", endpoint, paramsDir, ssize)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return errors.New("ctx done")
 		default:
-			// go to check
 		}
-		if err := w.checkParams(ctx, ssize, endpoint, paramsDir); err != nil {
-			log.Info(errors.As(err))
-			if errors.ErrNoData.Equal(err) {
-				continue
-			}
-			time.Sleep(10e9)
+
+		err := w.checkLocalParams(ctx, ssize, endpoint, paramsDir)
+		if err == nil {
+			return nil
+		}
+
+		// try the next server
+		if errors.ErrNoData.Equal(err) {
 			continue
 		}
-		return nil
+
+		// get from the offical source
+		if ErrMinerDone.Equal(err) {
+			if err := paramfetch.GetParams(ctx, build.ParametersJSON(), uint64(ssize)); err != nil {
+				return errors.As(err)
+			}
+			return nil
+		}
+
+		// other error go to try the next local server
+		time.Sleep(10e9)
 	}
 }
 
-func (w *worker) checkParams(ctx context.Context, ssize abi.SectorSize, endpoint, paramsDir string) error {
+func (w *worker) checkLocalParams(ctx context.Context, ssize abi.SectorSize, endpoint, paramsDir string) error {
 	if err := os.MkdirAll(paramsDir, 0755); err != nil {
 		return errors.As(err)
 	}
@@ -247,6 +255,7 @@ func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName 
 		paramUri = "http://" + endpoint + PARAMS_PATH
 	}
 
+	// get the params from local net
 	err = nil
 	from := fmt.Sprintf("%s/%s", paramUri, fileName)
 	to := filepath.Join(paramsDir, fileName)
@@ -256,6 +265,11 @@ func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName 
 			continue
 		}
 		return nil
+	}
+
+	// the miner has tried, return then try end.
+	if err != nil && !dlWorkerUsed {
+		return ErrMinerDone
 	}
 	return err
 }
