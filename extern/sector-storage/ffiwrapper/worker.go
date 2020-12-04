@@ -288,6 +288,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	taskCh := make(chan WorkerTask)
 	ctx, cancel := context.WithCancel(oriCtx)
 	r := &remote{
+		ctx:            ctx,
 		cfg:            cfg,
 		release:        cancel,
 		precommit1Chan: make(chan workerCall, 10),
@@ -1043,6 +1044,10 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	log.Infof("DEBUG: send task %s to %s (locked:%s)", task.Key(), r.cfg.ID, task.WorkerID)
 	select {
 	case <-ctx.Done():
+		log.Infof("user canceled:%s", taskKey)
+		return SealRes{}, true
+	case <-r.ctx.Done():
+		log.Infof("worker canceled:%s", taskKey)
 		return SealRes{}, true
 	case r.sealTasks <- task:
 		log.Infof("DEBUG: send task %s to %s done", task.Key(), r.cfg.ID)
@@ -1051,7 +1056,10 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	// wait for the TaskDone called
 	select {
 	case <-ctx.Done():
-		log.Infof("ctx done:%s", taskKey)
+		log.Infof("user canceled:%s", taskKey)
+		return SealRes{}, true
+	case <-r.ctx.Done():
+		log.Infof("worker canceled:%s", taskKey)
 		return SealRes{}, true
 	case <-sb.stopping:
 		log.Infof("sb stoped:%s", taskKey)

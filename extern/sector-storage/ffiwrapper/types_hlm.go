@@ -1,6 +1,7 @@
 package ffiwrapper
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -261,6 +262,7 @@ func (w *WorkerRemoteStats) String() string {
 }
 
 type remote struct {
+	ctx     context.Context
 	lock    sync.Mutex
 	cfg     WorkerCfg
 	release func()
