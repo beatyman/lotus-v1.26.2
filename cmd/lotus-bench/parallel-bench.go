@@ -503,12 +503,6 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 		var pc1o storage.PreCommit1Out
 		var err error
 		if !task.TaskSet {
-			// if the FIL_PROOFS_MULTICORE_SDR_PRODUCERS haven't set, set it by auto.
-			if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
-				if err := ffiwrapper.AutoPrecommit1Env(ctx); err != nil {
-					panic(err)
-				}
-			}
 			pc1o, err = sb.SealPreCommit1(ctx, sid, ticket, task.Pieces)
 			if err != nil {
 				panic(err)

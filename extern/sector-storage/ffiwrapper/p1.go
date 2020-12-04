@@ -24,7 +24,7 @@ type ExecPrecommit1Resp struct {
 	Err  string
 }
 
-func AutoPrecommit1Env(ctx context.Context) error {
+func autoPrecommit1Env(ctx context.Context) error {
 	if err := initCpuGroup(ctx); err != nil {
 		return err
 	}
