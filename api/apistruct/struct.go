@@ -55,7 +55,7 @@ type CommonStruct struct {
 
 		NetConnectedness            func(context.Context, peer.ID) (network.Connectedness, error)    `perm:"read"`
 		NetPeers                    func(context.Context) ([]peer.AddrInfo, error)                   `perm:"read"`
-		NetConnect                  func(context.Context, peer.AddrInfo) error                       `perm:"write"`
+		NetConnect                  func(context.Context, peer.AddrInfo, bool) error                 `perm:"write"`
 		NetAddrsListen              func(context.Context) (peer.AddrInfo, error)                     `perm:"read"`
 		NetDisconnect               func(context.Context, peer.ID) error                             `perm:"write"`
 		NetFindPeer                 func(context.Context, peer.ID) (peer.AddrInfo, error)            `perm:"read"`
@@ -529,8 +529,8 @@ func (c *CommonStruct) NetPeers(ctx context.Context) ([]peer.AddrInfo, error) {
 	return c.Internal.NetPeers(ctx)
 }
 
-func (c *CommonStruct) NetConnect(ctx context.Context, p peer.AddrInfo) error {
-	return c.Internal.NetConnect(ctx, p)
+func (c *CommonStruct) NetConnect(ctx context.Context, p peer.AddrInfo, protect bool) error {
+	return c.Internal.NetConnect(ctx, p, protect)
 }
 
 func (c *CommonStruct) NetAddrsListen(ctx context.Context) (peer.AddrInfo, error) {

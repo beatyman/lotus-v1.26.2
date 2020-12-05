@@ -152,6 +152,11 @@ var netConnect = &cli.Command{
 	ArgsUsage: "[peerMultiaddr|minerActorAddress]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
+			Name:  "protect",
+			Value: true,
+			Usage: "protect the libp2p connection",
+		},
+		&cli.BoolFlag{
 			Name:  "bootstrap",
 			Value: false,
 			Usage: "Also connect bootstrap",
@@ -216,14 +221,17 @@ var netConnect = &cli.Command{
 			allPis = append(allPis, pis...)
 		}
 
-		for _, pi := range allPis {
-			fmt.Printf("connect %s: ", pi.ID.Pretty())
-			err := api.NetConnect(ctx, pi)
-			if err != nil {
-				fmt.Println("failure")
-				return err
-			}
-			fmt.Println("success")
+		protect := cctx.Bool("protect")
+		for _, p := range allPis {
+			go func(pi peer.AddrInfo) {
+				fmt.Printf("connect %s: ", pi.ID.Pretty())
+				err := api.NetConnect(ctx, pi, protect)
+				if err != nil {
+					fmt.Printf("failure:%s", err.Error())
+					return
+				}
+				fmt.Println("success")
+			}(p)
 		}
 
 		return nil
