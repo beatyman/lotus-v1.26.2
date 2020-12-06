@@ -222,8 +222,12 @@ var netConnect = &cli.Command{
 		}
 
 		protect := cctx.Bool("protect")
+		done := make(chan bool, len(allPis))
 		for _, p := range allPis {
 			go func(pi peer.AddrInfo) {
+				defer func() {
+					done <- true
+				}()
 				fmt.Printf("connect %s: ", pi.ID.Pretty())
 				err := api.NetConnect(ctx, pi, protect)
 				if err != nil {
@@ -232,6 +236,9 @@ var netConnect = &cli.Command{
 				}
 				fmt.Println("success")
 			}(p)
+		}
+		for _, _ = range allPis {
+			<-done
 		}
 
 		return nil
