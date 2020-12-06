@@ -55,7 +55,7 @@ type CommonStruct struct {
 
 		NetConnectedness            func(context.Context, peer.ID) (network.Connectedness, error)    `perm:"read"`
 		NetPeers                    func(context.Context) ([]peer.AddrInfo, error)                   `perm:"read"`
-		NetConnect                  func(context.Context, peer.AddrInfo) error                       `perm:"write"`
+		NetConnect                  func(context.Context, peer.AddrInfo, bool) error                 `perm:"write"`
 		NetAddrsListen              func(context.Context) (peer.AddrInfo, error)                     `perm:"read"`
 		NetDisconnect               func(context.Context, peer.ID) error                             `perm:"write"`
 		NetFindPeer                 func(context.Context, peer.ID) (peer.AddrInfo, error)            `perm:"read"`
@@ -400,7 +400,7 @@ type StorageMinerStruct struct {
 		WorkerSearch         func(ctx context.Context, ip string) ([]database.WorkerInfo, error)                       `perm:"read"`
 		WorkerDisable        func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
 		WorkerAddConn        func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
-		WorkerPreConn        func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
+		WorkerPreConn        func(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)                 `perm:"read"`
 		WorkerMinerConn      func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
 		Testing           func(ctx context.Context, fnName string, args []string) error                                `perm:"admin"`
@@ -529,8 +529,8 @@ func (c *CommonStruct) NetPeers(ctx context.Context) ([]peer.AddrInfo, error) {
 	return c.Internal.NetPeers(ctx)
 }
 
-func (c *CommonStruct) NetConnect(ctx context.Context, p peer.AddrInfo) error {
-	return c.Internal.NetConnect(ctx, p)
+func (c *CommonStruct) NetConnect(ctx context.Context, p peer.AddrInfo, protect bool) error {
+	return c.Internal.NetConnect(ctx, p, protect)
 }
 
 func (c *CommonStruct) NetAddrsListen(ctx context.Context) (peer.AddrInfo, error) {
@@ -1359,8 +1359,8 @@ func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disa
 func (c *StorageMinerStruct) WorkerAddConn(ctx context.Context, wid string, num int) error {
 	return c.Internal.WorkerAddConn(ctx, wid, num)
 }
-func (c *StorageMinerStruct) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
-	return c.Internal.WorkerPreConn(ctx)
+func (c *StorageMinerStruct) WorkerPreConn(ctx context.Context, skipWid []string) (*database.WorkerInfo, error) {
+	return c.Internal.WorkerPreConn(ctx, skipWid)
 }
 func (c *StorageMinerStruct) WorkerMinerConn(ctx context.Context) (int, error) {
 	return c.Internal.WorkerMinerConn(ctx)

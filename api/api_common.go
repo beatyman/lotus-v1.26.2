@@ -27,7 +27,7 @@ type Common interface {
 
 	NetConnectedness(context.Context, peer.ID) (network.Connectedness, error)
 	NetPeers(context.Context) ([]peer.AddrInfo, error)
-	NetConnect(context.Context, peer.AddrInfo) error
+	NetConnect(context.Context, peer.AddrInfo, bool) error
 	NetAddrsListen(context.Context) (peer.AddrInfo, error)
 	NetDisconnect(context.Context, peer.ID) error
 	NetFindPeer(context.Context, peer.ID) (peer.AddrInfo, error)

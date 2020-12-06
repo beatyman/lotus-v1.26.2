@@ -102,12 +102,21 @@ func (a *CommonAPI) NetPeers(context.Context) ([]peer.AddrInfo, error) {
 	return out, nil
 }
 
-func (a *CommonAPI) NetConnect(ctx context.Context, p peer.AddrInfo) error {
+func (a *CommonAPI) NetConnect(ctx context.Context, p peer.AddrInfo, protect bool) error {
 	if swrm, ok := a.Host.Network().(*swarm.Swarm); ok {
 		swrm.Backoff().Clear(p.ID)
 	}
 
-	return a.Host.Connect(ctx, p)
+	if err := a.Host.Connect(ctx, p); err != nil {
+		return err
+	}
+	mgr := a.Host.ConnManager()
+	if protect {
+		mgr.Protect(p.ID, "manually")
+	} else {
+		mgr.Unprotect(p.ID, "manually")
+	}
+	return nil
 }
 
 func (a *CommonAPI) NetAddrsListen(context.Context) (peer.AddrInfo, error) {

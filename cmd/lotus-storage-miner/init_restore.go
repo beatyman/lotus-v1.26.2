@@ -15,7 +15,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/big"
-	paramfetch "github.com/filecoin-project/lotus/build/paramfetch"
+	paramfetch "github.com/filecoin-project/go-paramfetch"
 
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"

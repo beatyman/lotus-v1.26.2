@@ -176,7 +176,7 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("getting full node libp2p address: %w", err)
 		}
 
-		if err := minerapi.NetConnect(ctx, remoteAddrs); err != nil {
+		if err := minerapi.NetConnect(ctx, remoteAddrs, true); err != nil {
 			return xerrors.Errorf("connecting to full node (libp2p): %w", err)
 		}
 
