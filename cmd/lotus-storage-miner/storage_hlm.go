@@ -552,8 +552,7 @@ var getHLMStorageTimeoutCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("proving check:%s, fault declare:%s", pTimeout.String(), fTimeout.String())
-		return nil
+		fmt.Printf("proving check:%s, fault declare:%s\n", pTimeout.String(), fTimeout.String())
 		return nil
 	},
 }
