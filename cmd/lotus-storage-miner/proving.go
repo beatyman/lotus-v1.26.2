@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 	"text/tabwriter"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/gwaylib/errors"
@@ -15,6 +14,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api/apibstore"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -462,7 +462,7 @@ var provingCheckProvableCmd = &cli.Command{
 				})
 			}
 
-			bad, err := sapi.CheckProvable(ctx, tocheck, cctx.Bool("slow"), 6*time.Second)
+			bad, err := sapi.CheckProvable(ctx, tocheck, cctx.Bool("slow"), build.GetProvingCheckTimeout())
 			if err != nil {
 				return err
 			}

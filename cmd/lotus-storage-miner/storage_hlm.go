@@ -28,6 +28,8 @@ var hlmStorageCmd = &cli.Command{
 		relinkHLMStorageCmd,
 		replaceHLMStorageCmd,
 		scaleHLMStorageCmd,
+		setHLMStorageTimeoutCmd,
+		getHLMStorageTimeoutCmd,
 	},
 }
 var verHLMStorageCmd = &cli.Command{
@@ -486,6 +488,72 @@ var statusHLMStorageCmd = &cli.Command{
 			good = append(good, stat)
 		}
 		fmt.Printf("all:%d, good:%d, bad:%d, disable:%d\n", len(stats), len(good), len(bad), len(disable))
+		return nil
+	},
+}
+var setHLMStorageTimeoutCmd = &cli.Command{
+	Name:  "set-timeout",
+	Usage: "set the timeout of storage checking",
+	Flags: []cli.Flag{
+		&cli.IntFlag{
+			Name:  "fault-timeout",
+			Usage: "timeout of declare fault, unit is seconds, not change by 0",
+			Value: 0,
+		},
+		&cli.IntFlag{
+			Name:  "proving-timeout",
+			Usage: "timeout of declare fault, unit is seconds, not change by 0",
+			Value: 0,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+
+		// set
+		pTimeout := cctx.Int("proving-timeout")
+		if pTimeout > 0 {
+			if err := nodeApi.SetProvingCheckTimeout(ctx, time.Duration(pTimeout)*time.Second); err != nil {
+				return err
+			}
+			fmt.Println("done proving timeout set")
+		}
+		fTimeout := cctx.Int("fault-timeout")
+		if fTimeout > 0 {
+			if err := nodeApi.SetProvingCheckTimeout(ctx, time.Duration(fTimeout)*time.Second); err != nil {
+				return err
+			}
+			fmt.Println("done fault timeout set")
+		}
+		return nil
+	},
+}
+var getHLMStorageTimeoutCmd = &cli.Command{
+	Name:  "get-timeout",
+	Usage: "get the timeout of storage checking",
+	Flags: []cli.Flag{},
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+
+		pTimeout, err := nodeApi.GetProvingCheckTimeout(ctx)
+		if err != nil {
+			return err
+		}
+		fTimeout, err := nodeApi.GetFaultCheckTimeout(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("proving check:%s, fault declare:%s", pTimeout.String(), fTimeout.String())
+		return nil
 		return nil
 	},
 }

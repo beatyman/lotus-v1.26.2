@@ -172,6 +172,10 @@ type StorageMiner interface {
 	CommitStorageNode(ctx context.Context, sectorId string) error
 	CancelStorageNode(ctx context.Context, sectorId string) error
 	ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error)
+	GetProvingCheckTimeout(ctx context.Context) (time.Duration, error)
+	SetProvingCheckTimeout(ctx context.Context, timeout time.Duration) error
+	GetFaultCheckTimeout(ctx context.Context) (time.Duration, error)
+	SetFaultCheckTimeout(ctx context.Context, timeout time.Duration) error
 }
 
 type SealRes struct {
