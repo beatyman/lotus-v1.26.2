@@ -292,7 +292,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 
 		faulty += uc
 
-		recovered, err := s.checkSectors(ctx, unrecovered, tsk, 60*time.Second)
+		recovered, err := s.checkSectors(ctx, unrecovered, tsk, build.GetFaultCheckTimeout())
 		if err != nil {
 			return nil, nil, xerrors.Errorf("checking unrecovered sectors: %w", err)
 		}
@@ -375,7 +375,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 			return nil, nil, xerrors.Errorf("determining non faulty sectors: %w", err)
 		}
 
-		good, err := s.checkSectors(ctx, nonFaulty, tsk, 60*time.Second)
+		good, err := s.checkSectors(ctx, nonFaulty, tsk, build.GetFaultCheckTimeout())
 		if err != nil {
 			return nil, nil, xerrors.Errorf("checking sectors: %w", err)
 		}
@@ -569,7 +569,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 					return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
 				}
 
-				good, err := s.checkSectors(ctx, toProve, ts.Key(), 6*time.Second)
+				good, err := s.checkSectors(ctx, toProve, ts.Key(), build.GetProvingCheckTimeout())
 				if err != nil {
 					return nil, xerrors.Errorf("checking sectors to skip: %w", err)
 				}

@@ -7,6 +7,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
@@ -197,4 +198,18 @@ func (sm *StorageMinerAPI) CancelStorageNode(ctx context.Context, sectorId strin
 }
 func (sm *StorageMinerAPI) ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ChecksumStorage(ver)
+}
+func (c *StorageMinerAPI) GetProvingCheckTimeout(ctx context.Context) (time.Duration, error) {
+	return build.GetProvingCheckTimeout(), nil
+}
+func (c *StorageMinerAPI) SetProvingCheckTimeout(ctx context.Context, timeout time.Duration) error {
+	build.SetProvingCheckTimeout(timeout)
+	return nil
+}
+func (c *StorageMinerAPI) GetFaultCheckTimeout(ctx context.Context) (time.Duration, error) {
+	return build.GetFaultCheckTimeout(), nil
+}
+func (c *StorageMinerAPI) SetFaultCheckTimeout(ctx context.Context, timeout time.Duration) error {
+	build.SetFaultCheckTimeout(timeout)
+	return nil
 }
