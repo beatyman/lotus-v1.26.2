@@ -18,6 +18,9 @@ import (
 )
 
 func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, error) {
+	sb.postLk.Lock()
+	defer sb.postLk.Unlock()
+
 	randomness[31] &= 0x3f
 	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
 	if err != nil {
@@ -27,6 +30,9 @@ func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 }
 
 func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, []abi.SectorID, error) {
+	sb.postLk.Lock()
+	defer sb.postLk.Unlock()
+
 	randomness[31] &= 0x3f
 	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
 	if err != nil {
@@ -61,7 +67,7 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 
 	var out []ffi.PrivateSectorInfo
 	for _, s := range sectorInfo {
-		if _, faulty := fmap[s.SectorNumber]; faulty {
+		if _, faulty := fmap[s.ID.Number]; faulty {
 			continue
 		}
 
@@ -72,7 +78,7 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 			Cache:    s.CachePath(),
 		}
 
-		postProofType, err := rpt(s.SealProof)
+		postProofType, err := rpt(s.ProofType)
 		if err != nil {
 			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("acquiring registered PoSt proof from sector info %+v: %w", s, err)
 		}
@@ -81,7 +87,11 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 			CacheDirPath:     paths.Cache,
 			PoStProofType:    postProofType,
 			SealedSectorPath: paths.Sealed,
-			SectorInfo:       s.SectorInfo,
+			SectorInfo: proof2.SectorInfo{
+				SealProof:    s.ProofType,
+				SectorNumber: s.ID.Number,
+				SealedCID:    s.SealedCID,
+			},
 		})
 	}
 

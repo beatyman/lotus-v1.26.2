@@ -300,7 +300,11 @@ func GetStorageDeal(ctx context.Context, sm *StateManager, dealID abi.DealID, ts
 	if err != nil {
 		return nil, err
 	} else if !found {
-		return nil, xerrors.Errorf("deal %d not found", dealID)
+		return nil, xerrors.Errorf(
+			"deal %d not found "+
+				"- deal may not have completed sealing before deal proposal "+
+				"start epoch, or deal may have been slashed",
+			dealID)
 	}
 
 	states, err := state.States()
@@ -472,6 +476,7 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcs beacon.Schedule
 
 	act, err := sm.LoadActorRaw(ctx, maddr, lbst)
 	if xerrors.Is(err, types.ErrActorNotFound) {
+		log.Error(err)
 		_, err := sm.LoadActor(ctx, maddr, ts)
 		if err != nil {
 			return nil, xerrors.Errorf("loading miner in current state: %w", err)
@@ -506,6 +511,7 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcs beacon.Schedule
 	}
 
 	if len(sectors) == 0 {
+		log.Error("No sector for winning post")
 		return nil, nil
 	}
 

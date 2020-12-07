@@ -34,7 +34,7 @@ func (sb *Sealer) AddWorkerConn(id string, num int) error {
 }
 
 // prepare worker connection will auto increment the connections
-func (sb *Sealer) PrepareWorkerConn() (*database.WorkerInfo, error) {
+func (sb *Sealer) PrepareWorkerConn(skipWid []string) (*database.WorkerInfo, error) {
 	workerConnLock.Lock()
 	defer workerConnLock.Unlock()
 
@@ -42,6 +42,11 @@ func (sb *Sealer) PrepareWorkerConn() (*database.WorkerInfo, error) {
 	minConns := int64(math.MaxInt64)
 	_remotes.Range(func(key, val interface{}) bool {
 		r := val.(*remote)
+		for _, skip := range skipWid {
+			if skip == r.cfg.ID {
+				return true
+			}
+		}
 		if r.cfg.ParallelCommit2 > 0 || r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv {
 			if minConns > r.srvConn {
 				minConnRemote = r
@@ -283,6 +288,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	taskCh := make(chan WorkerTask)
 	ctx, cancel := context.WithCancel(oriCtx)
 	r := &remote{
+		ctx:            ctx,
 		cfg:            cfg,
 		release:        cancel,
 		precommit1Chan: make(chan workerCall, 10),
@@ -1038,6 +1044,10 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	log.Infof("DEBUG: send task %s to %s (locked:%s)", task.Key(), r.cfg.ID, task.WorkerID)
 	select {
 	case <-ctx.Done():
+		log.Infof("user canceled:%s", taskKey)
+		return SealRes{}, true
+	case <-r.ctx.Done():
+		log.Infof("worker canceled:%s", taskKey)
 		return SealRes{}, true
 	case r.sealTasks <- task:
 		log.Infof("DEBUG: send task %s to %s done", task.Key(), r.cfg.ID)
@@ -1046,7 +1056,10 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	// wait for the TaskDone called
 	select {
 	case <-ctx.Done():
-		log.Infof("ctx done:%s", taskKey)
+		log.Infof("user canceled:%s", taskKey)
+		return SealRes{}, true
+	case <-r.ctx.Done():
+		log.Infof("worker canceled:%s", taskKey)
 		return SealRes{}, true
 	case <-sb.stopping:
 		log.Infof("sb stoped:%s", taskKey)

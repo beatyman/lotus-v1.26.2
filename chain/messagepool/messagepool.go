@@ -192,6 +192,9 @@ func CapGasFee(mff dtypes.DefaultMaxFeeFunc, msg *types.Message, maxFee abi.Toke
 		maxFee = mf
 	}
 
+	if minGasCap > msg.GasFeeCap.Int64(){
+		msg.GasFeeCap.SetInt64(minGasCap)
+	}	
 	gl := types.NewInt(uint64(msg.GasLimit))
 	totalFee := types.BigMul(msg.GasFeeCap, gl)
 
@@ -240,10 +243,13 @@ func (ms *msgSet) add(m *types.SignedMessage, mp *MessagePool, strict, untrusted
 			// check if RBF passes
 			minPrice := ComputeMinRBF(exms.Message.GasPremium)
 			if types.BigCmp(m.Message.GasPremium, minPrice) >= 0 {
-				log.Infow("add with RBF", "oldpremium", exms.Message.GasPremium,
+				log.Debugw("add with RBF", "oldpremium", exms.Message.GasPremium,
 					"newpremium", m.Message.GasPremium, "addr", m.Message.From, "nonce", m.Message.Nonce)
 			} else {
-				log.Info("add with duplicate nonce")
+				log.Debugf("add with duplicate nonce. message from %s with nonce %d already in mpool,"+
+					" increase GasPremium to %s from %s to trigger replace by fee: %s",
+					m.Message.From, m.Message.Nonce, minPrice, m.Message.GasPremium,
+					ErrRBFTooLowPremium)
 				return false, xerrors.Errorf("message from %s with nonce %d already in mpool,"+
 					" increase GasPremium to %s from %s to trigger replace by fee: %w",
 					m.Message.From, m.Message.Nonce, minPrice, m.Message.GasPremium,

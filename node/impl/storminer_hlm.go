@@ -7,6 +7,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
@@ -53,25 +54,32 @@ func (sm *StorageMinerAPI) HlmSectorListAll(ctx context.Context) ([]api.SectorIn
 	return out, nil
 }
 func (sm *StorageMinerAPI) HlmSectorFile(ctx context.Context, sid string) (*storage.SectorFile, error) {
-	// TODO: need to set default repo?
-	return database.GetSectorFile(sid, "")
+	repo := sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RepoPath()
+	return database.GetSectorFile(sid, repo)
 }
 func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error) {
 	maddr, err := sm.ActorAddress(ctx)
 	if err != nil {
 		return 0, err
 	}
-	ssize, err := sm.ActorSectorSize(ctx, maddr)
+	mi, err := sm.Full.StateMinerInfo(ctx, maddr, types.EmptyTSK)
 	if err != nil {
 		return 0, err
 	}
 
-	// TODO: need the default repo?
-	file, err := database.GetSectorFile(sid, "")
+	repo := sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RepoPath()
+	file, err := database.GetSectorFile(sid, repo)
 	if err != nil {
 		return 0, errors.As(err)
 	}
-	all, _, _, err := ffiwrapper.CheckProvable(ctx, ssize, []storage.SectorFile{*file}, timeout)
+	id, err := storage.ParseSectorID(sid)
+	all, _, _, err := ffiwrapper.CheckProvable(ctx, []storage.SectorRef{
+		storage.SectorRef{
+			ID:         id,
+			ProofType:  mi.SealProofType,
+			SectorFile: *file,
+		},
+	}, nil, timeout)
 	if err != nil {
 		return 0, errors.As(err)
 	}
@@ -142,8 +150,8 @@ func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disabl
 func (sm *StorageMinerAPI) WorkerAddConn(ctx context.Context, wid string, num int) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddWorkerConn(wid, num)
 }
-func (sm *StorageMinerAPI) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PrepareWorkerConn()
+func (sm *StorageMinerAPI) WorkerPreConn(ctx context.Context, skipWid []string) (*database.WorkerInfo, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PrepareWorkerConn(skipWid)
 }
 func (sm *StorageMinerAPI) WorkerMinerConn(ctx context.Context) (int, error) {
 	return fileserver.Conns(), nil
@@ -190,4 +198,18 @@ func (sm *StorageMinerAPI) CancelStorageNode(ctx context.Context, sectorId strin
 }
 func (sm *StorageMinerAPI) ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ChecksumStorage(ver)
+}
+func (c *StorageMinerAPI) GetProvingCheckTimeout(ctx context.Context) (time.Duration, error) {
+	return build.GetProvingCheckTimeout(), nil
+}
+func (c *StorageMinerAPI) SetProvingCheckTimeout(ctx context.Context, timeout time.Duration) error {
+	build.SetProvingCheckTimeout(timeout)
+	return nil
+}
+func (c *StorageMinerAPI) GetFaultCheckTimeout(ctx context.Context) (time.Duration, error) {
+	return build.GetFaultCheckTimeout(), nil
+}
+func (c *StorageMinerAPI) SetFaultCheckTimeout(ctx context.Context, timeout time.Duration) error {
+	build.SetFaultCheckTimeout(timeout)
+	return nil
 }

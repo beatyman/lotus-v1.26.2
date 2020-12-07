@@ -113,16 +113,16 @@ loop:
 				log.Warn(errors.As(err))
 			}
 		case task := <-tasks:
-			// check params
-			if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
-				ssize, err := task.ProofType.SectorSize()
-				if err != nil {
-					return errors.As(err)
-				}
-				if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
-					return errors.As(err)
-				}
-			}
+			// TODO: check params for task proof type.
+			//if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
+			//	ssize, err := task.ProofType.SectorSize()
+			//	if err != nil {
+			//		return errors.As(err)
+			//	}
+			//	if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
+			//		return errors.As(err)
+			//	}
+			//}
 			if task.SectorID.Miner == 0 {
 				// connection is down.
 				return errors.New("server shutdown").As(task)
@@ -574,9 +574,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
 	case ffiwrapper.WorkerPreCommit1:
-		if err := ffiwrapper.AutoPrecommit1Env(ctx); err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
 		pieceInfo, err := ffiwrapper.DecodePieceInfo(task.Pieces)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)

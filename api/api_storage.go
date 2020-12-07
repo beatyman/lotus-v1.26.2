@@ -124,6 +124,8 @@ type StorageMiner interface {
 	// the path specified when calling CreateBackup is within the base path
 	CreateBackup(ctx context.Context, fpath string) error
 
+	CheckProvable(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error)
+
 	// implements by hlm
 	Testing(ctx context.Context, fnName string, args []string) error
 	RunPledgeSector(context.Context) error
@@ -152,7 +154,7 @@ type StorageMiner interface {
 	WorkerSearch(ctx context.Context, ip string) ([]database.WorkerInfo, error)
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 	WorkerAddConn(ctx context.Context, wid string, num int) error
-	WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error)
+	WorkerPreConn(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)
 	WorkerMinerConn(ctx context.Context) (int, error)
 
 	//Storage
@@ -170,6 +172,10 @@ type StorageMiner interface {
 	CommitStorageNode(ctx context.Context, sectorId string) error
 	CancelStorageNode(ctx context.Context, sectorId string) error
 	ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error)
+	GetProvingCheckTimeout(ctx context.Context) (time.Duration, error)
+	SetProvingCheckTimeout(ctx context.Context, timeout time.Duration) error
+	GetFaultCheckTimeout(ctx context.Context) (time.Duration, error)
+	SetFaultCheckTimeout(ctx context.Context, timeout time.Duration) error
 }
 
 type SealRes struct {

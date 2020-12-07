@@ -282,7 +282,7 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 
 矿工api配置文件目录，用于启动worker, 若在同一台机器上，不需要新建
 ```text
-/data/sdx/lotus-user-x/.lotusstorage
+/data/sd(?)/lotus-user-1/.lotusstorage
 ```
 
 工作者配置文件目录，用于缓存存储临时密封的数据, 应使用高速io盘，以便提高本地的io吞吐
@@ -292,9 +292,9 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 
 密封结果推送目录
 ```text
-/data/cache/.lotusworker/push
+/data/lotus-push
 
-worker程序会根据miner分发的存储节点配置自动挂载
+worker程序会根据miner分配的存储节点配置自动挂载到此目录
 ```
 
 ## 发布二进制

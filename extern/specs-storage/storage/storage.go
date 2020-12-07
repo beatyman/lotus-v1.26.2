@@ -15,6 +15,12 @@ type Data = io.Reader
 type SectorRef struct {
 	ID        abi.SectorID
 	ProofType abi.RegisteredSealProof
+	SectorFile
+}
+
+type ProofSectorInfo struct {
+	SectorRef
+	SealedCID cid.Cid // CommR
 }
 
 type Storage interface {

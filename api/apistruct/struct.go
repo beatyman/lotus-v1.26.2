@@ -55,7 +55,7 @@ type CommonStruct struct {
 
 		NetConnectedness            func(context.Context, peer.ID) (network.Connectedness, error)    `perm:"read"`
 		NetPeers                    func(context.Context) ([]peer.AddrInfo, error)                   `perm:"read"`
-		NetConnect                  func(context.Context, peer.AddrInfo) error                       `perm:"write"`
+		NetConnect                  func(context.Context, peer.AddrInfo, bool) error                 `perm:"write"`
 		NetAddrsListen              func(context.Context) (peer.AddrInfo, error)                     `perm:"read"`
 		NetDisconnect               func(context.Context, peer.ID) error                             `perm:"write"`
 		NetFindPeer                 func(context.Context, peer.ID) (peer.AddrInfo, error)            `perm:"read"`
@@ -372,6 +372,8 @@ type StorageMinerStruct struct {
 
 		CreateBackup func(ctx context.Context, fpath string) error `perm:"admin"`
 
+		CheckProvable func(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error) `perm:"admin"`
+
 		// implements by hlm
 		RunPledgeSector      func(context.Context) error                                                               `perm:"write"`
 		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
@@ -398,25 +400,29 @@ type StorageMinerStruct struct {
 		WorkerSearch         func(ctx context.Context, ip string) ([]database.WorkerInfo, error)                       `perm:"read"`
 		WorkerDisable        func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
 		WorkerAddConn        func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
-		WorkerPreConn        func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
+		WorkerPreConn        func(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)                 `perm:"read"`
 		WorkerMinerConn      func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
-		Testing           func(ctx context.Context, fnName string, args []string) error                                `perm:"admin"`
-		VerHLMStorage     func(ctx context.Context) (int64, error)                                                     `perm:"read"`
-		GetHLMStorage     func(ctx context.Context, id int64) (*database.StorageInfo, error)                           `perm:"read"`
-		SearchHLMStorage  func(ctx context.Context, ip string) ([]database.StorageInfo, error)                         `perm:"read"`
-		AddHLMStorage     func(ctx context.Context, sInfo *database.StorageInfo) error                                 `perm:"write"`
-		DisableHLMStorage func(ctx context.Context, id int64, disable bool) error                                      `perm:"write"`
-		MountHLMStorage   func(ctx context.Context, id int64) error                                                    `perm:"write"`
-		UMountHLMStorage  func(ctx context.Context, id int64) error                                                    `perm:"write"`
-		RelinkHLMStorage  func(ctx context.Context, id int64) error                                                    `perm:"write"`
-		ReplaceHLMStorage func(ctx context.Context, info *database.StorageInfo) error                                  `perm:"write"`
-		ScaleHLMStorage   func(ctx context.Context, id int64, size int64, work int64) error                            `perm:"write"`
-		StatusHLMStorage  func(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) `perm:"read"`
-		PreStorageNode    func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)          `perm:"write"`
-		CommitStorageNode func(ctx context.Context, sectorId string) error                                             `perm:"write"`
-		CancelStorageNode func(ctx context.Context, sectorId string) error                                             `perm:"write"`
-		ChecksumStorage   func(ctx context.Context, ver int64) ([]database.StorageInfo, error)                         `perm:"read"`
+		Testing                func(ctx context.Context, fnName string, args []string) error                                `perm:"admin"`
+		VerHLMStorage          func(ctx context.Context) (int64, error)                                                     `perm:"read"`
+		GetHLMStorage          func(ctx context.Context, id int64) (*database.StorageInfo, error)                           `perm:"read"`
+		SearchHLMStorage       func(ctx context.Context, ip string) ([]database.StorageInfo, error)                         `perm:"read"`
+		AddHLMStorage          func(ctx context.Context, sInfo *database.StorageInfo) error                                 `perm:"write"`
+		DisableHLMStorage      func(ctx context.Context, id int64, disable bool) error                                      `perm:"write"`
+		MountHLMStorage        func(ctx context.Context, id int64) error                                                    `perm:"write"`
+		UMountHLMStorage       func(ctx context.Context, id int64) error                                                    `perm:"write"`
+		RelinkHLMStorage       func(ctx context.Context, id int64) error                                                    `perm:"write"`
+		ReplaceHLMStorage      func(ctx context.Context, info *database.StorageInfo) error                                  `perm:"write"`
+		ScaleHLMStorage        func(ctx context.Context, id int64, size int64, work int64) error                            `perm:"write"`
+		StatusHLMStorage       func(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) `perm:"read"`
+		PreStorageNode         func(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)          `perm:"write"`
+		CommitStorageNode      func(ctx context.Context, sectorId string) error                                             `perm:"write"`
+		CancelStorageNode      func(ctx context.Context, sectorId string) error                                             `perm:"write"`
+		ChecksumStorage        func(ctx context.Context, ver int64) ([]database.StorageInfo, error)                         `perm:"read"`
+		GetProvingCheckTimeout func(ctx context.Context) (time.Duration, error)                                             `perm:"read"`
+		SetProvingCheckTimeout func(ctx context.Context, timeout time.Duration) error                                       `perm:"write"`
+		GetFaultCheckTimeout   func(ctx context.Context) (time.Duration, error)                                             `perm:"read"`
+		SetFaultCheckTimeout   func(ctx context.Context, timeout time.Duration) error                                       `perm:"write"`
 	}
 }
 
@@ -441,6 +447,9 @@ type WorkerStruct struct {
 		UnsealPiece     func(context.Context, storage.SectorRef, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) (storiface.CallID, error)                                           `perm:"admin"`
 		ReadPiece       func(context.Context, io.Writer, storage.SectorRef, storiface.UnpaddedByteIndex, abi.UnpaddedPieceSize) (storiface.CallID, error)                                                             `perm:"admin"`
 		Fetch           func(context.Context, storage.SectorRef, storiface.SectorFileType, storiface.PathType, storiface.AcquireMode) (storiface.CallID, error)                                                       `perm:"admin"`
+
+		TaskDisable func(ctx context.Context, tt sealtasks.TaskType) error `perm:"admin"`
+		TaskEnable  func(ctx context.Context, tt sealtasks.TaskType) error `perm:"admin"`
 
 		Remove          func(ctx context.Context, sector abi.SectorID) error `perm:"admin"`
 		StorageAddLocal func(ctx context.Context, path string) error         `perm:"admin"`
@@ -481,6 +490,7 @@ type GatewayStruct struct {
 		StateMarketBalance                func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (api.MarketBalance, error)
 		StateMarketStorageDeal            func(ctx context.Context, dealId abi.DealID, tsk types.TipSetKey) (*api.MarketDeal, error)
 		StateNetworkVersion               func(ctx context.Context, tsk types.TipSetKey) (stnetwork.Version, error)
+		StateSectorGetInfo                func(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (*miner.SectorOnChainInfo, error)
 		StateVerifiedClientStatus         func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*abi.StoragePower, error)
 		StateWaitMsg                      func(ctx context.Context, msg cid.Cid, confidence uint64) (*api.MsgLookup, error)
 	}
@@ -523,8 +533,8 @@ func (c *CommonStruct) NetPeers(ctx context.Context) ([]peer.AddrInfo, error) {
 	return c.Internal.NetPeers(ctx)
 }
 
-func (c *CommonStruct) NetConnect(ctx context.Context, p peer.AddrInfo) error {
-	return c.Internal.NetConnect(ctx, p)
+func (c *CommonStruct) NetConnect(ctx context.Context, p peer.AddrInfo, protect bool) error {
+	return c.Internal.NetConnect(ctx, p, protect)
 }
 
 func (c *CommonStruct) NetAddrsListen(ctx context.Context) (peer.AddrInfo, error) {
@@ -1353,8 +1363,8 @@ func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disa
 func (c *StorageMinerStruct) WorkerAddConn(ctx context.Context, wid string, num int) error {
 	return c.Internal.WorkerAddConn(ctx, wid, num)
 }
-func (c *StorageMinerStruct) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
-	return c.Internal.WorkerPreConn(ctx)
+func (c *StorageMinerStruct) WorkerPreConn(ctx context.Context, skipWid []string) (*database.WorkerInfo, error) {
+	return c.Internal.WorkerPreConn(ctx, skipWid)
 }
 func (c *StorageMinerStruct) WorkerMinerConn(ctx context.Context) (int, error) {
 	return c.Internal.WorkerMinerConn(ctx)
@@ -1411,6 +1421,18 @@ func (c *StorageMinerStruct) CancelStorageNode(ctx context.Context, sectorId str
 
 func (c *StorageMinerStruct) ChecksumStorage(ctx context.Context, sumVer int64) ([]database.StorageInfo, error) {
 	return c.Internal.ChecksumStorage(ctx, sumVer)
+}
+func (c *StorageMinerStruct) GetProvingCheckTimeout(ctx context.Context) (time.Duration, error) {
+	return c.Internal.GetProvingCheckTimeout(ctx)
+}
+func (c *StorageMinerStruct) SetProvingCheckTimeout(ctx context.Context, timeout time.Duration) error {
+	return c.Internal.SetProvingCheckTimeout(ctx, timeout)
+}
+func (c *StorageMinerStruct) GetFaultCheckTimeout(ctx context.Context) (time.Duration, error) {
+	return c.Internal.GetFaultCheckTimeout(ctx)
+}
+func (c *StorageMinerStruct) SetFaultCheckTimeout(ctx context.Context, timeout time.Duration) error {
+	return c.Internal.SetFaultCheckTimeout(ctx, timeout)
 }
 
 // implements by hlm end
@@ -1713,6 +1735,10 @@ func (c *StorageMinerStruct) CreateBackup(ctx context.Context, fpath string) err
 	return c.Internal.CreateBackup(ctx, fpath)
 }
 
+func (c *StorageMinerStruct) CheckProvable(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error) {
+	return c.Internal.CheckProvable(ctx, sectors, expensive, timeout)
+}
+
 // WorkerStruct
 
 func (w *WorkerStruct) Version(ctx context.Context) (build.Version, error) {
@@ -1773,6 +1799,14 @@ func (w *WorkerStruct) ReadPiece(ctx context.Context, sink io.Writer, sector sto
 
 func (w *WorkerStruct) Fetch(ctx context.Context, id storage.SectorRef, fileType storiface.SectorFileType, ptype storiface.PathType, am storiface.AcquireMode) (storiface.CallID, error) {
 	return w.Internal.Fetch(ctx, id, fileType, ptype, am)
+}
+
+func (w *WorkerStruct) TaskDisable(ctx context.Context, tt sealtasks.TaskType) error {
+	return w.Internal.TaskDisable(ctx, tt)
+}
+
+func (w *WorkerStruct) TaskEnable(ctx context.Context, tt sealtasks.TaskType) error {
+	return w.Internal.TaskEnable(ctx, tt)
 }
 
 func (w *WorkerStruct) Remove(ctx context.Context, sector abi.SectorID) error {
@@ -1897,6 +1931,10 @@ func (g GatewayStruct) StateMinerPower(ctx context.Context, addr address.Address
 
 func (g GatewayStruct) StateNetworkVersion(ctx context.Context, tsk types.TipSetKey) (stnetwork.Version, error) {
 	return g.Internal.StateNetworkVersion(ctx, tsk)
+}
+
+func (g GatewayStruct) StateSectorGetInfo(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (*miner.SectorOnChainInfo, error) {
+	return g.Internal.StateSectorGetInfo(ctx, maddr, n, tsk)
 }
 
 func (g GatewayStruct) StateVerifiedClientStatus(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*abi.StoragePower, error) {

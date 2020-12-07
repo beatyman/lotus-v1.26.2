@@ -2,6 +2,7 @@ package ffiwrapper
 
 import (
 	"context"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -140,6 +141,14 @@ func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storage.PreCommit1Out, 
 func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
 	log.Infof("DEBUG:SealPreCommit1 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:SealPreCommit1 out,%+v", sector)
+
+	// if the FIL_PROOFS_MULTICORE_SDR_PRODUCERS haven't set, set it by auto.
+	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
+		if err := autoPrecommit1Env(ctx); err != nil {
+			return storage.PreCommit1Out{}, errors.As(err)
+		}
+	}
+
 	atomic.AddInt32(&_precommit1Wait, 1)
 	if !sb.remoteCfg.SealSector {
 		atomic.AddInt32(&_precommit1Wait, -1)
@@ -365,10 +374,13 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 }
 
 func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+	if len(sectorInfo) == 0 {
+		return nil, errors.New("not sectors set")
+	}
 	log.Infof("DEBUG:GenerateWiningPoSt in(remote:%t),%+v", sb.remoteCfg.SealSector, minerID)
 	defer log.Infof("DEBUG:GenerateWinningPoSt out,%+v", minerID)
 
-	timeoutCtx,cancel := context.WithTimeout(ctx, 30*1e9)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*1e9)
 	defer cancel()
 
 	result := make(chan struct {
@@ -398,6 +410,7 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 	for i := 0; i < sb.remoteCfg.WinningPoSt; i++ {
 		task := WorkerTask{
 			Type:       WorkerWinningPoSt,
+			ProofType:  sectorInfo[0].ProofType,
 			SectorID:   abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
 			SectorInfo: sectorInfo,
 			Randomness: randomness,
@@ -412,7 +425,7 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 		log.Infof("Selected GpuService:%s", r.cfg.SvcUri)
 	}
 	if len(remotes) == 0 {
-		log.Info("No GpuServie Found, using local mode")
+		log.Info("No GpuService Found, using local mode")
 		return sb.generateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 	}
 
@@ -459,6 +472,10 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 }
 
 func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
+	if len(sectorInfo) == 0 {
+		return nil, nil, errors.New("not sectors set")
+	}
+
 	curSourceId := curSourceID()
 	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s-%d", sb.remoteCfg.SealSector, minerID, curSourceId)
 	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s-%d", minerID, curSourceId)
@@ -471,6 +488,7 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	for i := 0; i < sb.remoteCfg.WindowPoSt; i++ {
 		task := WorkerTask{
 			Type:       WorkerWindowPoSt,
+			ProofType:  sectorInfo[0].ProofType,
 			SectorID:   abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
 			SectorInfo: sectorInfo,
 			Randomness: randomness,
@@ -484,7 +502,7 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		log.Infof("Selected GpuService:%s", r.cfg.SvcUri)
 	}
 	if len(remotes) == 0 {
-		log.Info("No GpuServie Found, using local mode")
+		log.Info("No GpuService Found, using local mode")
 		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 	}
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -673,6 +674,11 @@ var marketCancelTransfer = &cli.Command{
 			Usage: "specify only transfers where peer is/is not initiator",
 			Value: false,
 		},
+		&cli.DurationFlag{
+			Name:  "cancel-timeout",
+			Usage: "time to wait for cancel to be sent to client",
+			Value: 5 * time.Second,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		if !cctx.Args().Present() {
@@ -716,7 +722,9 @@ var marketCancelTransfer = &cli.Command{
 			}
 		}
 
-		return nodeApi.MarketCancelDataTransfer(ctx, transferID, other, initiator)
+		timeoutCtx, cancel := context.WithTimeout(ctx, cctx.Duration("cancel-timeout"))
+		defer cancel()
+		return nodeApi.MarketCancelDataTransfer(timeoutCtx, transferID, other, initiator)
 	},
 }
 

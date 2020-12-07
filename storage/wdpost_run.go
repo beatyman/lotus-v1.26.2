@@ -218,7 +218,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	}
 
 	sectors := make(map[abi.SectorNumber]struct{})
-	var tocheck []storage.SectorFile
+	var tocheck []storage.SectorRef
 	var checkNum int
 	for _, info := range sectorInfos {
 		checkNum++
@@ -232,12 +232,18 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 			continue
 		}
 
-		tocheck = append(tocheck, *sFile)
 		sectors[info.SectorNumber] = struct{}{}
-
+		tocheck = append(tocheck, storage.SectorRef{
+			ProofType: info.SealProof,
+			ID: abi.SectorID{
+				Miner:  abi.ActorID(mid),
+				Number: info.SectorNumber,
+			},
+			SectorFile: *sFile,
+		})
 	}
 
-	all, _, _, err := s.faultTracker.CheckProvable(ctx, s.proofType, tocheck, timeout)
+	all, _, _, err := s.faultTracker.CheckProvable(ctx, tocheck, nil, timeout)
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
 	}
@@ -286,7 +292,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 
 		faulty += uc
 
-		recovered, err := s.checkSectors(ctx, unrecovered, tsk, 60*time.Second)
+		recovered, err := s.checkSectors(ctx, unrecovered, tsk, build.GetFaultCheckTimeout())
 		if err != nil {
 			return nil, nil, xerrors.Errorf("checking unrecovered sectors: %w", err)
 		}
@@ -369,7 +375,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 			return nil, nil, xerrors.Errorf("determining non faulty sectors: %w", err)
 		}
 
-		good, err := s.checkSectors(ctx, nonFaulty, tsk, 60*time.Second)
+		good, err := s.checkSectors(ctx, nonFaulty, tsk, build.GetFaultCheckTimeout())
 		if err != nil {
 			return nil, nil, xerrors.Errorf("checking sectors: %w", err)
 		}
@@ -563,7 +569,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 					return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
 				}
 
-				good, err := s.checkSectors(ctx, toProve, ts.Key(), 6*time.Second)
+				good, err := s.checkSectors(ctx, toProve, ts.Key(), build.GetProvingCheckTimeout())
 				if err != nil {
 					return nil, xerrors.Errorf("checking sectors to skip: %w", err)
 				}
@@ -756,12 +762,20 @@ func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, 
 		if info, found := sectorByID[sectorNo]; found {
 			sector = info
 		}
-		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: abi.ActorID(mid), Number: sector.SectorNumber}), repo)
+		id := abi.SectorID{Miner: abi.ActorID(mid), Number: sector.SectorNumber}
+		sFile, err := database.GetSectorFile(storage.SectorName(id), repo)
 		if err != nil {
 			log.Warn(errors.As(err))
 			return nil
 		}
-		proofSectors = append(proofSectors, storage.ProofSectorInfo{SectorInfo: sector, SectorFile: *sFile})
+		proofSectors = append(proofSectors, storage.ProofSectorInfo{
+			SectorRef: storage.SectorRef{
+				ID:         id,
+				ProofType:  sector.SealProof,
+				SectorFile: *sFile,
+			},
+			SealedCID: sector.SealedCID,
+		})
 		return nil
 	}); err != nil {
 		return nil, xerrors.Errorf("iterating partition sector bitmap: %w", err)

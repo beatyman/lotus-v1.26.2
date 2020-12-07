@@ -267,9 +267,6 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInf
 	log.Infof("Computing WinningPoSt ;%+v; %v", ssi, rand)
 
 	start := build.Clock.Now()
-	pFiles := []storage.ProofSectorInfo{}
-	sFiles := []storage.SectorFile{}
-	ssize := abi.SectorSize(0) // undefined.
 	repo := ""
 	sm, ok := wpp.prover.(*sectorstorage.Manager)
 	if ok {
@@ -281,27 +278,28 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInf
 	if len(repo) == 0 {
 		log.Warn("not found default repo")
 	}
+	rSectors := []storage.SectorRef{}
+	pSectors := []storage.ProofSectorInfo{}
 	for _, s := range ssi {
-		size, err := s.SealProof.SectorSize()
+		id := abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}
+		sFile, err := database.GetSectorFile(storage.SectorName(id), repo)
 		if err != nil {
 			return nil, err
 		}
-		if ssize == 0 {
-			ssize = size
+		rSector := storage.SectorRef{
+			ID:         id,
+			ProofType:  s.SealProof,
+			SectorFile: *sFile,
 		}
-		if size != ssize {
-			log.Error(errors.New("ssize not match in the same miner").As(wpp.miner, s.SectorNumber, size, ssize))
-		}
-		sFile, err := database.GetSectorFile(storage.SectorName(abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}), repo)
-		if err != nil {
-			return nil, err
-		}
-		pFiles = append(pFiles, storage.ProofSectorInfo{SectorInfo: s, SectorFile: *sFile})
-		sFiles = append(sFiles, *sFile)
+		rSectors = append(rSectors, rSector)
+		pSectors = append(pSectors, storage.ProofSectorInfo{
+			SectorRef: rSector,
+			SealedCID: s.SealedCID,
+		})
 	}
 	// TODO: confirm here need to check the files
 	// check files
-	_, _, bad, err := ffiwrapper.CheckProvable(ctx, ssize, sFiles, 6*time.Second)
+	_, _, bad, err := ffiwrapper.CheckProvable(ctx, rSectors, nil, 6*time.Second)
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -310,7 +308,7 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInf
 	}
 	log.Infof("GenerateWinningPoSt checking %s", time.Since(start))
 
-	proof, err := wpp.prover.GenerateWinningPoSt(ctx, wpp.miner, pFiles, rand)
+	proof, err := wpp.prover.GenerateWinningPoSt(ctx, wpp.miner, pSectors, rand)
 	if err != nil {
 		return nil, err
 	}
