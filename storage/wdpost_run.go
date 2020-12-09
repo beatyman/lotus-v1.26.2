@@ -629,7 +629,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, abi.PoStRandomness(rand))
 			elapsed := time.Since(tsStart)
 
-			log.Infow("computing window post", "batch", batchIdx, "elapsed", elapsed)
+			log.Infow("computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed)
 
 			if err == nil {
 				if len(postOut) == 0 {
