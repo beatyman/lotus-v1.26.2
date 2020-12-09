@@ -202,6 +202,7 @@ func (m *Sealing) AddPieceToAnySector(ctx context.Context, size abi.UnpaddedPiec
 
 	cfg, err := m.getConfig()
 	if err != nil {
+		m.unsealedInfoMap.lk.Unlock()
 		return 0, 0, xerrors.Errorf("getting config: %w", err)
 	}
 	startPacking := cfg.MaxDealsPerSector > 0 && m.unsealedInfoMap.infos[sid].numDeals >= cfg.MaxDealsPerSector
