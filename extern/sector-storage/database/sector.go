@@ -22,21 +22,23 @@ const (
 )
 
 type SectorInfo struct {
-	ID         string    `db:"id"` // s-t0101-1
-	MinerId    string    `db:"miner_id"`
-	UpdateTime time.Time `db:"updated_at"`
-	StorageId  int64     `db:"storage_id"`
-	WorkerId   string    `db:"worker_id"`
-	State      int       `db:"state,0"`
-	StateTime  time.Time `db:"state_time"`
-	StateTimes int       `db:"state_times"`
-	CreateTime time.Time `db:"created_at"`
+	ID              string    `db:"id"` // s-t0101-1
+	MinerId         string    `db:"miner_id"`
+	UpdateTime      time.Time `db:"updated_at"`
+	StorageId       int64     `db:"storage_id"`
+	StorageUnsealed int64     `db:"storage_unsealed"`
+	WorkerId        string    `db:"worker_id"`
+	State           int       `db:"state,0"`
+	StateTime       time.Time `db:"state_time"`
+	StateTimes      int       `db:"state_times"`
+	CreateTime      time.Time `db:"created_at"`
 }
 
 type SectorStorage struct {
-	SectorInfo  SectorInfo
-	StorageInfo StorageInfo
-	WorkerInfo  WorkerInfo
+	SectorInfo      SectorInfo
+	WorkerInfo      WorkerInfo
+	SealedStorage   StorageInfo
+	UnsealedStorage StorageInfo
 }
 
 type StorageStatus struct {
@@ -171,12 +173,6 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 		seInfo.WorkerId = "default"
 		seInfo.StorageId = 1
 	}
-	stInfo := &StorageInfo{}
-	if err := database.QueryStruct(mdb, stInfo, "SELECT * FROM storage_info WHERE id=?", seInfo.StorageId); err != nil {
-		if !errors.ErrNoData.Equal(err) {
-			return nil, errors.As(err, id)
-		}
-	}
 	wkInfo := &WorkerInfo{
 		ID: seInfo.WorkerId,
 	}
@@ -187,10 +183,23 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 
 		// upgrade fixed for worker ip
 	}
+	sealedInfo := &StorageInfo{}
+	if err := database.QueryStruct(mdb, sealedInfo, "SELECT * FROM storage_info WHERE id=?", seInfo.StorageId); err != nil {
+		if !errors.ErrNoData.Equal(err) {
+			return nil, errors.As(err, id)
+		}
+	}
+	unsealedInfo := &StorageInfo{}
+	if err := database.QueryStruct(mdb, unsealedInfo, "SELECT * FROM storage_info WHERE id=?", seInfo.StorageId); err != nil {
+		if !errors.ErrNoData.Equal(err) {
+			return nil, errors.As(err, id)
+		}
+	}
 	return &SectorStorage{
-		SectorInfo:  *seInfo,
-		StorageInfo: *stInfo,
-		WorkerInfo:  *wkInfo,
+		SectorInfo:      *seInfo,
+		WorkerInfo:      *wkInfo,
+		SealedStorage:   *sealedInfo,
+		UnsealedStorage: *unsealedInfo,
 	}, nil
 }
 

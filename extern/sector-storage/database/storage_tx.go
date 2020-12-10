@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/gwaylib/database"
@@ -14,6 +15,11 @@ var (
 // simulate transaction.
 type StorageTx struct {
 	SectorId string
+	Kind     int
+}
+
+func (s *StorageTx) Key() string {
+	return fmt.Sprintf("%s-%d", s.SectorId, s.Kind)
 }
 
 var (
@@ -21,31 +27,40 @@ var (
 	allocatePool = map[string]int64{}
 )
 
-func PrepareStorage(sectorId, fromIp string) (*StorageTx, *StorageInfo, error) {
+func PrepareStorage(sectorId, fromIp string, kind int) (*StorageTx, *StorageInfo, error) {
 	ssInfo, err := GetSectorStorage(sectorId)
 	if err != nil {
 		return nil, nil, errors.As(err, sectorId)
 	}
-	info := &ssInfo.StorageInfo
+	tx := &StorageTx{SectorId: sectorId, Kind: kind}
+	var info *StorageInfo
+	switch tx.Kind {
+	case STORAGE_KIND_SEALED:
+		info = &ssInfo.SealedStorage
+	case STORAGE_KIND_UNSEALED:
+		info = &ssInfo.UnsealedStorage
+	default:
+		return nil, nil, errors.New("unknow kind").As(sectorId, fromIp, kind)
+	}
 	db := GetDB()
 	// has allocated
-	if ssInfo.StorageInfo.ID > 0 {
+	if info.ID > 0 {
 		allocateMux.Lock()
-		_, ok := allocatePool[sectorId]
+		_, ok := allocatePool[tx.Key()]
 		allocateMux.Unlock()
 		if ok {
-			return &StorageTx{sectorId}, &ssInfo.StorageInfo, nil
+			return tx, info, nil
 		}
 		// prepare to transfer
 	} else {
 		// allocate new
 		if err := database.QueryStruct(
 			db, info,
-			"SELECT * FROM storage_info WHERE mount_transf_uri like '%?%'",
-			fromIp,
+			"SELECT * FROM storage_info WHERE kind=? AND mount_transf_uri like '%?%'",
+			kind, fromIp,
 		); err != nil {
 			if !errors.ErrNoData.Equal(err) {
-				return nil, nil, errors.As(err, sectorId)
+				return nil, nil, errors.As(err, *tx)
 			}
 			// data not found
 		} else {
@@ -66,22 +81,30 @@ FROM
 	storage_info 
 WHERE
 	disable=0
+	AND kind=?
 	AND cur_work<max_work
 	AND (used_size+sector_size*(cur_work+1)+keep_size)<=max_size
 	ORDER BY cast(cur_work as real)/cast(max_work as real), max_size-used_size desc
 	LIMIT 1
-	`); err != nil {
+	`, tx.Kind); err != nil {
 				if errors.ErrNoData.Equal(err) {
-					return nil, nil, ErrNoStorage.As(sectorId)
+					return nil, nil, ErrNoStorage.As(*tx)
 				}
-				return nil, nil, errors.As(err, sectorId)
+				return nil, nil, errors.As(err, *tx)
 			}
 		}
 	}
 
 	// Allocate data
-	if _, err := db.Exec("UPDATE sector_info SET storage_id=? WHERE id=?", info.ID, sectorId); err != nil {
-		return nil, nil, errors.As(err, sectorId)
+	switch tx.Kind {
+	case STORAGE_KIND_SEALED:
+		if _, err := db.Exec("UPDATE sector_info SET storage_id=? WHERE id=?", info.ID, sectorId); err != nil {
+			return nil, nil, errors.As(err, sectorId)
+		}
+	case STORAGE_KIND_UNSEALED:
+		if _, err := db.Exec("UPDATE sector_info SET storage_unsealed=? WHERE id=?", info.ID, sectorId); err != nil {
+			return nil, nil, errors.As(err, sectorId)
+		}
 	}
 	// Declaration of use the storage space
 	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work+1 WHERE id=?", info.ID); err != nil {
@@ -89,57 +112,68 @@ WHERE
 	}
 
 	allocateMux.Lock()
-	allocatePool[sectorId] = info.ID
+	allocatePool[tx.Key()] = info.ID
 	allocateMux.Unlock()
-	return &StorageTx{SectorId: sectorId}, info, nil
+	return tx, info, nil
 }
 func (tx *StorageTx) Commit() error {
 	ssInfo, err := GetSectorStorage(tx.SectorId)
 	if err != nil {
-		return errors.As(err, tx.SectorId)
+		return errors.As(err, *tx)
 	}
+	var info *StorageInfo
+	switch tx.Kind {
+	case STORAGE_KIND_SEALED:
+		info = &ssInfo.SealedStorage
+	case STORAGE_KIND_UNSEALED:
+		info = &ssInfo.UnsealedStorage
+	default:
+		return errors.New("unknow kind").As(*tx)
+	}
+
 	// no prepare
-	if ssInfo.StorageInfo.ID == 0 {
+	if info.ID == 0 {
 		allocateMux.Lock()
-		delete(allocatePool, tx.SectorId)
+		delete(allocatePool, tx.Key())
 		allocateMux.Unlock()
 		return nil
 	}
 
-	storage := ssInfo.StorageInfo
 	db := GetDB()
-	if _, err := db.Exec("UPDATE storage_info SET used_size=used_size+sector_size,cur_work=cur_work-1 WHERE id=?", storage.ID); err != nil {
+	if _, err := db.Exec("UPDATE storage_info SET used_size=used_size+sector_size,cur_work=cur_work-1 WHERE id=?", info.ID); err != nil {
 		return errors.As(err, *tx)
 	}
 
 	allocateMux.Lock()
-	delete(allocatePool, tx.SectorId)
+	delete(allocatePool, tx.Key())
 	allocateMux.Unlock()
 	return nil
 }
 func (tx *StorageTx) Rollback() error {
-	return cancelStorage(tx.SectorId)
-}
-
-func cancelStorage(sectorId string) error {
 	allocateMux.Lock()
-	delete(allocatePool, sectorId)
+	delete(allocatePool, tx.Key())
 	allocateMux.Unlock()
 
-	ssInfo, err := GetSectorStorage(sectorId)
+	ssInfo, err := GetSectorStorage(tx.SectorId)
 	if err != nil {
-		return errors.As(err, sectorId)
+		return errors.As(err, *tx)
 	}
-
+	var info *StorageInfo
+	switch tx.Kind {
+	case STORAGE_KIND_SEALED:
+		info = &ssInfo.SealedStorage
+	case STORAGE_KIND_UNSEALED:
+		info = &ssInfo.UnsealedStorage
+	default:
+		return errors.New("unknow kind").As(*tx)
+	}
 	// no prepare
-	if ssInfo.StorageInfo.ID == 0 {
+	if info.ID == 0 {
 		return nil
 	}
-
-	storage := ssInfo.StorageInfo
 	db := GetDB()
-	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work-1 WHERE id=?", storage.ID); err != nil {
-		return errors.As(err, sectorId, storage.ID)
+	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work-1 WHERE id=?", info.ID); err != nil {
+		return errors.As(err, *tx, info.ID)
 	}
 
 	return nil

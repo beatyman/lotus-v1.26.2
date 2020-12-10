@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS storage_info (
 	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	disable INTERGER NOT NULL DEFAULT 0, /* disable should not be allocate for storage. it disgin for local storage, if you have a net storage, should disable it*/
+	kind INTERGER NOT NULL DEFAULT 0, /* 0, for sealed; 1 for unsealed. */
 	max_size INTEGER NOT NULL, /* max storage size, in byte, filling by manu. */
 	keep_size INTEGER DEFAULT 0, /* keep left storage size, in byte, filling by manu. */
 	used_size INTEGER DEFAULT 0, /* added by state of secotr success. */
@@ -49,7 +50,8 @@ CREATE TABLE IF NOT EXISTS sector_info (
 	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	miner_id TEXT NOT NULL, /* t0101 */
-	storage_id INTEGER DEFAULT '', /* where to storage */
+	storage_id INTEGER DEFAULT 0, /* where the sealed to storage */
+	storage_unsealed INTEGER DEFAULT 0, /* where the market unsealed data to storage */
 	worker_id TEXT NOT NULL DEFAULT 'default', /* who work on */
 	state INTEGER NOT NULL DEFAULT 0, /* 0: INIT, 0-99:working, 100:moving, 101:pushing, 200: success, 500: failed.*/
 	state_time DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')), /* state update time, design for state timeout.*/

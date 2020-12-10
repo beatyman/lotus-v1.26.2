@@ -8,9 +8,15 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+const (
+	STORAGE_KIND_SEALED   = 0
+	STORAGE_KIND_UNSEALED = 1
+)
+
 type StorageInfo struct {
 	ID             int64     `db:"id,auto_increment"`
 	UpdateTime     time.Time `db:"updated_at"`
+	Kind           int64     `db:"kind"`
 	MaxSize        int64     `db:"max_size"`
 	KeepSize       int64     `db:"keep_size"`
 	UsedSize       int64     `db:"used_size"`

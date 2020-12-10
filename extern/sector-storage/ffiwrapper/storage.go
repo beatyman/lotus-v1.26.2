@@ -26,14 +26,15 @@ func (sb *Sealer) MakeLink(task *WorkerTask) error {
 
 	// make a new link
 	ss := task.SectorStorage
-	cacheFile := filepath.Join(ss.StorageInfo.MountDir, fmt.Sprintf("%d", ss.StorageInfo.ID), "cache", sectorName)
+	st := ss.SealedStorage
+	cacheFile := filepath.Join(st.MountDir, fmt.Sprintf("%d", st.ID), "cache", sectorName)
 	if newCacheFile != cacheFile {
 		log.Infof("ln -s %s %s", cacheFile, newCacheFile)
 		if err := database.Symlink(cacheFile, newCacheFile); err != nil {
 			return errors.As(err, ss, sectorName)
 		}
 	}
-	sealedFile := filepath.Join(ss.StorageInfo.MountDir, fmt.Sprintf("%d", ss.StorageInfo.ID), "sealed", sectorName)
+	sealedFile := filepath.Join(st.MountDir, fmt.Sprintf("%d", st.ID), "sealed", sectorName)
 	if newSealedFile != sealedFile {
 		log.Infof("ln -s %s %s", sealedFile, newSealedFile)
 		if err := database.Symlink(sealedFile, newSealedFile); err != nil {
@@ -209,19 +210,19 @@ func (sb *Sealer) ScaleStorage(ctx context.Context, id int64, size int64, work i
 	return nil
 }
 
-func (sb *Sealer) PreStorageNode(sectorId, clientIp string) (*database.StorageInfo, error) {
-	_, info, err := database.PrepareStorage(sectorId, clientIp)
+func (sb *Sealer) PreStorageNode(sectorId, clientIp string, kind int) (*database.StorageInfo, error) {
+	_, info, err := database.PrepareStorage(sectorId, clientIp, kind)
 	if err != nil {
 		return nil, errors.As(err)
 	}
 	return info, nil
 }
-func (sb *Sealer) CommitStorageNode(sectorId string) error {
-	tx := &database.StorageTx{sectorId}
+func (sb *Sealer) CommitStorageNode(sectorId string, kind int) error {
+	tx := &database.StorageTx{SectorId: sectorId, Kind: kind}
 	return tx.Commit()
 }
-func (sb *Sealer) CancelStorageNode(sectorId string) error {
-	tx := &database.StorageTx{sectorId}
+func (sb *Sealer) CancelStorageNode(sectorId string, kind int) error {
+	tx := &database.StorageTx{SectorId: sectorId, Kind: kind}
 	return tx.Rollback()
 }
 
