@@ -502,7 +502,8 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 
 		var pc1o storage.PreCommit1Out
 		var err error
-		if !task.TaskSet {
+		// if !task.TaskSet {
+		if false { // p1 not need taskset now.
 			pc1o, err = sb.SealPreCommit1(ctx, sid, ticket, task.Pieces)
 			if err != nil {
 				panic(err)

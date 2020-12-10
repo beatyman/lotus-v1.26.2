@@ -7,14 +7,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"time"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/sys/unix"
 )
 
 type ExecPrecommit2Resp struct {
@@ -28,20 +26,11 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 	if err != nil {
 		return storage.SectorCids{}, errors.As(err)
 	}
-	var cpuIdx = 0
-	var cpuGroup = []int{}
-	for {
-		idx, group, err := allocateCpu(ctx)
-		if err != nil {
-			log.Warn(errors.As(err))
-			time.Sleep(10e9)
-			continue
-		}
-		cpuIdx = idx
-		cpuGroup = group
-		break
+	gpuKey, _, err := allocateGpu(ctx)
+	if err != nil {
+		log.Warn(errors.As(err))
 	}
-	defer returnCpu(cpuIdx)
+	defer returnGpu(gpuKey)
 
 	programName := os.Args[0]
 	cmd := exec.CommandContext(ctx, programName,
@@ -51,13 +40,7 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 	)
 	// set the env
 	cmd.Env = os.Environ()
-	if len(cpuGroup) < 2 {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=1"))
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=0"))
-	} else {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=%d", len(cpuGroup)))
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=1"))
-	}
+	cmd.Env = append(cmd.Env, fmt.Sprintf("NEPTUNE_DEFAULT_GPU=%s", gpuKey))
 
 	var stdout bytes.Buffer
 	// output the stderr log
@@ -72,16 +55,6 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 
 	if err := cmd.Start(); err != nil {
 		return storage.SectorCids{}, errors.As(err)
-	}
-
-	// set cpu affinity
-	cpuSet := unix.CPUSet{}
-	for _, cpu := range cpuGroup {
-		cpuSet.Set(cpu)
-	}
-	// https://github.com/golang/go/issues/11243
-	if err := unix.SchedSetaffinity(cmd.Process.Pid, &cpuSet); err != nil {
-		log.Error(errors.As(err))
 	}
 
 	// transfer precommit1 parameters

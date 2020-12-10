@@ -40,13 +40,13 @@ fi
 
 # fivestar bench
 RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench p-run --storage-dir=/data/cache/.lotus-bench --sector-size=$size \
-    --taskset=false \
+    --taskset=true \
     --order=true \
-    --max-tasks=12 \
-    --parallel-addpiece=12 \
-    --parallel-precommit1=12 \
+    --max-tasks=1 \
+    --parallel-addpiece=1 \
+    --parallel-precommit1=1 \
     --parallel-precommit2=1 \
-    --parallel-commit1=12 \
+    --parallel-commit1=1 \
     --parallel-commit2=1 &
 
 pid=$!
