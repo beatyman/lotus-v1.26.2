@@ -16,7 +16,7 @@ type GpuPci struct {
 }
 
 func (p *GpuPci) ParseBusId() (int, error) {
-	val, err := strconv.ParseInt(p.PciBus, 8, 32)
+	val, err := strconv.ParseInt(p.PciBus, 16, 32)
 	if err != nil {
 		return 0, err
 	}
