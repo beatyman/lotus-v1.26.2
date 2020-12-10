@@ -25,7 +25,7 @@ type GpuXml struct {
 }
 
 func GroupGpu(ctx context.Context) ([]GpuInfo, error) {
-	input, err := exec.CommandContext(ctx, "nvidia-smi", "-q -x").CombinedOutput()
+	input, err := exec.CommandContext(ctx, "nvidia-smi", "-q", "-x").CombinedOutput()
 	if err != nil {
 		return nil, errors.As(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"testing"
+	"context"
 )
 
 func TestFormatGpu(t *testing.T) {
@@ -399,4 +400,12 @@ func TestFormatGpu(t *testing.T) {
 	if output.Gpu[1].Pci.PciBus != "D8" {
 		t.Fatal(fmt.Sprint(output))
 	}
+}
+
+func TestGroupGpu(t *testing.T){
+	info, err := GroupGpu(context.TODO())
+	if err != nil{
+		t.Fatal(err)
+	}
+	fmt.Println(info)
 }
