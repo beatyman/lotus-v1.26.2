@@ -16,7 +16,7 @@ const (
 type StorageInfo struct {
 	ID             int64     `db:"id,auto_increment"`
 	UpdateTime     time.Time `db:"updated_at"`
-	Kind           int64     `db:"kind"`
+	Kind           int       `db:"kind"`
 	MaxSize        int64     `db:"max_size"`
 	KeepSize       int64     `db:"keep_size"`
 	UsedSize       int64     `db:"used_size"`

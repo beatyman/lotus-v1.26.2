@@ -356,7 +356,7 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	if err != nil {
 		return errors.As(err)
 	}
-	storage, err := api.PreStorageNode(ctx, sid, w.workerCfg.IP)
+	storage, err := api.PreStorageNode(ctx, sid, w.workerCfg.IP, database.STORAGE_KIND_SEALED)
 	if err != nil {
 		return errors.As(err)
 	}
@@ -394,7 +394,7 @@ func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) erro
 	if err := w.umountPush(sid, mountDir); err != nil {
 		return errors.As(err)
 	}
-	if err := api.CommitStorageNode(ctx, sid); err != nil {
+	if err := api.CommitStorageNode(ctx, sid, database.STORAGE_KIND_SEALED); err != nil {
 		return errors.As(err)
 	}
 	return nil
