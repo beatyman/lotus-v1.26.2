@@ -566,7 +566,7 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 	}
 	sid := task.SectorName()
 
-	tick := time.Tick(10e9)
+	tick := time.Tick(3e9)
 	checking := make(chan bool, 1)
 	checking <- true // not wait for the first request.
 	defer func() {
