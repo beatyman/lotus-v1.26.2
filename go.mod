@@ -163,7 +163,7 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 replace github.com/filecoin-project/specs-storage => ./extern/specs-storage
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20201203055952-4fcd0a3476fd
+replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20201211084435-fa9011069396
 
 //replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
 
