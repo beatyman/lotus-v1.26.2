@@ -2,6 +2,7 @@ package ffiwrapper
 
 import (
 	"context"
+	"math"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -10,12 +11,14 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
 	"golang.org/x/xerrors"
 )
 
 var (
 	ErrTaskCancel = errors.New("task cancel")
+	ErrNoGpuSrv   = errors.New("No Gpu service for allocation")
 )
 
 var (
@@ -44,20 +47,17 @@ var (
 	_unsealWait     int32
 	_finalizeWait   int32
 
-	sourceId = time.Now().UnixNano()
+	sourceId = int64(1000000000) // the sealed sector need less than this value
 	sourceLk = sync.Mutex{}
 )
-
-func curSourceID() int64 {
-	sourceLk.Lock()
-	defer sourceLk.Unlock()
-	return sourceId
-}
 
 func nextSourceID() int64 {
 	sourceLk.Lock()
 	defer sourceLk.Unlock()
 	sourceId++
+	if sourceId == math.MaxInt64 {
+		sourceId = 1000000000
+	}
 	return sourceId
 }
 
@@ -377,8 +377,9 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	if len(sectorInfo) == 0 {
 		return nil, errors.New("not sectors set")
 	}
-	log.Infof("DEBUG:GenerateWiningPoSt in(remote:%t),%+v", sb.remoteCfg.SealSector, minerID)
-	defer log.Infof("DEBUG:GenerateWinningPoSt out,%+v", minerID)
+	missionKey := uuid.New().String()
+	log.Infof("DEBUG:GenerateWinningPoSt in(remote:%t),%s,%s", sb.remoteCfg.SealSector, minerID, missionKey)
+	defer log.Infof("DEBUG:GenerateWinningPoSt out,%s,%s", minerID, missionKey)
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, 30*1e9)
 	defer cancel()
@@ -417,8 +418,8 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 		}
 		sid := task.SectorName()
 
-		r, err := sb.selectGPUService(ctx, sid, task)
-		if err != nil {
+		r, ok := sb.selectGPUService(ctx, sid, task)
+		if !ok {
 			continue
 		}
 		remotes = append(remotes, &req{r, &task})
@@ -476,9 +477,9 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		return nil, nil, errors.New("not sectors set")
 	}
 
-	curSourceId := curSourceID()
-	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s-%d", sb.remoteCfg.SealSector, minerID, curSourceId)
-	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s-%d", minerID, curSourceId)
+	missionKey := uuid.New().String()
+	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s,%s", sb.remoteCfg.SealSector, minerID, missionKey)
+	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s,%s", minerID, missionKey)
 
 	type req = struct {
 		remote *remote
@@ -494,8 +495,8 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 			Randomness: randomness,
 		}
 		sid := task.SectorName()
-		r, err := sb.selectGPUService(ctx, sid, task)
-		if err != nil {
+		r, ok := sb.selectGPUService(ctx, sid, task)
+		if !ok {
 			continue
 		}
 		remotes = append(remotes, &req{r, &task})
@@ -553,7 +554,8 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 
 var selectCommit2ServiceLock = sync.Mutex{}
 
-// Need call sb.UnlockService to release the selected.
+// Need call sb.UnlockService to release this selected.
+// if no commit2 service, it will block the function call.
 func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*WorkerCfg, error) {
 	selectCommit2ServiceLock.Lock()
 	defer selectCommit2ServiceLock.Unlock()
@@ -563,9 +565,27 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 		SectorID: sector,
 	}
 	sid := task.SectorName()
-	r, err := sb.selectGPUService(ctx, sid, task)
-	if err != nil {
-		return nil, errors.As(err)
+
+	tick := time.Tick(10e9)
+	checking := make(chan bool, 1)
+	checking <- true // not wait for the first request.
+	defer func() {
+		close(checking)
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, errors.New("user canceled").As(sid)
+		case <-tick:
+			checking <- true
+		case <-checking:
+			r, ok := sb.selectGPUService(ctx, sid, task)
+			if !ok {
+				continue
+			}
+			return &r.cfg, nil
+		}
 	}
-	return &r.cfg, nil
+	return nil, errors.New("not reach here").As(sid)
 }
