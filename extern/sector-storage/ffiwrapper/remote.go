@@ -377,9 +377,9 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	if len(sectorInfo) == 0 {
 		return nil, errors.New("not sectors set")
 	}
-	missionKey := uuid.New().String()
-	log.Infof("DEBUG:GenerateWinningPoSt in(remote:%t),%s,%s", sb.remoteCfg.SealSector, minerID, missionKey)
-	defer log.Infof("DEBUG:GenerateWinningPoSt out,%s,%s", minerID, missionKey)
+	sessionKey := uuid.New().String()
+	log.Infof("DEBUG:GenerateWinningPoSt in(remote:%t),%s, session:%s", sb.remoteCfg.SealSector, minerID, sessionKey)
+	defer log.Infof("DEBUG:GenerateWinningPoSt out,%s, session:%s", minerID, sessionKey)
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, 30*1e9)
 	defer cancel()
@@ -477,9 +477,9 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		return nil, nil, errors.New("not sectors set")
 	}
 
-	missionKey := uuid.New().String()
-	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s,%s", sb.remoteCfg.SealSector, minerID, missionKey)
-	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s,%s", minerID, missionKey)
+	sessionKey := uuid.New().String()
+	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s,session:%s", sb.remoteCfg.SealSector, minerID, sessionKey)
+	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s,session:%s", minerID, sessionKey)
 
 	type req = struct {
 		remote *remote
