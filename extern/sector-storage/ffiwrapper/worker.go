@@ -286,7 +286,6 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	r := &remote{
 		ctx:            ctx,
 		cfg:            cfg,
-		release:        cancel,
 		precommit1Chan: make(chan workerCall, 10),
 		precommit2Chan: make(chan workerCall, 10),
 		commit1Chan:    make(chan workerCall, 10),
@@ -296,6 +295,32 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		sealTasks:   taskCh,
 		busyOnTasks: map[string]WorkerTask{},
 		disable:     wInfo.Disable,
+	}
+	r.release = func() {
+		cancel()
+
+		// clean the other lock which has called by the offline remote.
+		_remotes.Range(func(key, val interface{}) bool {
+			_r := val.(*remote)
+			if _r == r {
+				return true
+			}
+
+			_r.lock.Lock()
+			defer _r.lock.Unlock()
+
+			r.lock.Lock()
+			for sid, _ := range r.busyOnTasks {
+				_, ok := _r.busyOnTasks[sid]
+				if !ok {
+					continue
+				}
+				delete(r.busyOnTasks, sid)
+			}
+			r.lock.Unlock()
+
+			return true
+		})
 	}
 	if _, err := r.checkCache(true, nil); err != nil {
 		return nil, errors.As(err, cfg)

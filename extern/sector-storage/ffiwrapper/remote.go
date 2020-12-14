@@ -556,9 +556,14 @@ var selectCommit2ServiceLock = sync.Mutex{}
 
 // Need call sb.UnlockService to release this selected.
 // if no commit2 service, it will block the function call.
+// TODO: auto unlock service when deadlock happen.
 func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*WorkerCfg, error) {
+	log.Infof("SelectCommit2Service in:s-t%d-%d", sector.Miner, sector.Number)
 	selectCommit2ServiceLock.Lock()
-	defer selectCommit2ServiceLock.Unlock()
+	defer func() {
+		log.Infof("SelectCommit2Service out:s-t%d-%d", sector.Miner, sector.Number)
+		selectCommit2ServiceLock.Unlock()
+	}()
 
 	task := WorkerTask{
 		Type:     WorkerCommit2,
