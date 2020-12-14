@@ -118,7 +118,7 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 			}
 		}
 
-		if r.cfg.ParallelAddPiece+r.cfg.ParallelPrecommit1+r.cfg.ParallelPrecommit2+r.cfg.ParallelCommit1+r.cfg.ParallelCommit2 > 0 {
+		if r.cfg.ParallelPledge+r.cfg.ParallelPrecommit1+r.cfg.ParallelPrecommit2+r.cfg.ParallelCommit1+r.cfg.ParallelCommit2 > 0 {
 			r.lock.Lock()
 			sealWorkerTotal++
 			if len(r.busyOnTasks) > 0 {
@@ -151,7 +151,7 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 		WdPoStSrvTotal:   wdPoStSrvTotal,
 		WdPoStSrvUsed:    wdPoStSrvUsed,
 
-		AddPieceWait:   int(atomic.LoadInt32(&_addPieceWait)),
+		PledgeWait:     int(atomic.LoadInt32(&_pledgeWait)),
 		PreCommit1Wait: int(atomic.LoadInt32(&_precommit1Wait)),
 		PreCommit2Wait: int(atomic.LoadInt32(&_precommit2Wait)),
 		Commit1Wait:    int(atomic.LoadInt32(&_commit1Wait)),
@@ -214,23 +214,23 @@ func (sb *Sealer) WorkerRemoteStats() ([]WorkerRemoteStats, error) {
 	return result, nil
 }
 
-func (sb *Sealer) SetAddPieceListener(l func(WorkerTask)) error {
-	_addPieceListenerLk.Lock()
-	defer _addPieceListenerLk.Unlock()
-	_addPieceListener = l
+func (sb *Sealer) SetPledgeListener(l func(WorkerTask)) error {
+	_pledgeListenerLk.Lock()
+	defer _pledgeListenerLk.Unlock()
+	_pledgeListener = l
 	return nil
 }
 
-func (sb *Sealer) pubAddPieceEvent(t WorkerTask) {
-	_addPieceListenerLk.Lock()
-	defer _addPieceListenerLk.Unlock()
-	if _addPieceListener != nil {
-		go _addPieceListener(t)
+func (sb *Sealer) pubPledgeEvent(t WorkerTask) {
+	_pledgeListenerLk.Lock()
+	defer _pledgeListenerLk.Unlock()
+	if _pledgeListener != nil {
+		go _pledgeListener(t)
 	}
 }
 
-func (sb *Sealer) GetAddPieceWait() int {
-	return int(atomic.LoadInt32(&_addPieceWait))
+func (sb *Sealer) GetPledgeWait() int {
+	return int(atomic.LoadInt32(&_pledgeWait))
 }
 
 func (sb *Sealer) DelWorker(ctx context.Context, workerId string) {
@@ -326,7 +326,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		return nil, errors.As(err, cfg)
 	}
 	_remotes.Store(cfg.ID, r)
-	if cfg.ParallelAddPiece == 0 && cfg.ParallelPrecommit1 > 0 {
+	if cfg.ParallelPledge == 0 && cfg.ParallelPrecommit1 > 0 {
 		_remoteMarket.Store(cfg.ID, r)
 	}
 
@@ -661,9 +661,9 @@ func (sb *Sealer) toRemoteChan(task workerCall, r *remote) {
 func (sb *Sealer) returnTask(task workerCall) {
 	var ret chan workerCall
 	switch task.task.Type {
-	case WorkerAddPiece:
-		atomic.AddInt32(&_addPieceWait, 1)
-		ret = _addPieceTasks
+	case WorkerPledge:
+		atomic.AddInt32(&_pledgeWait, 1)
+		ret = _pledgeTasks
 	case WorkerPreCommit1:
 		atomic.AddInt32(&_precommit1Wait, 1)
 		ret = _precommit1Tasks
@@ -706,14 +706,14 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			log.Error(errors.As(err))
 		}
 	}()
-	addPieceTasks := _addPieceTasks
+	pledgeTasks := _pledgeTasks
 	precommit1Tasks := _precommit1Tasks
 	precommit2Tasks := _precommit2Tasks
 	commit1Tasks := _commit1Tasks
 	commit2Tasks := _commit2Tasks
 	finalizeTasks := _finalizeTasks
-	if cfg.ParallelAddPiece == 0 {
-		addPieceTasks = nil
+	if cfg.ParallelPledge == 0 {
+		pledgeTasks = nil
 	}
 	if cfg.ParallelPrecommit1 == 0 {
 		precommit1Tasks = nil
@@ -724,13 +724,13 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		r.precommit2Chan = nil
 	}
 
-	checkAddPiece := func() {
+	checkPledge := func() {
 		// search checking is the remote busying
 		if r.fullTask() || r.disable {
 			//log.Infow("DEBUG:", "fullTask", len(r.busyOnTasks), "maxTask", r.maxTaskNum)
 			return
 		}
-		if r.LimitParallel(WorkerAddPiece, false) {
+		if r.LimitParallel(WorkerPledge, false) {
 			//log.Infof("limit parallel-addpiece:%s", r.cfg.ID)
 			return
 		}
@@ -738,16 +738,16 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			log.Error(errors.As(err))
 			return
 		} else if fullCache {
-			//log.Infof("checkAddPiece fullCache:%s", r.cfg.ID)
+			//log.Infof("checkPledge fullCache:%s", r.cfg.ID)
 			return
 		}
 
-		//log.Infof("checkAddPiece:%d,queue:%d", _addPieceWait, len(_addPieceTasks))
+		//log.Infof("checkPledge:%d,queue:%d", _pledgeWait, len(_pledgeTasks))
 
 		select {
-		case task := <-addPieceTasks:
-			atomic.AddInt32(&_addPieceWait, -1)
-			sb.pubAddPieceEvent(task.task)
+		case task := <-pledgeTasks:
+			atomic.AddInt32(&_pledgeWait, -1)
+			sb.pubPledgeEvent(task.task)
 			sb.doSealTask(ctx, r, task)
 		default:
 			// nothing in chan
@@ -841,7 +841,7 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		}
 	}
 	checkFunc := []func(){
-		checkCommit2, checkCommit1, checkPreCommit2, checkPreCommit1, checkAddPiece,
+		checkCommit2, checkCommit1, checkPreCommit2, checkPreCommit1, checkPledge,
 	}
 
 	timeout := 10 * time.Second
@@ -902,7 +902,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 	}
 
 	switch task.task.Type {
-	case WorkerAddPiece:
+	case WorkerPledge:
 		if r.fullTask() {
 			time.Sleep(30e9)
 			log.Warnf("return task:%s", r.cfg.ID, task.task.Key())
@@ -912,7 +912,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		// can be scheduled
 	case WorkerPreCommit1:
 		// schedule to market remotes
-		if len(task.task.WorkerID) == 0 && r.cfg.ParallelAddPiece > 0 && hasMarketRemotes() {
+		if len(task.task.WorkerID) == 0 && r.cfg.ParallelPledge > 0 && hasMarketRemotes() {
 			go sb.toRemoteFree(task)
 			return
 		}

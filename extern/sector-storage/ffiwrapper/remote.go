@@ -22,7 +22,7 @@ var (
 )
 
 var (
-	_addPieceTasks   = make(chan workerCall)
+	_pledgeTasks     = make(chan workerCall)
 	_precommit1Tasks = make(chan workerCall)
 	_precommit2Tasks = make(chan workerCall)
 	_commit1Tasks    = make(chan workerCall)
@@ -36,10 +36,10 @@ var (
 	_remoteGpuLk    = sync.Mutex{}
 
 	// if set, should call back the task consume event with goroutine.
-	_addPieceListenerLk = sync.Mutex{}
-	_addPieceListener   func(WorkerTask)
+	_pledgeListenerLk = sync.Mutex{}
+	_pledgeListener   func(WorkerTask)
 
-	_addPieceWait   int32
+	_pledgeWait     int32
 	_precommit1Wait int32
 	_precommit2Wait int32
 	_commit1Wait    int32
@@ -97,28 +97,30 @@ func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 		return []abi.PieceInfo{}, xerrors.New("sectorbuilder stopped")
 	}
 }
-func (sb *Sealer) PledgeSector(sector storage.SectorRef, pieceSize []abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+
+func (sb *Sealer) PledgeSector(ctx context.Context, sector storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	log.Infof("DEBUG:PledgeSector in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:PledgeSector out,%+v", sector)
-	atomic.AddInt32(&_addPieceWait, 1)
+	atomic.AddInt32(&_pledgeWait, 1)
 	if !sb.remoteCfg.SealSector {
-		panic("no local mode for pledge sector")
+		return sb.pledgeSector(ctx, sector, existingPieceSizes, sizes...)
 	}
 
 	call := workerCall{
 		// no need worker id
 		task: WorkerTask{
-			Type:       WorkerAddPiece,
-			ProofType:  sector.ProofType,
-			SectorID:   sector.ID,
-			PieceSizes: pieceSize,
+			Type:               WorkerPledge,
+			ProofType:          sector.ProofType,
+			SectorID:           sector.ID,
+			ExistingPieceSizes: existingPieceSizes,
+			ExtSizes:           sizes,
 		},
 		ret: make(chan SealRes),
 	}
 
 	log.Infof("DEBUG:PledgeSector prefer remote,%+v", sector)
 	select { // prefer remote
-	case _addPieceTasks <- call:
+	case _pledgeTasks <- call:
 		log.Infof("DEBUG:PledgeSector prefer remote called,%+v", sector)
 		return sb.pledgeRemote(call)
 	}

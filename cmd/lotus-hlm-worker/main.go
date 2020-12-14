@@ -345,7 +345,7 @@ var runCmd = &cli.Command{
 			MaxTaskNum:         int(cctx.Uint("max-tasks")),
 			CacheMode:          int(cctx.Uint("cache-mode")),
 			TransferBuffer:     int(cctx.Uint("transfer-buffer")),
-			ParallelAddPiece:   int(cctx.Uint("parallel-addpiece")),
+			ParallelPledge:     int(cctx.Uint("parallel-addpiece")),
 			ParallelPrecommit1: int(cctx.Uint("parallel-precommit1")),
 			ParallelPrecommit2: int(cctx.Uint("parallel-precommit2")),
 			ParallelCommit1:    int(cctx.Uint("parallel-commit1")),

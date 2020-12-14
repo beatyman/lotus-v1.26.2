@@ -15,7 +15,6 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/gwaylib/errors"
@@ -162,20 +161,6 @@ loop:
 
 	log.Warn("acceptJobs exit")
 	return nil
-}
-
-func (w *worker) addPiece(ctx context.Context, task ffiwrapper.WorkerTask) ([]abi.PieceInfo, error) {
-	sizes := task.PieceSizes
-
-	s := sealing.NewSealPiece(w.actAddr, w.workerSB)
-	g := &sealing.Pledge{
-		SectorID:      storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType},
-		Sealing:       s,
-		SectorBuilder: w.workerSB,
-		ActAddr:       w.actAddr,
-		Sizes:         sizes,
-	}
-	return g.PledgeSector(ctx)
 }
 
 func (w *worker) RemoveCache(ctx context.Context, sid string) error {
@@ -477,7 +462,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 
 	switch task.Type {
-	case ffiwrapper.WorkerAddPiece:
+	case ffiwrapper.WorkerPledge:
 	case ffiwrapper.WorkerPreCommit1:
 	case ffiwrapper.WorkerPreCommit2:
 	case ffiwrapper.WorkerCommit1:
@@ -513,38 +498,32 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	// checking is the cache in a different storage server, do fetch when it is.
-	if w.workerCfg.CacheMode == 0 &&
-		task.Type > ffiwrapper.WorkerAddPiece && task.Type < ffiwrapper.WorkerCommit2 &&
-		task.WorkerID != w.workerCfg.ID {
-		// lock bandwidth
-		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
-			ReleaseNodeApi(false)
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
-	retryFetch:
-		// fetch data
-		fromMiner := false
-		uri := task.SectorStorage.WorkerInfo.SvcUri
-		if len(uri) == 0 {
-			uri = w.minerEndpoint
-			fromMiner = true
-		}
-		if err := w.fetchRemote(
-			"http://"+uri,
-			task.SectorStorage.SectorInfo.ID,
-			task.Type,
-		); err != nil {
-			log.Warnf("fileserver error, retry 10s later:%+s", err.Error())
-			time.Sleep(10e9)
-			goto retryFetch
-		}
-		// release bandwidth
-		if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
-			ReleaseNodeApi(false)
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
-		// keep unseal data from miner
-		if !fromMiner {
+	if w.workerCfg.CacheMode == 0 {
+
+		// fetch the precommit data data
+		if task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit2 && task.WorkerID != w.workerCfg.ID {
+			// lock bandwidth
+			if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
+				ReleaseNodeApi(false)
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+		retryFetch:
+			// fetch data
+			uri := task.SectorStorage.WorkerInfo.SvcUri
+			if err := w.fetchRemote(
+				"http://"+uri,
+				task.SectorStorage.SectorInfo.ID,
+				task.Type,
+			); err != nil {
+				log.Warnf("fileserver error, retry 10s later:%+s", err.Error())
+				time.Sleep(10e9)
+				goto retryFetch
+			}
+			// release bandwidth
+			if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
+				ReleaseNodeApi(false)
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
 			// release the storage cache
 			log.Infof("fetch %s done, try delete remote files.", task.Key())
 			if err := w.deleteRemoteCache(
@@ -554,6 +533,10 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
+		} else if task.Type == ffiwrapper.WorkerPledge && len(task.ExtSizes) > 0 {
+			// get the market unsealed data, and copy to local
+			// TODO: get the market data
+			// TODO: return the market data
 		}
 	}
 	// lock the task to this worker
@@ -563,8 +546,13 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 	unlockWorker := false
 	switch task.Type {
-	case ffiwrapper.WorkerAddPiece:
-		rsp, err := w.addPiece(ctx, task)
+	case ffiwrapper.WorkerPledge:
+		rsp, err := w.workerSB.PledgeSector(ctx,
+			storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType},
+			task.ExistingPieceSizes,
+			task.ExtSizes...,
+		)
+
 		res.Pieces = rsp
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)

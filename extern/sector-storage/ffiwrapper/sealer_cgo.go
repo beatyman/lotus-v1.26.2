@@ -73,6 +73,8 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 }
 
 func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, file storage.Data) (abi.PieceInfo, error) {
+	log.Infof("DEBUG:AddPiece in, sector:%s", storage.SectorName(sector.ID))
+	defer log.Infof("DEBUG:AddPiece out, sector:%s", storage.SectorName(sector.ID))
 	var offset abi.UnpaddedPieceSize
 	for _, size := range existingPieceSizes {
 		offset += size

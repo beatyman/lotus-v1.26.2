@@ -6,38 +6,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/specs-storage/storage"
 )
-
-var limitPledge = make(chan int, 1)
-
-func (m *Sealing) pledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
-	if len(sizes) == 0 {
-		return nil, nil
-	}
-	// only one can pledge in miner, so miner can use cpu to do other more
-	// TODO: do it in parallel
-	limitPledge <- 1
-	defer func() {
-		<-limitPledge
-	}()
-
-	log.Infof("Pledge %+v, contains %+v", sectorID, existingPieceSizes)
-
-	out := make([]abi.PieceInfo, len(sizes))
-	for i, size := range sizes {
-		ppi, err := m.sealer.AddPiece(ctx, sectorID, existingPieceSizes, size, NewNullReader(size))
-		if err != nil {
-			return nil, xerrors.Errorf("add piece: %w", err)
-		}
-
-		existingPieceSizes = append(existingPieceSizes, size)
-
-		out[i] = ppi
-	}
-
-	return out, nil
-}
 
 func (m *Sealing) PledgeSector() error {
 	cfg, err := m.getConfig()
@@ -80,7 +49,7 @@ func (m *Sealing) PledgeSector() error {
 			return
 		}
 
-		pieces, err := m.pledgeSector(ctx, sectorID, []abi.UnpaddedPieceSize{}, abi.PaddedPieceSize(size).Unpadded())
+		pieces, err := m.sealer.PledgeSector(ctx, sectorID, []abi.UnpaddedPieceSize{}, abi.PaddedPieceSize(size).Unpadded())
 		if err != nil {
 			log.Errorf("%+v", err)
 			return

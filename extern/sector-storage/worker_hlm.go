@@ -69,6 +69,10 @@ func (l *hlmWorker) NewSector(ctx context.Context, sector storage.SectorRef) err
 	return l.sb.NewSector(ctx, sector)
 }
 
+func (l *hlmWorker) PledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+	return l.sb.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
+}
+
 func (l *hlmWorker) AddPiece(ctx context.Context, sector storage.SectorRef, epcs []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
 	return l.sb.AddPiece(ctx, sector, epcs, sz, r)
 }

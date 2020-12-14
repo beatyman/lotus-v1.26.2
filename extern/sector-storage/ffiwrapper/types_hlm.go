@@ -105,8 +105,8 @@ func DecodePieceInfo(in []PieceInfo) ([]abi.PieceInfo, error) {
 type WorkerTaskType int
 
 const (
-	WorkerAddPiece       WorkerTaskType = 0
-	WorkerAddPieceDone                  = 1
+	WorkerPledge         WorkerTaskType = 0
+	WorkerPledgeDone                    = 1
 	WorkerPreCommit1                    = 10
 	WorkerPreCommit1Done                = 11
 	WorkerPreCommit2                    = 20
@@ -138,7 +138,7 @@ type WorkerCfg struct {
 	MaxTaskNum         int // need more than 0
 	CacheMode          int // 0, transfer mode; 1, share mode.
 	TransferBuffer     int // 0~n, do next task when transfering and transfer cache on
-	ParallelAddPiece   int
+	ParallelPledge     int
 	ParallelPrecommit1 int
 	ParallelPrecommit2 int
 	ParallelCommit1    int
@@ -159,7 +159,8 @@ type WorkerTask struct {
 	SectorStorage database.SectorStorage
 
 	// addpiece
-	PieceSizes []abi.UnpaddedPieceSize
+	ExistingPieceSizes []abi.UnpaddedPieceSize
+	ExtSizes           []abi.UnpaddedPieceSize // size ...abi.UnpaddedPieceSize
 
 	// preCommit1
 	SealTicket abi.SealRandomness // commit1 is need too.
@@ -228,7 +229,7 @@ type WorkerStats struct {
 	WdPoStSrvTotal int
 	WdPoStSrvUsed  int
 
-	AddPieceWait   int
+	PledgeWait     int
 	PreCommit1Wait int
 	PreCommit2Wait int
 	Commit1Wait    int
@@ -312,7 +313,7 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 		return false
 	}
 
-	busyAddPieceNum := 0
+	busyPledgeNum := 0
 	busyPrecommit1Num := 0
 	busyPrecommit2Num := 0
 	busyCommit1Num := 0
@@ -325,8 +326,8 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 			sumWorkingTask++
 		}
 		switch val.Type {
-		case WorkerAddPiece:
-			busyAddPieceNum++
+		case WorkerPledge:
+			busyPledgeNum++
 		case WorkerPreCommit1:
 			busyPrecommit1Num++
 		case WorkerPreCommit2:
@@ -351,11 +352,11 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	}
 
 	switch typ {
-	case WorkerAddPiece:
+	case WorkerPledge:
 		// mutex cpu for addpiece and precommit1
-		return busyAddPieceNum >= r.cfg.ParallelAddPiece || len(r.busyOnTasks) >= r.cfg.MaxTaskNum
+		return busyPledgeNum >= r.cfg.ParallelPledge || len(r.busyOnTasks) >= r.cfg.MaxTaskNum
 	case WorkerPreCommit1:
-		return busyPrecommit1Num >= r.cfg.ParallelPrecommit1 || (busyAddPieceNum > 0)
+		return busyPrecommit1Num >= r.cfg.ParallelPrecommit1 || (busyPledgeNum > 0)
 	case WorkerPreCommit2:
 		// mutex gpu for precommit2, commit2.
 		return busyPrecommit2Num >= r.cfg.ParallelPrecommit2 || (r.cfg.Commit2Srv && busyCommit2Num > 0)
@@ -408,7 +409,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		}
 	}
 	for _, wTask := range history {
-		if restore && wTask.State == int(WorkerAddPiece) {
+		if restore && wTask.State == int(WorkerPledge) {
 			log.Infof("Got free worker:%s, but has found history addpiece, will release:%+v", r.cfg.ID, wTask)
 			if err := database.UpdateSectorState(
 				wTask.ID, wTask.WorkerId,

@@ -347,6 +347,10 @@ func (m *Manager) NewSector(ctx context.Context, sector storage.SectorRef) error
 
 }
 
+func (m *Manager) PledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+	return m.hlmWorker.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
+}
+
 func (m *Manager) AddPiece(ctx context.Context, sector storage.SectorRef, existingPieces []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
 	return m.hlmWorker.AddPiece(ctx, sector, existingPieces, sz, r)
 
