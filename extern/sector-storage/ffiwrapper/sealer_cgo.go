@@ -10,7 +10,6 @@ import (
 	"io"
 	"math/bits"
 	"os"
-	"path/filepath"
 	"runtime"
 	"time"
 
@@ -68,7 +67,7 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 				return errors.As(err)
 			}
 			unsealedStorageId = unsealedStorage.ID
-			state = database.SECTOR_STATE_PLEDGE
+			state = database.SECTOR_STATE_PLEDGE // no clean when plege failed. -1 will clean the unsealed data when failed.
 		}
 		now := time.Now()
 		seInfo := &database.SectorInfo{
@@ -91,8 +90,13 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, file storage.Data) (abi.PieceInfo, error) {
 	log.Infof("DEBUG:AddPiece in, sector:%+v", sector)
 	defer log.Infof("DEBUG:AddPiece out, sector:%+v", sector)
+
 	if !sector.HasRepo() {
-		return abi.PieceInfo{}, errors.New("sector repo not found, please update the sector code.")
+		if database.HasDB() {
+			return abi.PieceInfo{}, errors.New("need implement the sector repop")
+		}
+		sector.SectorId = storage.SectorName(sector.ID)
+		sector.StorageRepo = sb.RepoPath() // if it is not implement by the database, set it with sb.Repo
 	}
 
 	var offset abi.UnpaddedPieceSize
@@ -234,7 +238,14 @@ func (sb *Sealer) pieceCid(spt abi.RegisteredSealProof, in []byte) (cid.Cid, err
 	return pieceCID, werr()
 }
 
-func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error {
+func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error {
+	log.Infof("DEBUG:unsealPiece in, sector:%+v", sector)
+	defer log.Infof("DEBUG:unsealPiece out, sector:%+v", sector)
+
+	if !sector.HasRepo() {
+		sector.StorageRepo = sb.RepoPath()
+	}
+
 	ssize, err := sector.ProofType.SectorSize()
 	if err != nil {
 		return err
@@ -242,13 +253,11 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, off
 	maxPieceSize := abi.PaddedPieceSize(ssize)
 
 	// implements from hlm
-	repo := sb.sectors.RepoPath()
-	sName := storage.SectorName(sector.ID)
 	sPath := storiface.SectorPaths{
 		ID:       sector.ID,
-		Unsealed: filepath.Join(repo, "unsealed", sName),
-		Sealed:   filepath.Join(repo, "sealed", sName),
-		Cache:    filepath.Join(repo, "cache", sName),
+		Unsealed: sector.UnsealedFile(),
+		Sealed:   sector.SealedFile(),
+		Cache:    sector.CachePath(),
 	}
 	var pf *partialFile
 
@@ -430,18 +439,21 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, off
 }
 
 func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {
-	// path, done, err := sb.sectors.AcquireSector(ctx, sector, stores.FTUnsealed, stores.FTNone, stores.PathStorage)
-	// if err != nil {
-	// 	return false, errors.As(err, "acquire unsealed sector path", sector)
-	// }
-	// defer done()
-	repo := sb.sectors.RepoPath()
-	sName := storage.SectorName(sector.ID)
+	log.Infof("DEBUG:ReadPiece in, sector:%+v", sector)
+	defer log.Infof("DEBUG:ReadPiece out, sector:%+v", sector)
+	if !sector.HasRepo() {
+		if database.HasDB() {
+			return false, errors.New("need implement the sector repop")
+		}
+		sector.SectorId = storage.SectorName(sector.ID)
+		sector.StorageRepo = sb.RepoPath() // if it is not implement by the database, set it with sb.Repo
+	}
+
 	path := storiface.SectorPaths{
 		ID:       sector.ID,
-		Unsealed: filepath.Join(repo, "unsealed", sName),
-		Sealed:   filepath.Join(repo, "sealed", sName),
-		Cache:    filepath.Join(repo, "cache", sName),
+		Unsealed: sector.UnsealedFile(),
+		Sealed:   sector.SealedFile(),
+		Cache:    sector.CachePath(),
 	}
 
 	ssize, err := sector.ProofType.SectorSize()

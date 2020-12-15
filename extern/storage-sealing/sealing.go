@@ -471,7 +471,6 @@ func (m *Sealing) currentSealProof(ctx context.Context) (abi.RegisteredSealProof
 func (m *Sealing) fillSectorFile(sector storage.SectorRef) (storage.SectorRef, error) {
 	id := sector.ID
 	sName := storage.SectorName(id)
-
 	ss, err := database.GetSectorStorage(sName)
 	if err != nil {
 		return storage.SectorRef{}, errors.As(err)
@@ -491,6 +490,7 @@ func (m *Sealing) fillSectorFile(sector storage.SectorRef) (storage.SectorRef, e
 			AllocateUnsealed: true,
 		},
 	}, nil
+
 }
 
 func (m *Sealing) minerSector(spt abi.RegisteredSealProof, num abi.SectorNumber) storage.SectorRef {

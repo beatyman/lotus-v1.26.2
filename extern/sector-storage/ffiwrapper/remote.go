@@ -9,10 +9,12 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
+	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 )
 
@@ -124,6 +126,10 @@ func (sb *Sealer) PledgeSector(ctx context.Context, sector storage.SectorRef, ex
 		log.Infof("DEBUG:PledgeSector prefer remote called,%+v", sector)
 		return sb.pledgeRemote(call)
 	}
+}
+func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error {
+	// TODO: using remote worker to unseal.
+	return sb.unsealPiece(ctx, sector, offset, size, randomness, commd)
 }
 
 func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storage.PreCommit1Out, error) {
