@@ -337,7 +337,7 @@ func (m *Sealing) getSectorAndPadding(ctx context.Context, size abi.UnpaddedPiec
 			m.unsealedInfoMap.lk.Lock()
 			continue
 		default:
-			return storage.SectorRef{}, nil, xerrors.Errorf("creating new sector: %w", err)
+			return storage.SectorRef{}, nil, errors.As(err)
 		}
 		sector, err := m.fillSectorFile(m.minerSector(sp, ns))
 		if err != nil {
@@ -476,7 +476,8 @@ func (m *Sealing) fillSectorFile(sector storage.SectorRef) (storage.SectorRef, e
 	if err != nil {
 		return storage.SectorRef{}, errors.As(err)
 	}
-	repo := ""
+	sb := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
+	repo := sb.RepoPath()
 	if ss.UnsealedStorage.ID > 0 {
 		repo = filepath.Join(ss.UnsealedStorage.MountDir, strconv.FormatInt(ss.UnsealedStorage.ID, 10))
 	}

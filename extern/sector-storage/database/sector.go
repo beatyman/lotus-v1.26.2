@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	SECTOR_STATE_INIT = 0
+	SECTOR_STATE_PLEDGE = 0
 
 	SECTOR_STATE_MOVE = 100
 	SECTOR_STATE_PUSH = 101
@@ -190,7 +190,7 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 		}
 	}
 	unsealedInfo := &StorageInfo{}
-	if err := database.QueryStruct(mdb, unsealedInfo, "SELECT * FROM storage_info WHERE id=?", seInfo.StorageId); err != nil {
+	if err := database.QueryStruct(mdb, unsealedInfo, "SELECT * FROM storage_info WHERE id=?", seInfo.StorageUnsealed); err != nil {
 		if !errors.ErrNoData.Equal(err) {
 			return nil, errors.As(err, id)
 		}

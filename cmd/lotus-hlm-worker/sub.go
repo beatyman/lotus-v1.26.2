@@ -291,10 +291,19 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	unlockWorker := false
+
+	sector := storage.SectorRef{
+		ID:        task.SectorID,
+		ProofType: task.ProofType,
+		SectorFile: storage.SectorFile{
+			SectorId:    storage.SectorName(task.SectorID),
+			StorageRepo: w.workerSB.RepoPath(),
+		},
+	}
 	switch task.Type {
 	case ffiwrapper.WorkerPledge:
 		rsp, err := w.workerSB.PledgeSector(ctx,
-			storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType},
+			sector,
 			task.ExistingPieceSizes,
 			task.ExtSizes...,
 		)
@@ -312,10 +321,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-		rspco, err := w.workerSB.SealPreCommit1(ctx, storage.SectorRef{
-			ID:        task.SectorID,
-			ProofType: task.ProofType,
-		}, task.SealTicket, pieceInfo)
+		rspco, err := w.workerSB.SealPreCommit1(ctx, sector, task.SealTicket, pieceInfo)
 
 		// rspco, err := ffiwrapper.ExecPrecommit1(ctx, w.workerRepo, task)
 		res.PreCommit1Out = rspco
@@ -326,10 +332,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 	case ffiwrapper.WorkerPreCommit2:
-		out, err := w.workerSB.SealPreCommit2(ctx, storage.SectorRef{
-			ID:        task.SectorID,
-			ProofType: task.ProofType,
-		}, task.PreCommit1Out)
+		out, err := w.workerSB.SealPreCommit2(ctx, sector, task.PreCommit1Out)
 		//out, err := ffiwrapper.ExecPrecommit2(ctx, w.workerRepo, task)
 		res.PreCommit2Out = ffiwrapper.SectorCids{
 			Unsealed: out.Unsealed.String(),
@@ -347,10 +350,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-		out, err := w.workerSB.SealCommit1(ctx, storage.SectorRef{
-			ID:        task.SectorID,
-			ProofType: task.ProofType,
-		}, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+		out, err := w.workerSB.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
 		res.Commit1Out = out
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
@@ -372,10 +372,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 		// call gpu service failed, using local instead.
 		if len(res.Commit2Out) == 0 {
-			res.Commit2Out, err = w.workerSB.SealCommit2(ctx, storage.SectorRef{
-				ID:        task.SectorID,
-				ProofType: task.ProofType,
-			}, task.Commit1Out)
+			res.Commit2Out, err = w.workerSB.SealCommit2(ctx, sector, task.Commit1Out)
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
@@ -391,7 +388,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 				return errRes(errors.As(err, sealedFile), &res)
 			}
 		} else {
-			if err := w.workerSB.FinalizeSector(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, nil); err != nil {
+			if err := w.workerSB.FinalizeSector(ctx, sector, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 			if err := w.pushCache(ctx, task); err != nil {

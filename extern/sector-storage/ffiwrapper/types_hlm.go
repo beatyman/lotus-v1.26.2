@@ -409,7 +409,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		}
 	}
 	for _, wTask := range history {
-		if restore && wTask.State == int(WorkerPledge) {
+		if restore && wTask.State < 0 {
 			log.Infof("Got free worker:%s, but has found history addpiece, will release:%+v", r.cfg.ID, wTask)
 			if err := database.UpdateSectorState(
 				wTask.ID, wTask.WorkerId,

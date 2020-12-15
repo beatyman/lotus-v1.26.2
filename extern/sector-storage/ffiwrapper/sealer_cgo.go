@@ -57,6 +57,7 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 	if database.HasDB() {
 		sName := sectorName(sector.ID)
 		unsealedStorageId := int64(0)
+		state := -1
 		if sector.AllocateUnsealed {
 			tx, unsealedStorage, err := database.PrepareStorage(sName, "", database.STORAGE_KIND_UNSEALED)
 			if err != nil {
@@ -67,6 +68,7 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 				return errors.As(err)
 			}
 			unsealedStorageId = unsealedStorage.ID
+			state = database.SECTOR_STATE_PLEDGE
 		}
 		now := time.Now()
 		seInfo := &database.SectorInfo{
@@ -74,7 +76,7 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 			MinerId:         fmt.Sprintf("s-t0%d", sector.ID.Miner),
 			UpdateTime:      now,
 			StorageUnsealed: unsealedStorageId,
-			State:           -1,
+			State:           state,
 			StateTime:       now,
 			CreateTime:      now,
 		}
@@ -87,8 +89,12 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 }
 
 func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, file storage.Data) (abi.PieceInfo, error) {
-	log.Infof("DEBUG:AddPiece in, sector:%s", storage.SectorName(sector.ID))
-	defer log.Infof("DEBUG:AddPiece out, sector:%s", storage.SectorName(sector.ID))
+	log.Infof("DEBUG:AddPiece in, sector:%+v", sector)
+	defer log.Infof("DEBUG:AddPiece out, sector:%+v", sector)
+	if !sector.HasRepo() {
+		return abi.PieceInfo{}, errors.New("sector repo not found, please update the sector code.")
+	}
+
 	var offset abi.UnpaddedPieceSize
 	for _, size := range existingPieceSizes {
 		offset += size
