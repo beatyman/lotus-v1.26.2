@@ -243,6 +243,7 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 	defer log.Infof("DEBUG:unsealPiece out, sector:%+v", sector)
 
 	if !sector.HasRepo() {
+		sector.SectorId = storage.SectorName(sector.ID)
 		sector.StorageRepo = sb.RepoPath()
 	}
 

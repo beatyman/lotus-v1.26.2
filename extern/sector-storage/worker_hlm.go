@@ -4,7 +4,9 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strconv"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
@@ -16,6 +18,7 @@ import (
 	"github.com/filecoin-project/specs-storage/storage"
 	storage2 "github.com/filecoin-project/specs-storage/storage"
 
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
@@ -30,7 +33,7 @@ type hlmWorker struct {
 	localStore *stores.Local
 	sindex     stores.SectorIndex
 
-	sb ffiwrapper.Storage
+	sb *ffiwrapper.Sealer
 }
 
 func NewHlmWorker(remoteCfg ffiwrapper.RemoteCfg, store stores.Store, local *stores.Local, sindex stores.SectorIndex) (*hlmWorker, error) {
@@ -131,18 +134,21 @@ func (l *hlmWorker) UnsealPiece(ctx context.Context, sector storage.SectorRef, i
 }
 
 func (l *hlmWorker) ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (bool, error) {
-	// try read exist unsealed
-	if err := l.sindex.StorageLock(ctx, sector.ID, storiface.FTUnsealed, storiface.FTNone); err != nil {
-		return false, xerrors.Errorf("acquiring read sector lock: %w", err)
-	}
-	// passing 0 spt because we only need it when allowFetch is true
-	best, err := l.sindex.StorageFindSector(ctx, sector.ID, storiface.FTUnsealed, 0, false)
-	if err != nil {
-		return false, xerrors.Errorf("read piece: checking for already existing unsealed sector: %w", err)
+	if !sector.HasRepo() {
+		sName := storage.SectorName(sector.ID)
+		ss, err := database.GetSectorStorage(sName)
+		if err != nil {
+			return false, errors.As(err)
+		}
+		repo := l.sb.RepoPath()
+		if ss.UnsealedStorage.ID > 0 {
+			repo = filepath.Join(ss.UnsealedStorage.MountDir, strconv.FormatInt(ss.UnsealedStorage.ID, 10))
+		}
+		sector.SectorId = sName
+		sector.StorageRepo = repo
 	}
 
-	foundUnsealed := len(best) > 0
-	if foundUnsealed { // append to existing
+	if _, err := os.Stat(sector.UnsealedFile()); err == nil {
 		// There is unsealed sector, see if we can read from it
 		return l.sb.ReadPiece(ctx, writer, sector, index, size)
 	}
