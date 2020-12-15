@@ -55,14 +55,28 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 	// TODO: Allocate the sector here instead of in addpiece
 
 	if database.HasDB() {
+		sName := sectorName(sector.ID)
+		unsealedStorageId := int64(0)
+		if sector.AllocateUnsealed {
+			tx, unsealedStorage, err := database.PrepareStorage(sName, "", database.STORAGE_KIND_UNSEALED)
+			if err != nil {
+				return errors.As(err)
+			}
+			if err := tx.Commit(); err != nil {
+				tx.Rollback()
+				return errors.As(err)
+			}
+			unsealedStorageId = unsealedStorage.ID
+		}
 		now := time.Now()
 		seInfo := &database.SectorInfo{
-			ID:         sectorName(sector.ID),
-			MinerId:    fmt.Sprintf("s-t0%d", sector.ID.Miner),
-			UpdateTime: now,
-			State:      -1,
-			StateTime:  now,
-			CreateTime: now,
+			ID:              sName,
+			MinerId:         fmt.Sprintf("s-t0%d", sector.ID.Miner),
+			UpdateTime:      now,
+			StorageUnsealed: unsealedStorageId,
+			State:           -1,
+			StateTime:       now,
+			CreateTime:      now,
 		}
 		if err := database.AddSectorInfo(seInfo); err != nil {
 			return errors.As(err)
@@ -106,24 +120,17 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 		}
 	}()
 
-	var stagedPath storiface.SectorPaths
+	unsealedPath := sb.SectorPath("unsealed", sectorName(sector.ID))
+	if sector.AllocateUnsealed {
+		unsealedPath = sector.UnsealedFile()
+	}
 	if len(existingPieceSizes) == 0 {
-		stagedPath, done, err = sb.sectors.AcquireSector(ctx, sector, 0, storiface.FTUnsealed, storiface.PathSealing)
-		if err != nil {
-			return abi.PieceInfo{}, xerrors.Errorf("acquire unsealed sector: %w", err)
-		}
-
-		stagedFile, err = createPartialFile(maxPieceSize, stagedPath.Unsealed)
+		stagedFile, err = createPartialFile(maxPieceSize, unsealedPath)
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("creating unsealed sector file: %w", err)
 		}
 	} else {
-		stagedPath, done, err = sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, 0, storiface.PathSealing)
-		if err != nil {
-			return abi.PieceInfo{}, xerrors.Errorf("acquire unsealed sector: %w", err)
-		}
-
-		stagedFile, err = openPartialFile(maxPieceSize, stagedPath.Unsealed)
+		stagedFile, err = openPartialFile(maxPieceSize, unsealedPath)
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("opening unsealed sector file: %w", err)
 		}

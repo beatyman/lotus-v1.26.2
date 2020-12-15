@@ -165,20 +165,19 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 	return nil
 }
 
-func (w *worker) pushRemote(ctx context.Context, typ string, sectorID, toPath string) error {
+func (w *worker) rsync(ctx context.Context, fromPath, toPath string) error {
 	// Close the fetch in the miner storage directory.
 	// TODO: fix to env
 	if filepath.Base(w.workerRepo) == ".lotusstorage" {
 		return nil
 	}
 
-	fromPath := w.workerSB.SectorPath(typ, sectorID)
 	stat, err := os.Stat(string(fromPath))
 	if err != nil {
 		return err
 	}
 
-	log.Infof("pushRemote, from: %s, to: %s", fromPath, toPath)
+	log.Infof("rsync, from: %s, to: %s", fromPath, toPath)
 	if stat.IsDir() {
 		if err := CopyFile(ctx, string(fromPath)+"/", string(toPath)+"/"); err != nil {
 			return err

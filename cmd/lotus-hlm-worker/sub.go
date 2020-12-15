@@ -2,12 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -163,265 +159,6 @@ loop:
 	return nil
 }
 
-func (w *worker) RemoveCache(ctx context.Context, sid string) error {
-	w.workMu.Lock()
-	defer w.workMu.Unlock()
-
-	if filepath.Base(w.workerRepo) == ".lotusstorage" {
-		return nil
-	}
-
-	log.Infof("Remove cache:%s,%s", w.workerRepo, sid)
-	if err := os.RemoveAll(filepath.Join(w.workerRepo, "sealed", sid)); err != nil {
-		log.Error(errors.As(err, sid))
-	}
-	if err := os.RemoveAll(filepath.Join(w.workerRepo, "cache", sid)); err != nil {
-		log.Error(errors.As(err, sid))
-	}
-	if err := os.RemoveAll(filepath.Join(w.workerRepo, "unsealed", sid)); err != nil {
-		log.Error(errors.As(err, sid))
-	}
-	return nil
-}
-
-func (w *worker) CleanCache(ctx context.Context) error {
-	w.workMu.Lock()
-	defer w.workMu.Unlock()
-
-	// not do this on miner repo
-	if filepath.Base(w.workerRepo) == ".lotusstorage" {
-		return nil
-	}
-
-	sealed := filepath.Join(w.workerRepo, "sealed")
-	cache := filepath.Join(w.workerRepo, "cache")
-	// staged := filepath.Join(w.workerRepo, "staging")
-	unsealed := filepath.Join(w.workerRepo, "unsealed")
-	if err := w.cleanCache(ctx, sealed); err != nil {
-		return errors.As(err)
-	}
-	if err := w.cleanCache(ctx, cache); err != nil {
-		return errors.As(err)
-	}
-	if err := w.cleanCache(ctx, unsealed); err != nil {
-		return errors.As(err)
-	}
-	return nil
-}
-
-func (w *worker) cleanCache(ctx context.Context, path string) error {
-	files, err := ioutil.ReadDir(path)
-	if err != nil {
-		log.Warn(errors.As(err))
-	} else {
-		fileNames := []string{}
-		for _, f := range files {
-			fileNames = append(fileNames, f.Name())
-		}
-		api, err := GetNodeApi()
-		if err != nil {
-			return errors.As(err)
-		}
-		ws, err := api.WorkerWorkingById(ctx, fileNames)
-		if err != nil {
-			ReleaseNodeApi(false)
-			return errors.As(err, fileNames)
-		}
-	sealedLoop:
-		for _, f := range files {
-			for _, s := range ws {
-				if s.ID == f.Name() {
-					continue sealedLoop
-				}
-			}
-			log.Infof("Remove %s", filepath.Join(path, f.Name()))
-			if err := os.RemoveAll(filepath.Join(path, f.Name())); err != nil {
-				return errors.As(err, w.workerCfg.IP, filepath.Join(path, f.Name()))
-			}
-		}
-	}
-	if err := os.MkdirAll(path, 0755); err != nil {
-		return errors.As(err, w.workerCfg.IP)
-	}
-	return nil
-}
-
-func (w *worker) mountPush(sid, mountType, mountUri, mountDir, mountOpt string) error {
-	// mount
-	if err := os.MkdirAll(mountDir, 0755); err != nil {
-		return errors.As(err, mountDir)
-	}
-	w.pushMu.Lock()
-	w.sealedMounted[sid] = mountDir
-	mountedData, err := json.Marshal(w.sealedMounted)
-	if err != nil {
-		w.pushMu.Unlock()
-		return errors.As(err, w.sealedMountedFile)
-	}
-	if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
-		w.pushMu.Unlock()
-		return errors.As(err, w.sealedMountedFile)
-	}
-	w.pushMu.Unlock()
-
-	// a fix point, link or mount to the targe file.
-	if err := database.Mount(
-		mountType,
-		mountUri,
-		mountDir,
-		mountOpt,
-	); err != nil {
-		return errors.As(err)
-	}
-	return nil
-}
-
-func umountAllPush(sealedMountedFile string) error {
-	sealedMounted := map[string]string{}
-	if mountedData, err := ioutil.ReadFile(sealedMountedFile); err == nil {
-		if err := json.Unmarshal(mountedData, &sealedMounted); err != nil {
-			return errors.As(err, sealedMountedFile)
-		}
-		for _, p := range sealedMounted {
-			if _, err := database.Umount(p); err != nil {
-				log.Info(err)
-			} else {
-				if err := os.RemoveAll(p); err != nil {
-					log.Error(err)
-				}
-			}
-		}
-		return nil
-	} else {
-		// drop the file error
-		log.Info(errors.As(err))
-	}
-	return nil
-}
-
-func (w *worker) umountPush(sid, mountDir string) error {
-	// umount and client the tmp file
-	if _, err := database.Umount(mountDir); err != nil {
-		return errors.As(err)
-	}
-	log.Infof("Remove mount point:%s", mountDir)
-	if err := os.RemoveAll(mountDir); err != nil {
-		return errors.As(err)
-	}
-
-	w.pushMu.Lock()
-	delete(w.sealedMounted, sid)
-	mountedData, err := json.Marshal(w.sealedMounted)
-	if err != nil {
-		w.pushMu.Unlock()
-		return errors.As(err)
-	}
-	if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
-		w.pushMu.Unlock()
-		return errors.As(err)
-	}
-	w.pushMu.Unlock()
-	return nil
-}
-
-var (
-	pushCacheLk = sync.Mutex{}
-)
-
-func (w *worker) PushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
-	sid := task.SectorName()
-	log.Infof("PushCache:%+v", sid)
-	defer log.Infof("PushCache exit:%+v", sid)
-
-	// only can transfer one
-	//pushCacheLk.Lock()
-	//defer pushCacheLk.Unlock()
-
-	api, err := GetNodeApi()
-	if err != nil {
-		return errors.As(err)
-	}
-	storage, err := api.PreStorageNode(ctx, sid, w.workerCfg.IP, database.STORAGE_KIND_SEALED)
-	if err != nil {
-		return errors.As(err)
-	}
-	mountUri := storage.MountTransfUri
-	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
-		log.Infof("found local storage, chagne %s to mount local", mountUri)
-		// fix to 127.0.0.1 if it has the same ip.
-		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
-	}
-	mountDir := filepath.Join(w.sealedRepo, sid)
-	if err := w.mountPush(
-		sid,
-		storage.MountType,
-		mountUri,
-		mountDir,
-		storage.MountOpt,
-	); err != nil {
-		return errors.As(err)
-	}
-	sealedPath := filepath.Join(mountDir, "sealed")
-	if err := os.MkdirAll(sealedPath, 0755); err != nil {
-		return errors.As(err)
-	}
-	// "sealed" is created during previous step
-	if err := w.pushRemote(ctx, "sealed", sid, filepath.Join(sealedPath, sid)); err != nil {
-		return errors.As(err)
-	}
-	cachePath := filepath.Join(mountDir, "cache", sid)
-	if err := os.MkdirAll(cachePath, 0755); err != nil {
-		return errors.As(err)
-	}
-	if err := w.pushRemote(ctx, "cache", sid, cachePath); err != nil {
-		return errors.As(err)
-	}
-	if err := w.umountPush(sid, mountDir); err != nil {
-		return errors.As(err)
-	}
-	if err := api.CommitStorageNode(ctx, sid, database.STORAGE_KIND_SEALED); err != nil {
-		return errors.As(err)
-	}
-	return nil
-}
-
-func (w *worker) pushCommit(ctx context.Context, task ffiwrapper.WorkerTask) error {
-repush:
-	select {
-	case <-ctx.Done():
-		return ffiwrapper.ErrWorkerExit.As(task)
-	default:
-		// TODO: check cache is support two task
-		api, err := GetNodeApi()
-		if err != nil {
-			log.Warn(errors.As(err))
-			goto repush
-		}
-		// release the worker when pushing happened
-		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "pushing commit", database.SECTOR_STATE_PUSH); err != nil {
-			log.Warn(errors.As(err))
-
-			if errors.ErrNoData.Equal(err) {
-				// drop data
-				return nil
-			}
-
-			ReleaseNodeApi(false)
-			goto repush
-		}
-
-		if err := w.PushCache(ctx, task); err != nil {
-			log.Error(errors.As(err, task))
-			time.Sleep(60e9)
-			goto repush
-		}
-		if err := w.RemoveCache(ctx, task.SectorName()); err != nil {
-			log.Warn(errors.As(err))
-		}
-	}
-	return nil
-}
-
 func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res ffiwrapper.SealRes) {
 	for {
 		select {
@@ -452,6 +189,14 @@ func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res
 
 		}
 	}
+}
+
+func errRes(err error, res *ffiwrapper.SealRes) ffiwrapper.SealRes {
+	if err != nil {
+		res.Err = err.Error()
+		res.GoErr = err
+	}
+	return *res
 }
 
 func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ffiwrapper.SealRes {
@@ -499,8 +244,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 	// checking is the cache in a different storage server, do fetch when it is.
 	if w.workerCfg.CacheMode == 0 {
-
-		// fetch the precommit data data
+		// fetch the precommit cache data
 		if task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit2 && task.WorkerID != w.workerCfg.ID {
 			// lock bandwidth
 			if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
@@ -535,8 +279,10 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			}
 		} else if task.Type == ffiwrapper.WorkerPledge && len(task.ExtSizes) > 0 {
 			// get the market unsealed data, and copy to local
-			// TODO: get the market data
-			// TODO: return the market data
+			if err := w.fetchPledge(ctx, task); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			// fetch done
 		}
 	}
 	// lock the task to this worker
@@ -648,7 +394,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			if err := w.workerSB.FinalizeSector(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			if err := w.pushCommit(ctx, task); err != nil {
+			if err := w.pushCache(ctx, task); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 		}
@@ -664,12 +410,4 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 	}
 	return res
-}
-
-func errRes(err error, res *ffiwrapper.SealRes) ffiwrapper.SealRes {
-	if err != nil {
-		res.Err = err.Error()
-		res.GoErr = err
-	}
-	return *res
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -23,21 +24,30 @@ func (sb *Sealer) MakeLink(task *WorkerTask) error {
 	// get path
 	newCacheFile := sb.SectorPath("cache", sectorName)
 	newSealedFile := sb.SectorPath("sealed", sectorName)
+	newUnsealedFile := sb.SectorPath("unsealed", sectorName)
 
 	// make a new link
 	ss := task.SectorStorage
-	st := ss.SealedStorage
-	cacheFile := filepath.Join(st.MountDir, fmt.Sprintf("%d", st.ID), "cache", sectorName)
+	sealedStorage := ss.SealedStorage
+	unsealedStorage := ss.UnsealedStorage
+	cacheFile := filepath.Join(sealedStorage.MountDir, fmt.Sprintf("%d", sealedStorage.ID), "cache", sectorName)
 	if newCacheFile != cacheFile {
 		log.Infof("ln -s %s %s", cacheFile, newCacheFile)
 		if err := database.Symlink(cacheFile, newCacheFile); err != nil {
 			return errors.As(err, ss, sectorName)
 		}
 	}
-	sealedFile := filepath.Join(st.MountDir, fmt.Sprintf("%d", st.ID), "sealed", sectorName)
+	sealedFile := filepath.Join(sealedStorage.MountDir, fmt.Sprintf("%d", sealedStorage.ID), "sealed", sectorName)
 	if newSealedFile != sealedFile {
 		log.Infof("ln -s %s %s", sealedFile, newSealedFile)
 		if err := database.Symlink(sealedFile, newSealedFile); err != nil {
+			return errors.As(err, ss, sectorName)
+		}
+	}
+	unsealedFile := filepath.Join(unsealedStorage.MountDir, fmt.Sprintf("%d", unsealedStorage.ID), "unsealed", sectorName)
+	if _, err := os.Stat(unsealedFile); err == nil && newUnsealedFile != unsealedFile {
+		log.Infof("ln -s %s %s", unsealedFile, newUnsealedFile)
+		if err := database.Symlink(unsealedFile, newUnsealedFile); err != nil {
 			return errors.As(err, ss, sectorName)
 		}
 	}
