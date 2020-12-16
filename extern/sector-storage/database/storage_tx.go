@@ -98,7 +98,7 @@ WHERE
 	// Allocate data
 	switch tx.Kind {
 	case STORAGE_KIND_SEALED:
-		if _, err := db.Exec("UPDATE sector_info SET storage_id=? WHERE id=?", info.ID, sectorId); err != nil {
+		if _, err := db.Exec("UPDATE sector_info SET storage_sealed=? WHERE id=?", info.ID, sectorId); err != nil {
 			return nil, nil, errors.As(err, sectorId)
 		}
 	case STORAGE_KIND_UNSEALED:

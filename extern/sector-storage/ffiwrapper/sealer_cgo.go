@@ -10,6 +10,7 @@ import (
 	"io"
 	"math/bits"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -132,6 +133,9 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 	unsealedPath := sb.SectorPath("unsealed", sectorName(sector.ID))
 	if sector.AllocateUnsealed {
 		unsealedPath = sector.UnsealedFile()
+	}
+	if err := os.MkdirAll(filepath.Dir(unsealedPath), 0755); err != nil {
+		return abi.PieceInfo{}, xerrors.Errorf("creating unsealed sector file: %w", err)
 	}
 	if len(existingPieceSizes) == 0 {
 		stagedFile, err = createPartialFile(maxPieceSize, unsealedPath)

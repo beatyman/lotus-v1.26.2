@@ -98,11 +98,16 @@ func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.Secto
 	if sector.HasRepo() {
 		return sector, nil
 	}
+	// set to default.
+	sector.SectorId = storage.SectorName(sector.ID)
+	sector.StorageSealedRepo = defaultRepo
+	sector.StorageUnsealedRepo = defaultRepo
+
 	if !HasDB() {
 		return sector, nil
 	}
 
-	fill, err := GetSectorFile(storage.SectorName(sector.ID), defaultRepo)
+	fill, err := GetSectorFile(sector.SectorId, defaultRepo)
 	if err != nil {
 		return sector, errors.As(err)
 	}

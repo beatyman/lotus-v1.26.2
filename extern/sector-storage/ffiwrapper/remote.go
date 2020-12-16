@@ -170,7 +170,7 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 			SectorID:  sector.ID,
 
 			SealTicket: ticket,
-			Pieces:     EncodePieceInfo(pieces),
+			Pieces:     pieces,
 		},
 		ret: make(chan SealRes),
 	}
@@ -264,13 +264,10 @@ func (sb *Sealer) SealCommit1(ctx context.Context, sector storage.SectorRef, tic
 			SectorID:  sector.ID,
 
 			SealTicket: ticket,
-			Pieces:     EncodePieceInfo(pieces),
+			Pieces:     pieces,
 
 			SealSeed: seed,
-			Cids: SectorCids{
-				Unsealed: cids.Unsealed.String(),
-				Sealed:   cids.Sealed.String(),
-			},
+			Cids:     cids,
 		},
 		ret: make(chan SealRes),
 	}

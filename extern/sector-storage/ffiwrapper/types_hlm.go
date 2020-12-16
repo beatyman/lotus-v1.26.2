@@ -13,6 +13,7 @@ import (
 	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	"github.com/gwaylib/errors"
 )
 
@@ -162,22 +163,29 @@ type WorkerTask struct {
 	ExistingPieceSizes []abi.UnpaddedPieceSize
 	ExtSizes           []abi.UnpaddedPieceSize // size ...abi.UnpaddedPieceSize
 
+	// unseal
+	UnsealOffset   storiface.UnpaddedByteIndex
+	UnsealSize     abi.UnpaddedPieceSize
+	SealRandomness abi.SealRandomness
+	Commd          cid.Cid
+
 	// preCommit1
 	SealTicket abi.SealRandomness // commit1 is need too.
-	Pieces     []PieceInfo        // commit1 is need too.
+	Pieces     []abi.PieceInfo
 
 	// preCommit2
 	PreCommit1Out storage.PreCommit1Out
 
 	// commit1
 	SealSeed abi.InteractiveSealRandomness
-	Cids     SectorCids
+	Cids     storage.SectorCids
 
 	// commit2
 	Commit1Out storage.Commit1Out
 
 	// winning PoSt
 	SectorInfo []storage.ProofSectorInfo
+	// using for wdpost, winpost, unseal
 	Randomness abi.PoStRandomness
 
 	// window PoSt
