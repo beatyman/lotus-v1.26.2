@@ -210,19 +210,14 @@ var runCmd = &cli.Command{
 			Usage: "Parallel of precommit2, num <= max-tasks",
 		},
 		&cli.UintFlag{
-			Name:  "parallel-commit1",
+			Name:  "parallel-commit",
 			Value: 1,
-			Usage: "Parallel of commit1,0 < num <= max-tasks, undefined for 0",
-		},
-		&cli.UintFlag{
-			Name:  "parallel-commit2",
-			Value: 1,
-			Usage: "Parallel of commit2, num <= max-tasks. if the number is 0, will select a commit2 service until success",
+			Usage: "Parallel of commit, num <= max-tasks. if the number is 0, will select a commit service until success",
 		},
 		&cli.BoolFlag{
 			Name:  "commit2-srv",
 			Value: false,
-			Usage: "Open commit2 service, need parallel-commit2 > 0",
+			Usage: "Open the commit2 service",
 		},
 		&cli.BoolFlag{
 			Name:  "wdpost-srv",
@@ -349,8 +344,7 @@ var runCmd = &cli.Command{
 			ParallelPledge:     int(cctx.Uint("parallel-addpiece")),
 			ParallelPrecommit1: int(cctx.Uint("parallel-precommit1")),
 			ParallelPrecommit2: int(cctx.Uint("parallel-precommit2")),
-			ParallelCommit1:    int(cctx.Uint("parallel-commit1")),
-			ParallelCommit2:    int(cctx.Uint("parallel-commit2")),
+			ParallelCommit:     int(cctx.Uint("parallel-commit")),
 			Commit2Srv:         cctx.Bool("commit2-srv"),
 			WdPoStSrv:          cctx.Bool("wdpost-srv"),
 			WnPoStSrv:          cctx.Bool("wnpost-srv"),

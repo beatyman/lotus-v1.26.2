@@ -112,11 +112,13 @@ const (
 	WorkerPreCommit1Done                = 11
 	WorkerPreCommit2                    = 20
 	WorkerPreCommit2Done                = 21
-	WorkerCommit1                       = 30
-	WorkerCommit1Done                   = 31
-	WorkerCommit2                       = 40
-	WorkerCommit2Done                   = 41
+	WorkerCommit                        = 40
+	WorkerCommitDone                    = 41
 	WorkerFinalize                      = 50
+	WorkerUnseal                        = 60
+	WorkerUnsealDone                    = 61
+
+	WorkerTransfer = 101
 
 	WorkerWindowPoSt  = 1000
 	WorkerWinningPoSt = 1010
@@ -140,10 +142,9 @@ type WorkerCfg struct {
 	CacheMode          int // 0, transfer mode; 1, share mode.
 	TransferBuffer     int // 0~n, do next task when transfering and transfer cache on
 	ParallelPledge     int
-	ParallelPrecommit1 int
+	ParallelPrecommit1 int // unseal is shared with this parallel
 	ParallelPrecommit2 int
-	ParallelCommit1    int
-	ParallelCommit2    int
+	ParallelCommit     int
 
 	Commit2Srv bool // need ParallelCommit2 > 0
 	WdPoStSrv  bool
@@ -240,8 +241,7 @@ type WorkerStats struct {
 	PledgeWait     int
 	PreCommit1Wait int
 	PreCommit2Wait int
-	Commit1Wait    int
-	Commit2Wait    int
+	CommitWait     int
 	UnsealWait     int
 	FinalizeWait   int
 	WPostWait      int
@@ -281,9 +281,9 @@ type remote struct {
 	precommit1Chan chan workerCall
 	precommit2Wait int32
 	precommit2Chan chan workerCall
-	commit1Chan    chan workerCall
-	commit2Chan    chan workerCall
+	commitChan     chan workerCall
 	finalizeChan   chan workerCall
+	unsealChan     chan workerCall
 
 	sealTasks   chan<- WorkerTask
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
@@ -317,15 +317,15 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 
 	// no limit list
 	switch typ {
-	case WorkerCommit1, WorkerFinalize:
+	case WorkerFinalize:
 		return false
 	}
 
 	busyPledgeNum := 0
 	busyPrecommit1Num := 0
 	busyPrecommit2Num := 0
-	busyCommit1Num := 0
-	busyCommit2Num := 0
+	busyCommitNum := 0
+	busyUnsealNum := 0
 	busyWinningPoSt := 0
 	busyWindowPoSt := 0
 	sumWorkingTask := 0
@@ -340,10 +340,10 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 			busyPrecommit1Num++
 		case WorkerPreCommit2:
 			busyPrecommit2Num++
-		case WorkerCommit1:
-			busyCommit1Num++
-		case WorkerCommit2:
-			busyCommit2Num++
+		case WorkerCommit:
+			busyCommitNum++
+		case WorkerUnseal:
+			busyUnsealNum++
 		case WorkerWinningPoSt:
 			busyWinningPoSt++
 		case WorkerWindowPoSt:
@@ -363,17 +363,17 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	case WorkerPledge:
 		// mutex cpu for addpiece and precommit1
 		return busyPledgeNum >= r.cfg.ParallelPledge || len(r.busyOnTasks) >= r.cfg.MaxTaskNum
-	case WorkerPreCommit1:
-		return busyPrecommit1Num >= r.cfg.ParallelPrecommit1 || (busyPledgeNum > 0)
+	case WorkerPreCommit1, WorkerUnseal: // unseal is shared with the parallel-precommit1
+		return busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1
 	case WorkerPreCommit2:
 		// mutex gpu for precommit2, commit2.
-		return busyPrecommit2Num >= r.cfg.ParallelPrecommit2 || (r.cfg.Commit2Srv && busyCommit2Num > 0)
-	case WorkerCommit2:
+		return busyPrecommit2Num >= r.cfg.ParallelPrecommit2 || (r.cfg.Commit2Srv && busyCommitNum > 0)
+	case WorkerCommit:
 		// ulimit to call commit2 service.
-		if r.cfg.ParallelCommit2 == 0 {
+		if r.cfg.ParallelCommit == 0 {
 			return false
 		}
-		return busyCommit2Num >= r.cfg.ParallelCommit2 || (busyPrecommit2Num > 0)
+		return busyCommitNum >= r.cfg.ParallelCommit || (busyPrecommit2Num > 0)
 	}
 	// default is false to pass the logic.
 	return false
@@ -467,7 +467,6 @@ type SealRes struct {
 	Pieces        []abi.PieceInfo
 	PreCommit1Out storage.PreCommit1Out
 	PreCommit2Out SectorCids
-	Commit1Out    storage.Commit1Out
 	Commit2Out    storage.Proof
 
 	WinningPoStProofOut []proof.PoStProof

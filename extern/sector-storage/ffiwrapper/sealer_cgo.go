@@ -590,7 +590,7 @@ func (sb *Sealer) sealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 	}, nil
 }
 
-func (sb *Sealer) sealCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) {
+func (sb *Sealer) SealCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) {
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTSealed|storiface.FTCache, 0, storiface.PathSealing)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire sector paths: %w", err)
@@ -617,7 +617,7 @@ func (sb *Sealer) sealCommit1(ctx context.Context, sector storage.SectorRef, tic
 	return output, nil
 }
 
-func (sb *Sealer) sealCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.Commit1Out) (storage.Proof, error) {
+func (sb *Sealer) SealCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.Commit1Out) (storage.Proof, error) {
 	return ffi.SealCommitPhase2(phase1Out, sector.ID.Number, sector.ID.Miner)
 }
 

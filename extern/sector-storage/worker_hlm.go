@@ -94,6 +94,11 @@ func (l *hlmWorker) SealCommit2(ctx context.Context, sector storage.SectorRef, p
 	return l.sb.SealCommit2(ctx, sector, phase1Out)
 }
 
+// union c1 and c2
+func (l *hlmWorker) SealCommit(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage2.SectorCids) (storage.Proof, error) {
+	return l.sb.SealCommit(ctx, sector, ticket, seed, pieces, cids)
+}
+
 func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage2.Range) error {
 	if err := l.sb.FinalizeSector(ctx, sector, keepUnsealed); err != nil {
 		return xerrors.Errorf("finalizing sector: %w", err)

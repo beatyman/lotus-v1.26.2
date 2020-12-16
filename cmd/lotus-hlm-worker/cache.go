@@ -199,15 +199,14 @@ func (w *worker) pushUnsealed(ctx context.Context, task ffiwrapper.WorkerTask) e
 	return nil
 }
 
-func (w *worker) fetchPledge(ctx context.Context, task ffiwrapper.WorkerTask) error {
+func (w *worker) fetchUnseal(ctx context.Context, task ffiwrapper.WorkerTask) error {
 	sid := task.SectorName()
-	log.Infof("fetchPledge:%+v", sid)
-	defer log.Infof("fetchPledge exit:%+v", sid)
+	log.Infof("fetchUnseal:%+v", sid)
+	defer log.Infof("fetchUnseal exit:%+v", sid)
 
 	ss := task.SectorStorage.UnsealedStorage
 	if ss.ID == 0 {
-		// no unsealed storage to mount
-		return nil
+		return errors.New("the unseal storage not found").As(sid)
 	}
 
 	mountUri := ss.MountTransfUri
@@ -228,9 +227,9 @@ func (w *worker) fetchPledge(ctx context.Context, task ffiwrapper.WorkerTask) er
 	}
 
 	// fetch the unsealed file
-	unsealedFromPath := filepath.Join(mountDir, "unsealed")
+	unsealedFromPath := filepath.Join(mountDir, "unsealed", sid)
 	unsealedToPath := w.workerSB.SectorPath("unsealed", sid)
-	if err := w.rsync(ctx, filepath.Join(unsealedFromPath, sid), unsealedToPath); err != nil {
+	if err := w.rsync(ctx, unsealedFromPath, unsealedToPath); err != nil {
 		return errors.As(err)
 	}
 
@@ -238,10 +237,53 @@ func (w *worker) fetchPledge(ctx context.Context, task ffiwrapper.WorkerTask) er
 		return errors.As(err)
 	}
 	return nil
+}
+func (w *worker) fetchSealed(ctx context.Context, task ffiwrapper.WorkerTask) error {
+	sid := task.SectorName()
+	log.Infof("fetchSealed:%+v", sid)
+	defer log.Infof("fetchSealed exit:%+v", sid)
 
+	ss := task.SectorStorage.SealedStorage
+	if ss.ID == 0 {
+		return errors.New("the seal storage not found").As(sid)
+	}
+
+	mountUri := ss.MountTransfUri
+	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
+		log.Infof("found local storage, chagne %s to mount local", mountUri)
+		// fix to 127.0.0.1 if it has the same ip.
+		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
+	}
+	mountDir := filepath.Join(w.sealedRepo, sid)
+	if err := w.mountRemote(
+		sid,
+		ss.MountType,
+		mountUri,
+		mountDir,
+		ss.MountOpt,
+	); err != nil {
+		return errors.As(err)
+	}
+
+	// fetch the unsealed file
+	sealedFromPath := filepath.Join(mountDir, "sealed", sid)
+	sealedToPath := w.workerSB.SectorPath("sealed", sid)
+	if err := w.rsync(ctx, sealedFromPath, sealedToPath); err != nil {
+		return errors.As(err)
+	}
+	cacheFromPath := filepath.Join(mountDir, "cache", sid)
+	cacheToPath := w.workerSB.SectorPath("cache", sid)
+	if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+		return errors.As(err)
+	}
+
+	if err := w.umountRemote(sid, mountDir); err != nil {
+		return errors.As(err)
+	}
+	return nil
 }
 
-func (w *worker) pushCache(ctx context.Context, task ffiwrapper.WorkerTask) error {
+func (w *worker) pushCache(ctx context.Context, task ffiwrapper.WorkerTask, unsealedOnly bool) error {
 repush:
 	select {
 	case <-ctx.Done():
@@ -266,10 +308,12 @@ repush:
 			goto repush
 		}
 
-		if err := w.pushSealed(ctx, task); err != nil {
-			log.Error(errors.As(err, task))
-			time.Sleep(60e9)
-			goto repush
+		if !unsealedOnly {
+			if err := w.pushSealed(ctx, task); err != nil {
+				log.Error(errors.As(err, task))
+				time.Sleep(60e9)
+				goto repush
+			}
 		}
 		if err := w.pushUnsealed(ctx, task); err != nil {
 			log.Error(errors.As(err, task))

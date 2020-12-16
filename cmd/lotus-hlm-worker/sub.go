@@ -78,7 +78,7 @@ checkingApi:
 	if len(envParam) > 0 {
 		to = envParam
 	}
-	if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
+	if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit > 0 {
 		// get ssize from miner
 		ssize, err := nodeApi.ActorSectorSize(ctx, act)
 		if err != nil {
@@ -210,9 +210,9 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerPledge:
 	case ffiwrapper.WorkerPreCommit1:
 	case ffiwrapper.WorkerPreCommit2:
-	case ffiwrapper.WorkerCommit1:
-	case ffiwrapper.WorkerCommit2:
+	case ffiwrapper.WorkerCommit:
 	case ffiwrapper.WorkerFinalize:
+	case ffiwrapper.WorkerUnseal:
 	case ffiwrapper.WorkerWindowPoSt:
 		proofs, err := w.rpcServer.GenerateWindowPoSt(ctx,
 			task.SectorID.Miner,
@@ -243,48 +243,62 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	// checking is the cache in a different storage server, do fetch when it is.
-	if w.workerCfg.CacheMode == 0 {
+	if w.workerCfg.CacheMode == 0 && task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit && task.WorkerID != w.workerCfg.ID {
 		// fetch the precommit cache data
-		if task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit2 && task.WorkerID != w.workerCfg.ID {
-			// lock bandwidth
-			if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
-				ReleaseNodeApi(false)
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
-		retryFetch:
-			// fetch data
-			uri := task.SectorStorage.WorkerInfo.SvcUri
-			if err := w.fetchRemote(
-				"http://"+uri,
-				task.SectorStorage.SectorInfo.ID,
-				task.Type,
-			); err != nil {
-				log.Warnf("fileserver error, retry 10s later:%+s", err.Error())
-				time.Sleep(10e9)
-				goto retryFetch
-			}
-			// release bandwidth
-			if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
-				ReleaseNodeApi(false)
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
-			// release the storage cache
-			log.Infof("fetch %s done, try delete remote files.", task.Key())
-			if err := w.deleteRemoteCache(
-				"http://"+uri,
-				task.SectorStorage.SectorInfo.ID,
-				"all",
-			); err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
-		} else if task.Type == ffiwrapper.WorkerPledge && len(task.ExtSizes) > 0 {
-			// get the market unsealed data, and copy to local
-			if err := w.fetchPledge(ctx, task); err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
-			// fetch done
+		// lock bandwidth
+		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
+			ReleaseNodeApi(false)
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+	retryFetch:
+		// fetch data
+		uri := task.SectorStorage.WorkerInfo.SvcUri
+		if err := w.fetchRemote(
+			"http://"+uri,
+			task.SectorStorage.SectorInfo.ID,
+			task.Type,
+		); err != nil {
+			log.Warnf("fileserver error, retry 10s later:%+s", err.Error())
+			time.Sleep(10e9)
+			goto retryFetch
+		}
+		// release bandwidth
+		if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
+			ReleaseNodeApi(false)
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+		// release the storage cache
+		log.Infof("fetch %s done, try delete remote files.", task.Key())
+		if err := w.deleteRemoteCache(
+			"http://"+uri,
+			task.SectorStorage.SectorInfo.ID,
+			"all",
+		); err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 	}
+
+	// fetch the unseal sector
+	if task.Type == ffiwrapper.WorkerPledge && len(task.ExtSizes) > 0 {
+		// get the market unsealed data, and copy to local
+		if err := w.fetchUnseal(ctx, task); err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+		// fetch done
+	}
+
+	// fetch the seal sector
+	if task.Type == ffiwrapper.WorkerUnseal {
+		// get the unsealed and sealed data
+		if err := w.fetchUnseal(ctx, task); err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+		if err := w.fetchSealed(ctx, task); err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+		// fetch done
+	}
+
 	// lock the task to this worker
 	if err := api.WorkerLock(ctx, w.workerCfg.ID, task.Key(), "task in", int(task.Type)); err != nil {
 		ReleaseNodeApi(false)
@@ -339,21 +353,18 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-	case ffiwrapper.WorkerCommit1:
+	case ffiwrapper.WorkerCommit:
 		pieceInfo := task.Pieces
 		cids := &task.Cids
 		out, err := w.workerSB.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
-		res.Commit1Out = out
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-	case ffiwrapper.WorkerCommit2:
-		var err error
-		// if local no gpu service, using remote if the remtoes have.
-		// TODO: Optimized waiting algorithm
-		if w.workerCfg.ParallelCommit2 == 0 && !w.workerCfg.Commit2Srv {
+
+		// if local gpu no set, using remotes .
+		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
 			for {
-				res.Commit2Out, err = CallCommit2Service(ctx, task)
+				res.Commit2Out, err = CallCommit2Service(ctx, task, out)
 				if err != nil {
 					log.Warn(errors.As(err))
 					time.Sleep(10e9)
@@ -379,13 +390,21 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			if !os.IsNotExist(err) {
 				return errRes(errors.As(err, sealedFile), &res)
 			}
+			// no file to finalize, just return done.
 		} else {
 			if err := w.workerSB.FinalizeSector(ctx, sector, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			if err := w.pushCache(ctx, task); err != nil {
+			if err := w.pushCache(ctx, task, false); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
+		}
+	case ffiwrapper.WorkerUnseal:
+		if err := w.workerSB.UnsealPiece(ctx, sector, task.UnsealOffset, task.UnsealSize, task.SealRandomness, task.Commd); err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+		if err := w.pushCache(ctx, task, true); err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 	}
 

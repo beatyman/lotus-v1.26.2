@@ -27,11 +27,10 @@ var (
 	_pledgeTasks     = make(chan workerCall)
 	_precommit1Tasks = make(chan workerCall)
 	_precommit2Tasks = make(chan workerCall)
-	_commit1Tasks    = make(chan workerCall)
-	_commit2Tasks    = make(chan workerCall)
+	_commitTasks     = make(chan workerCall)
 	_finalizeTasks   = make(chan workerCall)
+	_unsealTasks     = make(chan workerCall)
 
-	_remoteMarket   = sync.Map{}
 	_remotes        = sync.Map{}
 	_remoteResultLk = sync.RWMutex{}
 	_remoteResult   = make(map[string]chan<- SealRes)
@@ -44,10 +43,9 @@ var (
 	_pledgeWait     int32
 	_precommit1Wait int32
 	_precommit2Wait int32
-	_commit1Wait    int32
-	_commit2Wait    int32
-	_unsealWait     int32
+	_commitWait     int32
 	_finalizeWait   int32
+	_unsealWait     int32
 
 	sourceId = int64(1000000000) // the sealed sector need less than this value
 	sourceLk = sync.Mutex{}
@@ -61,26 +59,6 @@ func nextSourceID() int64 {
 		sourceId = 1000000000
 	}
 	return sourceId
-}
-
-func hasMarketRemotes() bool {
-	has := false
-	_remoteMarket.Range(func(key, val interface{}) bool {
-		r := val.(*remote)
-		r.lock.Lock()
-		if r.disable || len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
-			r.lock.Unlock()
-			// continue range
-			return true
-		}
-		r.lock.Unlock()
-
-		has = true
-		// break range
-		return false
-	})
-
-	return has
 }
 
 func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
@@ -126,10 +104,6 @@ func (sb *Sealer) PledgeSector(ctx context.Context, sector storage.SectorRef, ex
 		log.Infof("DEBUG:PledgeSector prefer remote called,%+v", sector)
 		return sb.pledgeRemote(call)
 	}
-}
-func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error {
-	// TODO: using remote worker to unseal.
-	return sb.unsealPiece(ctx, sector, offset, size, randomness, commd)
 }
 
 func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storage.PreCommit1Out, error) {
@@ -233,58 +207,9 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 	}
 }
 
-func (sb *Sealer) sealCommit1Remote(call workerCall) (storage.Commit1Out, error) {
-	log.Infof("DEBUG:sealCommit1Remote in,%+v", call.task.SectorID)
-	defer log.Infof("DEBUG:sealCommit1Remote out,%+v", call.task.SectorID)
-
-	select {
-	case ret := <-call.ret:
-		if ret.Err != "" {
-			return ret.Commit1Out, xerrors.New(ret.Err)
-		}
-		return ret.Commit1Out, nil
-	case <-sb.stopping:
-		return storage.Commit1Out{}, xerrors.New("sectorbuilder stopped")
-	}
-}
-
-func (sb *Sealer) SealCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Commit1Out, error) {
-	log.Infof("DEBUG:SealCommit1 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
-	defer log.Infof("DEBUG:SealCommit1 out,%+v", sector)
-	atomic.AddInt32(&_commit1Wait, 1)
-	if !sb.remoteCfg.SealSector {
-		atomic.AddInt32(&_commit1Wait, -1)
-		return sb.sealCommit1(ctx, sector, ticket, seed, pieces, cids)
-	}
-
-	call := workerCall{
-		task: WorkerTask{
-			Type:      WorkerCommit1,
-			ProofType: sector.ProofType,
-			SectorID:  sector.ID,
-
-			SealTicket: ticket,
-			Pieces:     pieces,
-
-			SealSeed: seed,
-			Cids:     cids,
-		},
-		ret: make(chan SealRes),
-	}
-	log.Infof("DEBUG:SealCommit1 prefer remote,%+v", sector)
-	// send to remote worker
-	select {
-	case _commit1Tasks <- call:
-		log.Infof("DEBUG:SealCommit1 prefer remote called,%+v", sector)
-		return sb.sealCommit1Remote(call)
-	case <-ctx.Done():
-		return storage.Commit1Out{}, ctx.Err()
-	}
-}
-
-func (sb *Sealer) sealCommit2Remote(call workerCall) (storage.Proof, error) {
-	log.Infof("DEBUG:sealCommit2Remote in,%+v", call.task.SectorID)
-	defer log.Infof("DEBUG:sealCommit2Remote out,%+v", call.task.SectorID)
+func (sb *Sealer) sealCommitRemote(call workerCall) (storage.Proof, error) {
+	log.Infof("DEBUG:sealCommitRemote in,%+v", call.task.SectorID)
+	defer log.Infof("DEBUG:sealCommitRemote out,%+v", call.task.SectorID)
 
 	select {
 	case ret := <-call.ret:
@@ -297,33 +222,35 @@ func (sb *Sealer) sealCommit2Remote(call workerCall) (storage.Proof, error) {
 	}
 }
 
-func (sb *Sealer) SealCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.Commit1Out) (storage.Proof, error) {
-	log.Infof("DEBUG:SealCommit2 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
-	defer log.Infof("DEBUG:SealCommit2 out,%+v", sector)
-
-	atomic.AddInt32(&_commit2Wait, 1)
+func (sb *Sealer) SealCommit(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Proof, error) {
+	log.Infof("DEBUG:SealCommit in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
+	defer log.Infof("DEBUG:SealCommit out,%+v", sector)
+	atomic.AddInt32(&_commitWait, 1)
 	if !sb.remoteCfg.SealSector {
-		atomic.AddInt32(&_commit2Wait, -1)
-		return sb.sealCommit2(ctx, sector, phase1Out)
+		atomic.AddInt32(&_commitWait, -1)
+		return storage.Proof{}, errors.New("No SealCommit for local mode.")
 	}
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:      WorkerCommit2,
+			Type:      WorkerCommit,
 			ProofType: sector.ProofType,
 			SectorID:  sector.ID,
 
-			Commit1Out: phase1Out,
+			SealTicket: ticket,
+			Pieces:     pieces,
+
+			SealSeed: seed,
+			Cids:     cids,
 		},
 		ret: make(chan SealRes),
 	}
-
-	log.Infof("DEBUG:SealCommit2 prefer remote,%+v", sector)
+	log.Infof("DEBUG:SealCommit prefer remote,%+v", sector)
 	// send to remote worker
 	select {
-	case _commit2Tasks <- call:
-		log.Infof("DEBUG:SealCommit2 prefer remote called,%+v", sector)
-		return sb.sealCommit2Remote(call)
+	case _commitTasks <- call:
+		log.Infof("DEBUG:SealCommit prefer remote called,%+v", sector)
+		return sb.sealCommitRemote(call)
 	case <-ctx.Done():
 		return storage.Proof{}, ctx.Err()
 	}
@@ -373,6 +300,60 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 	case _finalizeTasks <- call:
 		log.Infof("DEBUG:FinalizeSector prefer remote called,%+v", sector)
 		return sb.finalizeSectorRemote(call)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (sb *Sealer) unsealPieceRemote(call workerCall) error {
+	log.Infof("DEBUG:unsealPieceRemote in,%+v", call.task.SectorID)
+	defer log.Infof("DEBUG:unsealPieceRemote out,%+v", call.task.SectorID)
+	select {
+	case ret := <-call.ret:
+		var err error
+		if ret.Err != "" {
+			err = xerrors.New(ret.Err)
+		}
+		return err
+	case <-sb.stopping:
+		return xerrors.New("sectorbuilder stopped")
+	}
+}
+
+func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error {
+	log.Infof("DEBUG:UnsealPiece in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
+	defer log.Infof("DEBUG:UnsealPiece out,%+v", sector)
+
+	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
+		if err := autoPrecommit1Env(ctx); err != nil {
+			return errors.As(err)
+		}
+	}
+
+	atomic.AddInt32(&_unsealWait, 1)
+	if !sb.remoteCfg.SealSector {
+		atomic.AddInt32(&_unsealWait, -1)
+		return sb.unsealPiece(ctx, sector, offset, size, randomness, commd)
+	}
+
+	call := workerCall{
+		task: WorkerTask{
+			Type:      WorkerUnseal,
+			ProofType: sector.ProofType,
+			SectorID:  sector.ID,
+
+			UnsealOffset:   offset,
+			UnsealSize:     size,
+			SealRandomness: randomness,
+			Commd:          commd,
+		},
+		ret: make(chan SealRes),
+	}
+	log.Infof("DEBUG:UnsealPiece prefer remote,%+v", sector)
+	select { // prefer remote
+	case _unsealTasks <- call:
+		log.Infof("DEBUG:UnsealPiece prefer remote called,%+v", sector)
+		return sb.unsealPieceRemote(call)
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -571,7 +552,7 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 	}()
 
 	task := WorkerTask{
-		Type:     WorkerCommit2,
+		Type:     WorkerCommit,
 		SectorID: sector,
 	}
 	sid := task.SectorName()

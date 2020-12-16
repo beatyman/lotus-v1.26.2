@@ -587,6 +587,10 @@ func (m *Manager) SealCommit2(ctx context.Context, sector storage.SectorRef, pha
 	return out, waitErr
 }
 
+func (m *Manager) SealCommit(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Proof, error) {
+	return m.hlmWorker.SealCommit(ctx, sector, ticket, seed, pieces, cids)
+}
+
 func (m *Manager) FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {
 	return m.hlmWorker.FinalizeSector(ctx, sector, keepUnsealed)
 

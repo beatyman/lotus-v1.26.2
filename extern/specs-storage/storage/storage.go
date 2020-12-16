@@ -61,6 +61,9 @@ type Sealer interface {
 	SealCommit1(ctx context.Context, sector SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids SectorCids) (Commit1Out, error)
 	SealCommit2(ctx context.Context, sector SectorRef, c1o Commit1Out) (Proof, error)
 
+	// union the c1 and c2
+	SealCommit(ctx context.Context, sector SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids SectorCids) (Proof, error)
+
 	FinalizeSector(ctx context.Context, sector SectorRef, keepUnsealed []Range) error
 
 	// ReleaseUnsealed marks parts of the unsealed sector file as safe to drop
