@@ -299,7 +299,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	r.release = func() {
 		cancel()
 
-		// clean the other lock which has called by the offline remote.
+		// clean the other lock which has called by this worker.
 		_remotes.Range(func(key, val interface{}) bool {
 			_r := val.(*remote)
 			if _r == r {
@@ -315,10 +315,10 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 				if !ok {
 					continue
 				}
-				delete(r.busyOnTasks, sid)
+				log.Infof("clean task(%s) by worker(%s) exit", sid, _r.cfg.ID)
+				delete(_r.busyOnTasks, sid)
 			}
 			r.lock.Unlock()
-
 			return true
 		})
 	}
@@ -699,6 +699,9 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	defer log.Infof("remote worker out:%+v", cfg)
 
 	defer func() {
+		if r.release != nil {
+			r.release()
+		}
 		_remoteMarket.Delete(cfg.ID)
 		_remotes.Delete(cfg.ID)
 		// offline worker
@@ -985,6 +988,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 				"context expired while waiting for sector %s: %s, %s, %s",
 				task.task.Key(), task.task.WorkerID, r.cfg.ID, ctx.Err(),
 			)
+
 			sb.returnTask(task)
 			return
 		}
