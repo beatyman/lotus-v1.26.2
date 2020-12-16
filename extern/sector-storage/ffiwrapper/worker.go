@@ -15,10 +15,6 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-var (
-	ErrNoGpuSrv = errors.New("No Gpu service for allocation")
-)
-
 var workerConnLock = sync.Mutex{}
 
 func (sb *Sealer) AddWorkerConn(id string, num int) error {
@@ -290,7 +286,6 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	r := &remote{
 		ctx:            ctx,
 		cfg:            cfg,
-		release:        cancel,
 		precommit1Chan: make(chan workerCall, 10),
 		precommit2Chan: make(chan workerCall, 10),
 		commit1Chan:    make(chan workerCall, 10),
@@ -300,6 +295,32 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		sealTasks:   taskCh,
 		busyOnTasks: map[string]WorkerTask{},
 		disable:     wInfo.Disable,
+	}
+	r.release = func() {
+		cancel()
+
+		// clean the other lock which has called by this worker.
+		_remotes.Range(func(key, val interface{}) bool {
+			_r := val.(*remote)
+			if _r == r {
+				return true
+			}
+
+			_r.lock.Lock()
+			defer _r.lock.Unlock()
+
+			r.lock.Lock()
+			for sid, _ := range r.busyOnTasks {
+				_, ok := _r.busyOnTasks[sid]
+				if !ok {
+					continue
+				}
+				log.Infof("clean task(%s) by worker(%s) exit", sid, _r.cfg.ID)
+				delete(_r.busyOnTasks, sid)
+			}
+			r.lock.Unlock()
+			return true
+		})
 	}
 	if _, err := r.checkCache(true, nil); err != nil {
 		return nil, errors.As(err, cfg)
@@ -315,7 +336,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 }
 
 // call UnlockService to release
-func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerTask) (*remote, error) {
+func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerTask) (*remote, bool) {
 	_remoteGpuLk.Lock()
 	defer _remoteGpuLk.Unlock()
 
@@ -350,9 +371,9 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		return false
 	})
 	if r == nil {
-		return nil, ErrNoGpuSrv.As(sid, task)
+		return nil, false
 	}
-	return r, nil
+	return r, true
 }
 
 func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
@@ -678,6 +699,9 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	defer log.Infof("remote worker out:%+v", cfg)
 
 	defer func() {
+		if r.release != nil {
+			r.release()
+		}
 		_remoteMarket.Delete(cfg.ID)
 		_remotes.Delete(cfg.ID)
 		// offline worker
@@ -783,11 +807,13 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// nothing in chan
 		}
 	}
+
 	checkCommit2 := func() {
 		// log.Infof("checkCommit:%s", r.cfg.ID)
 		if r.LimitParallel(WorkerCommit2, false) {
 			return
 		}
+
 		select {
 		case task := <-r.commit2Chan:
 			atomic.AddInt32(&_commit2Wait, -1)
@@ -962,6 +988,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 				"context expired while waiting for sector %s: %s, %s, %s",
 				task.task.Key(), task.task.WorkerID, r.cfg.ID, ctx.Err(),
 			)
+
 			sb.returnTask(task)
 			return
 		}
