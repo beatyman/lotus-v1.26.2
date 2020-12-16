@@ -42,67 +42,6 @@ type RemoteCfg struct {
 	WinningPoSt int // 0, close remote function, >0, using number of thread to work at the same time.
 }
 
-type SectorCids struct {
-	Unsealed string // encoded cid.Cid
-	Sealed   string // encoded cid.Cid
-}
-
-func (s *SectorCids) Decode() (*storage.SectorCids, error) {
-	unsealedCid, err := cid.Decode(s.Unsealed)
-	if err != nil {
-		return nil, errors.As(err, *s)
-	}
-	sealedCid, err := cid.Decode(s.Sealed)
-	if err != nil {
-		return nil, errors.As(err, *s)
-	}
-	return &storage.SectorCids{
-		Unsealed: unsealedCid,
-		Sealed:   sealedCid,
-	}, nil
-}
-
-type PieceInfo struct {
-	Size     abi.PaddedPieceSize
-	PieceCID string
-}
-
-func (p *PieceInfo) Decode() (*abi.PieceInfo, error) {
-	pCID, err := cid.Decode(p.PieceCID)
-	if err != nil {
-		return nil, errors.As(err)
-	}
-	return &abi.PieceInfo{
-		Size:     p.Size,
-		PieceCID: pCID,
-	}, nil
-}
-
-func EncodePieceInfo(in []abi.PieceInfo) []PieceInfo {
-	out := []PieceInfo{}
-	for _, p := range in {
-		out = append(out, PieceInfo{
-			Size:     p.Size,
-			PieceCID: p.PieceCID.String(),
-		})
-	}
-	return out
-}
-func DecodePieceInfo(in []PieceInfo) ([]abi.PieceInfo, error) {
-	out := []abi.PieceInfo{}
-	for i, p := range in {
-		tmpCID, err := cid.Decode(p.PieceCID)
-		if err != nil {
-			return nil, errors.As(err, i, in)
-		}
-		out = append(out, abi.PieceInfo{
-			Size:     p.Size,
-			PieceCID: tmpCID,
-		})
-	}
-	return out, nil
-}
-
 type WorkerTaskType int
 
 const (
@@ -466,7 +405,7 @@ type SealRes struct {
 	// TODO: Serial
 	Pieces        []abi.PieceInfo
 	PreCommit1Out storage.PreCommit1Out
-	PreCommit2Out SectorCids
+	PreCommit2Out storage.SectorCids
 	Commit2Out    storage.Proof
 
 	WinningPoStProofOut []proof.PoStProof

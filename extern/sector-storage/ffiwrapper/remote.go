@@ -163,15 +163,10 @@ func (sb *Sealer) sealPreCommit2Remote(call workerCall) (storage.SectorCids, err
 	defer log.Infof("DEBUG:sealPreCommit2Remote out,%+v", call.task.SectorID)
 	select {
 	case ret := <-call.ret:
-		var err error
 		if ret.Err != "" {
 			return storage.SectorCids{}, errors.Parse(ret.Err)
 		}
-		out, err := ret.PreCommit2Out.Decode()
-		if err != nil {
-			return storage.SectorCids{}, errors.As(err)
-		}
-		return *out, nil
+		return ret.PreCommit2Out, nil
 	case <-sb.stopping:
 		return storage.SectorCids{}, xerrors.New("sectorbuilder stopped")
 	}
