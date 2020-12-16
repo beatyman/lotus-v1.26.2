@@ -32,6 +32,7 @@ func (sb *Sealer) RepoPath() string {
 	return sb.sectors.RepoPath()
 }
 
+// Refer to : https://github.com/filecoin-project/lotus/blob/46e5cc9317a34325b0a9cae45aac582a03b9a788/extern/storage-sealing/garbage.go#L12
 func (sb *Sealer) pledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	if len(sizes) == 0 {
 		log.Info("No sizes for pledge")
