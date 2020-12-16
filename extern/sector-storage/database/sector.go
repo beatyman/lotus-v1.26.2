@@ -25,7 +25,7 @@ type SectorInfo struct {
 	ID              string    `db:"id"` // s-t0101-1
 	MinerId         string    `db:"miner_id"`
 	UpdateTime      time.Time `db:"updated_at"`
-	StorageId       int64     `db:"storage_id"`
+	StorageSealed   int64     `db:"storage_sealed"`
 	StorageUnsealed int64     `db:"storage_unsealed"`
 	WorkerId        string    `db:"worker_id"`
 	State           int       `db:"state,0"`
@@ -79,7 +79,7 @@ func GetSectorInfo(id string) (*SectorInfo, error) {
 		if !errors.ErrNoData.Equal(err) {
 			return nil, errors.As(err)
 		}
-		info.StorageId = 1
+		info.StorageSealed = 1
 		info.WorkerId = "default"
 	}
 	return info, nil
@@ -171,7 +171,7 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 			return nil, errors.As(err)
 		}
 		seInfo.WorkerId = "default"
-		seInfo.StorageId = 1
+		seInfo.StorageSealed = 1
 	}
 	wkInfo := &WorkerInfo{
 		ID: seInfo.WorkerId,
@@ -184,7 +184,7 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 		// upgrade fixed for worker ip
 	}
 	sealedInfo := &StorageInfo{}
-	if err := database.QueryStruct(mdb, sealedInfo, "SELECT * FROM storage_info WHERE id=?", seInfo.StorageId); err != nil {
+	if err := database.QueryStruct(mdb, sealedInfo, "SELECT * FROM storage_info WHERE id=?", seInfo.StorageSealed); err != nil {
 		if !errors.ErrNoData.Equal(err) {
 			return nil, errors.As(err, id)
 		}

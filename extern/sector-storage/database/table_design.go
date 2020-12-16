@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS sector_info (
 	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	miner_id TEXT NOT NULL, /* t0101 */
-	storage_id INTEGER DEFAULT 0, /* where the sealed to storage */
+	storage_sealed INTEGER DEFAULT 0, /* where the sealed to storage,renamed storage_id to this field */
 	storage_unsealed INTEGER DEFAULT 0, /* where the market unsealed data to storage */
 	worker_id TEXT NOT NULL DEFAULT 'default', /* who work on */
 	state INTEGER NOT NULL DEFAULT 0, /* 0: INIT, 0-99:working, 100:moving, 101:pushing, 200: success, 500: failed.*/
@@ -58,9 +58,10 @@ CREATE TABLE IF NOT EXISTS sector_info (
 	state_msg TEXT NOT NULL DEFAULT '', /* msg for state */
 	state_times INT NOT NULL DEFAULT 0 /* count the state change event times, cause the sealing should be ran in a loop. */
 );
-CREATE INDEX IF NOT EXISTS sector_info_idx0 ON sector_info(storage_id);
-CREATE INDEX IF NOT EXISTS sector_info_idx1 ON sector_info(worker_id);
-CREATE INDEX IF NOT EXISTS sector_info_idx2 ON sector_info(miner_id);
-CREATE INDEX IF NOT EXISTS sector_info_idx3 ON sector_info(state,state_time);
+CREATE INDEX IF NOT EXISTS sector_info_idx0 ON sector_info(worker_id);
+CREATE INDEX IF NOT EXISTS sector_info_idx1 ON sector_info(miner_id);
+CREATE INDEX IF NOT EXISTS sector_info_idx2 ON sector_info(state,state_time);
+CREATE INDEX IF NOT EXISTS sector_info_idx3 ON sector_info(storage_sealed);
+CREATE INDEX IF NOT EXISTS sector_info_idx4 ON sector_info(storage_unsealed);
 `
 )
