@@ -378,22 +378,16 @@ func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string
 
 	_r, ok := _remotes.Load(workerId)
 	if !ok {
-		log.Warnf("worker not found:%s", workerId)
 		return nil
 	}
 	r := _r.(*remote)
 
 	sid, _, err := ParseTaskKey(taskKey)
 	if err != nil {
-		return errors.As(err, workerId, taskKey)
+		sid = taskKey // for service called.
 	}
 
-	if !r.freeTask(sid) {
-		// worker has free
-		return nil
-	}
-
-	return nil
+	!r.freeTask(sid)
 }
 
 func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force, reset bool) (bool, error) {

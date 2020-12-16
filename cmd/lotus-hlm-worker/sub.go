@@ -279,10 +279,10 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 
 	// fetch the unseal sector
-	if task.Type == ffiwrapper.WorkerPledge && len(task.ExtSizes) > 0 {
+	if task.Type == ffiwrapper.WorkerPledge {
 		// get the market unsealed data, and copy to local
 		if err := w.fetchUnseal(ctx, task); err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
+			return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
 		}
 		// fetch done
 	}
@@ -346,10 +346,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerPreCommit2:
 		out, err := w.workerSB.SealPreCommit2(ctx, sector, task.PreCommit1Out)
 		//out, err := ffiwrapper.ExecPrecommit2(ctx, w.workerRepo, task)
-		res.PreCommit2Out = ffiwrapper.SectorCids{
-			Unsealed: out.Unsealed.String(),
-			Sealed:   out.Sealed.String(),
-		}
+		res.PreCommit2Out = out
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}

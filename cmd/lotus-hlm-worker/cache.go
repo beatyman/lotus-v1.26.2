@@ -206,7 +206,8 @@ func (w *worker) fetchUnseal(ctx context.Context, task ffiwrapper.WorkerTask) er
 
 	ss := task.SectorStorage.UnsealedStorage
 	if ss.ID == 0 {
-		return errors.New("the unseal storage not found").As(sid)
+		log.Infof("the unseal storage not found, ignore:%s", sid)
+		return nil
 	}
 
 	mountUri := ss.MountTransfUri
