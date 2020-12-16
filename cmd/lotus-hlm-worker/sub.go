@@ -296,8 +296,9 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		ID:        task.SectorID,
 		ProofType: task.ProofType,
 		SectorFile: storage.SectorFile{
-			SectorId:    storage.SectorName(task.SectorID),
-			StorageRepo: w.workerSB.RepoPath(),
+			SectorId:            storage.SectorName(task.SectorID),
+			StorageSealedRepo:   w.workerSB.RepoPath(),
+			StorageUnsealedRepo: w.workerSB.RepoPath(),
 		},
 	}
 	switch task.Type {

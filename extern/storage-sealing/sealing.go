@@ -4,8 +4,6 @@ import (
 	"context"
 	"io"
 	"math"
-	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -469,28 +467,13 @@ func (m *Sealing) currentSealProof(ctx context.Context) (abi.RegisteredSealProof
 }
 
 func (m *Sealing) fillSectorFile(sector storage.SectorRef) (storage.SectorRef, error) {
-	id := sector.ID
-	sName := storage.SectorName(id)
-	ss, err := database.GetSectorStorage(sName)
-	if err != nil {
-		return storage.SectorRef{}, errors.As(err)
-	}
 	sb := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
-	repo := sb.RepoPath()
-	if ss.UnsealedStorage.ID > 0 {
-		repo = filepath.Join(ss.UnsealedStorage.MountDir, strconv.FormatInt(ss.UnsealedStorage.ID, 10))
+	newSector, err := database.FillSectorFile(sector, sb.RepoPath())
+	if err != nil {
+		return sector, errors.As(err)
 	}
-
-	return storage.SectorRef{
-		ID:        sector.ID,
-		ProofType: sector.ProofType,
-		SectorFile: storage.SectorFile{
-			SectorId:         sName,
-			StorageRepo:      repo,
-			AllocateUnsealed: true,
-		},
-	}, nil
-
+	newSector.AllocateUnsealed = true
+	return newSector, nil
 }
 
 func (m *Sealing) minerSector(spt abi.RegisteredSealProof, num abi.SectorNumber) storage.SectorRef {

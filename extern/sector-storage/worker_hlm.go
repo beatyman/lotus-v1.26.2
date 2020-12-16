@@ -4,9 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
-	"path/filepath"
 	"runtime"
-	"strconv"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
@@ -134,18 +132,10 @@ func (l *hlmWorker) UnsealPiece(ctx context.Context, sector storage.SectorRef, i
 }
 
 func (l *hlmWorker) ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (bool, error) {
-	if !sector.HasRepo() {
-		sName := storage.SectorName(sector.ID)
-		ss, err := database.GetSectorStorage(sName)
-		if err != nil {
-			return false, errors.As(err)
-		}
-		repo := l.sb.RepoPath()
-		if ss.UnsealedStorage.ID > 0 {
-			repo = filepath.Join(ss.UnsealedStorage.MountDir, strconv.FormatInt(ss.UnsealedStorage.ID, 10))
-		}
-		sector.SectorId = sName
-		sector.StorageRepo = repo
+	var err error
+	sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
+	if err != nil {
+		return false, errors.As(err)
 	}
 
 	if _, err := os.Stat(sector.UnsealedFile()); err == nil {

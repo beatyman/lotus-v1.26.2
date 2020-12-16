@@ -91,12 +91,11 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 	log.Infof("DEBUG:AddPiece in, sector:%+v", sector)
 	defer log.Infof("DEBUG:AddPiece out, sector:%+v", sector)
 
-	if !sector.HasRepo() {
-		if database.HasDB() {
-			return abi.PieceInfo{}, errors.New("need implement the sector repop")
-		}
-		sector.SectorId = storage.SectorName(sector.ID)
-		sector.StorageRepo = sb.RepoPath() // if it is not implement by the database, set it with sb.Repo
+	// uprade SectorRef
+	var err error
+	sector, err = database.FillSectorFile(sector, sb.RepoPath())
+	if err != nil {
+		return abi.PieceInfo{}, errors.As(err)
 	}
 
 	var offset abi.UnpaddedPieceSize
@@ -242,9 +241,11 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 	log.Infof("DEBUG:unsealPiece in, sector:%+v", sector)
 	defer log.Infof("DEBUG:unsealPiece out, sector:%+v", sector)
 
-	if !sector.HasRepo() {
-		sector.SectorId = storage.SectorName(sector.ID)
-		sector.StorageRepo = sb.RepoPath()
+	// uprade SectorRef
+	var err error
+	sector, err = database.FillSectorFile(sector, sb.RepoPath())
+	if err != nil {
+		return errors.As(err)
 	}
 
 	ssize, err := sector.ProofType.SectorSize()
@@ -442,12 +443,12 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {
 	log.Infof("DEBUG:ReadPiece in, sector:%+v", sector)
 	defer log.Infof("DEBUG:ReadPiece out, sector:%+v", sector)
-	if !sector.HasRepo() {
-		if database.HasDB() {
-			return false, errors.New("need implement the sector repop")
-		}
-		sector.SectorId = storage.SectorName(sector.ID)
-		sector.StorageRepo = sb.RepoPath() // if it is not implement by the database, set it with sb.Repo
+
+	// uprade SectorRef
+	var err error
+	sector, err = database.FillSectorFile(sector, sb.RepoPath())
+	if err != nil {
+		return false, errors.As(err)
 	}
 
 	path := storiface.SectorPaths{
