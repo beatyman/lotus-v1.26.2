@@ -172,18 +172,21 @@ func (w *worker) rsync(ctx context.Context, fromPath, toPath string) error {
 		return nil
 	}
 
-	stat, err := os.Stat(string(fromPath))
+	stat, err := os.Stat(fromPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return errors.ErrNoData.As(fromPath)
+		}
 		return err
 	}
 
 	log.Infof("rsync, from: %s, to: %s", fromPath, toPath)
 	if stat.IsDir() {
-		if err := CopyFile(ctx, string(fromPath)+"/", string(toPath)+"/"); err != nil {
+		if err := CopyFile(ctx, fromPath+"/", toPath+"/"); err != nil {
 			return err
 		}
 	} else {
-		if err := CopyFile(ctx, string(fromPath), string(toPath)); err != nil {
+		if err := CopyFile(ctx, fromPath, toPath); err != nil {
 			return err
 		}
 	}

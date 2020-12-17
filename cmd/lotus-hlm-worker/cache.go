@@ -231,7 +231,10 @@ func (w *worker) fetchUnseal(ctx context.Context, task ffiwrapper.WorkerTask) er
 	unsealedFromPath := filepath.Join(mountDir, "unsealed", sid)
 	unsealedToPath := w.workerSB.SectorPath("unsealed", sid)
 	if err := w.rsync(ctx, unsealedFromPath, unsealedToPath); err != nil {
-		return errors.As(err)
+		if !errors.ErrNoData.Equal(err) {
+			return errors.As(err)
+		}
+		// no data to fetch.
 	}
 
 	if err := w.umountRemote(sid, mountDir); err != nil {

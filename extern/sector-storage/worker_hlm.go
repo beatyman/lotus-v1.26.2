@@ -143,9 +143,12 @@ func (l *hlmWorker) ReadPiece(ctx context.Context, writer io.Writer, sector stor
 		return false, errors.As(err)
 	}
 
-	if _, err := os.Stat(sector.UnsealedFile()); err == nil {
-		// There is unsealed sector, see if we can read from it
-		return l.sb.ReadPiece(ctx, writer, sector, index, size)
+	// try read the exist unseal.
+	done, err := l.sb.ReadPiece(ctx, writer, sector, index, size)
+	if err != nil {
+		return false, errors.As(err)
+	} else if done {
+		return true, nil
 	}
 
 	// unsealed not found, unseal and then read it.
