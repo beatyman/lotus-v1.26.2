@@ -254,6 +254,7 @@ type FullNodeStruct struct {
 
 		MarketReserveFunds func(ctx context.Context, wallet address.Address, addr address.Address, amt types.BigInt) (cid.Cid, error) `perm:"sign"`
 		MarketReleaseFunds func(ctx context.Context, addr address.Address, amt types.BigInt) error                                    `perm:"sign"`
+		MarketWithdraw     func(ctx context.Context, wallet, addr address.Address, amt types.BigInt) (cid.Cid, error)                 `perm:"sign"`
 
 		PaychGet                    func(ctx context.Context, from, to address.Address, amt types.BigInt) (*api.ChannelInfo, error)           `perm:"sign"`
 		PaychGetWaitReady           func(context.Context, cid.Cid) (address.Address, error)                                                   `perm:"sign"`
@@ -285,8 +286,9 @@ type StorageMinerStruct struct {
 	CommonStruct
 
 	Internal struct {
-		ActorAddress    func(context.Context) (address.Address, error)                 `perm:"read"`
-		ActorSectorSize func(context.Context, address.Address) (abi.SectorSize, error) `perm:"read"`
+		ActorAddress       func(context.Context) (address.Address, error)                 `perm:"read"`
+		ActorSectorSize    func(context.Context, address.Address) (abi.SectorSize, error) `perm:"read"`
+		ActorAddressConfig func(ctx context.Context) (api.AddressConfig, error)           `perm:"read"`
 
 		MiningBase func(context.Context) (*types.TipSet, error) `perm:"read"`
 
@@ -308,6 +310,8 @@ type StorageMinerStruct struct {
 
 		SectorsStatus                 func(ctx context.Context, sid abi.SectorNumber, showOnChainInfo bool) (api.SectorInfo, error) `perm:"read"`
 		SectorsList                   func(context.Context) ([]abi.SectorNumber, error)                                             `perm:"read"`
+		SectorsListInStates           func(context.Context, []api.SectorState) ([]abi.SectorNumber, error)                          `perm:"read"`
+		SectorsSummary                func(ctx context.Context) (map[api.SectorState]int, error)                                    `perm:"read"`
 		SectorsRefs                   func(context.Context) (map[string][]api.SealedRef, error)                                     `perm:"read"`
 		SectorStartSealing            func(context.Context, abi.SectorNumber) error                                                 `perm:"write"`
 		SectorSetSealDelay            func(context.Context, time.Duration) error                                                    `perm:"write"`
@@ -350,18 +354,22 @@ type StorageMinerStruct struct {
 		StorageLock          func(ctx context.Context, sector abi.SectorID, read storiface.SectorFileType, write storiface.SectorFileType) error                          `perm:"admin"`
 		StorageTryLock       func(ctx context.Context, sector abi.SectorID, read storiface.SectorFileType, write storiface.SectorFileType) (bool, error)                  `perm:"admin"`
 
-		DealsImportData                       func(ctx context.Context, dealPropCid cid.Cid, file string) error `perm:"write"`
-		DealsList                             func(ctx context.Context) ([]api.MarketDeal, error)               `perm:"read"`
-		DealsConsiderOnlineStorageDeals       func(context.Context) (bool, error)                               `perm:"read"`
-		DealsSetConsiderOnlineStorageDeals    func(context.Context, bool) error                                 `perm:"admin"`
-		DealsConsiderOnlineRetrievalDeals     func(context.Context) (bool, error)                               `perm:"read"`
-		DealsSetConsiderOnlineRetrievalDeals  func(context.Context, bool) error                                 `perm:"admin"`
-		DealsConsiderOfflineStorageDeals      func(context.Context) (bool, error)                               `perm:"read"`
-		DealsSetConsiderOfflineStorageDeals   func(context.Context, bool) error                                 `perm:"admin"`
-		DealsConsiderOfflineRetrievalDeals    func(context.Context) (bool, error)                               `perm:"read"`
-		DealsSetConsiderOfflineRetrievalDeals func(context.Context, bool) error                                 `perm:"admin"`
-		DealsPieceCidBlocklist                func(context.Context) ([]cid.Cid, error)                          `perm:"read"`
-		DealsSetPieceCidBlocklist             func(context.Context, []cid.Cid) error                            `perm:"admin"`
+		DealsImportData                        func(ctx context.Context, dealPropCid cid.Cid, file string) error `perm:"write"`
+		DealsList                              func(ctx context.Context) ([]api.MarketDeal, error)               `perm:"read"`
+		DealsConsiderOnlineStorageDeals        func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderOnlineStorageDeals     func(context.Context, bool) error                                 `perm:"admin"`
+		DealsConsiderOnlineRetrievalDeals      func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderOnlineRetrievalDeals   func(context.Context, bool) error                                 `perm:"admin"`
+		DealsConsiderOfflineStorageDeals       func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderOfflineStorageDeals    func(context.Context, bool) error                                 `perm:"admin"`
+		DealsConsiderOfflineRetrievalDeals     func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderOfflineRetrievalDeals  func(context.Context, bool) error                                 `perm:"admin"`
+		DealsConsiderVerifiedStorageDeals      func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderVerifiedStorageDeals   func(context.Context, bool) error                                 `perm:"admin"`
+		DealsConsiderUnverifiedStorageDeals    func(context.Context) (bool, error)                               `perm:"read"`
+		DealsSetConsiderUnverifiedStorageDeals func(context.Context, bool) error                                 `perm:"admin"`
+		DealsPieceCidBlocklist                 func(context.Context) ([]cid.Cid, error)                          `perm:"read"`
+		DealsSetPieceCidBlocklist              func(context.Context, []cid.Cid) error                            `perm:"admin"`
 
 		StorageAddLocal func(ctx context.Context, path string) error `perm:"admin"`
 
@@ -1217,6 +1225,10 @@ func (c *FullNodeStruct) MarketReleaseFunds(ctx context.Context, addr address.Ad
 	return c.Internal.MarketReleaseFunds(ctx, addr, amt)
 }
 
+func (c *FullNodeStruct) MarketWithdraw(ctx context.Context, wallet, addr address.Address, amt types.BigInt) (cid.Cid, error) {
+	return c.Internal.MarketWithdraw(ctx, wallet, addr, amt)
+}
+
 func (c *FullNodeStruct) PaychGet(ctx context.Context, from, to address.Address, amt types.BigInt) (*api.ChannelInfo, error) {
 	return c.Internal.PaychGet(ctx, from, to, amt)
 }
@@ -1449,6 +1461,10 @@ func (c *StorageMinerStruct) ActorSectorSize(ctx context.Context, addr address.A
 	return c.Internal.ActorSectorSize(ctx, addr)
 }
 
+func (c *StorageMinerStruct) ActorAddressConfig(ctx context.Context) (api.AddressConfig, error) {
+	return c.Internal.ActorAddressConfig(ctx)
+}
+
 func (c *StorageMinerStruct) PledgeSector(ctx context.Context) error {
 	return c.Internal.PledgeSector(ctx)
 }
@@ -1461,6 +1477,14 @@ func (c *StorageMinerStruct) SectorsStatus(ctx context.Context, sid abi.SectorNu
 // List all staged sectors
 func (c *StorageMinerStruct) SectorsList(ctx context.Context) ([]abi.SectorNumber, error) {
 	return c.Internal.SectorsList(ctx)
+}
+
+func (c *StorageMinerStruct) SectorsListInStates(ctx context.Context, states []api.SectorState) ([]abi.SectorNumber, error) {
+	return c.Internal.SectorsListInStates(ctx, states)
+}
+
+func (c *StorageMinerStruct) SectorsSummary(ctx context.Context) (map[api.SectorState]int, error) {
+	return c.Internal.SectorsSummary(ctx)
 }
 
 func (c *StorageMinerStruct) SectorsRefs(ctx context.Context) (map[string][]api.SealedRef, error) {
@@ -1709,6 +1733,22 @@ func (c *StorageMinerStruct) DealsConsiderOfflineRetrievalDeals(ctx context.Cont
 
 func (c *StorageMinerStruct) DealsSetConsiderOfflineRetrievalDeals(ctx context.Context, b bool) error {
 	return c.Internal.DealsSetConsiderOfflineRetrievalDeals(ctx, b)
+}
+
+func (c *StorageMinerStruct) DealsConsiderVerifiedStorageDeals(ctx context.Context) (bool, error) {
+	return c.Internal.DealsConsiderVerifiedStorageDeals(ctx)
+}
+
+func (c *StorageMinerStruct) DealsSetConsiderVerifiedStorageDeals(ctx context.Context, b bool) error {
+	return c.Internal.DealsSetConsiderVerifiedStorageDeals(ctx, b)
+}
+
+func (c *StorageMinerStruct) DealsConsiderUnverifiedStorageDeals(ctx context.Context) (bool, error) {
+	return c.Internal.DealsConsiderUnverifiedStorageDeals(ctx)
+}
+
+func (c *StorageMinerStruct) DealsSetConsiderUnverifiedStorageDeals(ctx context.Context, b bool) error {
+	return c.Internal.DealsSetConsiderUnverifiedStorageDeals(ctx, b)
 }
 
 func (c *StorageMinerStruct) StorageAddLocal(ctx context.Context, path string) error {

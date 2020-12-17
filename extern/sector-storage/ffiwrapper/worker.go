@@ -298,7 +298,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	r.release = func() {
 		cancel()
 
-		// clean the other lock which has called by the offline remote.
+		// clean the other lock which has called by this worker.
 		_remotes.Range(func(key, val interface{}) bool {
 			_r := val.(*remote)
 			if _r == r {
@@ -314,10 +314,10 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 				if !ok {
 					continue
 				}
-				delete(r.busyOnTasks, sid)
+				log.Infof("clean task(%s) by worker(%s) exit", sid, _r.cfg.ID)
+				delete(_r.busyOnTasks, sid)
 			}
 			r.lock.Unlock()
-
 			return true
 		})
 	}
@@ -661,15 +661,18 @@ func (sb *Sealer) returnTask(task workerCall) {
 
 func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	log.Infof("DEBUG:remoteWorker in:%+v", cfg)
-	defer log.Infof("remote worker out:%+v", cfg)
-
 	defer func() {
+		log.Infof("remote worker out:%+v", cfg)
+		if r.release != nil {
+			r.release()
+		}
 		_remotes.Delete(cfg.ID)
 		// offline worker
 		if err := database.OfflineWorker(cfg.ID); err != nil {
 			log.Error(errors.As(err))
 		}
 	}()
+
 	pledgeTasks := _pledgeTasks
 	precommit1Tasks := _precommit1Tasks
 	precommit2Tasks := _precommit2Tasks
@@ -911,6 +914,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 				"context expired while waiting for sector %s: %s, %s, %s",
 				task.task.Key(), task.task.WorkerID, r.cfg.ID, ctx.Err(),
 			)
+
 			sb.returnTask(task)
 			return
 		}

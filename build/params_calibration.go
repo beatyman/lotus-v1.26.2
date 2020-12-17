@@ -35,6 +35,9 @@ const UpgradeKumquatHeight = 90
 const UpgradeCalicoHeight = 92000
 const UpgradePersianHeight = UpgradeCalicoHeight + (builtin2.EpochsInHour * 60)
 
+// 2020-12-17T19:00:00Z
+const UpgradeClausHeight = 161386
+
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
 	policy.SetSupportedProofTypes(
@@ -52,4 +55,5 @@ const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
 
 const PropagationDelaySecs = uint64(6)
 
+// BootstrapPeerThreshold is the minimum number peers we need to track for a sync worker to start
 const BootstrapPeerThreshold = 4

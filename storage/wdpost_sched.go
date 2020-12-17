@@ -27,6 +27,7 @@ import (
 type WindowPoStScheduler struct {
 	api              storageMinerApi
 	feeCfg           config.MinerFeeConfig
+	addrSel          *AddressSelector
 	prover           storage.Prover
 	faultTracker     sectorstorage.FaultTracker
 	proofType        abi.RegisteredPoStProof
@@ -42,7 +43,7 @@ type WindowPoStScheduler struct {
 	// failLk sync.Mutex
 }
 
-func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, sb storage.Prover, ft sectorstorage.FaultTracker, j journal.Journal, actor address.Address) (*WindowPoStScheduler, error) {
+func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, as *AddressSelector, sb storage.Prover, ft sectorstorage.FaultTracker, j journal.Journal, actor address.Address) (*WindowPoStScheduler, error) {
 	mi, err := api.StateMinerInfo(context.TODO(), actor, types.EmptyTSK)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sector size: %w", err)
@@ -56,6 +57,7 @@ func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, sb 
 	return &WindowPoStScheduler{
 		api:              api,
 		feeCfg:           fc,
+		addrSel:          as,
 		prover:           sb,
 		faultTracker:     ft,
 		proofType:        rt,
