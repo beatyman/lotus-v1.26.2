@@ -23,6 +23,7 @@ require (
 	github.com/drand/kyber v1.1.4
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-sysinfo v1.3.0
+	github.com/elastic/gosigar v0.12.0
 	github.com/fatih/color v1.9.0
 	github.com/filecoin-project/filecoin-ffi v0.30.4-0.20200910194244-f640612a1a1f
 	github.com/filecoin-project/go-address v0.0.5-0.20201103152444-f2023ef3f5bb
@@ -31,9 +32,9 @@ require (
 	github.com/filecoin-project/go-cbor-util v0.0.0-20191219014500-08c40a1e63a2
 	github.com/filecoin-project/go-commp-utils v0.0.0-20201119054358-b88f7a96a434
 	github.com/filecoin-project/go-crypto v0.0.0-20191218222705-effae4ea9f03
-	github.com/filecoin-project/go-data-transfer v1.2.2
+	github.com/filecoin-project/go-data-transfer v1.2.3
 	github.com/filecoin-project/go-fil-commcid v0.0.0-20201016201715-d41df56b4f6a
-	github.com/filecoin-project/go-fil-markets v1.0.9
+	github.com/filecoin-project/go-fil-markets v1.0.10
 	github.com/filecoin-project/go-jsonrpc v0.1.2
 	github.com/filecoin-project/go-multistore v0.0.3
 	github.com/filecoin-project/go-padreader v0.0.0-20200903213702-ed5fae088b20
@@ -130,6 +131,7 @@ require (
 	github.com/polydawn/refmt v0.0.0-20190809202753-05966cbd336a
 	github.com/prometheus/client_golang v1.6.0
 	github.com/raulk/clock v1.1.0
+	github.com/raulk/go-watchdog v0.0.1
 	github.com/stretchr/testify v1.6.1
 	github.com/supranational/blst v0.1.1
 	github.com/syndtr/goleveldb v1.0.0

@@ -44,10 +44,10 @@ var sendCmd = &cli.Command{
 			Usage: "specify gas limit",
 			Value: 0,
 		},
-		&cli.Int64Flag{
+		&cli.Uint64Flag{
 			Name:  "nonce",
 			Usage: "specify the nonce to use",
-			Value: -1,
+			Value: 0,
 		},
 		&cli.Uint64Flag{
 			Name:  "method",
@@ -144,8 +144,8 @@ var sendCmd = &cli.Command{
 			Params:     params,
 		}
 
-		if cctx.Int64("nonce") > 0 {
-			msg.Nonce = uint64(cctx.Int64("nonce"))
+		if cctx.IsSet("nonce") {
+			msg.Nonce = cctx.Uint64("nonce")
 			sm, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), fromAddr, msg)
 			if err != nil {
 				return err
