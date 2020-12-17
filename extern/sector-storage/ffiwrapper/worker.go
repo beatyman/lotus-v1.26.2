@@ -387,7 +387,8 @@ func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string
 		sid = taskKey // for service called.
 	}
 
-	!r.freeTask(sid)
+	r.freeTask(sid)
+	return nil
 }
 
 func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force, reset bool) (bool, error) {
