@@ -107,6 +107,15 @@ func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storage.SectorRef
 		if err := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true); err != nil {
 			return xerrors.Errorf("removing unsealed data: %w", err)
 		}
+		var err error
+		sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
+		if err != nil {
+			return errors.As(err)
+		}
+		if sector.HasRepo() {
+			log.Warnf("Remove file:%s", sector.UnsealedFile())
+			return os.RemoveAll(sector.UnsealedFile())
+		}
 	}
 
 	return nil
@@ -127,6 +136,25 @@ func (l *hlmWorker) Remove(ctx context.Context, sector storage.SectorRef) error 
 	}
 	if rerr := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true); rerr != nil {
 		err = multierror.Append(err, xerrors.Errorf("removing sector (unsealed): %w", rerr))
+	}
+	var rerr error
+	sector, rerr = database.FillSectorFile(sector, l.sb.RepoPath())
+	if err != nil {
+		err = multierror.Append(err, xerrors.Errorf("removing sector (db): %w", rerr))
+	} else if sector.HasRepo() {
+		log.Warnf("Remove file:%s", sector.SealedFile())
+		if rerr := os.RemoveAll(sector.SealedFile()); err != nil {
+			err = multierror.Append(err, xerrors.Errorf("removing sector (sealed): %w", rerr))
+		}
+		log.Warnf("Remove file:%s", sector.CachePath())
+		if rerr := os.RemoveAll(sector.CachePath()); err != nil {
+			err = multierror.Append(err, xerrors.Errorf("removing sector (cache): %w", rerr))
+		}
+
+		log.Warnf("Remove file:%s", sector.UnsealedFile())
+		if rerr := os.RemoveAll(sector.UnsealedFile()); err != nil {
+			err = multierror.Append(err, xerrors.Errorf("removing sector (unsealed): %w", rerr))
+		}
 	}
 
 	return err
