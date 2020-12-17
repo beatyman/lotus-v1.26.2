@@ -184,9 +184,10 @@ func (st *Local) OpenPath(ctx context.Context, p string) error {
 		return xerrors.Errorf("declaring storage in index: %w", err)
 	}
 
-	if err := st.declareSectors(ctx, p, meta.ID, meta.CanStore); err != nil {
-		return err
-	}
+	// remove by hlm
+	//if err := st.declareSectors(ctx, p, meta.ID, meta.CanStore); err != nil {
+	//	return err
+	//}
 
 	st.paths[meta.ID] = out
 

@@ -181,12 +181,7 @@ var P1Cmd = &cli.Command{
 			resp.Err = errors.As(err).Error()
 			return nil
 		}
-		pieceInfo, err := DecodePieceInfo(task.Pieces)
-		if err != nil {
-			resp.Exit = 1
-			resp.Err = errors.As(err).Error()
-			return nil
-		}
+		pieceInfo := task.Pieces
 		rspco, err := workerSealer.SealPreCommit1(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.SealTicket, pieceInfo)
 		if err != nil {
 			resp.Exit = 1

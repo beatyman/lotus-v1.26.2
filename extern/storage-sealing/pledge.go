@@ -4,20 +4,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/filecoin-project/go-address"
-
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
-
-func NewSealPiece(maddr address.Address, sealer *ffiwrapper.Sealer) *Sealing {
-	s := &Sealing{
-		maddr:  maddr,
-		sealer: sectorstorage.NewWorkerManager(sealer),
-	}
-	return s
-}
 
 var (
 	pledgeExit    = make(chan bool, 1)
@@ -48,7 +38,7 @@ func (m *Sealing) RunPledgeSector() error {
 	sb := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
 
 	// if task has consumed, auto do the next pledge.
-	sb.SetAddPieceListener(func(t ffiwrapper.WorkerTask) {
+	sb.SetPledgeListener(func(t ffiwrapper.WorkerTask) {
 		// success consume
 		m.addConsumeTask()
 	})
@@ -59,7 +49,7 @@ func (m *Sealing) RunPledgeSector() error {
 	go func() {
 		defer func() {
 			pledgeRunning = false
-			sb.SetAddPieceListener(nil)
+			sb.SetPledgeListener(nil)
 			gcTimer.Stop()
 			log.Info("Pledge daemon exited.")
 
@@ -87,7 +77,7 @@ func (m *Sealing) RunPledgeSector() error {
 				// just replenish
 				m.addConsumeTask()
 			case <-taskConsumed:
-				stats := sb.GetAddPieceWait()
+				stats := sb.GetPledgeWait()
 				// not accurate, if missing the taskConsumed event, it should replenish in gcTime.
 				if stats > 0 {
 					continue

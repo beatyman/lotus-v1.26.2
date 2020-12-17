@@ -222,23 +222,25 @@ var netConnect = &cli.Command{
 		}
 
 		protect := cctx.Bool("protect")
-		done := make(chan bool, len(allPis))
+		done := make(chan string, len(allPis))
 		for _, p := range allPis {
 			go func(pi peer.AddrInfo) {
+				result := ""
 				defer func() {
-					done <- true
+					done <- result
 				}()
-				fmt.Printf("connect %s: ", pi.ID.Pretty())
+				result += fmt.Sprintf("connect %s: ", pi.ID.Pretty())
 				err := api.NetConnect(ctx, pi, protect)
 				if err != nil {
-					fmt.Printf("failure:%s", err.Error())
+					result += fmt.Sprintf("failure:%s", err.Error())
 					return
 				}
-				fmt.Println("success")
+				result += "success"
 			}(p)
 		}
 		for _, _ = range allPis {
-			<-done
+			result := <-done
+			fmt.Println(result)
 		}
 
 		return nil

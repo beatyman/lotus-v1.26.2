@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -23,20 +24,30 @@ func (sb *Sealer) MakeLink(task *WorkerTask) error {
 	// get path
 	newCacheFile := sb.SectorPath("cache", sectorName)
 	newSealedFile := sb.SectorPath("sealed", sectorName)
+	newUnsealedFile := sb.SectorPath("unsealed", sectorName)
 
 	// make a new link
 	ss := task.SectorStorage
-	cacheFile := filepath.Join(ss.StorageInfo.MountDir, fmt.Sprintf("%d", ss.StorageInfo.ID), "cache", sectorName)
+	sealedStorage := ss.SealedStorage
+	unsealedStorage := ss.UnsealedStorage
+	cacheFile := filepath.Join(sealedStorage.MountDir, fmt.Sprintf("%d", sealedStorage.ID), "cache", sectorName)
 	if newCacheFile != cacheFile {
 		log.Infof("ln -s %s %s", cacheFile, newCacheFile)
 		if err := database.Symlink(cacheFile, newCacheFile); err != nil {
 			return errors.As(err, ss, sectorName)
 		}
 	}
-	sealedFile := filepath.Join(ss.StorageInfo.MountDir, fmt.Sprintf("%d", ss.StorageInfo.ID), "sealed", sectorName)
+	sealedFile := filepath.Join(sealedStorage.MountDir, fmt.Sprintf("%d", sealedStorage.ID), "sealed", sectorName)
 	if newSealedFile != sealedFile {
 		log.Infof("ln -s %s %s", sealedFile, newSealedFile)
 		if err := database.Symlink(sealedFile, newSealedFile); err != nil {
+			return errors.As(err, ss, sectorName)
+		}
+	}
+	unsealedFile := filepath.Join(unsealedStorage.MountDir, fmt.Sprintf("%d", unsealedStorage.ID), "unsealed", sectorName)
+	if _, err := os.Stat(unsealedFile); err == nil && newUnsealedFile != unsealedFile {
+		log.Infof("ln -s %s %s", unsealedFile, newUnsealedFile)
+		if err := database.Symlink(unsealedFile, newUnsealedFile); err != nil {
 			return errors.As(err, ss, sectorName)
 		}
 	}
@@ -209,19 +220,19 @@ func (sb *Sealer) ScaleStorage(ctx context.Context, id int64, size int64, work i
 	return nil
 }
 
-func (sb *Sealer) PreStorageNode(sectorId, clientIp string) (*database.StorageInfo, error) {
-	_, info, err := database.PrepareStorage(sectorId, clientIp)
+func (sb *Sealer) PreStorageNode(sectorId, clientIp string, kind int) (*database.StorageInfo, error) {
+	_, info, err := database.PrepareStorage(sectorId, clientIp, kind)
 	if err != nil {
 		return nil, errors.As(err)
 	}
 	return info, nil
 }
-func (sb *Sealer) CommitStorageNode(sectorId string) error {
-	tx := &database.StorageTx{sectorId}
+func (sb *Sealer) CommitStorageNode(sectorId string, kind int) error {
+	tx := &database.StorageTx{SectorId: sectorId, Kind: kind}
 	return tx.Commit()
 }
-func (sb *Sealer) CancelStorageNode(sectorId string) error {
-	tx := &database.StorageTx{sectorId}
+func (sb *Sealer) CancelStorageNode(sectorId string, kind int) error {
+	tx := &database.StorageTx{SectorId: sectorId, Kind: kind}
 	return tx.Rollback()
 }
 

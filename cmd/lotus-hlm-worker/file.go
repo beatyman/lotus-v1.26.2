@@ -94,6 +94,9 @@ func copyFile(ctx context.Context, from, to string) error {
 	defer fromFile.Close()
 	fromStat, err := fromFile.Stat()
 	if err != nil {
+		if os.IsNotExist(err) {
+			return errors.ErrNoData.As(to)
+		}
 		return errors.As(err)
 	}
 
