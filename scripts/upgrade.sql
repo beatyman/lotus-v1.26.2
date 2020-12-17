@@ -1,9 +1,6 @@
 -- sqlite3 < v3.25
 BEGIN TRANSACTION;
-
 alter table storage_info add column kind INTEGER NOT NULL default 0;
-
-
 -- rebuild sector_info cause sqlite can't rename the field.
 ALTER TABLE sector_info RENAME TO sector_info_old;
 CREATE TABLE IF NOT EXISTS sector_info (
@@ -29,10 +26,9 @@ INSERT INTO sector_info (id,created_at,updated_at,miner_id,storage_sealed,storag
 COMMIT;
 
 -- sqlite >= v3.25
-/*
-BEGIN TRANSACTION;
-alter table storage_info add column kind INTEGER NOT NULL default 0;
-alter table sector_info add column storage_unsealed INTEGER NOT NULL default 0;
-alter table sector_info rename column storage_id to storage_sealed;
-CREATE INDEX IF NOT EXISTS sector_info_idx4 ON sector_info(storage_unsealed);
-*/
+--BEGIN TRANSACTION;
+--alter table storage_info add column kind INTEGER NOT NULL default 0;
+--alter table sector_info add column storage_unsealed INTEGER NOT NULL default 0;
+--alter table sector_info rename column storage_id to storage_sealed;
+--CREATE INDEX IF NOT EXISTS sector_info_idx4 ON sector_info(storage_unsealed);
+--COMMIT;
