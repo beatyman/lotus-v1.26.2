@@ -1,5 +1,5 @@
 -- sqlite3 < v3.25
-BEGIN TRANSACTION;
+BEGIN transaction;
 alter table storage_info add column kind INTEGER NOT NULL default 0;
 -- rebuild sector_info cause sqlite can't rename the field.
 ALTER TABLE sector_info RENAME TO sector_info_old;
@@ -22,8 +22,9 @@ CREATE INDEX IF NOT EXISTS sector_info_idx2 ON sector_info(state,state_time);
 CREATE INDEX IF NOT EXISTS sector_info_idx3 ON sector_info(storage_sealed);
 CREATE INDEX IF NOT EXISTS sector_info_idx4 ON sector_info(storage_unsealed);
 
-INSERT INTO sector_info (id,created_at,updated_at,miner_id,storage_sealed,storage_unsealed,worker_id,state,state_time,state_msg,state_times) SELECT id,created_at,updated_at,miner_id,storage_id,storage_unsealed,worker_id,state,state_time,state_msg,state_times FROM sector_info_old;
-COMMIT;
+INSERT INTO sector_info (id,created_at,updated_at,miner_id,storage_sealed,worker_id,state,state_time,state_msg,state_times) SELECT id,created_at,updated_at,miner_id,storage_id,worker_id,state,state_time,state_msg,state_times FROM sector_info_old;
+-- 需要手动update storage_unseal为相关手工迁移到的存储节点
+COMMIT transaction;
 
 -- sqlite >= v3.25
 --BEGIN TRANSACTION;
@@ -31,4 +32,4 @@ COMMIT;
 --alter table sector_info add column storage_unsealed INTEGER NOT NULL default 0;
 --alter table sector_info rename column storage_id to storage_sealed;
 --CREATE INDEX IF NOT EXISTS sector_info_idx4 ON sector_info(storage_unsealed);
---COMMIT;
+--COMMIT TRANSACTION;
