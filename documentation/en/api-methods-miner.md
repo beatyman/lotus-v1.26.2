@@ -6,6 +6,7 @@
   * [Version](#Version)
 * [Actor](#Actor)
   * [ActorAddress](#ActorAddress)
+  * [ActorAddressConfig](#ActorAddressConfig)
   * [ActorSectorSize](#ActorSectorSize)
 * [Auth](#Auth)
   * [AuthNew](#AuthNew)
@@ -19,6 +20,8 @@
   * [DealsConsiderOfflineStorageDeals](#DealsConsiderOfflineStorageDeals)
   * [DealsConsiderOnlineRetrievalDeals](#DealsConsiderOnlineRetrievalDeals)
   * [DealsConsiderOnlineStorageDeals](#DealsConsiderOnlineStorageDeals)
+  * [DealsConsiderUnverifiedStorageDeals](#DealsConsiderUnverifiedStorageDeals)
+  * [DealsConsiderVerifiedStorageDeals](#DealsConsiderVerifiedStorageDeals)
   * [DealsImportData](#DealsImportData)
   * [DealsList](#DealsList)
   * [DealsPieceCidBlocklist](#DealsPieceCidBlocklist)
@@ -26,6 +29,8 @@
   * [DealsSetConsiderOfflineStorageDeals](#DealsSetConsiderOfflineStorageDeals)
   * [DealsSetConsiderOnlineRetrievalDeals](#DealsSetConsiderOnlineRetrievalDeals)
   * [DealsSetConsiderOnlineStorageDeals](#DealsSetConsiderOnlineStorageDeals)
+  * [DealsSetConsiderUnverifiedStorageDeals](#DealsSetConsiderUnverifiedStorageDeals)
+  * [DealsSetConsiderVerifiedStorageDeals](#DealsSetConsiderVerifiedStorageDeals)
   * [DealsSetPieceCidBlocklist](#DealsSetPieceCidBlocklist)
 * [I](#I)
   * [ID](#ID)
@@ -96,8 +101,10 @@
   * [SectorStartSealing](#SectorStartSealing)
 * [Sectors](#Sectors)
   * [SectorsList](#SectorsList)
+  * [SectorsListInStates](#SectorsListInStates)
   * [SectorsRefs](#SectorsRefs)
   * [SectorsStatus](#SectorsStatus)
+  * [SectorsSummary](#SectorsSummary)
   * [SectorsUpdate](#SectorsUpdate)
 * [Storage](#Storage)
   * [StorageAddLocal](#StorageAddLocal)
@@ -174,6 +181,21 @@ Perms: read
 Inputs: `null`
 
 Response: `"f01234"`
+
+### ActorAddressConfig
+There are not yet any comments for this method.
+
+Perms: read
+
+Inputs: `null`
+
+Response:
+```json
+{
+  "PreCommitControl": null,
+  "CommitControl": null
+}
+```
 
 ### ActorSectorSize
 There are not yet any comments for this method.
@@ -304,6 +326,24 @@ Inputs: `null`
 
 Response: `true`
 
+### DealsConsiderUnverifiedStorageDeals
+There are not yet any comments for this method.
+
+Perms: read
+
+Inputs: `null`
+
+Response: `true`
+
+### DealsConsiderVerifiedStorageDeals
+There are not yet any comments for this method.
+
+Perms: read
+
+Inputs: `null`
+
+Response: `true`
+
 ### DealsImportData
 There are not yet any comments for this method.
 
@@ -382,6 +422,34 @@ Inputs:
 Response: `{}`
 
 ### DealsSetConsiderOnlineStorageDeals
+There are not yet any comments for this method.
+
+Perms: admin
+
+Inputs:
+```json
+[
+  true
+]
+```
+
+Response: `{}`
+
+### DealsSetConsiderUnverifiedStorageDeals
+There are not yet any comments for this method.
+
+Perms: admin
+
+Inputs:
+```json
+[
+  true
+]
+```
+
+Response: `{}`
+
+### DealsSetConsiderVerifiedStorageDeals
 There are not yet any comments for this method.
 
 Perms: admin
@@ -1478,7 +1546,34 @@ Perms: read
 
 Inputs: `null`
 
-Response: `null`
+Response:
+```json
+[
+  123,
+  124
+]
+```
+
+### SectorsListInStates
+List sectors in particular states
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  null
+]
+```
+
+Response:
+```json
+[
+  123,
+  124
+]
+```
 
 ### SectorsRefs
 There are not yet any comments for this method.
@@ -1545,6 +1640,21 @@ Response:
   "InitialPledge": "0",
   "OnTime": 10101,
   "Early": 10101
+}
+```
+
+### SectorsSummary
+Get summary info of sectors
+
+
+Perms: read
+
+Inputs: `null`
+
+Response:
+```json
+{
+  "Proving": 120
 }
 ```
 

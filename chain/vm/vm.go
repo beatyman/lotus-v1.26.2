@@ -32,6 +32,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/adt"
 	"github.com/filecoin-project/lotus/chain/actors/aerrors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/account"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/reward"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -445,6 +446,39 @@ func (vm *VM) ApplyImplicitMessage(ctx context.Context, msg *types.Message) (*Ap
 
 func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet, error) {
 	start := build.Clock.Now()
+	var (
+		checkMessageStart = time.Time{}
+		OnChainMessageStart = time.Time{}
+		GetActorStart = time.Time{}
+		transferToGasHolderStart = build.Clock.Now()
+		incrementNonceStart = time.Time{}
+		SnapshotStart = time.Time{}
+		vmSendStart = time.Time{}
+		shouldBurnStart = time.Time{}
+		ComputeGasOutputsStart = time.Time{}
+		transferFromGasHolderStart = time.Time{}
+	)
+	defer func() {
+		applyMessageEnd := build.Clock.Now()
+		took := applyMessageEnd.Sub(start)
+		if took > 1e9 {
+			log.Infow("ApplyMessage",
+				"took", took,
+				"checkMessage",OnChainMessageStart.Sub(checkMessageStart),
+				"OnChainMessage",GetActorStart.Sub(OnChainMessageStart),
+				"GetActor",transferToGasHolderStart.Sub(GetActorStart),
+				"transferToGasHolder",incrementNonceStart.Sub(transferToGasHolderStart),
+				"incrementNonce",SnapshotStart.Sub(incrementNonceStart),
+				"Snapshot",vmSendStart.Sub(SnapshotStart),
+				"vmSend",shouldBurnStart.Sub(vmSendStart),
+				"shouldBurn",ComputeGasOutputsStart.Sub(shouldBurnStart),
+				"ComputeGasOutputs",transferFromGasHolderStart.Sub(ComputeGasOutputsStart),
+				"transferFromGasHolder",applyMessageEnd.Sub(transferFromGasHolderStart),
+			)
+		}
+	}()
+
+
 	ctx, span := trace.StartSpan(ctx, "vm.ApplyMessage")
 	defer span.End()
 	defer atomic.AddUint64(&StatApplied, 1)
@@ -457,12 +491,14 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 		)
 	}
 
+	checkMessageStart = build.Clock.Now()
 	if err := checkMessage(msg); err != nil {
 		return nil, err
 	}
 
 	pl := PricelistByEpoch(vm.blockHeight)
 
+	OnChainMessageStart = build.Clock.Now()
 	msgGas := pl.OnChainMessage(cmsg.ChainLength())
 	msgGasCost := msgGas.Total()
 	// this should never happen, but is currently still exercised by some tests
@@ -481,6 +517,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 
 	st := vm.cstate
 
+	GetActorStart = build.Clock.Now()
 	minerPenaltyAmount := types.BigMul(vm.baseFee, abi.NewTokenAmount(msg.GasLimit))
 	fromActor, err := st.GetActor(msg.From)
 	// this should never happen, but is currently still exercised by some tests
@@ -548,20 +585,24 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 		}, nil
 	}
 
+	transferToGasHolderStart = build.Clock.Now()
 	gasHolder := &types.Actor{Balance: types.NewInt(0)}
 	if err := vm.transferToGasHolder(msg.From, gasHolder, gascost); err != nil {
 		return nil, xerrors.Errorf("failed to withdraw gas funds: %w", err)
 	}
 
+	incrementNonceStart = build.Clock.Now()
 	if err := vm.incrementNonce(msg.From); err != nil {
 		return nil, err
 	}
 
+	SnapshotStart = build.Clock.Now()
 	if err := st.Snapshot(ctx); err != nil {
 		return nil, xerrors.Errorf("snapshot failed: %w", err)
 	}
 	defer st.ClearSnapshot()
 
+	vmSendStart = build.Clock.Now()
 	ret, actorErr, rt := vm.send(ctx, msg, nil, &msgGas, start)
 	if aerrors.IsFatal(actorErr) {
 		return nil, xerrors.Errorf("[from=%s,to=%s,n=%d,m=%d,h=%d] fatal error: %w", msg.From, msg.To, msg.Nonce, msg.Method, vm.blockHeight, actorErr)
@@ -604,8 +645,17 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 	if gasUsed < 0 {
 		gasUsed = 0
 	}
-	gasOutputs := ComputeGasOutputs(gasUsed, msg.GasLimit, vm.baseFee, msg.GasFeeCap, msg.GasPremium)
 
+	shouldBurnStart = build.Clock.Now()
+	burn, err := vm.shouldBurn(st, msg, errcode)
+	if err != nil {
+		return nil, xerrors.Errorf("deciding whether should burn failed: %w", err)
+	}
+
+	ComputeGasOutputsStart = build.Clock.Now()
+	gasOutputs := ComputeGasOutputs(gasUsed, msg.GasLimit, vm.baseFee, msg.GasFeeCap, msg.GasPremium, burn)
+
+	transferFromGasHolderStart = build.Clock.Now()
 	if err := vm.transferFromGasHolder(builtin.BurntFundsActorAddr, gasHolder,
 		gasOutputs.BaseFeeBurn); err != nil {
 		return nil, xerrors.Errorf("failed to burn base fee: %w", err)
@@ -640,6 +690,29 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 		GasCosts:       &gasOutputs,
 		Duration:       time.Since(start),
 	}, nil
+}
+
+func (vm *VM) shouldBurn(st *state.StateTree, msg *types.Message, errcode exitcode.ExitCode) (bool, error) {
+	// Check to see if we should burn funds. We avoid burning on successful
+	// window post. This won't catch _indirect_ window post calls, but this
+	// is the best we can get for now.
+	if vm.blockHeight > build.UpgradeClausHeight && errcode == exitcode.Ok && msg.Method == miner.Methods.SubmitWindowedPoSt {
+		// Ok, we've checked the _method_, but we still need to check
+		// the target actor. It would be nice if we could just look at
+		// the trace, but I'm not sure if that's safe?
+		if toActor, err := st.GetActor(msg.To); err != nil {
+			// If the actor wasn't found, we probably deleted it or something. Move on.
+			if !xerrors.Is(err, types.ErrActorNotFound) {
+				// Otherwise, this should never fail and something is very wrong.
+				return false, xerrors.Errorf("failed to lookup target actor: %w", err)
+			}
+		} else if builtin.IsStorageMinerActor(toActor.Code) {
+			// Ok, this is a storage miner and we've processed a window post. Remove the burn.
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 func (vm *VM) ActorBalance(addr address.Address) (types.BigInt, aerrors.ActorError) {
