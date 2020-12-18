@@ -239,9 +239,10 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 	var (
 		handleStateForksStart = time.Time{}
 		processedMsgsStart    = time.Time{}
-		serializeParamsStart  = time.Time{}
 		runCronStart          = time.Time{}
 		flushStart            = time.Time{}
+
+		messageLen = 0
 	)
 	defer func() {
 		applyBlocksEnd := build.Clock.Now()
@@ -252,8 +253,9 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 				"height", epoch,
 				"newVM", handleStateForksStart.Sub(applyBlocksStart),
 				"handleStateForks", processedMsgsStart.Sub(handleStateForksStart),
-				"processedMsgs", serializeParamsStart.Sub(processedMsgsStart),
-				"applyImplicitMessage", runCronStart.Sub(serializeParamsStart),
+				"processedMsgs", runCronStart.Sub(processedMsgsStart),
+				"bmsLen", len(bms),
+				"messageLen", messageLen,
 				"runCron", flushStart.Sub(runCronStart),
 				"flush", applyBlocksEnd.Sub(flushStart),
 			)
@@ -349,7 +351,9 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		penalty := types.NewInt(0)
 		gasReward := big.Zero()
 
+		messageLen+=(len(b.BlsMessages)+len(b.SecpkMessages))
 		for _, cm := range append(b.BlsMessages, b.SecpkMessages...) {
+			processStart := build.Clock.Now()
 			m := cm.VMMessage()
 			if _, found := processedMsgs[m.Cid()]; found {
 				continue
@@ -358,6 +362,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 			if err != nil {
 				return cid.Undef, cid.Undef, err
 			}
+			applyMessageCbStart := build.Clock.Now()
 
 			receipts = append(receipts, &r.MessageReceipt)
 			gasReward = big.Add(gasReward, r.GasCosts.MinerTip)
@@ -368,10 +373,19 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 					return cid.Undef, cid.Undef, err
 				}
 			}
+			processEnd := build.Clock.Now()
+			took := processEnd.Sub(processStart)
+			if took > (5*1e8) {
+				log.Infow("processMsg",
+					"took", took,
+					"height", epoch,
+					"applyMessage", applyMessageCbStart.Sub(processStart),
+					"applyMessageCb", processEnd.Sub(applyMessageCbStart),
+				)
+			}
 			processedMsgs[m.Cid()] = struct{}{}
 		}
 
-		serializeParamsStart = build.Clock.Now()
 		params, err := actors.SerializeParams(&reward.AwardBlockRewardParams{
 			Miner:     b.Miner,
 			Penalty:   penalty,
@@ -403,11 +417,13 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 			}
 		}
 
+
 		if ret.ExitCode != 0 {
 			return cid.Undef, cid.Undef, xerrors.Errorf("reward application message failed (exit %d): %s", ret.ExitCode, ret.ActorErr)
 		}
 	}
 
+	runCronStart = build.Clock.Now()
 	if err := runCron(epoch); err != nil {
 		return cid.Cid{}, cid.Cid{}, err
 	}
@@ -437,25 +453,6 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 }
 
 func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet, cb ExecCallback) (cid.Cid, cid.Cid, error) {
-	tsHeight := ts.Height()
-	computeStart := build.Clock.Now()
-	var (
-		computeGetBlockStart           = time.Time{}
-		computeNewChainRandStart       = time.Time{}
-		computeBlockMsgsForTipsetStart = time.Time{}
-		computeApplyBlocksStart        = time.Time{}
-	)
-	defer func() {
-		computeEnd := build.Clock.Now()
-		log.Infow("StateManager.computeTipSetState",
-			"took", computeEnd.Sub(computeStart),
-			"height", tsHeight,
-			"computeGetBlock", computeNewChainRandStart.Sub(computeGetBlockStart),
-			"computeNewChanRand", computeBlockMsgsForTipsetStart.Sub(computeNewChainRandStart),
-			"computeBlockMsgsForTipset", computeApplyBlocksStart.Sub(computeBlockMsgsForTipsetStart),
-			"computeApplyBlocks", computeEnd.Sub(computeApplyBlocksStart),
-		)
-	}()
 	ctx, span := trace.StartSpan(ctx, "computeTipSetState")
 	defer span.End()
 
@@ -471,7 +468,6 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 		}
 	}
 
-	computeGetBlockStart = build.Clock.Now()
 	var parentEpoch abi.ChainEpoch
 	pstate := blks[0].ParentStateRoot
 	if blks[0].Height > 0 {
@@ -485,7 +481,6 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 
 	r := store.NewChainRand(sm.cs, ts.Cids())
 
-	computeBlockMsgsForTipsetStart = build.Clock.Now()
 	blkmsgs, err := sm.cs.BlockMsgsForTipset(ts)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("getting block messages for tipset: %w", err)
@@ -493,7 +488,6 @@ func (sm *StateManager) computeTipSetState(ctx context.Context, ts *types.TipSet
 
 	baseFee := blks[0].ParentBaseFee
 
-	computeApplyBlocksStart = build.Clock.Now()
 	return sm.ApplyBlocks(ctx, parentEpoch, pstate, blkmsgs, blks[0].Height, r, cb, baseFee, ts)
 }
 
