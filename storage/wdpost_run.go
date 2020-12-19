@@ -251,7 +251,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	for _, val := range all {
 		if val.Err != nil {
 			sectorId := val.Sector.SectorID()
-			log.Warnf("sid:%s,storage:%s,used:%s,err:%s", val.Sector.SectorId, val.Sector.StorageSealedRepo, val.Used.String(), errors.ParseError(val.Err))
+			log.Warnf("sid:%s,storage:%s,used:%s,err:%s", val.Sector.SectorId, val.Sector.SealedRepo, val.Used.String(), errors.ParseError(val.Err))
 			delete(sectors, sectorId.Number)
 		}
 	}

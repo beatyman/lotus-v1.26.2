@@ -318,9 +318,9 @@ var sealBenchCmd = &cli.Command{
 					},
 					ProofType: c.SealProof,
 					SectorFile: storage.SectorFile{
-						SectorId:            fmt.Sprintf("s-t0%s-%d", mid, c.SectorNumber),
-						StorageSealedRepo:   sbdir,
-						StorageUnsealedRepo: sbdir,
+						SectorId:     fmt.Sprintf("s-t0%s-%d", mid, c.SectorNumber),
+						SealedRepo:   sbdir,
+						UnsealedRepo: sbdir,
 					},
 				},
 				SealedCID: c.SealedCID,
