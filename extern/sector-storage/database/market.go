@@ -74,7 +74,7 @@ func ExpireMarketRetrieve(sid string) error {
 func ExpireAllMarketRetrieve(invalidTime time.Time, minerRepo string) ([]storage.SectorFile, error) {
 	db := GetDB()
 	rows, err := db.Query(`
-SELECT tb1.sid, tb3.mount_signal_uri,tb4.mount_signal_uri
+SELECT tb1.sid, tb3.mount_dir,tb4.mount_dir
 FROM
 	market_retrieve tb1
 	INNER JOIN sector_info tb2 ON tb1.sid=tb2.id
@@ -110,7 +110,7 @@ WHERE
 	executed := []storage.SectorFile{}
 	for _, sFile := range result {
 		if len(sFile.UnsealedRepo) > 0 {
-			log.Warnf("remove unseal", sFile.UnsealedFile())
+			log.Warnf("remove unseal:%s", sFile.UnsealedFile())
 			err = os.RemoveAll(sFile.UnsealedFile())
 			if err != nil {
 				break
@@ -118,7 +118,7 @@ WHERE
 		}
 		if len(minerRepo) > 0 {
 			file := filepath.Join(minerRepo, "unsealed", sFile.SectorId)
-			log.Warnf("remove unseal", file)
+			log.Warnf("remove unseal:%s", file)
 			err = os.RemoveAll(file)
 			if err != nil {
 				break
