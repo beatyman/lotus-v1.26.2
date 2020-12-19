@@ -510,7 +510,6 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcs beacon.Schedule
 	}
 
 	if len(sectors) == 0 {
-		log.Info("No sector for winning post")
 		return nil, nil
 	}
 
