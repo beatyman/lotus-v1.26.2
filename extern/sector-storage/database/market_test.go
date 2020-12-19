@@ -10,7 +10,7 @@ func TestMarketRetrieve(t *testing.T) {
 	sid := "s-t01001-1"
 	now := time.Now()
 	// clean the expired
-	if _, err := ExpireMarketRetrieve(now.AddDate(0, -1, 0)); err != nil {
+	if _, err := ExpireAllMarketRetrieve(now.AddDate(0, -1, 0), ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -41,11 +41,19 @@ func TestMarketRetrieve(t *testing.T) {
 	if _, err := db.Exec("UPDATE market_retrieve SET retrieve_time=? WHERE sid=?", now.AddDate(-1, 0, 0), sid); err != nil {
 		t.Fatal(err)
 	}
-	if expired, err := ExpireMarketRetrieve(now.AddDate(0, -1, 0)); err != nil {
+	if expired, err := GetExpireMarketRetrieve(now.AddDate(0, -1, 0)); err != nil {
 		t.Fatal(err)
 	} else if len(expired) != 1 {
 		t.Fatal("expect 1 expired")
 	} else if expired[0].SectorId != sid {
 		t.Fatal("expect expired:" + sid)
+	}
+	if err := ExpireMarketRetrieve(sid); err != nil {
+		t.Fatal(err)
+	}
+	if expired, err := GetExpireMarketRetrieve(now.AddDate(0, -1, 0)); err != nil {
+		t.Fatal(err)
+	} else if len(expired) > 0 {
+		t.Fatal("expect no expired")
 	}
 }
