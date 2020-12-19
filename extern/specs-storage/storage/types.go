@@ -38,13 +38,13 @@ func SectorName(sid abi.SectorID) string {
 type SectorFile struct {
 	SectorId string
 
-	StorageSealedRepo   string
-	StorageUnsealedRepo string
-	AllocateUnsealed    bool // will allocate storage node and write unsealed to storage node when it is true.
+	SealedRepo       string
+	UnsealedRepo     string
+	AllocateUnsealed bool // will allocate storage node and write unsealed to storage node when it is true.
 }
 
 func (f *SectorFile) HasRepo() bool {
-	return len(f.StorageSealedRepo) > 0 && len(f.StorageUnsealedRepo) > 0
+	return len(f.SealedRepo) > 0 && len(f.UnsealedRepo) > 0
 }
 
 func (f *SectorFile) SectorID() abi.SectorID {
@@ -57,11 +57,11 @@ func (f *SectorFile) SectorID() abi.SectorID {
 }
 
 func (f *SectorFile) UnsealedFile() string {
-	return filepath.Join(f.StorageUnsealedRepo, "unsealed", f.SectorId)
+	return filepath.Join(f.UnsealedRepo, "unsealed", f.SectorId)
 }
 func (f *SectorFile) SealedFile() string {
-	return filepath.Join(f.StorageSealedRepo, "sealed", f.SectorId)
+	return filepath.Join(f.SealedRepo, "sealed", f.SectorId)
 }
 func (f *SectorFile) CachePath() string {
-	return filepath.Join(f.StorageSealedRepo, "cache", f.SectorId)
+	return filepath.Join(f.SealedRepo, "cache", f.SectorId)
 }

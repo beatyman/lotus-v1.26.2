@@ -100,8 +100,8 @@ func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.Secto
 	}
 	// set to default.
 	sector.SectorId = storage.SectorName(sector.ID)
-	sector.StorageSealedRepo = defaultRepo
-	sector.StorageUnsealedRepo = defaultRepo
+	sector.SealedRepo = defaultRepo
+	sector.UnsealedRepo = defaultRepo
 
 	if !HasDB() {
 		return sector, nil
@@ -117,9 +117,9 @@ func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.Secto
 
 func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 	file := &storage.SectorFile{
-		SectorId:            sectorId,
-		StorageSealedRepo:   defaultRepo,
-		StorageUnsealedRepo: defaultRepo,
+		SectorId:     sectorId,
+		SealedRepo:   defaultRepo,
+		UnsealedRepo: defaultRepo,
 	}
 	if !HasDB() {
 		return file, nil
@@ -153,11 +153,11 @@ WHERE
 		// sector not found in db, return default.
 		return file, nil
 	}
-	if len(storageSealedDir.String) > 0 {
-		file.StorageSealedRepo = filepath.Join(storageSealedDir.String, fmt.Sprintf("%d", storageSealed))
+	if storageSealedDir.Valid {
+		file.SealedRepo = filepath.Join(storageSealedDir.String, fmt.Sprintf("%d", storageSealed))
 	}
-	if len(storageUnsealedDir.String) > 0 {
-		file.StorageUnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
+	if storageUnsealedDir.Valid {
+		file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
 	}
 
 	return file, nil

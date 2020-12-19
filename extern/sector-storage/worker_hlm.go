@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
@@ -170,8 +171,23 @@ func (l *hlmWorker) ReadPiece(ctx context.Context, writer io.Writer, sector stor
 	if err != nil {
 		return false, errors.As(err)
 	}
+	defer func() {
+		// remove expire unsealed to control the unseal space
+		// unseal data will expire by 30 days if no visitor.
+		overdue, err := database.ExpireAllMarketRetrieve(time.Now().AddDate(0, 0, -30), l.sb.RepoPath())
+		if err != nil {
+			log.Error(errors.As(err))
+		}
+		if len(overdue) > 0 {
+			log.Warnf("expired unsealed total:%d", len(overdue))
+		}
+		return
+	}()
+	if err := database.AddMarketRetrieve(storage.SectorName(sector.ID)); err != nil {
+		return false, errors.As(err)
+	}
 
-	// try read the exist unseal.
+	// try read the exist unsealed.
 	done, err := l.sb.ReadPiece(ctx, writer, sector, index, size)
 	if err != nil {
 		return false, errors.As(err)
@@ -179,7 +195,7 @@ func (l *hlmWorker) ReadPiece(ctx context.Context, writer io.Writer, sector stor
 		return true, nil
 	}
 
-	// unsealed not found, unseal and then read it.
+	// unsealed not found, do unseal and then read it.
 	if err := l.sb.UnsealPiece(ctx, sector, index, size, ticket, unsealed); err != nil {
 		return false, errors.As(err, sector, index, size, unsealed)
 	}
