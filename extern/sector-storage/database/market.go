@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/filecoin-project/specs-storage/storage"
@@ -43,7 +44,8 @@ func AddMarketRetrieve(sid string) error {
 			return errors.As(err, sid)
 		}
 	} else {
-		if _, err := tx.Exec("UPDATE market_retrieve SET active=1, retrieve_times=retrieve_times+1, retrieve_time=? WHERE sid=?", time.Now(), sid); err != nil {
+		now := time.Now()
+		if _, err := tx.Exec("UPDATE market_retrieve SET updated_at=?, active=1, retrieve_times=retrieve_times+1, retrieve_time=? WHERE sid=?", now, now, sid); err != nil {
 			database.Rollback(tx)
 			return errors.As(err, sid)
 		}
@@ -74,7 +76,7 @@ func ExpireMarketRetrieve(sid string) error {
 func ExpireAllMarketRetrieve(invalidTime time.Time, minerRepo string) ([]storage.SectorFile, error) {
 	db := GetDB()
 	rows, err := db.Query(`
-SELECT tb1.sid, tb3.mount_dir,tb4.mount_dir
+SELECT tb1.sid, tb3.id,tb3.mount_dir, tb4.id,tb4.mount_dir
 FROM
 	market_retrieve tb1
 	INNER JOIN sector_info tb2 ON tb1.sid=tb2.id
@@ -91,20 +93,29 @@ WHERE
 	result := []storage.SectorFile{}
 	for rows.Next() {
 		sid := ""
-		unsealed := sql.NullString{}
-		sealed := sql.NullString{}
+		unsealedStorage := sql.NullInt64{}
+		unsealedDir := sql.NullString{}
+		sealedStorage := sql.NullInt64{}
+		sealedDir := sql.NullString{}
 		if err := rows.Scan(
 			&sid,
-			&unsealed,
-			&sealed,
+			&unsealedStorage,
+			&unsealedDir,
+			&sealedStorage,
+			&sealedDir,
 		); err != nil {
 			return nil, errors.As(err, invalidTime)
 		}
-		result = append(result, storage.SectorFile{
-			SectorId:     sid,
-			SealedRepo:   sealed.String,
-			UnsealedRepo: unsealed.String,
-		})
+		sFile := storage.SectorFile{
+			SectorId: sid,
+		}
+		if unsealedDir.Valid {
+			sFile.UnsealedRepo = filepath.Join(unsealedDir.String, strconv.FormatInt(unsealedStorage.Int64, 10))
+		}
+		if unsealedDir.Valid {
+			sFile.SealedRepo = filepath.Join(sealedDir.String, strconv.FormatInt(sealedStorage.Int64, 10))
+		}
+		result = append(result, sFile)
 	}
 
 	executed := []storage.SectorFile{}
@@ -124,7 +135,7 @@ WHERE
 				break
 			}
 		}
-		_, err = db.Exec("UPDATE market_retrieve SET active=0 WHERE sid", sFile.SectorId)
+		_, err = db.Exec("UPDATE market_retrieve SET updated_at=?, active=0 WHERE sid=?", time.Now(), sFile.SectorId)
 		if err != nil {
 			break
 		}

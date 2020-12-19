@@ -153,10 +153,10 @@ WHERE
 		// sector not found in db, return default.
 		return file, nil
 	}
-	if len(storageSealedDir.String) > 0 {
+	if storageSealedDir.Valid {
 		file.SealedRepo = filepath.Join(storageSealedDir.String, fmt.Sprintf("%d", storageSealed))
 	}
-	if len(storageUnsealedDir.String) > 0 {
+	if storageUnsealedDir.Valid {
 		file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
 	}
 
