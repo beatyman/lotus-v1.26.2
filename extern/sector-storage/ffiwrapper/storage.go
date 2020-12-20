@@ -266,13 +266,20 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 	allLk := sync.Mutex{}
 	routines := make(chan bool, 1024) // limit the gorouting to checking the bad, the sectors would be lot.
 	done := make(chan bool, len(result))
+	checked := map[string]bool{}
 	for i, s := range result {
 		// no check for disable
 		if s.Disable {
-			result[i].Err = errors.New("node has disabled").As(s.StorageId).Error()
 			done <- true
 			continue
 		}
+
+		// when it's the same uri, just do once.
+		if _, ok := checked[s.MountUri]; ok {
+			done <- true
+			continue
+		}
+		checked[s.MountUri] = true
 
 		go func(c *database.StorageStatus) {
 			// limit the concurrency

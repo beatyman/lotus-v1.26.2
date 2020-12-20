@@ -69,6 +69,18 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 			}
 			unsealedStorageId = unsealedStorage.ID
 			state = database.SECTOR_STATE_PLEDGE // no clean when plege failed. -1 will clean the unsealed data when failed.
+
+			// expire unsealed to control the unseal space when a new unseal creating.
+			go func() {
+				// unseal data will expire by 30 days if no visitor.
+				overdue, err := database.ExpireAllMarketRetrieve(time.Now().AddDate(0, 0, -30), sb.RepoPath())
+				if err != nil {
+					log.Error(errors.As(err))
+				}
+				if len(overdue) > 0 {
+					log.Warnf("expired unsealed total:%d", len(overdue))
+				}
+			}()
 		}
 		now := time.Now()
 		seInfo := &database.SectorInfo{
