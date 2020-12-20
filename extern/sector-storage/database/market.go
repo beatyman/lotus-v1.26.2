@@ -5,11 +5,16 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
+)
+
+var (
+	exireMarketRetrieveLock = sync.Mutex{}
 )
 
 type MarketRetrieve struct {
@@ -73,7 +78,11 @@ func ExpireMarketRetrieve(sid string) error {
 	}
 	return nil
 }
+
 func ExpireAllMarketRetrieve(invalidTime time.Time, minerRepo string) ([]storage.SectorFile, error) {
+	exireMarketRetrieveLock.Lock()
+	defer exireMarketRetrieveLock.Unlock()
+
 	db := GetDB()
 	rows, err := db.Query(`
 SELECT tb1.sid, tb3.id,tb3.mount_dir, tb4.id,tb4.mount_dir

@@ -171,18 +171,6 @@ func (l *hlmWorker) ReadPiece(ctx context.Context, writer io.Writer, sector stor
 	if err != nil {
 		return false, errors.As(err)
 	}
-	defer func() {
-		// remove expire unsealed to control the unseal space
-		// unseal data will expire by 30 days if no visitor.
-		overdue, err := database.ExpireAllMarketRetrieve(time.Now().AddDate(0, 0, -30), l.sb.RepoPath())
-		if err != nil {
-			log.Error(errors.As(err))
-		}
-		if len(overdue) > 0 {
-			log.Warnf("expired unsealed total:%d", len(overdue))
-		}
-		return
-	}()
 	if err := database.AddMarketRetrieve(storage.SectorName(sector.ID)); err != nil {
 		return false, errors.As(err)
 	}
