@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"runtime"
-	"time"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
