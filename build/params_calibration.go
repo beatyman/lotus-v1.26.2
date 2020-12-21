@@ -35,6 +35,8 @@ const UpgradeKumquatHeight = 90
 const UpgradeCalicoHeight = 92000
 const UpgradePersianHeight = UpgradeCalicoHeight + (builtin2.EpochsInHour * 60)
 
+const UpgradeOrangeHeight = 336458 // TODO: fix this.
+
 // 2020-12-17T19:00:00Z
 const UpgradeClausHeight = 161386
 
