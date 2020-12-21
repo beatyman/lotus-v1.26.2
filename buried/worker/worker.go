@@ -53,7 +53,7 @@ func CollectSectorStateInfo(task ffiwrapper.WorkerTask) error {
 		MinerID:    task.SectorStorage.SectorInfo.MinerId,
 		WorkerID:   task.WorkerID,
 		ClientIP:   task.SectorStorage.WorkerInfo.Ip,
-		SectorSize: task.SectorStorage.StorageInfo.SectorSize,
+		//SectorSize: task.SectorStorage.StorageInfo.SectorSize,
 		// SectorID: storage.SectorName(m.minerSectorID(state.SectorNumber)),
 		SectorID: task.SectorStorage.SectorInfo.ID,
 	}

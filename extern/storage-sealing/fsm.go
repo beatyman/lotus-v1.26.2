@@ -314,15 +314,15 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 				sectorStateInfo.MinerID = sInfo.MinerId
 				sectorStateInfo.WorkerID = sInfo.WorkerId
 
-				if sInfo.StorageId > 0 {
-					storeInfo, err := database.GetStorageInfo(sInfo.StorageId)
-					if err != nil {
-						log.Warn(err)
-					}
-					if storeInfo != nil {
-						sectorStateInfo.SectorSize = storeInfo.SectorSize
-					}
-				}
+				//if sInfo.StorageId > 0 {
+				//	storeInfo, err := database.GetStorageInfo(sInfo.StorageId)
+				//	if err != nil {
+				//		log.Warn(err)
+				//	}
+				//	if storeInfo != nil {
+				//		sectorStateInfo.SectorSize = storeInfo.SectorSize
+				//	}
+				//}
 			}
 
 			wInfo, err := database.GetWorkerInfo(sInfo.WorkerId)
