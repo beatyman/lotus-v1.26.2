@@ -23,6 +23,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/buried"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
@@ -233,6 +234,13 @@ var runCmd = &cli.Command{
 		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
 			report.SetReportUrl(reportUrl)
 		}
+                // <buried>
+                // Collect miner info
+                go func() {
+                        log.Infof("############ Running the RunCollectMinerInfo routine...... ##############")
+                        buried.RunCollectMinerInfo(cctx)
+                }()
+                // </buried>
 		return srv.Serve(manet.NetListener(lst))
 	},
 }

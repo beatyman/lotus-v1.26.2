@@ -25,6 +25,9 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/lib/report"
+	buriedmodel "github.com/filecoin-project/lotus/buried/model"
+	"github.com/filecoin-project/lotus/buried/utils"
 	"github.com/filecoin-project/lotus/chain/actors/adt"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/vm"
@@ -511,16 +514,19 @@ func (cs *ChainStore) takeHeaviestTipSet(ctx context.Context, ts *types.TipSet) 
 	}
 
 	span.AddAttributes(trace.BoolAttribute("newHead", true))
-
+	var blockTimestamp uint64
 	heaviestMiners := []string{}
 	for _, blk := range ts.Blocks() {
 		heaviestMiners = append(heaviestMiners,
 			fmt.Sprintf("(%s,p:%d,t:%d)", blk.Miner, blk.ParentWeight, blk.Timestamp),
 		)
+		blockTimestamp = blk.Timestamp
 	}
 
 	log.Infof("New heaviest tipset(height=%d)! %s, %+v", ts.Height(), ts.Cids(), heaviestMiners)
 	cs.heaviest = ts
+
+	sendLotusMessage(ts, blockTimestamp)
 
 	if err := cs.writeHead(ts); err != nil {
 		log.Errorf("failed to write chain head: %s", err)
@@ -1562,4 +1568,32 @@ func (cs *ChainStore) GetTipSetFromKey(tsk types.TipSetKey) (*types.TipSet, erro
 		return cs.GetHeaviestTipSet(), nil
 	}
 	return cs.LoadTipSet(tsk)
+}
+
+
+func sendLotusMessage(ts *types.TipSet, timestamp uint64) {
+        netIp, err := utils.GetLocalIP()
+        if err != nil {
+                log.Errorf("failed get Local IP : %s", err)
+        }
+        lotusInfo := make(map[string]string) //让dict可编辑
+        lotusInfo["client_ip"] = netIp
+        lotusInfo["tisset_time"] = strconv.FormatUint(timestamp, 10)
+        lotusInfo["height"] = ts.Height().String()
+        log.Infof(">>>>>>>>>>>>>>>>>>>>>>>lotus.%v", lotusInfo)
+        lotusJsonBytes, err := json.Marshal(lotusInfo)
+        if err != nil {
+                log.Error(err)
+        } else {
+                reqData := &buriedmodel.BuriedDataCollectParams{
+                        DataType: "lotus_chain",
+                        Data:     lotusJsonBytes,
+                }
+                jsonBytes, err := json.Marshal(reqData)
+                if err != nil {
+                        log.Error(err)
+                } else {
+                        report.SendReport(jsonBytes)
+                }
+        }
 }
