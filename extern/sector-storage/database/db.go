@@ -45,6 +45,9 @@ func InitDB(repo string) {
 	if _, err := db.Exec(tb_worker_sql); err != nil {
 		panic(err)
 	}
+	if _, err := db.Exec(tb_market_sql); err != nil {
+		panic(err)
+	}
 }
 
 func HasDB() bool {

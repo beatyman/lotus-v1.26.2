@@ -516,7 +516,8 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 
 				// p1
 				SealTicket: ticket,
-				Pieces:     ffiwrapper.EncodePieceInfo(task.Pieces),
+				//Pieces:     ffiwrapper.EncodePieceInfo(task.Pieces),
+				Pieces: task.Pieces,
 			})
 
 		}

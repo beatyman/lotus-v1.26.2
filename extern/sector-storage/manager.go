@@ -347,6 +347,10 @@ func (m *Manager) NewSector(ctx context.Context, sector storage.SectorRef) error
 
 }
 
+func (m *Manager) PledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+	return m.hlmWorker.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
+}
+
 func (m *Manager) AddPiece(ctx context.Context, sector storage.SectorRef, existingPieces []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
 	return m.hlmWorker.AddPiece(ctx, sector, existingPieces, sz, r)
 
@@ -581,6 +585,10 @@ func (m *Manager) SealCommit2(ctx context.Context, sector storage.SectorRef, pha
 	}
 
 	return out, waitErr
+}
+
+func (m *Manager) SealCommit(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Proof, error) {
+	return m.hlmWorker.SealCommit(ctx, sector, ticket, seed, pieces, cids)
 }
 
 func (m *Manager) FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {

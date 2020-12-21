@@ -187,14 +187,14 @@ func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size i
 func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, timeout time.Duration) ([]database.StorageStatus, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, timeout)
 }
-func (sm *StorageMinerAPI) PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PreStorageNode(sectorId, clientIp)
+func (sm *StorageMinerAPI) PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PreStorageNode(sectorId, clientIp, kind)
 }
-func (sm *StorageMinerAPI) CommitStorageNode(ctx context.Context, sectorId string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CommitStorageNode(sectorId)
+func (sm *StorageMinerAPI) CommitStorageNode(ctx context.Context, sectorId string, kind int) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CommitStorageNode(sectorId, kind)
 }
-func (sm *StorageMinerAPI) CancelStorageNode(ctx context.Context, sectorId string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CancelStorageNode(sectorId)
+func (sm *StorageMinerAPI) CancelStorageNode(ctx context.Context, sectorId string, kind int) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CancelStorageNode(sectorId, kind)
 }
 func (sm *StorageMinerAPI) ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ChecksumStorage(ver)

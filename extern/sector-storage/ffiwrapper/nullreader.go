@@ -1,4 +1,4 @@
-package sealing
+package ffiwrapper
 
 import (
 	"io"

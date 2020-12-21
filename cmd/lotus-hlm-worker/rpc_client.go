@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -48,7 +47,7 @@ func ConnectHlmWorker(ctx context.Context, fa api.Common, url string) (*rpcClien
 	return &rpcClient{wapi, closer}, nil
 }
 
-func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask) (storage.Proof, error) {
+func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out storage.Commit1Out) (storage.Proof, error) {
 	napi, err := GetNodeApi()
 	if err != nil {
 		return nil, errors.As(err)
@@ -72,21 +71,6 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask) (storag
 	}
 	defer rClient.Close()
 
-	output := map[string]interface{}{}
-	if err := json.Unmarshal(task.Commit1Out, &output); err != nil {
-		log.Info(errors.As(err))
-	} else {
-		log.Infof("c1 len:%d, version:%v", len(task.Commit1Out), output["registered_proof"])
-	}
-
-	// "registered_proof": "StackedDrg32GiBV1_1"
-	//output["registered_proof"] = "StackedDrg32GiBV1"
-	////c1data, err:= json.MarshalIndent(output, ""," ")
-	//c1o, err := json.Marshal(output)
-	//if err != nil {
-	//	return nil, errors.As(err)
-	//}
-
 	// do work
-	return rClient.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType}, task.Commit1Out)
+	return rClient.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType}, c1out)
 }

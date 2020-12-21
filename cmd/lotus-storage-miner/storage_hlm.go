@@ -116,6 +116,11 @@ var addHLMStorageCmd = &cli.Command{
 	Name:  "add",
 	Usage: "add a storage node",
 	Flags: []cli.Flag{
+		&cli.IntFlag{
+			Name:  "kind",
+			Usage: "0, for sealed storage; 1 for unsealed storage",
+			Value: 0,
+		},
 		&cli.StringFlag{
 			Name:  "mount-type",
 			Usage: "mount type, like nfs, empty for local folder by default.",
@@ -164,6 +169,13 @@ var addHLMStorageCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		kind := cctx.Int("kind")
+		switch kind {
+		case database.STORAGE_KIND_SEALED, database.STORAGE_KIND_UNSEALED:
+		default:
+			fmt.Printf("unknow kind:%d\n", kind)
+			return nil
+		}
 		mountType := cctx.String("mount-type")
 		mountOpt := cctx.String("mount-opt")
 		mountSignalUri := cctx.String("mount-signal-uri")
@@ -186,7 +198,6 @@ var addHLMStorageCmd = &cli.Command{
 		keepSize := cctx.Int64("keep-size")
 		sectorSize := cctx.Int64("sector-size")
 		maxWork := cctx.Int("max-work")
-		fmt.Println(mountType, mountSignalUri, mountTransfUri, mountDir, maxSize, keepSize, sectorSize, maxWork)
 
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -195,6 +206,7 @@ var addHLMStorageCmd = &cli.Command{
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 		return nodeApi.AddHLMStorage(ctx, &database.StorageInfo{
+			Kind:           kind,
 			MountType:      mountType,
 			MountSignalUri: mountSignalUri,
 			MountTransfUri: mountTransfUri,

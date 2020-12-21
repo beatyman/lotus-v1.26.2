@@ -67,7 +67,7 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 	}
 
 	checkBad := func(ctx context.Context, sector storage.SectorRef, rg storiface.RGetter, timeout time.Duration) error {
-		if len(sector.StorageRepo) == 0 {
+		if !sector.HasRepo() {
 			return errors.New("StorageRepo not found").As(sector)
 		}
 		lp := storiface.SectorPaths{
