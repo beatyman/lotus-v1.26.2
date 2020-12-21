@@ -42,11 +42,10 @@ func printWorkerStat(ctx context.Context, nodeApi api.StorageMiner) error {
 	fmt.Printf("\tAllRemotes: all:%d, online:%d, offline:%d, disabled: %d\n", wstat.WorkerOnlines+wstat.WorkerOfflines+wstat.WorkerDisabled, wstat.WorkerOnlines, wstat.WorkerOfflines, wstat.WorkerDisabled)
 
 	fmt.Printf("Queues:\n")
-	fmt.Printf("\tAddPiece: %d\n", wstat.AddPieceWait)
+	fmt.Printf("\tAddPiece: %d\n", wstat.PledgeWait)
 	fmt.Printf("\tPreCommit1: %d\n", wstat.PreCommit1Wait)
 	fmt.Printf("\tPreCommit2: %d\n", wstat.PreCommit2Wait)
-	fmt.Printf("\tCommit1: %d\n", wstat.Commit1Wait)
-	fmt.Printf("\tCommit2: %d\n", wstat.Commit2Wait)
+	fmt.Printf("\tCommit: %d\n", wstat.CommitWait)
 	fmt.Printf("\tFinalize: %d\n", wstat.FinalizeWait)
 	fmt.Printf("\tUnseal: %d\n", wstat.UnsealWait)
 	return nil

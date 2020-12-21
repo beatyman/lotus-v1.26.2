@@ -53,11 +53,16 @@ type Range struct {
 }
 
 type Sealer interface {
+	PledgeSector(ctx context.Context, sectorID SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error)
+
 	SealPreCommit1(ctx context.Context, sector SectorRef, ticket abi.SealRandomness, pieces []abi.PieceInfo) (PreCommit1Out, error)
 	SealPreCommit2(ctx context.Context, sector SectorRef, pc1o PreCommit1Out) (SectorCids, error)
 
 	SealCommit1(ctx context.Context, sector SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids SectorCids) (Commit1Out, error)
 	SealCommit2(ctx context.Context, sector SectorRef, c1o Commit1Out) (Proof, error)
+
+	// union the c1 and c2
+	SealCommit(ctx context.Context, sector SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids SectorCids) (Proof, error)
 
 	FinalizeSector(ctx context.Context, sector SectorRef, keepUnsealed []Range) error
 

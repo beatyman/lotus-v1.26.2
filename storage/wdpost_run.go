@@ -251,7 +251,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	for _, val := range all {
 		if val.Err != nil {
 			sectorId := val.Sector.SectorID()
-			log.Warnf("sid:%s,storage:%s,used:%s,err:%s", val.Sector.SectorId, val.Sector.StorageRepo, val.Used.String(), errors.ParseError(val.Err))
+			log.Warnf("sid:%s,storage:%s,used:%s,err:%s", val.Sector.SectorId, val.Sector.SealedRepo, val.Used.String(), errors.ParseError(val.Err))
 			delete(sectors, sectorId.Number)
 		}
 	}
@@ -629,7 +629,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, abi.PoStRandomness(rand))
 			elapsed := time.Since(tsStart)
 
-			log.Infow("computing window post", "batch", batchIdx, "elapsed", elapsed)
+			log.Infow("computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed)
 
 			if err == nil {
 				if len(postOut) == 0 {

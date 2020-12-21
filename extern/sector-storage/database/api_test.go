@@ -9,22 +9,6 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-func TestAddStorage(t *testing.T) {
-	InitDB("./")
-	storageInfo := &StorageInfo{
-		MaxSize:        922372036854775807,
-		MaxWork:        1000,
-		MountType:      "nfs",
-		MountSignalUri: "127.0.0.1:/data/zfs",
-		MountTransfUri: "127.0.0.1:/data/zfs",
-		MountDir:       "/data/nfs",
-		MountOpt:       "-o proto=tcp -o nolock -o port=2049",
-	}
-	if err := AddStorage(storageInfo); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestDiskUsage(t *testing.T) {
 	InitDB("./")
 	storageInfo, err := GetStorageInfo(1)
@@ -53,12 +37,12 @@ func TestAllocateStorage(t *testing.T) {
 		MountSignalUri: "127.0.0.1:/data/zfs",
 		MountTransfUri: "127.0.0.1:/data/zfs",
 	}
-	if err := AddStorageInfo(info); err != nil {
+	if _, err := AddStorageInfo(info); err != nil {
 		t.Fatal(err)
 	}
 
 	// case 0 make a error cancel
-	tx, aInfo, err := PrepareStorage("0", "")
+	tx, aInfo, err := PrepareStorage("0", "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +52,7 @@ func TestAllocateStorage(t *testing.T) {
 
 	// case 1, return one valid storage at least.
 	for i := 0; i < 9; i++ {
-		tx, aInfo, err = PrepareStorage("0", "")
+		tx, aInfo, err = PrepareStorage("0", "", 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -88,7 +72,7 @@ func TestAllocateStorage(t *testing.T) {
 	}
 
 	// case 2, testing full storage , it expect no sector allcate.
-	if _, _, err := PrepareStorage("0", ""); !errors.ErrNoData.Equal(err) {
+	if _, _, err := PrepareStorage("0", "", 0); !errors.ErrNoData.Equal(err) {
 		t.Fatal(err)
 	}
 }
@@ -108,7 +92,7 @@ func TestMountAllStorage(t *testing.T) {
 	}
 
 	// for local
-	if err := AddStorageInfo(&StorageInfo{
+	if _, err := AddStorageInfo(&StorageInfo{
 		UpdateTime:     time.Now(),
 		MaxSize:        922372036854775807,
 		SectorSize:     107374182400,
@@ -121,7 +105,7 @@ func TestMountAllStorage(t *testing.T) {
 	}
 
 	// for net work, make sure it exists.
-	if err := AddStorageInfo(&StorageInfo{
+	if _, err := AddStorageInfo(&StorageInfo{
 		UpdateTime:     time.Now(),
 		MaxSize:        922372036854775807,
 		SectorSize:     107374182400,
@@ -134,7 +118,7 @@ func TestMountAllStorage(t *testing.T) {
 		t.Fatal(err)
 	}
 	// for net work, make sure it exists.
-	if err := AddStorageInfo(&StorageInfo{
+	if _, err := AddStorageInfo(&StorageInfo{
 		UpdateTime:     time.Now(),
 		MaxSize:        922372036854775807,
 		SectorSize:     107374182400,

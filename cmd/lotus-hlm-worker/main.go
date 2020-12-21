@@ -194,34 +194,30 @@ var runCmd = &cli.Command{
 			Usage: "cache mode. 0, tranfer mode; 1, share mode",
 		},
 		&cli.UintFlag{
-			Name:  "parallel-addpiece",
-			Value: 1,
-			Usage: "Parallel of addpice, <= max-tasks",
+			Name:    "parallel-pledge",
+			Aliases: []string{"parallel-addpiece"},
+			Value:   1,
+			Usage:   "Parallel of pledge, num <= max-tasks",
 		},
 		&cli.UintFlag{
 			Name:  "parallel-precommit1",
 			Value: 1,
-			Usage: "Parallel of precommit1, <= max-tasks",
+			Usage: "Parallel of precommit1, num <= max-tasks",
 		},
 		&cli.UintFlag{
 			Name:  "parallel-precommit2",
 			Value: 1,
-			Usage: "Parallel of precommit2, <= max-tasks",
+			Usage: "Parallel of precommit2, num <= max-tasks",
 		},
 		&cli.UintFlag{
-			Name:  "parallel-commit1",
+			Name:  "parallel-commit",
 			Value: 1,
-			Usage: "Parallel of commit1,0< parallel <= max-tasks, undefined for 0",
-		},
-		&cli.UintFlag{
-			Name:  "parallel-commit2",
-			Value: 1,
-			Usage: "Parallel of commit2, <= max-tasks. if parallel is 0, will select a commit2 service until success",
+			Usage: "Parallel of commit, num <= max-tasks. if the number is 0, will select a commit service until success",
 		},
 		&cli.BoolFlag{
 			Name:  "commit2-srv",
 			Value: false,
-			Usage: "Open commit2 service, need parallel-commit2 > 0",
+			Usage: "Open the commit2 service",
 		},
 		&cli.BoolFlag{
 			Name:  "wdpost-srv",
@@ -333,7 +329,7 @@ var runCmd = &cli.Command{
 		log.Info("umounting history sealed")
 		// init and clean the sealed dir who has mounted.
 		sealedMountedFile := workerIdFile + ".lock"
-		if err := umountAllPush(sealedMountedFile); err != nil {
+		if err := umountAllRemote(sealedMountedFile); err != nil {
 			return errors.As(err)
 		}
 
@@ -345,11 +341,10 @@ var runCmd = &cli.Command{
 			MaxTaskNum:         int(cctx.Uint("max-tasks")),
 			CacheMode:          int(cctx.Uint("cache-mode")),
 			TransferBuffer:     int(cctx.Uint("transfer-buffer")),
-			ParallelAddPiece:   int(cctx.Uint("parallel-addpiece")),
+			ParallelPledge:     int(cctx.Uint("parallel-addpiece")),
 			ParallelPrecommit1: int(cctx.Uint("parallel-precommit1")),
 			ParallelPrecommit2: int(cctx.Uint("parallel-precommit2")),
-			ParallelCommit1:    int(cctx.Uint("parallel-commit1")),
-			ParallelCommit2:    int(cctx.Uint("parallel-commit2")),
+			ParallelCommit:     int(cctx.Uint("parallel-commit")),
 			Commit2Srv:         cctx.Bool("commit2-srv"),
 			WdPoStSrv:          cctx.Bool("wdpost-srv"),
 			WnPoStSrv:          cctx.Bool("wnpost-srv"),
@@ -408,7 +403,7 @@ var runCmd = &cli.Command{
 			workerRepo, sealedRepo, sealedMountedFile,
 			workerCfg,
 		); err != nil {
-			if err := umountAllPush(sealedMountedFile); err != nil {
+			if err := umountAllRemote(sealedMountedFile); err != nil {
 				log.Warn(errors.As(err))
 			}
 
