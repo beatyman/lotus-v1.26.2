@@ -36,6 +36,10 @@ func ParseApiInfo(s string) APIInfo {
 	}
 }
 
+func (a APIInfo) String() string {
+	return string(a.Token) + ":" + a.Addr
+}
+
 func (a APIInfo) DialArgs() (string, error) {
 	ma, err := multiaddr.NewMultiaddr(a.Addr)
 	if err == nil {

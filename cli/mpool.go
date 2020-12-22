@@ -158,7 +158,17 @@ var mpoolFix = &cli.Command{
 			Usage: "if you want to replace the message, please using really-do-it",
 		},
 		&cli.Uint64Flag{
-			Name:  "rate",
+			Name:  "rate-premium",
+			Usage: "0<rate, will be divide 10000, default is 125%",
+			Value: 12500,
+		},
+		&cli.Uint64Flag{
+			Name:  "rate-feecap",
+			Usage: "0<rate, will be divide 10000, default is 125%",
+			Value: 12500,
+		},
+		&cli.Uint64Flag{
+			Name:  "rate-limit",
 			Usage: "0<rate, will be divide 10000, default is 125%",
 			Value: 12500,
 		},
@@ -207,13 +217,12 @@ var mpoolFix = &cli.Command{
 		if err != nil {
 			return err
 		}
-		limitGas, err := types.BigFromString(cctx.String("limit-gas"))
-		if err != nil {
-			return err
-		}
+		limitGas := cctx.Int64("limit-gas")
 		limitMsg := cctx.Uint64("limit-msg")
 		nonce := cctx.Uint64("nonce")
-		rate := cctx.Uint64("rate")
+		ratePremium := cctx.Uint64("rate-premium")
+		rateFeeCap := cctx.Uint64("rate-feecap")
+		rateLimit := cctx.Int64("rate-limit")
 		do := cctx.Bool("really-do-it")
 
 		fixedNum := uint64(0)
@@ -236,16 +245,23 @@ var mpoolFix = &cli.Command{
 			if err != nil {
 				return errors.As(err)
 			}
-			newMsg.GasFeeCap = retm.GasFeeCap
+			// newMsg.GasFeeCap = retm.GasFeeCap
+			newMsg.GasFeeCap = types.BigAdd(
+				types.BigDiv(types.BigMul(baseFee, types.NewInt(rateFeeCap)), types.NewInt(10000)),
+				types.NewInt(1),
+			)
 
 			// Kubuxu said: The formula is 1.25*oldPremium + 1attoFIL
 			newMsg.GasPremium = types.BigAdd(
-				types.BigDiv(types.BigMul(newMsg.GasPremium, types.NewInt(rate)), types.NewInt(10000)),
+				types.BigDiv(types.BigMul(newMsg.GasPremium, types.NewInt(ratePremium)), types.NewInt(10000)),
 				types.NewInt(1),
 			)
 			newMsg.GasPremium = big.Max(retm.GasPremium, newMsg.GasPremium)
+
+			// gas-limit
+			newMsg.GasLimit = newMsg.GasLimit*rateLimit/10000 + 1
 			gasUsed = types.BigAdd(gasUsed, types.BigMul(newMsg.GasFeeCap, types.NewInt(uint64(newMsg.GasLimit))))
-			if types.BigCmp(gasUsed, limitGas) >= 0 {
+			if types.BigCmp(gasUsed, types.NewInt(uint64(limitGas))) >= 0 {
 				return fmt.Errorf("gas out of limit: base:%s,used:%s", baseFee, gasUsed)
 			}
 
