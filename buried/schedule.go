@@ -11,8 +11,8 @@ import (
 )
 
 // RunCollectMinerInfo :
-func RunCollectMinerInfo(cctx *cli.Context) chan bool {
-	ticker := time.NewTicker(60 * time.Second)
+func RunCollectMinerInfo(cctx *cli.Context,timer int64) chan bool {
+	ticker := time.NewTicker(time.Duration(timer*60) * time.Second)
 	quit := make(chan bool, 1)
 
 	go func() {
