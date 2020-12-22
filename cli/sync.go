@@ -31,6 +31,13 @@ var syncCmd = &cli.Command{
 var syncStatusCmd = &cli.Command{
 	Name:  "status",
 	Usage: "check sync status",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "order-by",
+			Usage: "show the worker status with sort, asc or desc",
+			Value: "asc",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		apic, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
@@ -44,8 +51,18 @@ var syncStatusCmd = &cli.Command{
 			return err
 		}
 
+		sortKind := cctx.String("order-by")
+		result := state.ActiveSyncs
+		switch sortKind {
+		case "desc":
+			result = []api.ActiveSync{}
+			for i := len(state.ActiveSyncs) - 1; i > -1; i-- {
+				result = append(result, state.ActiveSyncs[i])
+			}
+		}
+
 		fmt.Println("sync status:")
-		for _, ss := range state.ActiveSyncs {
+		for _, ss := range result {
 			fmt.Printf("worker %d:\n", ss.WorkerID)
 			var base, target []cid.Cid
 			var heightDiff int64
