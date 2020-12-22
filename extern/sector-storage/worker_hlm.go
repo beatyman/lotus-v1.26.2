@@ -173,6 +173,8 @@ func (l *hlmWorker) ReadPiece(ctx context.Context, writer io.Writer, sector stor
 	if err := database.AddMarketRetrieve(storage.SectorName(sector.ID)); err != nil {
 		return false, errors.As(err)
 	}
+	// unseal data will expire by 30 days if no visitor.
+	l.sb.ExpireAllMarketRetrieve()
 
 	// try read the exist unsealed.
 	done, err := l.sb.ReadPiece(ctx, writer, sector, index, size)
