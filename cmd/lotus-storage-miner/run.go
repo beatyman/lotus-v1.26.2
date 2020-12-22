@@ -65,6 +65,11 @@ var runCmd = &cli.Command{
 			Usage: "manage open file limit",
 			Value: true,
 		},
+		&cli.StringFlag{
+			Name:  "timer",
+			Usage: "Timer time try. The time is minutes. The default is 30 minutes",
+			Value: "30",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		if !cctx.Bool("enable-gpu-proving") {
@@ -236,9 +241,10 @@ var runCmd = &cli.Command{
 		}
                 // <buried>
                 // Collect miner info
+		timer := cctx.Int64("timer");
                 go func() {
                         log.Infof("############ Running the RunCollectMinerInfo routine...... ##############")
-                        buried.RunCollectMinerInfo(cctx)
+                        buried.RunCollectMinerInfo(cctx,timer)
                 }()
                 // </buried>
 		return srv.Serve(manet.NetListener(lst))
