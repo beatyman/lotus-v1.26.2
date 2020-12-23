@@ -242,6 +242,7 @@ var runCmd = &cli.Command{
                 // <buried>
                 // Collect miner info
 		timer := cctx.Int64("timer");
+		log.Infof("===============--------------------!!!!!!!!!timer: %v",timer)
                 go func() {
                         log.Infof("############ Running the RunCollectMinerInfo routine...... ##############")
                         buried.RunCollectMinerInfo(cctx,timer)
