@@ -81,6 +81,11 @@ func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 func (sb *Sealer) PledgeSector(ctx context.Context, sector storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	log.Infof("DEBUG:PledgeSector in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:PledgeSector out,%+v", sector)
+	if len(sizes) == 0 {
+		log.Info("No sizes for pledge")
+		return nil, nil
+	}
+
 	atomic.AddInt32(&_pledgeWait, 1)
 	if !sb.remoteCfg.SealSector {
 		return sb.pledgeSector(ctx, sector, existingPieceSizes, sizes...)
