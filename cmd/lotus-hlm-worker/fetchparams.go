@@ -112,7 +112,7 @@ func checkFile(path string, info paramFile, needCheckSum bool) error {
 			return errors.As(err)
 		}
 	} else {
-		log.Warnf("Ingore checksum parameters file: %s", path)
+		log.Warnf("async checksum parameters file: %s", path)
 	}
 	addChecked(path)
 	return nil

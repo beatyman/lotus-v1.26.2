@@ -299,13 +299,14 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	}
 
 	switch typ {
+	// mutex cpu for addpiece and precommit1
 	case WorkerPledge:
-		// mutex cpu for addpiece and precommit1
-		return busyPledgeNum >= r.cfg.ParallelPledge || len(r.busyOnTasks) >= r.cfg.MaxTaskNum
+		return busyPledgeNum >= r.cfg.ParallelPledge || len(r.busyOnTasks) >= r.cfg.MaxTaskNum || busyPrecommit1Num+busyUnsealNum > 0
 	case WorkerPreCommit1, WorkerUnseal: // unseal is shared with the parallel-precommit1
-		return busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1
+		return busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1 || (busyPledgeNum > 0)
+
+	// mutex gpu for precommit2, commit2.
 	case WorkerPreCommit2:
-		// mutex gpu for precommit2, commit2.
 		return busyPrecommit2Num >= r.cfg.ParallelPrecommit2 || (r.cfg.Commit2Srv && busyCommitNum > 0)
 	case WorkerCommit:
 		// ulimit to call commit2 service.
