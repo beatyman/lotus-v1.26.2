@@ -65,7 +65,7 @@ func (sb *Sealer) ExpireAllMarketRetrieve() {
 }
 
 func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error {
-	// TODO: Allocate the sector here instead of in addpiece
+	log.Info("NewSector:%+v", sector.ID)
 
 	if database.HasDB() {
 		sName := sectorName(sector.ID)
