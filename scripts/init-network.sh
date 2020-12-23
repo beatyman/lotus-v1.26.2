@@ -118,5 +118,6 @@ nohup ./scripts/run-genesis-lotus.sh >> bootstrap-lotus.log 2>&1 &
 sleep 30
 nohup ./scripts/run-genesis-miner.sh >> bootstrap-miner.log 2>&1 & 
 
-echo "'tail -f bootstrap-lotus.log' to see the lotus log"
-echo "'tail -f bootstrap-miner.log' to see the miner log"
+echo "init done."
+echo "using 'tail -f bootstrap-lotus.log' to see the lotus logs."
+echo "using 'tail -f bootstrap-miner.log' to see the miner logs."
