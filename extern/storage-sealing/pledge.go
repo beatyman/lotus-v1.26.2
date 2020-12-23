@@ -34,6 +34,7 @@ func (m *Sealing) RunPledgeSector() error {
 		return errors.New("In running")
 	}
 	pledgeRunning = true
+	log.Info("Pledge garbage start")
 
 	sb := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
 
@@ -126,5 +127,6 @@ func (m *Sealing) ExitPledgeSector() error {
 	pledgeSync.Unlock()
 
 	pledgeExit <- true
+	log.Info("Pledge garbage exit")
 	return nil
 }

@@ -65,7 +65,7 @@ func (sb *Sealer) ExpireAllMarketRetrieve() {
 }
 
 func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error {
-	// TODO: Allocate the sector here instead of in addpiece
+	log.Infof("NewSector:%+v", sector.ID)
 
 	if database.HasDB() {
 		sName := sectorName(sector.ID)
@@ -105,9 +105,6 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 }
 
 func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, file storage.Data) (abi.PieceInfo, error) {
-	log.Infof("DEBUG:AddPiece in, sector:%+v", sector)
-	defer log.Infof("DEBUG:AddPiece out, sector:%+v", sector)
-
 	// uprade SectorRef
 	var err error
 	sector, err = database.FillSectorFile(sector, sb.RepoPath())
