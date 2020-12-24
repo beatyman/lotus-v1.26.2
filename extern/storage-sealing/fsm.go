@@ -229,7 +229,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 		log.Warn(errors.As(err))
 	} else if sInfo.State > database.SECTOR_STATE_DONE {
 		switch state.State {
-		case Removing:
+		case Removing, RemoveFailed, Removed:
 			// continue the offical remove logic.
 			break
 		default:
