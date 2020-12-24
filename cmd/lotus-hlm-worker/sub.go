@@ -353,7 +353,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerCommit:
 		pieceInfo := task.Pieces
 		cids := &task.Cids
-		out, err := w.workerSB.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+		c1Out, err := w.workerSB.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
@@ -372,7 +372,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 		// call gpu service failed, using local instead.
 		if len(res.Commit2Out) == 0 {
-			res.Commit2Out, err = w.workerSB.SealCommit2(ctx, sector, task.Commit1Out)
+			res.Commit2Out, err = w.workerSB.SealCommit2(ctx, sector, c1Out)
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
