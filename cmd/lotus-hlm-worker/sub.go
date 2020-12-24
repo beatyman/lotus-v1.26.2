@@ -361,7 +361,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// if local gpu no set, using remotes .
 		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
 			for {
-				res.Commit2Out, err = CallCommit2Service(ctx, task, out)
+				res.Commit2Out, err = CallCommit2Service(ctx, task, c1Out)
 				if err != nil {
 					log.Warn(errors.As(err))
 					time.Sleep(10e9)
