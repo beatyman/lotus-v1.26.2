@@ -1,10 +1,15 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +56,10 @@ func (l *LotusClient) Close() error {
 	return nil
 }
 
+func (l *LotusClient) IsAlive() bool {
+	return l.nodeApi != nil && l.proxyConn != nil
+}
+
 func (l *LotusClient) GetConn() (api.FullNode, net.Conn, error) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
@@ -85,6 +94,8 @@ func (l *LotusClient) GetConn() (api.FullNode, net.Conn, error) {
 }
 
 var (
+	lotusProxyAddr   *cliutil.APIInfo
+	lotusProxyCloser io.Closer
 	lotusClients     = []LotusClient{}
 	lotusClientsLock = sync.Mutex{}
 )
@@ -122,7 +133,7 @@ func checkLotusEpoch() {
 	lotusClientsLock.Unlock()
 }
 
-// TODO: make document for the format of apiInfo.
+// TODO: replace the config
 func RegisterLotus(ctx context.Context, apiInfo string) {
 	lotusClientsLock.Lock()
 	lotusClients = append(lotusClients, LotusClient{
@@ -130,9 +141,14 @@ func RegisterLotus(ctx context.Context, apiInfo string) {
 		apiInfo: cliutil.ParseApiInfo(apiInfo),
 	})
 	lotusClientsLock.Unlock()
+
 }
 
-func StartLotusProxy(addr string) error {
+func startLotusProxy(addr string) (io.Closer, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, errors.As(err, addr)
+	}
 	go func() {
 		timer := time.NewTimer(time.Duration(build.BlockDelaySecs) * time.Second)
 		for {
@@ -141,19 +157,18 @@ func StartLotusProxy(addr string) error {
 		}
 	}()
 
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return errors.As(err, addr)
-	}
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			// handle error
-			log.Warn(errors.As(err))
-			continue
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				// handle error
+				log.Warn(errors.As(err))
+				continue
+			}
+			go handleLotus(conn)
 		}
-		go handleLotus(conn)
-	}
+	}()
+	return ln, nil
 }
 
 func GetBestLotusProxy() (*LotusClient, error) {
@@ -199,4 +214,88 @@ func handleLotus(srcConn net.Conn) {
 			targetConn.Close()
 		}
 	}()
+}
+
+func LoadLotusProxy(ctx context.Context, cfgFile string) error {
+	// phare proxy addr
+	cfgData, err := ioutil.ReadFile(cfgFile)
+	if err != nil {
+		return errors.As(err)
+	}
+	r := csv.NewReader(bytes.NewReader(cfgData))
+	r.Comment = '#'
+
+	records, err := r.ReadAll()
+	if err != nil {
+		return errors.As(err)
+	}
+
+	fmt.Println(records)
+	if len(records) < 2 {
+		return errors.New("no data or error format").As(len(records))
+	}
+
+	for i := len(records) - 1; i > 0; i-- {
+		if len(records[i]) != 1 {
+			return errors.New("no data or error format").As(records[i])
+		}
+		RegisterLotus(ctx, strings.TrimSpace(records[i][0]))
+	}
+
+	// checksum the token
+	lotusClientsLock.Lock()
+	defer lotusClientsLock.Unlock()
+	if len(lotusClients) == 0 {
+		return errors.New("client not found")
+	}
+	// TODO: support different token.
+	proxyAddr := cliutil.ParseApiInfo(strings.TrimSpace(records[0][0]))
+	token := string(proxyAddr.Token)
+	for i := len(lotusClients) - 1; i > 0; i-- {
+		if token != string(lotusClients[i].apiInfo.Token) {
+			return errors.New("tokens are not same").As(lotusClients[i].apiInfo.Addr)
+		}
+	}
+
+	// start the proxy
+	if lotusProxyAddr != nil {
+		if lotusProxyAddr.String() == proxyAddr.String() {
+			// the proxy has not changed
+			return nil
+		}
+		if lotusProxyCloser != nil {
+			lotusProxyCloser.Close()
+			lotusProxyCloser = nil
+			lotusProxyAddr = nil
+		}
+	}
+	// start a new proxy
+	host, err := proxyAddr.Host()
+	if err != nil {
+		return errors.As(err)
+	}
+	closer, err := startLotusProxy(host)
+	if err != nil {
+		return errors.As(err)
+	}
+	log.Infof("using lotus proxy: %s", host)
+	lotusProxyCloser = closer
+	lotusProxyAddr = &proxyAddr
+	return nil
+}
+
+func LotusProxyStatus(ctx context.Context) map[string]bool {
+	lotusClientsLock.Lock()
+	defer lotusClientsLock.Unlock()
+	result := map[string]bool{}
+	for _, c := range lotusClients {
+		result[c.apiInfo.Addr] = c.IsAlive()
+	}
+	return result
+}
+
+func GetLotusProxy() *cliutil.APIInfo {
+	lotusClientsLock.Lock()
+	defer lotusClientsLock.Unlock()
+	return lotusProxyAddr
 }

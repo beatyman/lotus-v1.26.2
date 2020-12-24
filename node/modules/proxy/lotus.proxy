@@ -1,0 +1,4 @@
+# the first line is for proxy addr
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.YxbCtlsKQI_lbCVh8JajNwJZ_vc38f3viqpa3GYO1S8:/ip4/127.0.0.1/tcp/1345/http
+# bellow is the cluster node.
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.YxbCtlsKQI_lbCVh8JajNwJZ_vc38f3viqpa3GYO1S8:/ip4/127.0.0.1/tcp/11234/http

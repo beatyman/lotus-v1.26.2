@@ -20,6 +20,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/gwaylib/errors"
@@ -201,9 +202,23 @@ func GetFullNodeAPI(ctx *cli.Context) (api.FullNode, jsonrpc.ClientCloser, error
 		return tn.(api.FullNode), func() {}, nil
 	}
 
-	addr, headers, err := GetRawAPI(ctx, repo.FullNode)
-	if err != nil {
-		return nil, nil, err
+	var addr string
+	var headers http.Header
+	var err error
+	proxyAddr := proxy.GetLotusProxy()
+	if proxyAddr != nil {
+		// using a proxy
+		addr, err = proxyAddr.DialArgs()
+		if err != nil {
+			return nil, nil, xerrors.Errorf("could not get DialArgs: %w", err)
+		}
+
+		headers = proxyAddr.AuthHeader()
+	} else {
+		addr, headers, err = GetRawAPI(ctx, repo.FullNode)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return client.NewFullNodeRPC(ctx.Context, addr, headers)
