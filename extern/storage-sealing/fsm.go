@@ -349,26 +349,20 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	case Proving:
 		return m.handleProvingSector, processed, nil
 	case Removing:
+		// update hlm database statue to failed.
+		sealer, ok := m.sealer.(*sectorstorage.Manager)
+		if ok {
+			ffi, ok := sealer.Prover.(*ffiwrapper.Sealer)
+			if ok {
+				if _, err := ffi.UpdateSectorState(sInfo.ID, "removing", 500, true, false); err != nil {
+					log.Warn(errors.As(err))
+				}
+			}
+		}
+		// hlm end
 		return m.handleRemoving, processed, nil
 	case Removed:
 		log.Warnf("Remove sector:%s", sInfo.ID)
-
-		// update hlm database statue to failed.
-		sealer, ok := m.sealer.(*sectorstorage.Manager)
-		if !ok {
-			log.Infof("the sealer does not have sectorstorage.Manager, ignore it, sector id:%s", sInfo.ID)
-			return nil, processed, nil
-		}
-		ffi, ok := sealer.Prover.(*ffiwrapper.Sealer)
-		if !ok {
-			log.Infof("the sealer does not have ffiwrapper.Sealer, ignore it, sector id:%s", sInfo.ID)
-			return nil, processed, nil
-		}
-		if _, err := ffi.UpdateSectorState(sInfo.ID, "removed", 500, true, false); err != nil {
-			log.Warn(errors.As(err))
-		}
-		// hlm end
-
 		return nil, processed, nil
 
 	case RemoveFailed:
