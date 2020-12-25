@@ -27,7 +27,8 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
-	"github.com/filecoin-project/lotus/chain/actors/policy"
+
+	//"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
@@ -691,10 +692,13 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]a
 	// sectors per partition    3:  ooo
 	// partitions per message   2:  oooOOO
 	//                              <1><2> (3rd doesn't fit)
+	/*log.Info("lookup:s.proofType:", s.proofType)
 	partitionsPerMsg, err := policy.GetMaxPoStPartitions(s.proofType)
+	log.Info("lookup:partitionsPerMsg", partitionsPerMsg)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sectors per partition: %w", err)
-	}
+	}*/
+	var partitionsPerMsg int = 1
 
 	// The number of messages will be:
 	// ceiling(number of partitions / partitions per message)
