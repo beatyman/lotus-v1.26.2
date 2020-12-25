@@ -30,12 +30,14 @@ var proxyStatusCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		if len(status) == 0 {
-			fmt.Println("proxy is not running")
-			return nil
-		}
-		for _, s := range status {
-			fmt.Printf("addr:%s,alive:%t,height:%d,escape:%s\n", s.Addr, s.Alive, s.Height, s.Escape)
+		fmt.Println("in using node:")
+		fmt.Println("------------------")
+		fmt.Printf("addr:%s, alive: %t, height:%d, used-times:%d\n", status[0].Addr, status[0].Alive, status[0].Height, status[0].UsedTimes)
+		fmt.Println()
+		fmt.Println("all lotus node:")
+		fmt.Println("------------------")
+		for i := 1; i < len(status); i++ {
+			fmt.Printf("addr:%s, alive: %t, height:%d, used-times:%d\n", status[i].Addr, status[i].Alive, status[i].Height, status[i].UsedTimes)
 		}
 		return nil
 	},

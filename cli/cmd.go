@@ -105,7 +105,25 @@ func envForRepoDeprecation(t repo.RepoType) string {
 	}
 }
 
+func UseLotusProxy(ctx *cli.Context) error {
+	repoFlag := flagForRepo(repo.FullNode)
+	p, err := homedir.Expand(ctx.String(repoFlag))
+	if err != nil {
+		return xerrors.Errorf("could not expand home dir (%s): %w", repoFlag, err)
+	}
+	proxyFile := filepath.Join(p, "lotus.proxy")
+	return proxy.LoadLotusProxy(ctx.Context, proxyFile)
+}
+
 func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (cliutil.APIInfo, error) {
+	switch t {
+	case repo.FullNode:
+		proxyAddr := proxy.LotusProxyAddr()
+		if proxyAddr != nil {
+			return *proxyAddr, nil
+		}
+	}
+
 	// Check if there was a flag passed with the listen address of the API
 	// server (only used by the tests)
 	apiFlag := flagForAPI(t)
@@ -135,22 +153,6 @@ func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (cliutil.APIInfo, error) {
 	p, err := homedir.Expand(ctx.String(repoFlag))
 	if err != nil {
 		return cliutil.APIInfo{}, xerrors.Errorf("could not expand home dir (%s): %w", repoFlag, err)
-	}
-
-	switch t {
-	case repo.FullNode:
-		// using hlm lotus proxy
-		proxyAddr := proxy.GetLotusProxy()
-		if proxyAddr != nil {
-			return *proxyAddr, nil
-		}
-		proxyFile := filepath.Join(p, "lotus.proxy")
-		if err := proxy.LoadLotusProxy(ctx.Context, proxyFile); err != nil {
-			if !errors.ErrNoData.Equal(err) {
-				log.Warnf("lotus proxy is invalid:%+s", err.Error())
-			}
-			// ignore proxy not exit
-		}
 	}
 
 	r, err := repo.NewFS(p)
