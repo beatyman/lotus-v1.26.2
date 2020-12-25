@@ -80,7 +80,8 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 			workerDisabled++
 			continue
 		}
-		if info.Online {
+		_, online := _remotes.Load(info.ID)
+		if online {
 			workerOnlines++
 		} else {
 			workerOfflines++
