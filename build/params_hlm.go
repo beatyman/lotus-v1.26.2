@@ -37,7 +37,7 @@ func init() {
 		abi.RegisteredSealProof_StackedDrg64GiBV1,
 	)
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
-	BuildType |= Build2k
+	BuildType |= BuildHLM
 }
 
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
