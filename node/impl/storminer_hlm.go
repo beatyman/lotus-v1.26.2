@@ -12,12 +12,20 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
 
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
 	return sm.Miner.Testing(ctx, fnName, args)
+}
+
+func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
+	return proxy.LotusProxyStatus(ctx), nil
+}
+func (sm *StorageMinerAPI) ProxyReload(ctx context.Context) error {
+	return proxy.RealoadLotusProxy(ctx)
 }
 
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {

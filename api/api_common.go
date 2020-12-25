@@ -16,7 +16,6 @@ import (
 )
 
 type Common interface {
-
 	// MethodGroup: Auth
 	// Reload the auth key
 	ReloadHlmAuth(context.Context) error

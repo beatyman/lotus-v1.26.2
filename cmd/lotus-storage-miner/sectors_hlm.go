@@ -35,14 +35,14 @@ var startPledgeSectorCmd = &cli.Command{
 	Name:  "start",
 	Usage: "start the pledge daemon",
 	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 
-		return nodeApi.RunPledgeSector(ctx)
+		return mApi.RunPledgeSector(ctx)
 	},
 }
 
@@ -50,14 +50,14 @@ var statusPledgeSectorCmd = &cli.Command{
 	Name:  "status",
 	Usage: "the pledge daemon status",
 	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 
-		if status, err := nodeApi.StatusPledgeSector(ctx); err != nil {
+		if status, err := mApi.StatusPledgeSector(ctx); err != nil {
 			return errors.As(err)
 		} else if status != 0 {
 			fmt.Println("Running")
@@ -71,14 +71,14 @@ var stopPledgeSectorCmd = &cli.Command{
 	Name:  "stop",
 	Usage: "stop the pledge daemon",
 	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 
-		return nodeApi.StopPledgeSector(ctx)
+		return mApi.StopPledgeSector(ctx)
 	},
 }
 
@@ -86,7 +86,7 @@ var getHlmSectorStateCmd = &cli.Command{
 	Name:  "get",
 	Usage: "get the sector info by sector id(s-t0xxx-x)",
 	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -97,7 +97,7 @@ var getHlmSectorStateCmd = &cli.Command{
 		if len(sid) == 0 {
 			return errors.New("need input sector-id(s-t0xxxx-xxx")
 		}
-		info, err := nodeApi.HlmSectorGetState(ctx, sid)
+		info, err := mApi.HlmSectorGetState(ctx, sid)
 		if err != nil {
 			return err
 		}
@@ -136,7 +136,7 @@ var setHlmSectorStateCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -151,10 +151,10 @@ var setHlmSectorStateCmd = &cli.Command{
 		if len(memo) == 0 {
 			return errors.New("need input memo")
 		}
-		if _, err := nodeApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"), cctx.Bool("force"), cctx.Bool("reset")); err != nil {
+		if _, err := mApi.HlmSectorSetState(ctx, sid, memo, cctx.Int("state"), cctx.Bool("force"), cctx.Bool("reset")); err != nil {
 			return err
 		}
-		info, err := nodeApi.HlmSectorGetState(ctx, sid)
+		info, err := mApi.HlmSectorGetState(ctx, sid)
 		if err != nil {
 			return err
 		}
@@ -177,7 +177,7 @@ var checkHlmSectorCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
@@ -187,7 +187,7 @@ var checkHlmSectorCmd = &cli.Command{
 		if len(sid) == 0 {
 			return errors.New("need input sector-id(s-t0xxxx-xxx")
 		}
-		used, err := nodeApi.HlmSectorCheck(ctx, sid, time.Duration(cctx.Int64("timeout"))*time.Second)
+		used, err := mApi.HlmSectorCheck(ctx, sid, time.Duration(cctx.Int64("timeout"))*time.Second)
 		if err != nil {
 			return err
 		}

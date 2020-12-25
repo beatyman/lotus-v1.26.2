@@ -383,6 +383,9 @@ type StorageMinerStruct struct {
 		CheckProvable func(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error) `perm:"admin"`
 
 		// implements by hlm
+
+		ProxyStatus          func(ctx context.Context) ([]api.ProxyStatus, error)                                      `perm:"read"`
+		ProxyReload          func(ctx context.Context) error                                                           `perm:"write"`
 		RunPledgeSector      func(context.Context) error                                                               `perm:"write"`
 		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
 		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
@@ -1300,6 +1303,12 @@ func (c *FullNodeStruct) CreateBackup(ctx context.Context, fpath string) error {
 // StorageMinerStruct
 
 // implements by hlm start
+func (c *StorageMinerStruct) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
+	return c.Internal.ProxyStatus(ctx)
+}
+func (c *StorageMinerStruct) ProxyReload(ctx context.Context) error {
+	return c.Internal.ProxyReload(ctx)
+}
 func (c *StorageMinerStruct) RunPledgeSector(ctx context.Context) error {
 	return c.Internal.RunPledgeSector(ctx)
 }

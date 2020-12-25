@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -136,6 +137,22 @@ func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (cliutil.APIInfo, error) {
 		return cliutil.APIInfo{}, xerrors.Errorf("could not expand home dir (%s): %w", repoFlag, err)
 	}
 
+	switch t {
+	case repo.FullNode:
+		// using hlm lotus proxy
+		proxyAddr := proxy.GetLotusProxy()
+		if proxyAddr != nil {
+			return *proxyAddr, nil
+		}
+		proxyFile := filepath.Join(p, "lotus.proxy")
+		if err := proxy.LoadLotusProxy(ctx.Context, proxyFile); err != nil {
+			if !errors.ErrNoData.Equal(err) {
+				log.Warnf("lotus proxy is invalid:%+s", err.Error())
+			}
+			// ignore proxy not exit
+		}
+	}
+
 	r, err := repo.NewFS(p)
 	if err != nil {
 		return cliutil.APIInfo{}, xerrors.Errorf("could not open repo at path: %s; %w", p, err)
@@ -202,23 +219,9 @@ func GetFullNodeAPI(ctx *cli.Context) (api.FullNode, jsonrpc.ClientCloser, error
 		return tn.(api.FullNode), func() {}, nil
 	}
 
-	var addr string
-	var headers http.Header
-	var err error
-	proxyAddr := proxy.GetLotusProxy()
-	if proxyAddr != nil {
-		// using a proxy
-		addr, err = proxyAddr.DialArgs()
-		if err != nil {
-			return nil, nil, xerrors.Errorf("could not get DialArgs: %w", err)
-		}
-
-		headers = proxyAddr.AuthHeader()
-	} else {
-		addr, headers, err = GetRawAPI(ctx, repo.FullNode)
-		if err != nil {
-			return nil, nil, err
-		}
+	addr, headers, err := GetRawAPI(ctx, repo.FullNode)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return client.NewFullNodeRPC(ctx.Context, addr, headers)

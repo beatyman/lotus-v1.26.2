@@ -7,7 +7,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	mux "github.com/gorilla/mux"
@@ -31,7 +30,6 @@ import (
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
-	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
@@ -74,19 +72,13 @@ var runCmd = &cli.Command{
 				return err
 			}
 		}
-		minerRepoPath := cctx.String(FlagMinerRepo)
-		ctx := lcli.DaemonContext(cctx)
-
-		// using hlm lotus proxy
-		if err := proxy.LoadLotusProxy(ctx, filepath.Join(minerRepoPath, "lotus.proxy")); err != nil {
-			log.Infof("lotus proxy is invalid:%+s", err.Error())
-		}
 
 		nodeApi, ncloser, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {
 			return xerrors.Errorf("getting full node api: %w", err)
 		}
 		defer ncloser()
+		ctx := lcli.DaemonContext(cctx)
 
 		// Register all metric views
 		if err := view.Register(
@@ -118,6 +110,7 @@ var runCmd = &cli.Command{
 			}
 		}
 
+		minerRepoPath := cctx.String(FlagMinerRepo)
 		r, err := repo.NewFS(minerRepoPath)
 		if err != nil {
 			return err

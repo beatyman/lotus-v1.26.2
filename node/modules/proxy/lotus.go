@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -94,9 +94,11 @@ func (l *LotusClient) GetConn() (api.FullNode, net.Conn, error) {
 }
 
 var (
+	lotusProxyCfg    string
 	lotusProxyAddr   *cliutil.APIInfo
 	lotusProxyCloser io.Closer
 	lotusClients     = []LotusClient{}
+	bestClient       *LotusClient
 	lotusClientsLock = sync.Mutex{}
 )
 
@@ -125,12 +127,26 @@ func checkLotusEpoch() {
 	}
 	close(done)
 
-	lotusClientsLock.Lock()
 	sort.SliceStable(lotusClients, func(i, j int) bool {
 		// inverted order
 		return lotusClients[i].curHeight > lotusClients[j].curHeight
 	})
-	lotusClientsLock.Unlock()
+	// no client set
+	if len(lotusClients) == 0 {
+		return
+	}
+
+	// change the best client
+	if len(lotusClients) > 1 && bestClient != nil {
+		if bestClient.curHeight-lotusClients[0].curHeight > 3 {
+			bestClient.Close()
+			bestClient = nil
+		}
+	}
+	if bestClient == nil {
+		bestClient = &lotusClients[0]
+	}
+	return
 }
 
 // TODO: replace the config
@@ -152,7 +168,9 @@ func startLotusProxy(addr string) (io.Closer, error) {
 	go func() {
 		timer := time.NewTimer(time.Duration(build.BlockDelaySecs) * time.Second)
 		for {
+			lotusClientsLock.Lock()
 			checkLotusEpoch()
+			lotusClientsLock.Unlock()
 			<-timer.C
 		}
 	}()
@@ -171,24 +189,18 @@ func startLotusProxy(addr string) (io.Closer, error) {
 	return ln, nil
 }
 
-func GetBestLotusProxy() (*LotusClient, error) {
+func handleLotus(srcConn net.Conn) {
 	lotusClientsLock.Lock()
 	defer lotusClientsLock.Unlock()
-
-	if len(lotusClients) == 0 {
-		return nil, errors.New("Need register lotus client first.")
+	if bestClient == nil {
+		checkLotusEpoch()
 	}
-	return &lotusClients[0], nil
-}
-
-func handleLotus(srcConn net.Conn) {
-
-	client, err := GetBestLotusProxy()
-	if err != nil {
-		log.Warn(errors.As(err))
-		database.Close(srcConn)
+	client := bestClient
+	if client == nil {
+		srcConn.Close()
 		return
 	}
+
 	_, targetConn, err := client.GetConn()
 	if err != nil {
 		log.Warn(errors.As(err))
@@ -217,9 +229,27 @@ func handleLotus(srcConn net.Conn) {
 }
 
 func LoadLotusProxy(ctx context.Context, cfgFile string) error {
+	lotusClientsLock.Lock()
+	defer lotusClientsLock.Unlock()
+	return loadLotusProxy(ctx, cfgFile)
+}
+
+func RealoadLotusProxy(ctx context.Context) error {
+	lotusClientsLock.Lock()
+	defer lotusClientsLock.Unlock()
+	if len(lotusProxyCfg) == 0 {
+		return errors.New("no proxy in running")
+	}
+	return LoadLotusProxy(ctx, lotusProxyCfg)
+}
+
+func loadLotusProxy(ctx context.Context, cfgFile string) error {
 	// phare proxy addr
 	cfgData, err := ioutil.ReadFile(cfgFile)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return errors.ErrNoData.As(cfgFile)
+		}
 		return errors.As(err)
 	}
 	r := csv.NewReader(bytes.NewReader(cfgData))
@@ -230,7 +260,6 @@ func LoadLotusProxy(ctx context.Context, cfgFile string) error {
 		return errors.As(err)
 	}
 
-	fmt.Println(records)
 	if len(records) < 2 {
 		return errors.New("no data or error format").As(len(records))
 	}
@@ -243,8 +272,6 @@ func LoadLotusProxy(ctx context.Context, cfgFile string) error {
 	}
 
 	// checksum the token
-	lotusClientsLock.Lock()
-	defer lotusClientsLock.Unlock()
 	if len(lotusClients) == 0 {
 		return errors.New("client not found")
 	}
@@ -279,17 +306,22 @@ func LoadLotusProxy(ctx context.Context, cfgFile string) error {
 		return errors.As(err)
 	}
 	log.Infof("using lotus proxy: %s", host)
+	lotusProxyCfg = cfgFile
 	lotusProxyCloser = closer
 	lotusProxyAddr = &proxyAddr
 	return nil
 }
 
-func LotusProxyStatus(ctx context.Context) map[string]bool {
+func LotusProxyStatus(ctx context.Context) []api.ProxyStatus {
 	lotusClientsLock.Lock()
 	defer lotusClientsLock.Unlock()
-	result := map[string]bool{}
+	result := []api.ProxyStatus{}
 	for _, c := range lotusClients {
-		result[c.apiInfo.Addr] = c.IsAlive()
+		result = append(result, api.ProxyStatus{
+			Addr:   c.apiInfo.Addr,
+			Alive:  c.IsAlive(),
+			Height: c.curHeight,
+		})
 	}
 	return result
 }
