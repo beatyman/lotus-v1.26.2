@@ -269,6 +269,23 @@ func (m *Sealing) addPiece(ctx context.Context, sector storage.SectorRef, size a
 }
 
 func (m *Sealing) Remove(ctx context.Context, sid abi.SectorNumber) error {
+	// update hlm database statue to failed.
+	sealer, ok := m.sealer.(*sectorstorage.Manager)
+	if ok {
+		ffi, ok := sealer.Prover.(*ffiwrapper.Sealer)
+		if ok {
+			// checking the sector state in hlm miner
+			sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSectorID(sid)))
+			if err != nil {
+				log.Warn(errors.As(err))
+			} else if sInfo.State < database.SECTOR_STATE_FAILED {
+				if _, err := ffi.UpdateSectorState(sInfo.ID, "removing", 500, true, false); err != nil {
+					log.Warn(errors.As(err))
+				}
+			}
+		}
+	}
+	// hlm end
 	return m.sectors.Send(uint64(sid), SectorRemove{})
 }
 
