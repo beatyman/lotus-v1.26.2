@@ -17,6 +17,6 @@ const (
 	DISK_MOUNT_ROOT = "/data/lotus-cache/"
 )
 
-func NewDiskPoll() (DiskPool, error) {
+func NewDiskPool() (DiskPool, error) {
 	return nil, errors.New("TODO")
 }
