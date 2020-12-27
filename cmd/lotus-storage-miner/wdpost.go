@@ -6,7 +6,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-//PartitionNumber
+// PartitionNumber
 var wdpostCmd = &cli.Command{
 	Name:  "wdpost",
 	Usage: "tune wdpost params",
