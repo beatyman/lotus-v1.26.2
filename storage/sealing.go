@@ -52,6 +52,20 @@ func (m *Miner) IsMarkedForUpgrade(id abi.SectorNumber) bool {
 }
 
 // implements by hlm start
+
+func (m *Miner) WdpostEnablePartitionSeparate(enable bool) error {
+	log.Info("lookup enable:", enable)
+	EnableSeparatePartition = enable
+	log.Info("lookup EnableSeparatePartition:", EnableSeparatePartition)
+	return nil
+}
+func (m *Miner) WdpostSetPartitionNumber(number int) error {
+	log.Info("lookup number:", number)
+	PartitionsPerMsg = number
+	log.Info("lookup PartitionsPerMsg:", PartitionsPerMsg)
+	return nil
+}
+
 func (m *Miner) RunPledgeSector() error {
 	return m.sealing.RunPledgeSector()
 }
