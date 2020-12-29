@@ -16,40 +16,40 @@ import (
 )
 
 const (
-	append_file_new       = 0
-	append_file_continue  = 1
-	append_file_completed = 2
+	checksum_file_new       = 0
+	checksum_file_continue  = 1
+	checksum_file_completed = 2
 )
 
-func canAppendFile(aFile, bFile *os.File, aStat, bStat os.FileInfo) (int, error) {
+func checksumFile(aFile, bFile *os.File, aStat, bStat os.FileInfo) (int, error) {
 	checksumSize := int64(32 * 1024)
 	// for small size, just do rewrite.
 	aSize := aStat.Size()
 	bSize := bStat.Size()
 	if bSize < checksumSize {
-		return append_file_new, nil
+		return checksum_file_new, nil
 	}
 	if bSize > aSize {
-		return append_file_new, nil
+		return checksum_file_new, nil
 	}
 
 	aData := make([]byte, checksumSize)
 	bData := make([]byte, checksumSize)
 	// TODO: get random data
 	if _, err := aFile.ReadAt(aData, bSize-checksumSize); err != nil {
-		return append_file_new, errors.As(err)
+		return checksum_file_new, errors.As(err)
 	}
 	if _, err := bFile.ReadAt(bData, bSize-checksumSize); err != nil {
-		return append_file_new, errors.As(err)
+		return checksum_file_new, errors.As(err)
 	}
 	eq := bytes.Equal(aData, bData)
 	if eq {
 		if aSize == bSize {
-			return append_file_completed, nil
+			return checksum_file_completed, nil
 		}
-		return append_file_continue, nil
+		return checksum_file_continue, nil
 	}
-	return append_file_new, nil
+	return checksum_file_new, nil
 }
 
 func travelFile(path string) (os.FileInfo, []string, error) {
@@ -112,17 +112,17 @@ func copyFile(ctx context.Context, from, to string) error {
 	}
 
 	// checking continue
-	stats, err := canAppendFile(fromFile, toFile, fromStat, toStat)
+	stats, err := checksumFile(fromFile, toFile, fromStat, toStat)
 	if err != nil {
 		return errors.As(err)
 	}
 	switch stats {
-	case append_file_completed:
+	case checksum_file_completed:
 		// has done
 		fmt.Printf("%s ======= completed\n", to)
 		return nil
 
-	case append_file_continue:
+	case checksum_file_continue:
 		appendPos := int64(toStat.Size() - 1)
 		if appendPos < 0 {
 			appendPos = 0
@@ -185,9 +185,13 @@ func copyFile(ctx context.Context, from, to string) error {
 		if !errors.Equal(err, io.EOF) {
 			return errors.As(err)
 		}
-		// TODO: checksum transfer data
-		if fromStat.Size() != toStat.Size() {
-			return errors.New("final size not match").As(from, to, fromStat.Size(), toStat.Size())
+		// checksum transfer data
+		stats, err := checksumFile(fromFile, toFile, fromStat, toStat)
+		if err != nil {
+			return errors.As(err)
+		}
+		if stats != checksum_file_completed {
+			return errors.New("final size not match").As(stats, from, to, fromStat.Size(), toStat.Size())
 		}
 		return nil
 	case <-ctx.Done():
