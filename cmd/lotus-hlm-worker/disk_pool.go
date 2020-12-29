@@ -36,7 +36,7 @@ type DiskPool interface {
 var dp *SSM
 var once sync.Once
 
-func NewDiskPool() (DiskPool, error) {
+func NewDiskPool(ssize uint64) (DiskPool, error) {
 	var err error
 	once.Do(func() {
 		fmt.Println("new diskpool instance")
@@ -192,7 +192,10 @@ func (Ssm *SSM) Allocate(sid string) (string, error) {
 			Ssm.regtbl[sid] = di.mnt
 
 			//
-			sids := Ssm.maptbl[di.mnt]
+			sids, ok := Ssm.maptbl[di.mnt]
+			if !ok {
+				return "", errors.New("maptbl not found").As(di.mnt)
+			}
 			*sids = append(*sids, sid)
 
 			return di.mnt, nil
