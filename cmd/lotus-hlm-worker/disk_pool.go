@@ -34,7 +34,7 @@ type DiskPool interface {
 }
 
 var dp *SSM
-var once sync.Onc
+var once sync.Once
 
 func NewDiskPool() (DiskPool, error) {
 	var err error
@@ -138,7 +138,7 @@ type SSM struct {
 	maptbl map[string]*[]string // mount_point:sids
 }
 
-func (Ssm *SSM) init__() {
+func (Ssm *SSM) init__() error {
 	if _, err := os.Stat(DISK_MOUNT_ROOT); os.IsNotExist(err) {
 		return errors.New("please make sure " + DISK_MOUNT_ROOT + "exists")
 	}
