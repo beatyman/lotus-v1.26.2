@@ -6,9 +6,12 @@ import (
 )
 
 func TestDiskPool(t *testing.T) {
-	diskpool, _ := NewDiskPool()
+	diskpool, err := NewDiskPool()
+	if err != nil {
+		panic(err)
+	}
+
 	for i := 0; i < 20; i++ {
-		//fmt.Println("s-t0%d", i)
 		sid := fmt.Sprintf("s-t0%d", i)
 		_, err := diskpool.Allocate(sid)
 		if err != nil {

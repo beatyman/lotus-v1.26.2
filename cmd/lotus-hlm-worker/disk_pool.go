@@ -34,9 +34,9 @@ type DiskPool interface {
 
 func NewDiskPool() (DiskPool, error) {
 	dp := &SSM{}
-	dp.Init()
+	err := dp.Init()
 
-	return dp, nil
+	return dp, err
 }
 
 const (
@@ -129,13 +129,12 @@ type SSM struct {
 
 func (Ssm *SSM) Init() {
 	if _, err := os.Stat(DISK_MOUNT_ROOT); os.IsNotExist(err) {
-		//panic(err)
-		os.Mkdir(DISK_MOUNT_ROOT, os.ModePerm)
+		return errors.New("please make sure " + DISK_MOUNT_ROOT + "exists")
 	}
 
 	dir, err := ioutil.ReadDir(DISK_MOUNT_ROOT)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	Ssm.regtbl = make(map[string]string)
@@ -157,6 +156,11 @@ func (Ssm *SSM) Init() {
 	for _, v := range Ssm.captbl {
 		fmt.Println(v.mnt, formatFileSize(v.ds.All), v.ds.MaxSector, v.ds.UsedSector)
 	}
+	if len(Ssm.captbl) > 0 {
+		return nil
+	}
+
+	return errors.New("No disk is mounted on " + DISK_MOUNT_ROOT)
 }
 
 func (Ssm *SSM) Allocate(sid string) (string, error) {
