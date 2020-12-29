@@ -11,6 +11,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/gwaylib/errors"
@@ -18,7 +19,6 @@ import (
 
 type worker struct {
 	minerEndpoint string
-	workerRepo    string
 	sealedRepo    string
 	auth          http.Header
 
@@ -28,12 +28,13 @@ type worker struct {
 	ssize   abi.SectorSize
 	actAddr address.Address
 
-	workerSB  *ffiwrapper.Sealer
+	diskPool  DiskPool
 	rpcServer *rpcServer
 	workerCfg ffiwrapper.WorkerCfg
 
-	workMu sync.Mutex
-	workOn map[string]ffiwrapper.WorkerTask // task key
+	workMu  sync.Mutex
+	workOn  map[string]ffiwrapper.WorkerTask // task key
+	sealers map[string]*ffiwrapper.Sealer
 
 	pushMu            sync.Mutex
 	sealedMounted     map[string]string
@@ -41,30 +42,13 @@ type worker struct {
 }
 
 func acceptJobs(ctx context.Context,
-	workerSB, sealedSB *ffiwrapper.Sealer,
+	sealedSB *ffiwrapper.Sealer,
 	rpcServer *rpcServer,
 	act, workerAddr address.Address,
 	minerEndpoint string, auth http.Header,
-	workerRepo, sealedRepo, mountedFile string,
+	sealedRepo, mountedFile string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
-	w := &worker{
-		minerEndpoint: minerEndpoint,
-		workerRepo:    workerRepo,
-		sealedRepo:    sealedRepo,
-		auth:          auth,
-
-		actAddr:   act,
-		workerSB:  workerSB,
-		rpcServer: rpcServer,
-		workerCfg: workerCfg,
-
-		workOn: map[string]ffiwrapper.WorkerTask{},
-
-		sealedMounted:     map[string]string{},
-		sealedMountedFile: mountedFile,
-	}
-
 checkingApi:
 	api, err := GetNodeApi()
 	if err != nil {
@@ -73,17 +57,41 @@ checkingApi:
 		goto checkingApi
 	}
 
+	// get ssize from miner
+	ssize, err := api.ActorSectorSize(ctx, act)
+	if err != nil {
+		return err
+	}
+
+	diskPool, err := NewDiskPool(ssize)
+	if err != nil {
+		return errors.As(err)
+	}
+
+	w := &worker{
+		minerEndpoint: minerEndpoint,
+		sealedRepo:    sealedRepo,
+		auth:          auth,
+
+		ssize:     ssize,
+		actAddr:   act,
+		diskPool:  diskPool,
+		rpcServer: rpcServer,
+		workerCfg: workerCfg,
+
+		workOn:  map[string]ffiwrapper.WorkerTask{},
+		sealers: map[string]*ffiwrapper.Sealer{},
+
+		sealedMounted:     map[string]string{},
+		sealedMountedFile: mountedFile,
+	}
+
 	to := "/var/tmp/filecoin-proof-parameters"
 	envParam := os.Getenv("FIL_PROOFS_PARAMETER_CACHE")
 	if len(envParam) > 0 {
 		to = envParam
 	}
 	if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit > 0 {
-		// get ssize from miner
-		ssize, err := nodeApi.ActorSectorSize(ctx, act)
-		if err != nil {
-			return err
-		}
 		if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
 			return err
 		}
@@ -242,6 +250,26 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	if err := w.CleanCache(ctx); err != nil {
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
+
+	// allocate worker sealer
+	repo, err := w.diskPool.Allocate(task.SectorName())
+	if err != nil {
+		return errRes(errors.As(err, w.workerCfg), &res)
+	}
+	w.workMu.Lock()
+	sealer, ok := w.sealers[repo]
+	if !ok {
+		sealer, err = ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
+			Root: repo,
+		})
+		if err != nil {
+			w.workMu.Unlock()
+			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+	}
+	w.sealers[repo] = sealer
+	w.workMu.Unlock()
+
 	// checking is the cache in a different storage server, do fetch when it is.
 	if w.workerCfg.CacheMode == 0 && task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit && task.WorkerID != w.workerCfg.ID {
 		// fetch the precommit cache data
@@ -256,6 +284,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		if err := w.fetchRemote(
 			"http://"+uri,
 			task.SectorStorage.SectorInfo.ID,
+			sealer.RepoPath(),
 			task.Type,
 		); err != nil {
 			log.Warnf("fileserver error, retry 10s later:%+s", err.Error())
@@ -281,7 +310,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	// fetch the unseal sector
 	if task.Type == ffiwrapper.WorkerPledge {
 		// get the market unsealed data, and copy to local
-		if err := w.fetchUnseal(ctx, task); err != nil {
+		if err := w.fetchUnseal(ctx, sealer, task); err != nil {
 			return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
 		}
 		// fetch done
@@ -290,10 +319,10 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	// fetch the seal sector
 	if task.Type == ffiwrapper.WorkerUnseal {
 		// get the unsealed and sealed data
-		if err := w.fetchUnseal(ctx, task); err != nil {
+		if err := w.fetchUnseal(ctx, sealer, task); err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-		if err := w.fetchSealed(ctx, task); err != nil {
+		if err := w.fetchSealed(ctx, sealer, task); err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 		// fetch done
@@ -311,13 +340,13 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		ProofType: task.ProofType,
 		SectorFile: storage.SectorFile{
 			SectorId:     storage.SectorName(task.SectorID),
-			SealedRepo:   w.workerSB.RepoPath(),
-			UnsealedRepo: w.workerSB.RepoPath(),
+			SealedRepo:   sealer.RepoPath(),
+			UnsealedRepo: sealer.RepoPath(),
 		},
 	}
 	switch task.Type {
 	case ffiwrapper.WorkerPledge:
-		rsp, err := w.workerSB.PledgeSector(ctx,
+		rsp, err := sealer.PledgeSector(ctx,
 			sector,
 			task.ExistingPieceSizes,
 			task.ExtSizes...,
@@ -333,7 +362,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 
 	case ffiwrapper.WorkerPreCommit1:
 		pieceInfo := task.Pieces
-		rspco, err := w.workerSB.SealPreCommit1(ctx, sector, task.SealTicket, pieceInfo)
+		rspco, err := sealer.SealPreCommit1(ctx, sector, task.SealTicket, pieceInfo)
 
 		// rspco, err := ffiwrapper.ExecPrecommit1(ctx, w.workerRepo, task)
 		res.PreCommit1Out = rspco
@@ -344,7 +373,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 	case ffiwrapper.WorkerPreCommit2:
-		out, err := w.workerSB.SealPreCommit2(ctx, sector, task.PreCommit1Out)
+		out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
 		//out, err := ffiwrapper.ExecPrecommit2(ctx, w.workerRepo, task)
 		res.PreCommit2Out = out
 		if err != nil {
@@ -353,7 +382,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerCommit:
 		pieceInfo := task.Pieces
 		cids := &task.Cids
-		c1Out, err := w.workerSB.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+		c1Out, err := sealer.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
@@ -372,7 +401,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		}
 		// call gpu service failed, using local instead.
 		if len(res.Commit2Out) == 0 {
-			res.Commit2Out, err = w.workerSB.SealCommit2(ctx, sector, c1Out)
+			res.Commit2Out, err = sealer.SealCommit2(ctx, sector, c1Out)
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
@@ -381,7 +410,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
-		sealedFile := w.workerSB.SectorPath("sealed", task.SectorName())
+		sealedFile := sealer.SectorPath("sealed", task.SectorName())
 		_, err := os.Stat(string(sealedFile))
 		if err != nil {
 			if !os.IsNotExist(err) {
@@ -389,18 +418,18 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 			}
 			// no file to finalize, just return done.
 		} else {
-			if err := w.workerSB.FinalizeSector(ctx, sector, nil); err != nil {
+			if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			if err := w.pushCache(ctx, task, false); err != nil {
+			if err := w.pushCache(ctx, sealer, task, false); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 		}
 	case ffiwrapper.WorkerUnseal:
-		if err := w.workerSB.UnsealPiece(ctx, sector, task.UnsealOffset, task.UnsealSize, task.SealRandomness, task.Commd); err != nil {
+		if err := sealer.UnsealPiece(ctx, sector, task.UnsealOffset, task.UnsealSize, task.SealRandomness, task.Commd); err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-		if err := w.pushCache(ctx, task, true); err != nil {
+		if err := w.pushCache(ctx, sealer, task, true); err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 	}

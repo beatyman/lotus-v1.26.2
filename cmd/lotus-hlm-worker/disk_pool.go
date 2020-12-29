@@ -9,6 +9,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/gwaylib/errors"
 )
 
@@ -18,6 +19,9 @@ const (
 )
 
 type DiskPool interface {
+	// return all the repos
+	Repos() []string
+
 	// allocate disk and return repo
 	//
 	// return
@@ -36,7 +40,7 @@ type DiskPool interface {
 var dp *SSM
 var once sync.Once
 
-func NewDiskPool(ssize uint64) (DiskPool, error) {
+func NewDiskPool(ssize abi.SectorSize) (DiskPool, error) {
 	var err error
 	once.Do(func() {
 		fmt.Println("new diskpool instance")
@@ -172,6 +176,16 @@ func (Ssm *SSM) init__() error {
 	}
 
 	return errors.New("No disk is mounted on " + DISK_MOUNT_ROOT)
+}
+
+func (Ssm *SSM) Repos() []string {
+	Ssm.mutex.Lock()
+	defer Ssm.mutex.Unlock()
+	repos := []string{}
+	for _, disk := range Ssm.captbl {
+		repos = append(repos, disk.mnt)
+	}
+	return repos
 }
 
 func (Ssm *SSM) Allocate(sid string) (string, error) {
