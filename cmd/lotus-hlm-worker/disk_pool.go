@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"sync"
 	"syscall"
 
 	"github.com/gwaylib/errors"
@@ -115,8 +116,9 @@ func IsMountPoint(dir string) bool {
 }
 
 type diskinfo struct {
-	mnt string
-	ds  DiskStatus
+	mnt   string
+	mutex sync.Mutex
+	ds    DiskStatus
 }
 
 type SSM struct {
@@ -172,6 +174,8 @@ func (Ssm *SSM) Allocate(sid string) (string, error) {
 	for i := 0; i < len; i++ {
 		di := Ssm.captbl[Ssm.cursor%len]
 		Ssm.cursor++
+		di.mutex.Lock()
+		defer di.mutex.Unlock()
 		if di.ds.UsedSector < di.ds.MaxSector {
 			di.ds.UsedSector++
 			Ssm.regtbl[sid] = di.mnt
@@ -202,6 +206,8 @@ func (Ssm *SSM) Delete(sid string) error {
 	}
 
 	for _, v := range Ssm.captbl {
+		v.mutex.Lock()
+		defer v.mutex.Unlock()
 		if v.mnt == mnt {
 			if v.ds.UsedSector > 0 {
 				v.ds.UsedSector--
