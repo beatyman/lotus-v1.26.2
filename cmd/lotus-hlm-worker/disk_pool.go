@@ -33,11 +33,19 @@ type DiskPool interface {
 	Show() error
 }
 
+var dp *SSM
+var once sync.Onc
+
 func NewDiskPool() (DiskPool, error) {
-	dp := &SSM{}
-	err := dp.Init()
+	var err error
+	once.Do(func() {
+		fmt.Println("new diskpool instance")
+		dp = &SSM{}
+		err = dp.init__()
+	})
 
 	return dp, err
+
 }
 
 const (
@@ -122,6 +130,7 @@ type diskinfo struct {
 }
 
 type SSM struct {
+	mutex  sync.Mutex
 	cursor int
 	ssize  uint64
 	captbl []*diskinfo
@@ -129,7 +138,7 @@ type SSM struct {
 	maptbl map[string]*[]string // mount_point:sids
 }
 
-func (Ssm *SSM) Init() {
+func (Ssm *SSM) init__() {
 	if _, err := os.Stat(DISK_MOUNT_ROOT); os.IsNotExist(err) {
 		return errors.New("please make sure " + DISK_MOUNT_ROOT + "exists")
 	}
@@ -166,6 +175,8 @@ func (Ssm *SSM) Init() {
 }
 
 func (Ssm *SSM) Allocate(sid string) (string, error) {
+	Ssm.mutex.Lock()
+	defer Ssm.mutex.Unlock()
 	if v, ok := Ssm.regtbl[sid]; ok == true {
 		return v, nil
 	}
@@ -192,6 +203,8 @@ func (Ssm *SSM) Allocate(sid string) (string, error) {
 }
 
 func (Ssm *SSM) Query(sid string) (string, error) {
+	Ssm.mutex.Lock()
+	defer Ssm.mutex.Unlock()
 	if v, ok := Ssm.regtbl[sid]; ok == true {
 		return v, nil
 	}
@@ -200,6 +213,8 @@ func (Ssm *SSM) Query(sid string) (string, error) {
 }
 
 func (Ssm *SSM) Delete(sid string) error {
+	Ssm.mutex.Lock()
+	defer Ssm.mutex.Unlock()
 	mnt, ok := Ssm.regtbl[sid]
 	if ok == false {
 		return errors.New("this sector no mapped to any ssd before")
