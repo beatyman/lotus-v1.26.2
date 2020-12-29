@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -16,40 +17,73 @@ import (
 )
 
 const (
-	checksum_file_new       = 0
-	checksum_file_continue  = 1
-	checksum_file_completed = 2
+	append_file_new       = 0
+	append_file_continue  = 1
+	append_file_completed = 2
 )
 
-func checksumFile(aFile, bFile *os.File, aStat, bStat os.FileInfo) (int, error) {
+func checksumFile(aFile, bFile *os.File) (int, error) {
+	if _, err := aFile.Seek(0, 0); err != nil {
+		return append_file_new, errors.As(err, aFile.Name())
+	}
+	if _, err := bFile.Seek(0, 0); err != nil {
+		return append_file_new, errors.As(err, bFile.Name())
+	}
+
+	// checksum all data
+	ah := sha1.New()
+	if _, err := io.Copy(ah, aFile); err != nil {
+		return append_file_new, errors.As(err, aFile.Name())
+	}
+	aSum := ah.Sum(nil)
+
+	bh := sha1.New()
+	if _, err := io.Copy(bh, bFile); err != nil {
+		return append_file_new, errors.As(err, bFile.Name())
+	}
+	bSum := bh.Sum(nil)
+
+	if !bytes.Equal(aSum, bSum) {
+		return append_file_new, nil
+	}
+
+	return append_file_completed, nil
+}
+func canAppendFile(aFile, bFile *os.File, aStat, bStat os.FileInfo) (int, error) {
 	checksumSize := int64(32 * 1024)
 	// for small size, just do rewrite.
 	aSize := aStat.Size()
 	bSize := bStat.Size()
 	if bSize < checksumSize {
-		return checksum_file_new, nil
+		return append_file_new, nil
 	}
 	if bSize > aSize {
-		return checksum_file_new, nil
+		return append_file_new, nil
 	}
 
+	// checksum the end
 	aData := make([]byte, checksumSize)
 	bData := make([]byte, checksumSize)
-	// TODO: get random data
+	if _, err := aFile.Seek(0, 0); err != nil {
+		return append_file_new, errors.As(err, aFile.Name())
+	}
+	if _, err := bFile.Seek(0, 0); err != nil {
+		return append_file_new, errors.As(err, bFile.Name())
+	}
 	if _, err := aFile.ReadAt(aData, bSize-checksumSize); err != nil {
-		return checksum_file_new, errors.As(err)
+		return append_file_new, errors.As(err, aFile.Name())
 	}
 	if _, err := bFile.ReadAt(bData, bSize-checksumSize); err != nil {
-		return checksum_file_new, errors.As(err)
+		return append_file_new, errors.As(err, aFile.Name())
 	}
-	eq := bytes.Equal(aData, bData)
-	if eq {
-		if aSize == bSize {
-			return checksum_file_completed, nil
-		}
-		return checksum_file_continue, nil
+	if !bytes.Equal(aData, bData) {
+		return append_file_new, nil
 	}
-	return checksum_file_new, nil
+	if aSize > bSize {
+		return append_file_continue, nil
+	}
+
+	return append_file_completed, nil
 }
 
 func travelFile(path string) (os.FileInfo, []string, error) {
@@ -112,17 +146,17 @@ func copyFile(ctx context.Context, from, to string) error {
 	}
 
 	// checking continue
-	stats, err := checksumFile(fromFile, toFile, fromStat, toStat)
+	stats, err := canAppendFile(fromFile, toFile, fromStat, toStat)
 	if err != nil {
 		return errors.As(err)
 	}
 	switch stats {
-	case checksum_file_completed:
+	case append_file_completed:
 		// has done
 		fmt.Printf("%s ======= completed\n", to)
 		return nil
 
-	case checksum_file_continue:
+	case append_file_continue:
 		appendPos := int64(toStat.Size() - 1)
 		if appendPos < 0 {
 			appendPos = 0
@@ -185,15 +219,20 @@ func copyFile(ctx context.Context, from, to string) error {
 		if !errors.Equal(err, io.EOF) {
 			return errors.As(err)
 		}
-		// checksum transfer data
-		stats, err := checksumFile(fromFile, toFile, fromStat, toStat)
+		stats, err := checksumFile(fromFile, toFile)
 		if err != nil {
 			return errors.As(err)
 		}
-		if stats != checksum_file_completed {
-			return errors.New("final size not match").As(stats, from, to, fromStat.Size(), toStat.Size())
+		if stats == append_file_completed {
+			return nil
 		}
-		return nil
+		if _, err := toFile.Seek(0, 0); err != nil {
+			return errors.As(err, toFile)
+		}
+		if err := toFile.Truncate(0); err != nil {
+			return errors.As(err, toFile)
+		}
+		return errors.New("finalize has completed, but checksum failed.").As(stats, from, to, fromStat.Size(), toStat.Size())
 	case <-ctx.Done():
 		iLock.Lock()
 		interrupt = true
@@ -212,6 +251,8 @@ func CopyFile(ctx context.Context, from, to string) error {
 		tCtx, cancel := context.WithTimeout(ctx, time.Hour)
 		if err := copyFile(tCtx, src, toFile); err != nil {
 			cancel()
+			log.Warn(errors.As(err))
+
 			// do retry
 			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
 			if err := copyFile(tCtx, src, toFile); err != nil {
