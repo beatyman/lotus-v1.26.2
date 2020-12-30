@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	"github.com/filecoin-project/lotus/node/modules/etcd"
 )
 
 const dsKeyActorNonce = "ActorNextNonce"
@@ -33,6 +34,8 @@ type MessageSigner struct {
 	lk     sync.Mutex
 	mpool  MpoolNonceAPI
 	ds     datastore.Batching
+
+	etcdMutex etcd.Mutex
 }
 
 func NewMessageSigner(wallet api.WalletAPI, mpool MpoolNonceAPI, ds dtypes.MetadataDS) *MessageSigner {
@@ -49,6 +52,12 @@ func NewMessageSigner(wallet api.WalletAPI, mpool MpoolNonceAPI, ds dtypes.Metad
 func (ms *MessageSigner) SignMessage(ctx context.Context, auth []byte, msg *types.Message, cb func(*types.SignedMessage) error) (*types.SignedMessage, error) {
 	ms.lk.Lock()
 	defer ms.lk.Unlock()
+
+	// etcd lock
+	if err := ms.etcdMutex.Lock(ctx); err != nil {
+		return nil, xerrors.Errorf("failed to lock etcd: %w", err)
+	}
+	defer ms.etcdMutex.Unlock(ctx)
 
 	// Get the next message nonce
 	nonce, err := ms.nextNonce(msg.From)
@@ -104,7 +113,20 @@ func (ms *MessageSigner) nextNonce(addr address.Address) (uint64, error) {
 
 	// Get the next nonce for this address from the datastore
 	addrNonceKey := ms.dstoreKey(addr)
-	dsNonceBytes, err := ms.ds.Get(addrNonceKey)
+	dsNonceBytes := []byte{}
+
+	resp, err := etcd.Get(context.TODO(), addrNonceKey.String())
+	if err != nil {
+		// maybe is not found when the etcd has broken.
+		log.Warn(xerrors.Errorf("failed to read nonce from etcd: %w", err))
+	} else if len(resp.Kvs) > 0 {
+		dsNonceBytes = resp.Kvs[0].Value
+	}
+
+	// no data from etcd, read local datastore
+	if len(dsNonceBytes) == 0 {
+		dsNonceBytes, err = ms.ds.Get(addrNonceKey)
+	}
 
 	switch {
 	case xerrors.Is(err, datastore.ErrNotFound):
@@ -149,6 +171,14 @@ func (ms *MessageSigner) saveNonce(addr address.Address, nonce uint64) error {
 	if err != nil {
 		return xerrors.Errorf("failed to marshall nonce: %w", err)
 	}
+
+	// put to etcd
+	ctx := context.TODO()
+	if _, err := etcd.Put(ctx, addrNonceKey.String(), string(buf.Bytes())); err != nil {
+		return xerrors.Errorf("failed to write nonce to etcd: %w", err)
+	}
+
+	// put to local store
 	err = ms.ds.Put(addrNonceKey, buf.Bytes())
 	if err != nil {
 		return xerrors.Errorf("failed to write nonce to datastore: %w", err)
