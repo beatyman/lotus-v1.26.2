@@ -14,22 +14,10 @@ import (
 )
 
 // remove cache of the sector
-func (w *worker) RemoveCache(ctx context.Context, workerSB *ffiwrapper.Sealer, sid string) error {
+func (w *worker) RemoveCache(ctx context.Context, repo, sid string) error {
 	w.workMu.Lock()
 	defer w.workMu.Unlock()
-
-	repo := workerSB.RepoPath()
-	log.Infof("Remove cache:%s,%s", repo, sid)
-	if err := os.RemoveAll(workerSB.SectorPath("sealed", sid)); err != nil {
-		log.Error(errors.As(err, sid))
-	}
-	if err := os.RemoveAll(workerSB.SectorPath("cache", sid)); err != nil {
-		log.Error(errors.As(err, sid))
-	}
-	if err := os.RemoveAll(workerSB.SectorPath("unsealed", sid)); err != nil {
-		log.Error(errors.As(err, sid))
-	}
-	return nil
+	return w.removeCache(ctx, repo, sid)
 }
 
 // clean cache of the unusing sector.
@@ -40,25 +28,39 @@ func (w *worker) CleanCache(ctx context.Context) error {
 	repos := w.diskPool.Repos()
 
 	for _, repo := range repos {
-		sealed := filepath.Join(repo, "sealed")
-		cache := filepath.Join(repo, "cache")
-		// staged := filepath.Join(repo, "staging")
-		unsealed := filepath.Join(repo, "unsealed")
-		if err := w.cleanCache(ctx, sealed); err != nil {
+		if err := w.cleanCache(ctx, repo, "sealed"); err != nil {
 			return errors.As(err)
 		}
-		if err := w.cleanCache(ctx, cache); err != nil {
+		if err := w.cleanCache(ctx, repo, "cache"); err != nil {
 			return errors.As(err)
 		}
-		if err := w.cleanCache(ctx, unsealed); err != nil {
+		if err := w.cleanCache(ctx, repo, "unsealed"); err != nil {
 			return errors.As(err)
 		}
 	}
 	return nil
 }
 
-func (w *worker) cleanCache(ctx context.Context, path string) error {
-	files, err := ioutil.ReadDir(path)
+func (w *worker) removeCache(ctx context.Context, repo, sid string) error {
+	log.Infof("Remove cache:%s,%s", repo, sid)
+	if err := os.RemoveAll(filepath.Join(repo, "sealed", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
+	if err := os.RemoveAll(filepath.Join(repo, "cache", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
+	if err := os.RemoveAll(filepath.Join(repo, "unsealed", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
+	if err := w.diskPool.Delete(sid); err != nil {
+		log.Error(errors.As(err))
+	}
+	return nil
+}
+
+func (w *worker) cleanCache(ctx context.Context, repo, typ string) error {
+	dir := filepath.Join(repo, typ)
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		log.Warn(errors.As(err))
 	} else {
@@ -82,13 +84,12 @@ func (w *worker) cleanCache(ctx context.Context, path string) error {
 					continue sealedLoop
 				}
 			}
-			log.Infof("Remove %s", filepath.Join(path, f.Name()))
-			if err := os.RemoveAll(filepath.Join(path, f.Name())); err != nil {
-				return errors.As(err, w.workerCfg.IP, filepath.Join(path, f.Name()))
+			if err := w.removeCache(ctx, repo, f.Name()); err != nil {
+				return errors.As(err, w.workerCfg.IP, repo, typ, f.Name())
 			}
 		}
 	}
-	if err := os.MkdirAll(path, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return errors.As(err, w.workerCfg.IP)
 	}
 	return nil
@@ -320,10 +321,7 @@ repush:
 			time.Sleep(60e9)
 			goto repush
 		}
-		if err := w.diskPool.Delete(task.SectorName()); err != nil {
-			log.Warn(errors.As(err))
-		}
-		if err := w.RemoveCache(ctx, workerSB, task.SectorName()); err != nil {
+		if err := w.RemoveCache(ctx, workerSB.RepoPath(), task.SectorName()); err != nil {
 			log.Warn(errors.As(err))
 		}
 	}
