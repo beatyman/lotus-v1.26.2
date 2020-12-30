@@ -50,6 +50,7 @@ require (
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
 	github.com/go-kit/kit v0.10.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
+	github.com/golang/protobuf v1.4.2
 	github.com/google/uuid v1.1.2
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
@@ -142,6 +143,7 @@ require (
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7
 	github.com/whyrusleeping/pubsub v0.0.0-20131020042734-02de8aa2db3d
 	github.com/xorcare/golden v0.6.1-0.20191112154924-b87f686d7542
+	go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b
 	go.opencensus.io v0.22.5
 	go.uber.org/dig v1.10.0 // indirect
 	go.uber.org/fx v1.9.0
@@ -168,7 +170,10 @@ replace github.com/filecoin-project/specs-storage => ./extern/specs-storage
 replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20201211084435-fa9011069396
 
 //replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
+replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-20201125193152-8a03d2e9614b
 
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
 replace github.com/supranational/blst => ./extern/blst
+
+replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
