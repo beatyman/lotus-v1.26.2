@@ -37,9 +37,21 @@ case $1 in
 esac
 
 echo "copy bin to "$install_path
-cp -vrf lotus $install_path
-cp -vrf lotus-miner $install_path
-cp -vrf lotus-worker $install_path
+if [ -f ./etcd ]; then
+    cp -vrf etcd $install_path
+fi
+if [ -f ./etcdctl ]; then
+    cp -vrf etcdctl $install_path
+fi
+if [ -f ./lotus ]; then
+    cp -vrf lotus $install_path
+fi
+if [ -f ./lotus-miner ]; then
+    cp -vrf lotus-miner $install_path
+fi
+if [ -f ./lotus-worker ]; then
+    cp -vrf lotus-worker $install_path
+fi
 if [ -f ./lotus-chain-watch ]; then
     cp -vrf lotus-chain-watch $install_path
 fi
