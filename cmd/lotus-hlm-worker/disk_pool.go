@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	//DISK_MOUNT_ROOT = "/data/lotus-cache/"
-	DISK_MOUNT_ROOT = "/run/user/"
+	DISK_MOUNT_ROOT = "/data/lotus-cache"
+	//DISK_MOUNT_ROOT = "/run/user/"
 )
 
 type DiskPool interface {
@@ -41,15 +41,23 @@ var dp *SSM
 var once sync.Once
 
 func NewDiskPool(ssize abi.SectorSize) (DiskPool, error) {
+	switch ssize {
+	case 32 * GB:
+	case 512 * MB:
+	case 8 * MB:
+	case 2 * KB:
+	default:
+		return nil, errors.New("please check sector size. valid size is: 2KB | 8MB | 512MB | 32GB ")
+	}
+
 	var err error
 	once.Do(func() {
-		fmt.Println("new diskpool instance")
+		fmt.Println("-----------------> new diskpool instance, only create once")
 		dp = &SSM{}
-		err = dp.init__()
+		err = dp.init_(uint64(ssize))
 	})
 
 	return dp, err
-
 }
 
 const (
@@ -65,6 +73,7 @@ const (
 )
 
 type DiskStatus struct {
+	SectorSize uint64 `json:"sectorsize"`
 	All        uint64 `json:"all"`
 	Used       uint64 `json:"used"`
 	Free       uint64 `json:"free"`
@@ -73,18 +82,29 @@ type DiskStatus struct {
 }
 
 func sectorallot(disk *DiskStatus) {
-	disk.MaxSector = 100
 	disk.UsedSector = 0
+	if disk.SectorSize == 32*GB {
+		disk.MaxSector = disk.All / (500 * GB)
+	} else if disk.SectorSize == 512*MB {
+		disk.MaxSector = disk.All / (8000 * MB)
+	} else if disk.SectorSize == 8*MB {
+		disk.MaxSector = disk.All / (125 * MB)
+	} else if disk.SectorSize == 2*KB {
+		disk.MaxSector = disk.All / (100 * KB)
+	} else {
+		disk.MaxSector = 0
+	}
 }
 
 // disk usage of path/disk
-func DiskUsage(path string) (disk DiskStatus) {
+func DiskUsage(path string, ssize uint64) (disk DiskStatus) {
 	fs := syscall.Statfs_t{}
 	err := syscall.Statfs(path, &fs)
 	if err != nil {
 		panic(err)
 		return
 	}
+	disk.SectorSize = ssize
 	disk.All = fs.Blocks * uint64(fs.Bsize)
 	disk.Free = fs.Bfree * uint64(fs.Bsize)
 	disk.Used = disk.All - disk.Free
@@ -128,23 +148,21 @@ func IsMountPoint(dir string) bool {
 }
 
 type diskinfo struct {
-	mnt   string
-	mutex sync.Mutex
-	ds    DiskStatus
+	mnt string
+	ds  DiskStatus
 }
 
 type SSM struct {
 	mutex  sync.Mutex
-	cursor int
 	ssize  uint64
 	captbl []*diskinfo
 	regtbl map[string]string    // sid:moint_point
 	maptbl map[string]*[]string // mount_point:sids
 }
 
-func (Ssm *SSM) init__() error {
+func (Ssm *SSM) init_(ssize uint64) error {
 	if _, err := os.Stat(DISK_MOUNT_ROOT); os.IsNotExist(err) {
-		return errors.New("please make sure " + DISK_MOUNT_ROOT + "exists")
+		return errors.New("please make sure " + DISK_MOUNT_ROOT + "/xxx exists")
 	}
 
 	dir, err := ioutil.ReadDir(DISK_MOUNT_ROOT)
@@ -152,40 +170,41 @@ func (Ssm *SSM) init__() error {
 		return err
 	}
 
+	havesubdir := false
 	Ssm.regtbl = make(map[string]string)
 	Ssm.maptbl = make(map[string]*[]string)
 	for _, d := range dir {
 		if d.IsDir() {
-			if IsMountPoint(path.Join(DISK_MOUNT_ROOT, d.Name())) == true {
+			havesubdir = true
+			if IsMountPoint(path.Join(DISK_MOUNT_ROOT, d.Name())) == true || ssize != 32*GB {
 				Ssm.maptbl[path.Join(DISK_MOUNT_ROOT, d.Name())] = &[]string{}
-				Ssm.captbl = append(Ssm.captbl, &diskinfo{mnt: path.Join(DISK_MOUNT_ROOT, d.Name()), ds: DiskUsage(path.Join(DISK_MOUNT_ROOT, d.Name()))})
+				Ssm.captbl = append(Ssm.captbl, &diskinfo{mnt: path.Join(DISK_MOUNT_ROOT, d.Name()), ds: DiskUsage(path.Join(DISK_MOUNT_ROOT, d.Name()), ssize)})
 			}
 		}
 	}
-
-	for filename, v := range Ssm.maptbl {
-		fmt.Println(filename, v)
+	if havesubdir == false {
+		return errors.New("no subdir as mount point of " + DISK_MOUNT_ROOT + "/")
 	}
 
-	fmt.Println("------------mount point capacity and sector allocate:")
+	flag := false
+	fmt.Println("-----------------> Distribution of working cache spaces:")
+	fmt.Println("|total capacity\t|sector size\t|max sector\t|used sector\t|mount point|")
 	for _, v := range Ssm.captbl {
-		fmt.Println(v.mnt, formatFileSize(v.ds.All), v.ds.MaxSector, v.ds.UsedSector)
+		fmt.Println("|", formatFileSize(v.ds.All), "\t|", formatFileSize(v.ds.SectorSize), "\t|", v.ds.MaxSector, "\t|", v.ds.UsedSector, "\t|", v.mnt, "\t|")
+		if v.ds.MaxSector > 0 {
+			flag = true
+		}
 	}
+	fmt.Println("")
+	if flag == false {
+		return errors.New("mount point " + DISK_MOUNT_ROOT + "/xxx not enough storage space, Cannot store at least one " + formatFileSize(ssize) + " sector")
+	}
+
 	if len(Ssm.captbl) > 0 {
 		return nil
 	}
 
 	return errors.New("No disk is mounted on " + DISK_MOUNT_ROOT)
-}
-
-func (Ssm *SSM) Repos() []string {
-	Ssm.mutex.Lock()
-	defer Ssm.mutex.Unlock()
-	repos := []string{}
-	for _, disk := range Ssm.captbl {
-		repos = append(repos, disk.mnt)
-	}
-	return repos
 }
 
 func (Ssm *SSM) Allocate(sid string) (string, error) {
@@ -195,25 +214,31 @@ func (Ssm *SSM) Allocate(sid string) (string, error) {
 		return v, nil
 	}
 
+	// 调度规则：按照比利查询可用的，利用率最小的存储盘
+	i := -1
+	minsector := 100.00
 	len := len(Ssm.captbl)
-	for i := 0; i < len; i++ {
-		di := Ssm.captbl[Ssm.cursor%len]
-		Ssm.cursor++
-		di.mutex.Lock()
-		defer di.mutex.Unlock()
-		if di.ds.UsedSector < di.ds.MaxSector {
-			di.ds.UsedSector++
-			Ssm.regtbl[sid] = di.mnt
-
-			//
-			sids, ok := Ssm.maptbl[di.mnt]
-			if !ok {
-				return "", errors.New("maptbl not found").As(di.mnt)
-			}
-			*sids = append(*sids, sid)
-
-			return di.mnt, nil
+	for j := 0; j < len; j++ {
+		di := Ssm.captbl[j%len]
+		if (di.ds.UsedSector < di.ds.MaxSector) && (float64(di.ds.UsedSector*100)/float64(di.ds.MaxSector) < minsector) {
+			minsector = float64(di.ds.UsedSector*100) / float64(di.ds.MaxSector)
+			i = j
 		}
+	}
+
+	if i == -1 {
+		return "", errors.New("worker cache disk resources not available")
+	}
+
+	di := Ssm.captbl[i%len]
+	if di.ds.UsedSector < di.ds.MaxSector {
+		di.ds.UsedSector++
+		Ssm.regtbl[sid] = di.mnt
+
+		sids := Ssm.maptbl[di.mnt]
+		*sids = append(*sids, sid)
+
+		return di.mnt, nil
 	}
 
 	return "", errors.New("No suitable ssd available")
@@ -238,8 +263,6 @@ func (Ssm *SSM) Delete(sid string) error {
 	}
 
 	for _, v := range Ssm.captbl {
-		v.mutex.Lock()
-		defer v.mutex.Unlock()
 		if v.mnt == mnt {
 			if v.ds.UsedSector > 0 {
 				v.ds.UsedSector--
@@ -269,4 +292,14 @@ func (Ssm *SSM) Show() error {
 	}
 
 	return nil
+}
+
+func (Ssm *SSM) Repos() []string {
+	Ssm.mutex.Lock()
+	defer Ssm.mutex.Unlock()
+	repos := []string{}
+	for _, disk := range Ssm.captbl {
+		repos = append(repos, disk.mnt)
+	}
+	return repos
 }
