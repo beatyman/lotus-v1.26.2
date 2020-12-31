@@ -211,6 +211,7 @@ func handleLotus(srcConn net.Conn) {
 	_, targetConn, err := bestLotusNode.GetConn()
 	if err != nil {
 		log.Warn(errors.As(err))
+		baseLotusNode.Close()
 		database.Close(srcConn)
 		return
 	}
@@ -220,12 +221,13 @@ func handleLotus(srcConn net.Conn) {
 	go func() {
 		if _, err := io.Copy(srcConn, targetConn); err != nil {
 			log.Warn(errors.As(err))
-			srcConn.Close()
 
 			lotusNodesLock.Lock()
 			bestLotusNode.Close()
 			checkLotusEpoch()
 			lotusNodesLock.Unlock()
+
+			srcConn.Close()
 		}
 	}()
 
@@ -233,12 +235,13 @@ func handleLotus(srcConn net.Conn) {
 	go func() {
 		if _, err := io.Copy(targetConn, srcConn); err != nil {
 			log.Warn(errors.As(err))
-			srcConn.Close()
 
 			lotusNodesLock.Lock()
 			bestLotusNode.Close()
 			checkLotusEpoch()
 			lotusNodesLock.Unlock()
+
+			srcConn.Close()
 		}
 	}()
 }
