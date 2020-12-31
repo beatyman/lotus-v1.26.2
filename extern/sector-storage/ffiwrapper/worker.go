@@ -1107,10 +1107,8 @@ func CollectSectorStateInfo(task WorkerTask, workerType string) error {
 			sectorStateInfo.State = "PreCommit1Start"
 		case "20":
 			sectorStateInfo.State = "PreCommit2Start"
-		case "30":
-			sectorStateInfo.State = "Commit1Start"
 		case "40":
-			sectorStateInfo.State = "Commit2Start"
+			sectorStateInfo.State = "Commit2WaitStart"
 		case "50":
 			sectorStateInfo.State = "FinalizeSectorStart"
 		default:
@@ -1125,8 +1123,6 @@ func CollectSectorStateInfo(task WorkerTask, workerType string) error {
 			sectorStateInfo.State = "PreCommit1Done"
 		case "20":
 			sectorStateInfo.State = "PreCommit2Done"
-		case "30":
-			sectorStateInfo.State = "Commit1Done"
 		case "40":
 			sectorStateInfo.State = "Commit2Done"
 		case "50":
