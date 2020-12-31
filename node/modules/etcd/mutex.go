@@ -3,68 +3,45 @@ package etcd
 import (
 	"context"
 	"fmt"
-	"sync"
 
-	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
 	"go.etcd.io/etcd/clientv3/concurrency"
 )
 
-type Mutex struct {
-	mutex sync.Mutex
-	sess  *concurrency.Session
-	lock  *concurrency.Mutex
+type Mutex interface {
+	Lock(ctx context.Context) error
+	Unlock(ctx context.Context) error
+	Close() error
 }
 
-func (m *Mutex) Close() error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+type mutex struct {
+	sess   *concurrency.Session
+	locker *concurrency.Mutex
+}
 
-	if m.sess == nil {
-		return nil
-	}
+func (m *mutex) Lock(ctx context.Context) error {
+	return m.locker.Lock(ctx)
+}
 
+func (m *mutex) Unlock(ctx context.Context) error {
+	return m.locker.Unlock(ctx)
+}
+
+func (m *mutex) Close() error {
 	return m.sess.Close()
 }
 
-func (m *Mutex) Lock(ctx context.Context) error {
+func GetMutex(key string) (Mutex, error) {
 	cli, err := Client()
 	if err != nil {
-		return errors.As(err)
+		return nil, errors.As(err)
 	}
-
-	m.mutex.Lock()
-	if m.sess == nil {
-		s1, err := concurrency.NewSession(cli)
-		if err != nil {
-			m.mutex.Unlock()
-			closeClient()
-			return errors.As(err)
-		}
-		m.sess = s1
+	s1, err := concurrency.NewSession(cli)
+	if err != nil {
+		return nil, errors.As(err)
 	}
-	if m.lock == nil {
-		m.lock = concurrency.NewMutex(m.sess, fmt.Sprintf("/%s/", uuid.New().String()))
-	}
-	m.mutex.Unlock()
-
-	return m.lock.Lock(ctx)
-}
-func (m *Mutex) Unlock(ctx context.Context) error {
-	m.mutex.Lock()
-	if m.sess == nil {
-		m.mutex.Unlock()
-		return nil
-	}
-	if m.lock == nil {
-		m.mutex.Unlock()
-		return nil
-	}
-	m.mutex.Unlock()
-
-	if err := m.lock.Unlock(ctx); err != nil {
-		closeClient()
-		return err
-	}
-	return nil
+	return &mutex{
+		sess:   s1,
+		locker: concurrency.NewMutex(s1, fmt.Sprintf("/%s/", key)),
+	}, nil
 }
