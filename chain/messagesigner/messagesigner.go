@@ -34,8 +34,6 @@ type MessageSigner struct {
 	lk     sync.Mutex
 	mpool  MpoolNonceAPI
 	ds     datastore.Batching
-
-	etcdMutex etcd.Mutex
 }
 
 func NewMessageSigner(wallet api.WalletAPI, mpool MpoolNonceAPI, ds dtypes.MetadataDS) *MessageSigner {
@@ -54,10 +52,16 @@ func (ms *MessageSigner) SignMessage(ctx context.Context, auth []byte, msg *type
 	defer ms.lk.Unlock()
 
 	// etcd lock
-	if err := ms.etcdMutex.Lock(ctx); err != nil {
+	etcdMutex, err := etcd.NewMutex(msg.From.String())
+	if err != nil {
 		return nil, xerrors.Errorf("failed to lock etcd: %w", err)
 	}
-	defer ms.etcdMutex.Unlock(ctx)
+	defer etcdMutex.Close()
+
+	if err := etcdMutex.Lock(ctx); err != nil {
+		return nil, xerrors.Errorf("failed to lock etcd: %w", err)
+	}
+	defer etcdMutex.Unlock(ctx)
 
 	// Get the next message nonce
 	nonce, err := ms.nextNonce(msg.From)
