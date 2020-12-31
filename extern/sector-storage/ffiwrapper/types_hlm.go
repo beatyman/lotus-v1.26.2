@@ -37,10 +37,10 @@ const (
 )
 
 type RemoteCfg struct {
-	SealSector       bool
-	WindowPoSt       int // 0, close remote function, >0, using number of thread to work at the same time.
-	WinningPoSt      int // 0, close remote function, >0, using number of thread to work at the same time.
-	EnableWindowPoSt bool
+	SealSector                  bool
+	WindowPoSt                  int // 0, close remote function, >0, using number of thread to work at the same time.
+	WinningPoSt                 int // 0, close remote function, >0, using number of thread to work at the same time.
+	EnableForceRemoteWindowPoSt bool
 }
 
 type WorkerTaskType int
