@@ -223,6 +223,7 @@ func handleLotus(srcConn net.Conn) {
 			srcConn.Close()
 
 			lotusNodesLock.Lock()
+			bestLotusNode.Close()
 			checkLotusEpoch()
 			lotusNodesLock.Unlock()
 		}
@@ -235,6 +236,7 @@ func handleLotus(srcConn net.Conn) {
 			srcConn.Close()
 
 			lotusNodesLock.Lock()
+			bestLotusNode.Close()
 			checkLotusEpoch()
 			lotusNodesLock.Unlock()
 		}
