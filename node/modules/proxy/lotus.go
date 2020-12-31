@@ -152,7 +152,10 @@ func checkLotusEpoch() {
 
 	// change the best client
 	if len(lotusNodes) > 1 && bestLotusNode != nil {
-		if bestLotusNode.curHeight-lotusNodes[0].curHeight > 3 || !bestLotusNode.IsAlive() {
+		if lotusNodes[0].curHeight-bestLotusNode.curHeight > 3 || !bestLotusNode.IsAlive() {
+			log.Warnf("the best lotus node(%s:%t:%d) is unavailable:%d,%t",
+				bestLotusNode.apiInfo.Addr, bestLotusNode.IsAlive(), bestLotusNode.curHeight, lotusNodes[0].curHeight,
+			)
 			bestLotusNode.Close()
 			bestLotusNode = nil
 		}
