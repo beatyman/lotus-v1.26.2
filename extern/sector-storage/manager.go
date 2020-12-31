@@ -102,9 +102,10 @@ type SealerConfig struct {
 	AllowCommit     bool
 	AllowUnseal     bool
 
-	RemoteSeal   bool
-	RemoteWnPoSt int
-	RemoteWdPoSt int
+	RemoteSeal       bool
+	RemoteWnPoSt     int
+	RemoteWdPoSt     int
+	EnableWindowPoSt bool
 }
 
 type StorageAuth http.Header
@@ -128,9 +129,10 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 	}
 
 	remoteCfg := ffiwrapper.RemoteCfg{
-		SealSector:  sc.RemoteSeal,
-		WindowPoSt:  sc.RemoteWdPoSt,
-		WinningPoSt: sc.RemoteWnPoSt,
+		SealSector:       sc.RemoteSeal,
+		WindowPoSt:       sc.RemoteWdPoSt,
+		WinningPoSt:      sc.RemoteWnPoSt,
+		EnableWindowPoSt: sc.EnableWindowPoSt,
 	}
 
 	prover, err := ffiwrapper.New(remoteCfg, &readonlyProvider{stor: lstor, index: si})

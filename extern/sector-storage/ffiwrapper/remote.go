@@ -459,6 +459,7 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 }
 
 func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
+	log.Info("lookup GenerateWindowPoSt config-> enable wdpost:", sb.remoteCfg.EnableWindowPoSt)
 	if len(sectorInfo) == 0 {
 		return nil, nil, errors.New("not sectors set")
 	}
