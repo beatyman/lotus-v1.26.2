@@ -20,7 +20,6 @@ import (
 	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 	"golang.org/x/xerrors"
 )
 
@@ -68,11 +67,11 @@ func (l *LotusNode) GetConn() (api.FullNode, net.Conn, error) {
 	if l.proxyConn == nil {
 		host, err := l.apiInfo.Host()
 		if err != nil {
-			return nil, nil, errors.As(err)
+			return nil, nil, errors.As(err, host)
 		}
 		conn, err := net.DialTimeout("tcp", host, 30e9)
 		if err != nil {
-			return nil, nil, errors.As(err)
+			return nil, nil, errors.As(err, host)
 		}
 		l.proxyConn = conn
 	}
@@ -85,7 +84,7 @@ func (l *LotusNode) GetConn() (api.FullNode, net.Conn, error) {
 		headers := l.apiInfo.AuthHeader()
 		nApi, closer, err := client.NewFullNodeRPC(l.ctx, addr, headers)
 		if err != nil {
-			return nil, nil, errors.As(err)
+			return nil, nil, errors.As(err, addr)
 		}
 		l.nodeApi = nApi
 		l.nodeCloser = closer
@@ -153,8 +152,9 @@ func checkLotusEpoch() {
 	// change the best client
 	if len(lotusNodes) > 1 && bestLotusNode != nil {
 		if lotusNodes[0].curHeight-bestLotusNode.curHeight > 3 || !bestLotusNode.IsAlive() {
-			log.Warnf("the best lotus node(%s:%t:%d) is unavailable:%d,%t",
-				bestLotusNode.apiInfo.Addr, bestLotusNode.IsAlive(), bestLotusNode.curHeight, lotusNodes[0].curHeight,
+			log.Warnf("the best lotus node %s(%t:%d) is unavailable, best lotus node should be %s(%t:%d)",
+				bestLotusNode.apiInfo.Addr, bestLotusNode.IsAlive(), bestLotusNode.curHeight,
+				lotusNodes[0].apiInfo.Addr, lotusNodes[0].IsAlive(), lotusNodes[0].curHeight,
 			)
 			bestLotusNode.Close()
 			bestLotusNode = nil
@@ -211,7 +211,7 @@ func handleLotus(srcConn net.Conn) {
 	_, targetConn, err := bestLotusNode.GetConn()
 	if err != nil {
 		log.Warn(errors.As(err))
-		baseLotusNode.Close()
+		bestLotusNode.Close()
 		database.Close(srcConn)
 		return
 	}
@@ -222,8 +222,9 @@ func handleLotus(srcConn net.Conn) {
 		if _, err := io.Copy(srcConn, targetConn); err != nil {
 			log.Warn(errors.As(err))
 
-			lotusNodesLock.Lock()
 			bestLotusNode.Close()
+
+			lotusNodesLock.Lock()
 			checkLotusEpoch()
 			lotusNodesLock.Unlock()
 
@@ -236,8 +237,9 @@ func handleLotus(srcConn net.Conn) {
 		if _, err := io.Copy(targetConn, srcConn); err != nil {
 			log.Warn(errors.As(err))
 
-			lotusNodesLock.Lock()
 			bestLotusNode.Close()
+
+			lotusNodesLock.Lock()
 			checkLotusEpoch()
 			lotusNodesLock.Unlock()
 

@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 	"go.etcd.io/etcd/clientv3"
 )
 
