@@ -18,7 +18,7 @@ func Client() (*clientv3.Client, error) {
 	etcMutex.Lock()
 	defer etcMutex.Unlock()
 	if etcdClient == nil {
-		client, err := clientv3.NewFromURL("http://127.0.0.1:2379")
+		client, err := clientv3.NewFromURL("http://127.0.0.1:2379") // local gateway, TODO: make to configuration
 		if err != nil {
 			etcdClient = nil
 			return nil, errors.As(err)

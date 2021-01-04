@@ -109,6 +109,32 @@ cd ~/hlm-miner/
 git checkout testing # 检出最新代码
 . env.sh
 ./install.sh install # hlmd ctl status # 有状态输出为成功
+
+
+```
+
+## 启动etcd服务(此为链依赖项)
+配置/etc/hosts
+```
+127.0.0.1 bootstrap0.etcd.grandhelmsman.com
+127.0.0.1 bootstrap1.etcd.grandhelmsman.com
+127.0.0.1 bootstrap2.etcd.grandhelmsman.com
+```
+启动etcd服务
+```
+hlmd ctl start etcd-bootstrap-0 
+hlmd ctl start etcd-bootstrap-1
+hlmd ctl start etcd-bootstrap-2 
+hlmd ctl start etcd-gwateway
+```
+
+链接入etcd部署的图, etcd-gateway需要在链节点上启动, 同一个物理节点的进程共用一个gateway
+```text
+ectd0   etcd1   etcd2
+    \     |     /
+    etcd-gateway
+          |
+        lotus
 ```
 
 ## 创建本地开发网络
@@ -183,7 +209,7 @@ shell 4，导入存储节点
 ```
 cd ~/hlm-miner/script/lotus/lotus-user/
 
-# 添加存储节点
+# 添加存储节点(含sealed与unsealed存储在里边)
 ./init-storage-dev.sh
 
 # 运行刷量
@@ -223,6 +249,8 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 /data/cache/.lotusworker -- lotus-seal-worker计算缓存目录，计算结束后会自动清除，需要1T左右空间
 /data/cache/tmp -- 程序$TMPDIR设定的目录
 /data/lotus-push -- 计算结果推送目录，会自动单独挂载盘，可选
+/data/lotus-cache -- 新的缓存盘结构
+/data/lotus-backup -- 备份使用的目录入口
 
 # 矿工数据盘
 /data/sd(?) -- 矿工存储数据目录(前期设计多进程时对应多盘位), 可单独挂载盘，默认为/data/sdb
