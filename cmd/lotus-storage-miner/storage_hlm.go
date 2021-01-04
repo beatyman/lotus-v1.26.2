@@ -502,7 +502,7 @@ var statusHLMStorageCmd = &cli.Command{
 		}
 		fmt.Printf("all:%d, good:%d, bad:%d, disable:%d\n", len(stats), len(good), len(bad), len(disable))
 		fmt.Println("=================================")
-		fmt.Println("======== miner node ==========")
+		fmt.Println("=========== miner node ==========")
 		minerStorageStatus, err := nodeApi.StatusMinerStorage(ctx)
 		if err != nil {
 			fmt.Println(err.Error())
