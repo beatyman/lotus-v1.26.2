@@ -364,7 +364,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		pieceInfo := task.Pieces
 		rspco, err := sealer.SealPreCommit1(ctx, sector, task.SealTicket, pieceInfo)
 
-		// rspco, err := ffiwrapper.ExecPrecommit1(ctx, w.workerRepo, task)
+		// rspco, err := ffiwrapper.ExecPrecommit1(ctx, sealer.RepoPath(), task)
 		res.PreCommit1Out = rspco
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
@@ -373,8 +373,8 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 	case ffiwrapper.WorkerPreCommit2:
-		out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
-		//out, err := ffiwrapper.ExecPrecommit2(ctx, w.workerRepo, task)
+		//out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
+		out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
 		res.PreCommit2Out = out
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
