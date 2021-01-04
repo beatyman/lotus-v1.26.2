@@ -562,8 +562,8 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 	selectCommit2ServiceLock.Lock()
 	handler := func(r *remote) {
 		endTime := time.Now().Unix()
-		minerId := "t0" + sector.Miner.String()
-		sectorId := "s-" + minerId + "-" + sector.Number.String()
+		minerId := "s-t0" + sector.Miner.String()
+		sectorId := minerId + "-" + sector.Number.String()
 		log.Infof("Report sector in:%v", sectorId)
 		err := CollectSectorC2StateInfo(endTime, minerId, sectorId, r.cfg)
 		if err != nil {
