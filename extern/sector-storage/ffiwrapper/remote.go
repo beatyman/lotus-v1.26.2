@@ -2,6 +2,7 @@ package ffiwrapper
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"sync"
@@ -323,6 +324,15 @@ func (sb *Sealer) unsealPieceRemote(call workerCall) error {
 func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error {
 	log.Infof("DEBUG:UnsealPiece in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:UnsealPiece out,%+v", sector)
+
+	// TODO: unseal with concurrency
+	// TODO: make global lock
+	unsealKey := fmt.Sprintf("unsealing-%s", sectorName(sector.ID))
+	_, exist := sb.unsealing.LoadOrStore(unsealKey, true)
+	if exist {
+		return errors.New("the sector is unsealing").As(sectorName(sector.ID))
+	}
+	defer sb.unsealing.Delete(unsealKey)
 
 	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
 		if err := autoPrecommit1Env(ctx); err != nil {
