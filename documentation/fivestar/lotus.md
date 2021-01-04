@@ -219,6 +219,12 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 ./miner.sh --help
 ```
 
+shell 4, 运行wdpost
+```
+cd ~/hlm-miner/apps/lotus
+./worker-wdpost.sh # 或者直接hlmd ctl start lotus-worker-wdpost, hlmd ctl tail lotus-worker-wdpost stderr -f 看日志
+```
+
 shell 5, 运行worker
 ```
 cd ~/hlm-miner/apps/lotus

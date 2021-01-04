@@ -467,11 +467,17 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s,session:%s", sb.remoteCfg.SealSector, minerID, sessionKey)
 	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s,session:%s", minerID, sessionKey)
 
+	// using local mode
+	if sb.remoteCfg.WindowPoSt == 0 {
+		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+	}
+
 	type req = struct {
 		remote *remote
 		task   *WorkerTask
 	}
 	remotes := []*req{}
+waitonline:
 	for i := 0; i < sb.remoteCfg.WindowPoSt; i++ {
 		task := WorkerTask{
 			Type:       WorkerWindowPoSt,
@@ -489,8 +495,9 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		log.Infof("Selected GpuService:%s", r.cfg.SvcUri)
 	}
 	if len(remotes) == 0 {
-		log.Info("No GpuService Found, using local mode")
-		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+		log.Warn("No remotes found, waitting online")
+		time.Sleep(3e9)
+		goto waitonline
 	}
 
 	type resp struct {
