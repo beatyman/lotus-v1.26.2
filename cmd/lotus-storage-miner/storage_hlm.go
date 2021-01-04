@@ -483,6 +483,7 @@ var statusHLMStorageCmd = &cli.Command{
 		good := []database.StorageStatus{}
 		bad := []database.StorageStatus{}
 		disable := []database.StorageStatus{}
+		fmt.Println("======== storage nodes ==========")
 		for _, stat := range stats {
 			if debug {
 				fmt.Printf("%+v\n", stat)
@@ -500,6 +501,15 @@ var statusHLMStorageCmd = &cli.Command{
 			good = append(good, stat)
 		}
 		fmt.Printf("all:%d, good:%d, bad:%d, disable:%d\n", len(stats), len(good), len(bad), len(disable))
+		fmt.Println("=================================")
+		fmt.Println("======== miner node ==========")
+		minerStorageStatus, err := nodeApi.StatusMinerStorage(ctx)
+		if err != nil {
+			fmt.Println(err.Error())
+		} else {
+			fmt.Println(string(minerStorageStatus))
+		}
+		fmt.Println("=================================")
 		return nil
 	},
 }

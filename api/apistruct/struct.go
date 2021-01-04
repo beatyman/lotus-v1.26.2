@@ -386,6 +386,7 @@ type StorageMinerStruct struct {
 
 		ProxyStatus          func(ctx context.Context) ([]api.ProxyStatus, error)                                      `perm:"read"`
 		ProxyReload          func(ctx context.Context) error                                                           `perm:"write"`
+		StatusMinerStorage   func(ctx context.Context) ([]byte, error)                                                 `perm:"read"`
 		RunPledgeSector      func(context.Context) error                                                               `perm:"write"`
 		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
 		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
@@ -1308,6 +1309,9 @@ func (c *StorageMinerStruct) ProxyStatus(ctx context.Context) ([]api.ProxyStatus
 }
 func (c *StorageMinerStruct) ProxyReload(ctx context.Context) error {
 	return c.Internal.ProxyReload(ctx)
+}
+func (c *StorageMinerStruct) StatusMinerStorage(ctx context.Context) ([]byte, error) {
+	return c.Internal.StatusMinerStorage(ctx)
 }
 func (c *StorageMinerStruct) RunPledgeSector(ctx context.Context) error {
 	return c.Internal.RunPledgeSector(ctx)
