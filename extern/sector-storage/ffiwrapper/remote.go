@@ -2,10 +2,11 @@ package ffiwrapper
 
 import (
 	"context"
-	"math"
 	"encoding/json"
+	"fmt"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
 	"github.com/filecoin-project/lotus/lib/report"
+	"math"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -327,6 +328,16 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, off
 	log.Infof("DEBUG:UnsealPiece in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:UnsealPiece out,%+v", sector)
 
+	// TODO: unseal with concurrency
+	// TODO: make global lock
+	unsealKey := fmt.Sprintf("unsealing-%s", sectorName(sector.ID))
+	_, exist := sb.unsealing.Load(unsealKey)
+	if exist {
+		return errors.New("the sector is unsealing").As(sectorName(sector.ID))
+	}
+	sb.unsealing.Store(unsealKey, true)
+	defer sb.unsealing.Delete(unsealKey)
+
 	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
 		if err := autoPrecommit1Env(ctx); err != nil {
 			return errors.As(err)
@@ -549,14 +560,14 @@ var selectCommit2ServiceLock = sync.Mutex{}
 func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*WorkerCfg, error) {
 	log.Infof("SelectCommit2Service in:s-t%d-%d", sector.Miner, sector.Number)
 	selectCommit2ServiceLock.Lock()
-	handler:= func(r *remote) {
+	handler := func(r *remote) {
 		endTime := time.Now().Unix()
-		minerId := "t"+sector.Miner.String()
+		minerId := "t0" + sector.Miner.String()
 		sectorId := "s-" + minerId + "-" + sector.Number.String()
-		log.Infof("Report sector in:%v",sectorId)
-		err := CollectSectorC2StateInfo(endTime,minerId,sectorId,r.cfg)
+		log.Infof("Report sector in:%v", sectorId)
+		err := CollectSectorC2StateInfo(endTime, minerId, sectorId, r.cfg)
 		if err != nil {
-		    log.Error("Sector-Report Err,SectorId:%d",sector.Number,err)
+			log.Error("Sector-Report Err,SectorId:%d", sector.Number, err)
 		}
 	}
 	defer func() {
@@ -595,15 +606,15 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 	return nil, errors.New("not reach here").As(sid)
 }
 
-func CollectSectorC2StateInfo(endTime int64,minerId string,sectorId string, workercfg WorkerCfg) error {
+func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, workercfg WorkerCfg) error {
 	sectorStateInfo := &buriedmodel.SectorState{
-		MinerID:    minerId,
-		WorkerID:   workercfg.ID,
-		ClientIP:   workercfg.IP,
+		MinerID:  minerId,
+		WorkerID: workercfg.ID,
+		ClientIP: workercfg.IP,
 		//		SectorSize: task.SectorStorage.StorageInfo.SectorSize,
 		// SectorID: storage.SectorName(m.minerSectorID(state.SectorNumber)),
-		SectorID: sectorId,
-		State: "Commit2WaitDone",
+		SectorID:   sectorId,
+		State:      "Commit2WaitDone",
 		CreateTime: endTime,
 		StatusType: "02",
 	}
@@ -621,7 +632,7 @@ func CollectSectorC2StateInfo(endTime int64,minerId string,sectorId string, work
 		log.Error(err)
 	}
 
-	log.Errorf("\nreqData => %v", reqData)
+	log.Errorf("\nreqData => %v", sectorStateInfo)
 	report.SendReport(reqDataBytes)
 
 	sectorStateInfo.CreateTime = endTime
@@ -639,7 +650,7 @@ func CollectSectorC2StateInfo(endTime int64,minerId string,sectorId string, work
 	if err != nil {
 		log.Error(err)
 	}
-	log.Errorf("\nreqData => %v", reqData)
+	log.Errorf("\nreqData => %v", sectorStateInfo)
 	report.SendReport(reqDataBytes)
 	return nil
 }
