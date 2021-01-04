@@ -275,7 +275,7 @@ var walletExport = &cli.Command{
 			return err
 		}
 
-		ki, err := api.WalletExport(ctx, build.GetHlmAuth(), addr)
+		ki, err := api.WalletExport(ctx, build.GetHlmAuth(addr), addr)
 		if err != nil {
 			return err
 		}
@@ -415,7 +415,7 @@ var walletSign = &cli.Command{
 			return err
 		}
 
-		sig, err := api.WalletSign(ctx, build.GetHlmAuth(), addr, msg)
+		sig, err := api.WalletSign(ctx, build.GetHlmAuth(addr), addr, msg)
 
 		if err != nil {
 			return err
@@ -501,7 +501,7 @@ var walletDelete = &cli.Command{
 			return err
 		}
 
-		return api.WalletDelete(ctx, build.GetHlmAuth(), addr)
+		return api.WalletDelete(ctx, build.GetHlmAuth(addr), addr)
 	},
 }
 

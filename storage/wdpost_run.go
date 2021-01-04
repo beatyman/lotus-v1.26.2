@@ -339,7 +339,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 		return recoveries, nil, err
 	}
 
-	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)})
+	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(msg.From), msg, &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)})
 	if err != nil {
 		return recoveries, sm, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
@@ -426,7 +426,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 		return faults, nil, err
 	}
 
-	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, spec)
+	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(msg.From), msg, spec)
 	if err != nil {
 		return faults, sm, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
@@ -807,7 +807,7 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	}
 
 	// TODO: consider maybe caring about the output
-	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, spec)
+	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(msg.From), msg, spec)
 
 	if err != nil {
 		return nil, xerrors.Errorf("pushing message to mpool: %w", err)

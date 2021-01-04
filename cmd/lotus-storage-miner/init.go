@@ -24,10 +24,10 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	cborutil "github.com/filecoin-project/go-cbor-util"
+	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-statestore"
-	paramfetch "github.com/filecoin-project/go-paramfetch"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
@@ -591,7 +591,7 @@ func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.
 		GasPremium: gasPrice,
 	}
 
-	smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+	smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(mi.Worker), msg, nil)
 	if err != nil {
 		return err
 	}
@@ -639,7 +639,7 @@ func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, 
 	// make sure the worker account exists on chain
 	_, err = api.StateLookupID(ctx, worker, types.EmptyTSK)
 	if err != nil {
-		signed, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+		signed, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(owner), &types.Message{
 			From:  owner,
 			To:    worker,
 			Value: types.NewInt(0),
@@ -701,7 +701,7 @@ func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, 
 		GasPremium: gasPrice,
 	}
 
-	signed, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), createStorageMinerMsg, nil)
+	signed, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(sender), createStorageMinerMsg, nil)
 	if err != nil {
 		return address.Undef, xerrors.Errorf("pushing createMiner message: %w", err)
 	}

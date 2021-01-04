@@ -275,7 +275,7 @@ func (s SealingAPIAdapter) SendMsg(ctx context.Context, from, to address.Address
 		Params: params,
 	}
 
-	smsg, err := s.delegate.MpoolPushMessage(ctx, build.GetHlmAuth(), &msg, &api.MessageSendSpec{MaxFee: maxFee})
+	smsg, err := s.delegate.MpoolPushMessage(ctx, build.GetHlmAuth(from), &msg, &api.MessageSendSpec{MaxFee: maxFee})
 	if err != nil {
 		return cid.Undef, err
 	}

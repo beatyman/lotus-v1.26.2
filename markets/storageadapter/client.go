@@ -99,7 +99,7 @@ func (c *ClientNodeAdapter) VerifySignature(ctx context.Context, sig crypto.Sign
 // Adds funds with the StorageMinerActor for a storage participant.  Used by both providers and clients.
 func (c *ClientNodeAdapter) AddFunds(ctx context.Context, addr address.Address, amount abi.TokenAmount) (cid.Cid, error) {
 	// (Provider Node API)
-	smsg, err := c.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+	smsg, err := c.MpoolPushMessage(ctx, build.GetHlmAuth(addr), &types.Message{
 		To:     miner2.StorageMarketActorAddr,
 		From:   addr,
 		Value:  amount,
@@ -326,7 +326,7 @@ func (c *ClientNodeAdapter) SignProposal(ctx context.Context, signer address.Add
 		return nil, err
 	}
 
-	sig, err := c.Wallet.WalletSign(ctx, build.GetHlmAuth(), signer, buf, api.MsgMeta{
+	sig, err := c.Wallet.WalletSign(ctx, build.GetHlmAuth(signer), signer, buf, api.MsgMeta{
 		Type: api.MTDealProposal,
 	})
 	if err != nil {
@@ -381,7 +381,7 @@ func (c *ClientNodeAdapter) SignBytes(ctx context.Context, signer address.Addres
 		return nil, err
 	}
 
-	localSignature, err := c.Wallet.WalletSign(ctx, build.GetHlmAuth(), signer, b, api.MsgMeta{
+	localSignature, err := c.Wallet.WalletSign(ctx, build.GetHlmAuth(signer), signer, b, api.MsgMeta{
 		Type: api.MTUnknown, // TODO: pass type here
 	})
 	if err != nil {

@@ -266,7 +266,7 @@ var mpoolFix = &cli.Command{
 			}
 
 			if do {
-				smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), newMsg.From, &newMsg)
+				smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(newMsg.From), newMsg.From, &newMsg)
 				if err != nil {
 					return fmt.Errorf("failed to sign message: %w", err)
 				}
@@ -748,7 +748,7 @@ var mpoolReplaceCmd = &cli.Command{
 			return nil
 		}
 
-		smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), msg.From, &msg)
+		smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(msg.From), msg.From, &msg)
 		if err != nil {
 			return fmt.Errorf("failed to sign message: %w", err)
 		}

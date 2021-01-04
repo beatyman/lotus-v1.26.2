@@ -111,7 +111,7 @@ var noncefix = &cli.Command{
 				GasFeeCap:  feeCap,
 				GasPremium: abi.NewTokenAmount(5),
 			}
-			smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), addr, msg)
+			smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(addr), addr, msg)
 			if err != nil {
 				return err
 			}

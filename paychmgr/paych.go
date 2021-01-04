@@ -133,7 +133,7 @@ func (ca *channelAccessor) createVoucher(ctx context.Context, ch address.Address
 		return nil, xerrors.Errorf("failed to get voucher signing bytes: %w", err)
 	}
 
-	sig, err := ca.api.WalletSign(ctx, build.GetHlmAuth(), ci.Control, vb)
+	sig, err := ca.api.WalletSign(ctx, build.GetHlmAuth(ci.Control), ci.Control, vb)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to sign voucher: %w", err)
 	}
@@ -422,7 +422,7 @@ func (ca *channelAccessor) submitVoucher(ctx context.Context, ch address.Address
 		return cid.Undef, err
 	}
 
-	smsg, err := ca.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+	smsg, err := ca.api.MpoolPushMessage(ctx, build.GetHlmAuth(ci.Control), msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -579,7 +579,7 @@ func (ca *channelAccessor) settle(ctx context.Context, ch address.Address) (cid.
 	if err != nil {
 		return cid.Undef, err
 	}
-	smgs, err := ca.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+	smgs, err := ca.api.MpoolPushMessage(ctx, build.GetHlmAuth(ci.Control), msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -612,7 +612,7 @@ func (ca *channelAccessor) collect(ctx context.Context, ch address.Address) (cid
 		return cid.Undef, err
 	}
 
-	smsg, err := ca.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+	smsg, err := ca.api.MpoolPushMessage(ctx, build.GetHlmAuth(ci.Control), msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}

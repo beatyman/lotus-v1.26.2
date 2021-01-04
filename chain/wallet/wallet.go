@@ -62,7 +62,7 @@ func KeyWallet(keys ...*Key) *LocalWallet {
 
 func (w *LocalWallet) WalletSign(ctx context.Context, auth []byte, addr address.Address, msg []byte, meta api.MsgMeta) (*crypto.Signature, error) {
 	// implement hlm auth
-	if !build.IsHlmAuth(auth) {
+	if !build.IsHlmAuth(addr.String(), auth) {
 		return nil, xerrors.Errorf("wallet auth failed, please conntact administrator.")
 	}
 	// implement hlm end
@@ -142,7 +142,7 @@ func (w *LocalWallet) tryFind(addr address.Address) (types.KeyInfo, error) {
 
 func (w *LocalWallet) WalletExport(ctx context.Context, auth []byte, addr address.Address) (*types.KeyInfo, error) {
 	// implement hlm auth
-	if !build.IsHlmAuth(auth) {
+	if !build.IsHlmAuth(addr.String(), auth) {
 		return nil, xerrors.Errorf("wallet auth failed, please conntact administrator.")
 	}
 	// implement hlm end
@@ -284,7 +284,7 @@ func (w *LocalWallet) WalletHas(ctx context.Context, addr address.Address) (bool
 
 func (w *LocalWallet) walletDelete(ctx context.Context, auth []byte, addr address.Address) error {
 	// implement hlm auth
-	if !build.IsHlmAuth(auth) {
+	if !build.IsHlmAuth(addr.String(), auth) {
 		return xerrors.Errorf("wallet auth failed, please conntact administrator.")
 	}
 	// implement hlm end

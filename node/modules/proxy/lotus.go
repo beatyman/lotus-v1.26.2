@@ -264,6 +264,8 @@ func RealoadLotusProxy(ctx context.Context) error {
 }
 
 func loadLotusProxy(ctx context.Context, cfgFile string) error {
+	lotusProxyCfg = cfgFile
+
 	// phare proxy addr
 	cfgData, err := ioutil.ReadFile(cfgFile)
 	if err != nil {
@@ -331,7 +333,6 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 		return errors.As(err)
 	}
 	log.Infof("using lotus proxy: %s", host)
-	lotusProxyCfg = cfgFile
 	lotusProxyCloser = closer
 	lotusProxyAddr = &proxyAddr
 	return nil

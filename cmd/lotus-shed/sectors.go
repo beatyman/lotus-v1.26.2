@@ -135,7 +135,7 @@ var terminateSectorCmd = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := nodeApi.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+		smsg, err := nodeApi.MpoolPushMessage(ctx, build.GetHlmAuth(mi.Owner), &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: miner.Methods.TerminateSectors,

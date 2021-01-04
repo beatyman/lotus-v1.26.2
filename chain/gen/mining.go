@@ -122,7 +122,7 @@ func MinerCreateBlock(ctx context.Context, sm *stmgr.StateManager, w api.WalletA
 		return nil, xerrors.Errorf("failed to get signing bytes for block: %w", err)
 	}
 
-	sig, err := w.WalletSign(ctx, build.GetHlmAuth(), worker, nosigbytes, api.MsgMeta{
+	sig, err := w.WalletSign(ctx, build.GetHlmAuth(worker), worker, nosigbytes, api.MsgMeta{
 		Type: api.MTBlock,
 	})
 	if err != nil {

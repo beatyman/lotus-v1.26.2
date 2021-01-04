@@ -539,7 +539,7 @@ func getRandomMessages(cg *ChainGen) ([]*types.SignedMessage, error) {
 			GasPremium: types.NewInt(0),
 		}
 
-		sig, err := cg.w.WalletSign(context.TODO(), build.GetHlmAuth(), cg.banker, msg.Cid().Bytes(), api.MsgMeta{
+		sig, err := cg.w.WalletSign(context.TODO(), build.GetHlmAuth(cg.banker), cg.banker, msg.Cid().Bytes(), api.MsgMeta{
 			Type: api.MTUnknown, // testing
 		})
 		if err != nil {
@@ -668,7 +668,7 @@ func VerifyVRF(ctx context.Context, worker address.Address, vrfBase, vrfproof []
 }
 
 func ComputeVRF(ctx context.Context, sign SignFunc, worker address.Address, sigInput []byte) ([]byte, error) {
-	sig, err := sign(ctx, build.GetHlmAuth(), worker, sigInput)
+	sig, err := sign(ctx, build.GetHlmAuth(worker), worker, sigInput)
 	if err != nil {
 		return nil, err
 	}

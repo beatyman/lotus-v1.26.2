@@ -79,7 +79,7 @@ var verifRegAddVerifierCmd = &cli.Command{
 			return err
 		}
 
-		smsg, err := api.MsigPropose(ctx, vrk, verifreg.Address, big.Zero(), sender, uint64(verifreg.Methods.AddVerifier), params)
+		smsg, err := api.MsigPropose(ctx, build.GetHlmAuth(vrk), vrk, verifreg.Address, big.Zero(), sender, uint64(verifreg.Methods.AddVerifier), params)
 		if err != nil {
 			return err
 		}
@@ -154,7 +154,7 @@ var verifRegVerifyClientCmd = &cli.Command{
 			Params: params,
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(fromk), msg, nil)
 		if err != nil {
 			return err
 		}

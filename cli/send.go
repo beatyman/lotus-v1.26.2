@@ -146,7 +146,7 @@ var sendCmd = &cli.Command{
 
 		if cctx.IsSet("nonce") {
 			msg.Nonce = cctx.Uint64("nonce")
-			sm, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), fromAddr, msg)
+			sm, err := api.WalletSignMessage(ctx, build.GetHlmAuth(fromAddr), fromAddr, msg)
 			if err != nil {
 				return err
 			}
@@ -157,7 +157,7 @@ var sendCmd = &cli.Command{
 			}
 			fmt.Println(sm.Cid())
 		} else {
-			sm, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+			sm, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(fromAddr), msg, nil)
 			if err != nil {
 				return err
 			}
