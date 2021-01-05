@@ -328,11 +328,10 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, off
 	// TODO: unseal with concurrency
 	// TODO: make global lock
 	unsealKey := fmt.Sprintf("unsealing-%s", sectorName(sector.ID))
-	_, exist := sb.unsealing.Load(unsealKey)
+	_, exist := sb.unsealing.LoadOrStore(unsealKey, true)
 	if exist {
 		return errors.New("the sector is unsealing").As(sectorName(sector.ID))
 	}
-	sb.unsealing.Store(unsealKey, true)
 	defer sb.unsealing.Delete(unsealKey)
 
 	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
