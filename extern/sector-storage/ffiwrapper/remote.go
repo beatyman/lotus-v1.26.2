@@ -473,7 +473,7 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		task   *WorkerTask
 	}
 	remotes := []*req{}
-	var retrycount int = 10
+	var retrycount int = 0
 retryselect:
 	for i := 0; i < sb.remoteCfg.WindowPoSt; i++ {
 		task := WorkerTask{
@@ -492,14 +492,14 @@ retryselect:
 		log.Infof("Selected GpuService:%s", r.cfg.SvcUri)
 	}
 	if len(remotes) == 0 && sb.remoteCfg.EnableForceRemoteWindowPoSt {
-		if retrycount < 10 {
+		if retrycount < 60 {
 			log.Warn("select gpuservice retry count:", retrycount)
-			time.Sleep(60 * time.Second)
+			time.Sleep(10 * time.Second)
+			retrycount++
 			goto retryselect
 		}
 		log.Error("timeout for select gpuservice,no gpu service found")
 		return nil, nil, errors.New("timeout for select gpuservice,no gpu service found")
-
 	}
 	if len(remotes) == 0 {
 		log.Info("No GpuService Found, using local mode")
