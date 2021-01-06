@@ -29,7 +29,7 @@ func (sm *StorageMinerAPI) ProxyReload(ctx context.Context) error {
 	return proxy.RealoadLotusProxy(ctx)
 }
 func (sm *StorageMinerAPI) StatusMinerStorage(ctx context.Context) ([]byte, error) {
-	return exec.CommandContext(ctx, "zpool", "status").CombinedOutput()
+	return exec.CommandContext(ctx, "zpool", "status", "-x").CombinedOutput()
 }
 func (sm *StorageMinerAPI) WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error {
 	return sm.Miner.WdpostEnablePartitionSeparate(enable)
