@@ -470,10 +470,14 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 }
 
 func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
+	log.Info("lookup GenerateForceRemoteWindowPoSt config-> enable wdpost:", sb.remoteCfg.EnableForceRemoteWindowPoSt)
 	if len(sectorInfo) == 0 {
 		return nil, nil, errors.New("not sectors set")
 	}
-
+	if sb.remoteCfg.WindowPoSt==0{
+		log.Info("No GpuService count needed, using local mode")
+		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+	}
 	sessionKey := uuid.New().String()
 	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s,session:%s", sb.remoteCfg.SealSector, minerID, sessionKey)
 	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s,session:%s", minerID, sessionKey)
@@ -483,6 +487,8 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		task   *WorkerTask
 	}
 	remotes := []*req{}
+	var retrycount int = 0
+retryselect:
 	for i := 0; i < sb.remoteCfg.WindowPoSt; i++ {
 		task := WorkerTask{
 			Type:       WorkerWindowPoSt,
@@ -500,10 +506,15 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		log.Infof("Selected GpuService:%s", r.cfg.SvcUri)
 	}
 	if len(remotes) == 0 {
-		log.Info("No GpuService Found, using local mode")
-		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+		if retrycount < 60 {
+			log.Warn("select gpuservice retry count:", retrycount)
+			time.Sleep(10 * time.Second)
+			retrycount++
+			goto retryselect
+		}
+		log.Error("timeout for select gpuservice,no gpu service found")
+		return nil, nil, errors.New("timeout for select gpuservice,no gpu service found")
 	}
-
 	type resp struct {
 		res       SealRes
 		interrupt bool

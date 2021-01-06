@@ -139,6 +139,8 @@ type StorageMiner interface {
 	CheckProvable(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error)
 
 	// implements by hlm
+	WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error
+	WdpostSetPartitionNumber(ctx context.Context, number int) error
 	Testing(ctx context.Context, fnName string, args []string) error
 	RunPledgeSector(context.Context) error
 	StatusPledgeSector(context.Context) (int, error)

@@ -383,33 +383,35 @@ type StorageMinerStruct struct {
 		CheckProvable func(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error) `perm:"admin"`
 
 		// implements by hlm
-		RunPledgeSector      func(context.Context) error                                                               `perm:"write"`
-		StatusPledgeSector   func(context.Context) (int, error)                                                        `perm:"read"`
-		StopPledgeSector     func(context.Context) error                                                               `perm:"write"`
-		HlmSectorGetState    func(ctx context.Context, sid string) (*database.SectorInfo, error)                       `perm:"read"`
-		HlmSectorSetState    func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)   `perm:"write"`
-		HlmSectorListAll     func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
-		HlmSectorFile        func(ctx context.Context, sid string) (*storage.SectorFile, error)                        `perm:"read"`
-		HlmSectorCheck       func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)       `perm:"read"`
-		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
-		UnlockGPUService     func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
-		PauseSeal            func(ctx context.Context, pause int32) error                                              `perm:"write"`
-		WorkerAddress        func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
-		WorkerStatus         func(context.Context) (ffiwrapper.WorkerStats, error)                                     `perm:"read"`
-		WorkerStatusAll      func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
-		WorkerQueue          func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
-		WorkerWorking        func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
-		WorkerWorkingById    func(ctx context.Context, sid []string) (database.WorkingSectors, error)                  `perm:"read"`
-		WorkerLock           func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
-		WorkerUnlock         func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
-		WorkerGcLock         func(ctx context.Context, workerId string) ([]string, error)                              `perm:"write"`
-		WorkerDone           func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
-		WorkerInfo           func(ctx context.Context, wid string) (*database.WorkerInfo, error)                       `perm:"read"`
-		WorkerSearch         func(ctx context.Context, ip string) ([]database.WorkerInfo, error)                       `perm:"read"`
-		WorkerDisable        func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
-		WorkerAddConn        func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
-		WorkerPreConn        func(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)                 `perm:"read"`
-		WorkerMinerConn      func(ctx context.Context) (int, error)                                                    `perm:"read"`
+		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                              `perm:"write"`
+		WdpostSetPartitionNumber      func(ctx context.Context, number int) error                                               `perm:"write"`
+		RunPledgeSector               func(context.Context) error                                                               `perm:"write"`
+		StatusPledgeSector            func(context.Context) (int, error)                                                        `perm:"read"`
+		StopPledgeSector              func(context.Context) error                                                               `perm:"write"`
+		HlmSectorGetState             func(ctx context.Context, sid string) (*database.SectorInfo, error)                       `perm:"read"`
+		HlmSectorSetState             func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)   `perm:"write"`
+		HlmSectorListAll              func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
+		HlmSectorFile                 func(ctx context.Context, sid string) (*storage.SectorFile, error)                        `perm:"read"`
+		HlmSectorCheck                func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)       `perm:"read"`
+		SelectCommit2Service          func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
+		UnlockGPUService              func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
+		PauseSeal                     func(ctx context.Context, pause int32) error                                              `perm:"write"`
+		WorkerAddress                 func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
+		WorkerStatus                  func(context.Context) (ffiwrapper.WorkerStats, error)                                     `perm:"read"`
+		WorkerStatusAll               func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
+		WorkerQueue                   func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
+		WorkerWorking                 func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
+		WorkerWorkingById             func(ctx context.Context, sid []string) (database.WorkingSectors, error)                  `perm:"read"`
+		WorkerLock                    func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
+		WorkerUnlock                  func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
+		WorkerGcLock                  func(ctx context.Context, workerId string) ([]string, error)                              `perm:"write"`
+		WorkerDone                    func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
+		WorkerInfo                    func(ctx context.Context, wid string) (*database.WorkerInfo, error)                       `perm:"read"`
+		WorkerSearch                  func(ctx context.Context, ip string) ([]database.WorkerInfo, error)                       `perm:"read"`
+		WorkerDisable                 func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
+		WorkerAddConn                 func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
+		WorkerPreConn                 func(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)                 `perm:"read"`
+		WorkerMinerConn               func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
 		Testing                func(ctx context.Context, fnName string, args []string) error                                 `perm:"admin"`
 		VerHLMStorage          func(ctx context.Context) (int64, error)                                                      `perm:"read"`
@@ -1300,6 +1302,13 @@ func (c *FullNodeStruct) CreateBackup(ctx context.Context, fpath string) error {
 // StorageMinerStruct
 
 // implements by hlm start
+func (c *StorageMinerStruct) WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error {
+	return c.Internal.WdpostEnablePartitionSeparate(ctx, enable)
+}
+func (c *StorageMinerStruct) WdpostSetPartitionNumber(ctx context.Context, number int) error {
+	return c.Internal.WdpostSetPartitionNumber(ctx, number)
+}
+
 func (c *StorageMinerStruct) RunPledgeSector(ctx context.Context) error {
 	return c.Internal.RunPledgeSector(ctx)
 }
