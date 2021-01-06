@@ -27,6 +27,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -680,6 +681,9 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 	return posts, nil
 }
 
+var PartitionsPerMsg int = 1
+var EnableSeparatePartition bool = false
+
 func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]api.Partition, error) {
 	// We don't want to exceed the number of sectors allowed in a message.
 	// So given the number of sectors in a partition, work out the number of
@@ -691,10 +695,18 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]a
 	// sectors per partition    3:  ooo
 	// partitions per message   2:  oooOOO
 	//                              <1><2> (3rd doesn't fit)
+	log.Info("lookup:s.proofType:", s.proofType)
 	partitionsPerMsg, err := policy.GetMaxPoStPartitions(s.proofType)
+	log.Info("lookup:partitionsPerMsg", partitionsPerMsg)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sectors per partition: %w", err)
 	}
+	//var partitionsPerMsg int = 1
+	if EnableSeparatePartition {
+		log.Info("EnableSeparatePartition")
+		partitionsPerMsg = PartitionsPerMsg
+	}
+	log.Info("lookup wdpost config, enable:", EnableSeparatePartition, "partitionsPerMsg:", partitionsPerMsg)
 
 	// The number of messages will be:
 	// ceiling(number of partitions / partitions per message)

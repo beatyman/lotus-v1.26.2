@@ -22,7 +22,7 @@ var (
 )
 
 var minGasCap int64 =0
-
+var maxGasCap int64 =0
 func loadConfig(ds dtypes.MetadataDS) (*types.MpoolConfig, error) {
 	haveCfg, err := ds.Has(ConfigKey)
 	if err != nil {
@@ -40,6 +40,7 @@ func loadConfig(ds dtypes.MetadataDS) (*types.MpoolConfig, error) {
 	cfg := new(types.MpoolConfig)
 	err = json.Unmarshal(cfgBytes, cfg)
 	minGasCap = cfg.MinGasCap
+	maxGasCap=cfg.MaxGasCap
 	return cfg, err
 }
 
@@ -48,6 +49,7 @@ func saveConfig(cfg *types.MpoolConfig, ds dtypes.MetadataDS) error {
 	if err != nil {
 		return err
 	}
+	minGasCap = cfg.MinGasCap
 	minGasCap = cfg.MinGasCap
 	return ds.Put(ConfigKey, cfgBytes)
 }

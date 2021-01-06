@@ -31,6 +31,13 @@ func (sm *StorageMinerAPI) ProxyReload(ctx context.Context) error {
 func (sm *StorageMinerAPI) StatusMinerStorage(ctx context.Context) ([]byte, error) {
 	return exec.CommandContext(ctx, "zpool", "status").CombinedOutput()
 }
+func (sm *StorageMinerAPI) WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error {
+	return sm.Miner.WdpostEnablePartitionSeparate(enable)
+}
+func (sm *StorageMinerAPI) WdpostSetPartitionNumber(ctx context.Context, number int) error {
+	return sm.Miner.WdpostSetPartitionNumber(number)
+}
+
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
 	return sm.Miner.RunPledgeSector()
 }

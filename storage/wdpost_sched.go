@@ -44,6 +44,11 @@ type WindowPoStScheduler struct {
 }
 
 func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, as *AddressSelector, sb storage.Prover, ft sectorstorage.FaultTracker, j journal.Journal, actor address.Address) (*WindowPoStScheduler, error) {
+	log.Info("lookup default config: EnableSeparatePartition::", fc.EnableSeparatePartition, "PartitionsPerMsg::", fc.PartitionsPerMsg)
+	EnableSeparatePartition = fc.EnableSeparatePartition
+	if EnableSeparatePartition && fc.PartitionsPerMsg != 0 {
+		PartitionsPerMsg = fc.PartitionsPerMsg
+	}
 	mi, err := api.StateMinerInfo(context.TODO(), actor, types.EmptyTSK)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sector size: %w", err)
