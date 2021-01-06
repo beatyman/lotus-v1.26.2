@@ -36,7 +36,6 @@ func main() {
 		stopCmd,
 		configCmd,
 		backupCmd,
-		wdpostCmd,
 		lcli.WithCategory("chain", actorCmd),
 		lcli.WithCategory("chain", infoCmd),
 		lcli.WithCategory("market", storageDealsCmd),
@@ -54,6 +53,7 @@ func main() {
 		lcli.WithCategory("hlm", hlmStorageCmd),
 		lcli.WithCategory("hlm", hlmWorkerCmd),
 		lcli.WithCategory("hlm", testingCmd),
+		lcli.WithCategory("hlm", wdpostCmd),
 	}
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {
