@@ -343,7 +343,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	_remotes.Range(func(key, val interface{}) bool {
 		count++
 		_r := val.(*remote)
-		log.Info("lookup remote config", _r.cfg.WdPoStSrv)
+		log.Debug("lookup remote config", _r.cfg.WdPoStSrv)
 		_r.lock.Lock()
 		defer _r.lock.Unlock()
 		switch task.Type {
