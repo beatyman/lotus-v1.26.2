@@ -70,11 +70,13 @@ type SealingConfig struct {
 }
 
 type MinerFeeConfig struct {
-	MaxPreCommitGasFee     types.FIL
-	MaxCommitGasFee        types.FIL
-	MaxWindowPoStGasFee    types.FIL
-	MaxPublishDealsFee     types.FIL
-	MaxMarketBalanceAddFee types.FIL
+	MaxPreCommitGasFee      types.FIL
+	MaxCommitGasFee         types.FIL
+	MaxWindowPoStGasFee     types.FIL
+	MaxPublishDealsFee      types.FIL
+	MaxMarketBalanceAddFee  types.FIL
+	EnableSeparatePartition bool
+	PartitionsPerMsg        int
 }
 
 type MinerAddressConfig struct {
