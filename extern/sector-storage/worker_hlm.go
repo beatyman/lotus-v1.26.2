@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/specs-storage/storage"
 	storage2 "github.com/filecoin-project/specs-storage/storage"
 
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
@@ -30,7 +31,7 @@ type hlmWorker struct {
 	localStore *stores.Local
 	sindex     stores.SectorIndex
 
-	sb ffiwrapper.Storage
+	sb *ffiwrapper.Sealer
 }
 
 func NewHlmWorker(remoteCfg ffiwrapper.RemoteCfg, store stores.Store, local *stores.Local, sindex stores.SectorIndex) (*hlmWorker, error) {
@@ -69,6 +70,10 @@ func (l *hlmWorker) NewSector(ctx context.Context, sector storage.SectorRef) err
 	return l.sb.NewSector(ctx, sector)
 }
 
+func (l *hlmWorker) PledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+	return l.sb.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
+}
+
 func (l *hlmWorker) AddPiece(ctx context.Context, sector storage.SectorRef, epcs []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
 	return l.sb.AddPiece(ctx, sector, epcs, sz, r)
 }
@@ -89,6 +94,11 @@ func (l *hlmWorker) SealCommit2(ctx context.Context, sector storage.SectorRef, p
 	return l.sb.SealCommit2(ctx, sector, phase1Out)
 }
 
+// union c1 and c2
+func (l *hlmWorker) SealCommit(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage2.SectorCids) (storage.Proof, error) {
+	return l.sb.SealCommit(ctx, sector, ticket, seed, pieces, cids)
+}
+
 func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage2.Range) error {
 	if err := l.sb.FinalizeSector(ctx, sector, keepUnsealed); err != nil {
 		return xerrors.Errorf("finalizing sector: %w", err)
@@ -96,6 +106,15 @@ func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storage.SectorRef
 	if len(keepUnsealed) == 0 {
 		if err := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true); err != nil {
 			return xerrors.Errorf("removing unsealed data: %w", err)
+		}
+		var err error
+		sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
+		if err != nil {
+			return errors.As(err)
+		}
+		if sector.HasRepo() {
+			log.Warnf("Remove file:%s", sector.UnsealedFile())
+			return os.RemoveAll(sector.UnsealedFile())
 		}
 	}
 
@@ -118,6 +137,25 @@ func (l *hlmWorker) Remove(ctx context.Context, sector storage.SectorRef) error 
 	if rerr := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true); rerr != nil {
 		err = multierror.Append(err, xerrors.Errorf("removing sector (unsealed): %w", rerr))
 	}
+	var rerr error
+	sector, rerr = database.FillSectorFile(sector, l.sb.RepoPath())
+	if err != nil {
+		err = multierror.Append(err, xerrors.Errorf("removing sector (db): %w", rerr))
+	} else if sector.HasRepo() {
+		log.Warnf("Remove file:%s", sector.SealedFile())
+		if rerr := os.RemoveAll(sector.SealedFile()); err != nil {
+			err = multierror.Append(err, xerrors.Errorf("removing sector (sealed): %w", rerr))
+		}
+		log.Warnf("Remove file:%s", sector.CachePath())
+		if rerr := os.RemoveAll(sector.CachePath()); err != nil {
+			err = multierror.Append(err, xerrors.Errorf("removing sector (cache): %w", rerr))
+		}
+
+		log.Warnf("Remove file:%s", sector.UnsealedFile())
+		if rerr := os.RemoveAll(sector.UnsealedFile()); err != nil {
+			err = multierror.Append(err, xerrors.Errorf("removing sector (unsealed): %w", rerr))
+		}
+	}
 
 	return err
 }
@@ -127,23 +165,26 @@ func (l *hlmWorker) UnsealPiece(ctx context.Context, sector storage.SectorRef, i
 }
 
 func (l *hlmWorker) ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (bool, error) {
-	// try read exist unsealed
-	if err := l.sindex.StorageLock(ctx, sector.ID, storiface.FTUnsealed, storiface.FTNone); err != nil {
-		return false, xerrors.Errorf("acquiring read sector lock: %w", err)
-	}
-	// passing 0 spt because we only need it when allowFetch is true
-	best, err := l.sindex.StorageFindSector(ctx, sector.ID, storiface.FTUnsealed, 0, false)
+	var err error
+	sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
 	if err != nil {
-		return false, xerrors.Errorf("read piece: checking for already existing unsealed sector: %w", err)
+		return false, errors.As(err)
+	}
+	if err := database.AddMarketRetrieve(storage.SectorName(sector.ID)); err != nil {
+		return false, errors.As(err)
+	}
+	// unseal data will expire by 30 days if no visitor.
+	l.sb.ExpireAllMarketRetrieve()
+
+	// try read the exist unsealed.
+	done, err := l.sb.ReadPiece(ctx, writer, sector, index, size)
+	if err != nil {
+		return false, errors.As(err)
+	} else if done {
+		return true, nil
 	}
 
-	foundUnsealed := len(best) > 0
-	if foundUnsealed { // append to existing
-		// There is unsealed sector, see if we can read from it
-		return l.sb.ReadPiece(ctx, writer, sector, index, size)
-	}
-
-	// unsealed not found, unseal and then read it.
+	// unsealed not found, do unseal and then read it.
 	if err := l.sb.UnsealPiece(ctx, sector, index, size, ticket, unsealed); err != nil {
 		return false, errors.As(err, sector, index, size, unsealed)
 	}

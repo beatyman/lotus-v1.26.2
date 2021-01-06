@@ -139,6 +139,8 @@ type StorageMiner interface {
 	CheckProvable(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error)
 
 	// implements by hlm
+	WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error
+	WdpostSetPartitionNumber(ctx context.Context, number int) error
 	Testing(ctx context.Context, fnName string, args []string) error
 	RunPledgeSector(context.Context) error
 	StatusPledgeSector(context.Context) (int, error)
@@ -180,9 +182,9 @@ type StorageMiner interface {
 	ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error
 	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
 	StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error)
-	PreStorageNode(ctx context.Context, sectorId, clientIp string) (*database.StorageInfo, error)
-	CommitStorageNode(ctx context.Context, sectorId string) error
-	CancelStorageNode(ctx context.Context, sectorId string) error
+	PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error)
+	CommitStorageNode(ctx context.Context, sectorId string, kind int) error
+	CancelStorageNode(ctx context.Context, sectorId string, kind int) error
 	ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error)
 	GetProvingCheckTimeout(ctx context.Context) (time.Duration, error)
 	SetProvingCheckTimeout(ctx context.Context, timeout time.Duration) error

@@ -13,6 +13,7 @@ import (
 	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	"github.com/gwaylib/errors"
 )
 
@@ -36,86 +37,28 @@ const (
 )
 
 type RemoteCfg struct {
-	SealSector  bool
-	WindowPoSt  int // 0, close remote function, >0, using number of thread to work at the same time.
-	WinningPoSt int // 0, close remote function, >0, using number of thread to work at the same time.
-}
-
-type SectorCids struct {
-	Unsealed string // encoded cid.Cid
-	Sealed   string // encoded cid.Cid
-}
-
-func (s *SectorCids) Decode() (*storage.SectorCids, error) {
-	unsealedCid, err := cid.Decode(s.Unsealed)
-	if err != nil {
-		return nil, errors.As(err, *s)
-	}
-	sealedCid, err := cid.Decode(s.Sealed)
-	if err != nil {
-		return nil, errors.As(err, *s)
-	}
-	return &storage.SectorCids{
-		Unsealed: unsealedCid,
-		Sealed:   sealedCid,
-	}, nil
-}
-
-type PieceInfo struct {
-	Size     abi.PaddedPieceSize
-	PieceCID string
-}
-
-func (p *PieceInfo) Decode() (*abi.PieceInfo, error) {
-	pCID, err := cid.Decode(p.PieceCID)
-	if err != nil {
-		return nil, errors.As(err)
-	}
-	return &abi.PieceInfo{
-		Size:     p.Size,
-		PieceCID: pCID,
-	}, nil
-}
-
-func EncodePieceInfo(in []abi.PieceInfo) []PieceInfo {
-	out := []PieceInfo{}
-	for _, p := range in {
-		out = append(out, PieceInfo{
-			Size:     p.Size,
-			PieceCID: p.PieceCID.String(),
-		})
-	}
-	return out
-}
-func DecodePieceInfo(in []PieceInfo) ([]abi.PieceInfo, error) {
-	out := []abi.PieceInfo{}
-	for i, p := range in {
-		tmpCID, err := cid.Decode(p.PieceCID)
-		if err != nil {
-			return nil, errors.As(err, i, in)
-		}
-		out = append(out, abi.PieceInfo{
-			Size:     p.Size,
-			PieceCID: tmpCID,
-		})
-	}
-	return out, nil
+	SealSector                  bool
+	WindowPoSt                  int // 0, close remote function, >0, using number of thread to work at the same time.
+	WinningPoSt                 int // 0, close remote function, >0, using number of thread to work at the same time.
+	EnableForceRemoteWindowPoSt bool
 }
 
 type WorkerTaskType int
 
 const (
-	WorkerAddPiece       WorkerTaskType = 0
-	WorkerAddPieceDone                  = 1
+	WorkerPledge         WorkerTaskType = 0
+	WorkerPledgeDone                    = 1
 	WorkerPreCommit1                    = 10
 	WorkerPreCommit1Done                = 11
 	WorkerPreCommit2                    = 20
 	WorkerPreCommit2Done                = 21
-	WorkerCommit1                       = 30
-	WorkerCommit1Done                   = 31
-	WorkerCommit2                       = 40
-	WorkerCommit2Done                   = 41
+	WorkerCommit                        = 40
+	WorkerCommitDone                    = 41
 	WorkerFinalize                      = 50
+	WorkerUnseal                        = 60
+	WorkerUnsealDone                    = 61
+
+	WorkerTransfer = 101
 
 	WorkerWindowPoSt  = 1000
 	WorkerWinningPoSt = 1010
@@ -138,11 +81,10 @@ type WorkerCfg struct {
 	MaxTaskNum         int // need more than 0
 	CacheMode          int // 0, transfer mode; 1, share mode.
 	TransferBuffer     int // 0~n, do next task when transfering and transfer cache on
-	ParallelAddPiece   int
-	ParallelPrecommit1 int
+	ParallelPledge     int
+	ParallelPrecommit1 int // unseal is shared with this parallel
 	ParallelPrecommit2 int
-	ParallelCommit1    int
-	ParallelCommit2    int
+	ParallelCommit     int
 
 	Commit2Srv bool // need ParallelCommit2 > 0
 	WdPoStSrv  bool
@@ -159,24 +101,32 @@ type WorkerTask struct {
 	SectorStorage database.SectorStorage
 
 	// addpiece
-	PieceSizes []abi.UnpaddedPieceSize
+	ExistingPieceSizes []abi.UnpaddedPieceSize
+	ExtSizes           []abi.UnpaddedPieceSize // size ...abi.UnpaddedPieceSize
+
+	// unseal
+	UnsealOffset   storiface.UnpaddedByteIndex
+	UnsealSize     abi.UnpaddedPieceSize
+	SealRandomness abi.SealRandomness
+	Commd          cid.Cid
 
 	// preCommit1
 	SealTicket abi.SealRandomness // commit1 is need too.
-	Pieces     []PieceInfo        // commit1 is need too.
+	Pieces     []abi.PieceInfo
 
 	// preCommit2
 	PreCommit1Out storage.PreCommit1Out
 
 	// commit1
 	SealSeed abi.InteractiveSealRandomness
-	Cids     SectorCids
+	Cids     storage.SectorCids
 
 	// commit2
 	Commit1Out storage.Commit1Out
 
 	// winning PoSt
 	SectorInfo []storage.ProofSectorInfo
+	// using for wdpost, winpost, unseal
 	Randomness abi.PoStRandomness
 
 	// window PoSt
@@ -228,11 +178,10 @@ type WorkerStats struct {
 	WdPoStSrvTotal int
 	WdPoStSrvUsed  int
 
-	AddPieceWait   int
+	PledgeWait     int
 	PreCommit1Wait int
 	PreCommit2Wait int
-	Commit1Wait    int
-	Commit2Wait    int
+	CommitWait     int
 	UnsealWait     int
 	FinalizeWait   int
 	WPostWait      int
@@ -272,9 +221,9 @@ type remote struct {
 	precommit1Chan chan workerCall
 	precommit2Wait int32
 	precommit2Chan chan workerCall
-	commit1Chan    chan workerCall
-	commit2Chan    chan workerCall
+	commitChan     chan workerCall
 	finalizeChan   chan workerCall
+	unsealChan     chan workerCall
 
 	sealTasks   chan<- WorkerTask
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
@@ -308,15 +257,15 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 
 	// no limit list
 	switch typ {
-	case WorkerCommit1, WorkerFinalize:
+	case WorkerFinalize:
 		return false
 	}
 
-	busyAddPieceNum := 0
+	busyPledgeNum := 0
 	busyPrecommit1Num := 0
 	busyPrecommit2Num := 0
-	busyCommit1Num := 0
-	busyCommit2Num := 0
+	busyCommitNum := 0
+	busyUnsealNum := 0
 	busyWinningPoSt := 0
 	busyWindowPoSt := 0
 	sumWorkingTask := 0
@@ -325,16 +274,16 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 			sumWorkingTask++
 		}
 		switch val.Type {
-		case WorkerAddPiece:
-			busyAddPieceNum++
+		case WorkerPledge:
+			busyPledgeNum++
 		case WorkerPreCommit1:
 			busyPrecommit1Num++
 		case WorkerPreCommit2:
 			busyPrecommit2Num++
-		case WorkerCommit1:
-			busyCommit1Num++
-		case WorkerCommit2:
-			busyCommit2Num++
+		case WorkerCommit:
+			busyCommitNum++
+		case WorkerUnseal:
+			busyUnsealNum++
 		case WorkerWinningPoSt:
 			busyWinningPoSt++
 		case WorkerWindowPoSt:
@@ -351,20 +300,21 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	}
 
 	switch typ {
-	case WorkerAddPiece:
-		// mutex cpu for addpiece and precommit1
-		return busyAddPieceNum >= r.cfg.ParallelAddPiece || len(r.busyOnTasks) >= r.cfg.MaxTaskNum
-	case WorkerPreCommit1:
-		return busyPrecommit1Num >= r.cfg.ParallelPrecommit1 || (busyAddPieceNum > 0)
+	// mutex cpu for addpiece and precommit1
+	case WorkerPledge:
+		return busyPledgeNum >= r.cfg.ParallelPledge || len(r.busyOnTasks) >= r.cfg.MaxTaskNum || busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1
+	case WorkerPreCommit1, WorkerUnseal: // unseal is shared with the parallel-precommit1
+		return busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1 || (busyPledgeNum > 0)
+
+	// mutex gpu for precommit2, commit2.
 	case WorkerPreCommit2:
-		// mutex gpu for precommit2, commit2.
-		return busyPrecommit2Num >= r.cfg.ParallelPrecommit2 || (r.cfg.Commit2Srv && busyCommit2Num > 0)
-	case WorkerCommit2:
+		return busyPrecommit2Num >= r.cfg.ParallelPrecommit2 || (r.cfg.Commit2Srv && busyCommitNum > 0)
+	case WorkerCommit:
 		// ulimit to call commit2 service.
-		if r.cfg.ParallelCommit2 == 0 {
+		if r.cfg.ParallelCommit == 0 {
 			return false
 		}
-		return busyCommit2Num >= r.cfg.ParallelCommit2 || (busyPrecommit2Num > 0)
+		return busyCommitNum >= r.cfg.ParallelCommit || (busyPrecommit2Num > 0)
 	}
 	// default is false to pass the logic.
 	return false
@@ -408,7 +358,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		}
 	}
 	for _, wTask := range history {
-		if restore && wTask.State == int(WorkerAddPiece) {
+		if restore && wTask.State < 0 {
 			log.Infof("Got free worker:%s, but has found history addpiece, will release:%+v", r.cfg.ID, wTask)
 			if err := database.UpdateSectorState(
 				wTask.ID, wTask.WorkerId,
@@ -457,8 +407,7 @@ type SealRes struct {
 	// TODO: Serial
 	Pieces        []abi.PieceInfo
 	PreCommit1Out storage.PreCommit1Out
-	PreCommit2Out SectorCids
-	Commit1Out    storage.Commit1Out
+	PreCommit2Out storage.SectorCids
 	Commit2Out    storage.Proof
 
 	WinningPoStProofOut []proof.PoStProof

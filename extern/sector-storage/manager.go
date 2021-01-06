@@ -102,9 +102,10 @@ type SealerConfig struct {
 	AllowCommit     bool
 	AllowUnseal     bool
 
-	RemoteSeal   bool
-	RemoteWnPoSt int
-	RemoteWdPoSt int
+	RemoteSeal                  bool
+	RemoteWnPoSt                int
+	RemoteWdPoSt                int
+	EnableForceRemoteWindowPoSt bool
 }
 
 type StorageAuth http.Header
@@ -128,9 +129,10 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 	}
 
 	remoteCfg := ffiwrapper.RemoteCfg{
-		SealSector:  sc.RemoteSeal,
-		WindowPoSt:  sc.RemoteWdPoSt,
-		WinningPoSt: sc.RemoteWnPoSt,
+		SealSector:                  sc.RemoteSeal,
+		WindowPoSt:                  sc.RemoteWdPoSt,
+		WinningPoSt:                 sc.RemoteWnPoSt,
+		EnableForceRemoteWindowPoSt: sc.EnableForceRemoteWindowPoSt,
 	}
 
 	prover, err := ffiwrapper.New(remoteCfg, &readonlyProvider{stor: lstor, index: si})
@@ -345,6 +347,10 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector storage.
 func (m *Manager) NewSector(ctx context.Context, sector storage.SectorRef) error {
 	return m.hlmWorker.NewSector(ctx, sector)
 
+}
+
+func (m *Manager) PledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+	return m.hlmWorker.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
 }
 
 func (m *Manager) AddPiece(ctx context.Context, sector storage.SectorRef, existingPieces []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
@@ -581,6 +587,10 @@ func (m *Manager) SealCommit2(ctx context.Context, sector storage.SectorRef, pha
 	}
 
 	return out, waitErr
+}
+
+func (m *Manager) SealCommit(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Proof, error) {
+	return m.hlmWorker.SealCommit(ctx, sector, ticket, seed, pieces, cids)
 }
 
 func (m *Manager) FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {

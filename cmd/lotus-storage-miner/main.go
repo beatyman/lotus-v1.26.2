@@ -53,6 +53,7 @@ func main() {
 		lcli.WithCategory("hlm", hlmStorageCmd),
 		lcli.WithCategory("hlm", hlmWorkerCmd),
 		lcli.WithCategory("hlm", testingCmd),
+		lcli.WithCategory("hlm", wdpostCmd),
 	}
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {

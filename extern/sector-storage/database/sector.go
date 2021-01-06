@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	SECTOR_STATE_INIT = 0
+	SECTOR_STATE_PLEDGE = 0
 
 	SECTOR_STATE_MOVE = 100
 	SECTOR_STATE_PUSH = 101
@@ -22,21 +22,23 @@ const (
 )
 
 type SectorInfo struct {
-	ID         string    `db:"id"` // s-t0101-1
-	MinerId    string    `db:"miner_id"`
-	UpdateTime time.Time `db:"updated_at"`
-	StorageId  int64     `db:"storage_id"`
-	WorkerId   string    `db:"worker_id"`
-	State      int       `db:"state,0"`
-	StateTime  time.Time `db:"state_time"`
-	StateTimes int       `db:"state_times"`
-	CreateTime time.Time `db:"created_at"`
+	ID              string    `db:"id"` // s-t0101-1
+	MinerId         string    `db:"miner_id"`
+	UpdateTime      time.Time `db:"updated_at"`
+	StorageSealed   int64     `db:"storage_sealed"`
+	StorageUnsealed int64     `db:"storage_unsealed"`
+	WorkerId        string    `db:"worker_id"`
+	State           int       `db:"state,0"`
+	StateTime       time.Time `db:"state_time"`
+	StateTimes      int       `db:"state_times"`
+	CreateTime      time.Time `db:"created_at"`
 }
 
 type SectorStorage struct {
-	SectorInfo  SectorInfo
-	StorageInfo StorageInfo
-	WorkerInfo  WorkerInfo
+	SectorInfo      SectorInfo
+	WorkerInfo      WorkerInfo
+	SealedStorage   StorageInfo
+	UnsealedStorage StorageInfo
 }
 
 type StorageStatus struct {
@@ -77,7 +79,7 @@ func GetSectorInfo(id string) (*SectorInfo, error) {
 		if !errors.ErrNoData.Equal(err) {
 			return nil, errors.As(err)
 		}
-		info.StorageId = 1
+		info.StorageSealed = 1
 		info.WorkerId = "default"
 	}
 	return info, nil
@@ -92,52 +94,89 @@ func GetSectorState(id string) (int, error) {
 	return state, nil
 }
 
-func GetSectorFile(id, defaultRepo string) (*storage.SectorFile, error) {
+func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.SectorRef, error) {
+	if sector.HasRepo() {
+		return sector, nil
+	}
+	// set to default.
+	sector.SectorId = storage.SectorName(sector.ID)
+	sector.SealedRepo = defaultRepo
+	sector.UnsealedRepo = defaultRepo
+
 	if !HasDB() {
-		return &storage.SectorFile{
-			SectorId:    id,
-			StorageRepo: defaultRepo,
-		}, nil
+		return sector, nil
+	}
+
+	fill, err := GetSectorFile(sector.SectorId, defaultRepo)
+	if err != nil {
+		return sector, errors.As(err)
+	}
+	sector.SectorFile = *fill
+	return sector, nil
+}
+
+func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
+	file := &storage.SectorFile{
+		SectorId:     sectorId,
+		SealedRepo:   defaultRepo,
+		UnsealedRepo: defaultRepo,
+	}
+	if !HasDB() {
+		return file, nil
 	}
 
 	mdb := GetDB()
-	storageId := uint64(0)
-	mountDir := sql.NullString{}
-	if err := mdb.QueryRow("SELECT tb1.storage_id,tb2.mount_dir FROM sector_info tb1 LEFT JOIN storage_info tb2 on tb1.storage_id=tb2.id WHERE tb1.id=?", id).Scan(
-		&storageId,
-		&mountDir,
+	storageSealed := uint64(0)
+	storageSealedDir := sql.NullString{}
+	storageUnsealed := uint64(0)
+	storageUnsealedDir := sql.NullString{}
+	if err := mdb.QueryRow(`
+SELECT
+	tb1.storage_sealed,tb2.mount_dir as sealed_dir,
+	tb1.storage_unsealed,tb3.mount_dir as unsealed_dir
+FROM 
+	sector_info tb1 
+	LEFT JOIN storage_info tb2 on tb1.storage_sealed=tb2.id
+	LEFT JOIN storage_info tb3 on tb1.storage_unsealed=tb3.id
+WHERE
+	tb1.id=?
+`, sectorId).Scan(
+		&storageSealed,
+		&storageSealedDir,
+		&storageUnsealed,
+		&storageUnsealedDir,
 	); err != nil {
 		if err != sql.ErrNoRows {
-			return nil, errors.As(err, id)
+			return nil, errors.As(err, sectorId)
 		}
 
 		// sector not found in db, return default.
-		return &storage.SectorFile{
-			SectorId:    id,
-			StorageRepo: defaultRepo,
-		}, nil
+		return file, nil
+	}
+	if storageSealedDir.Valid {
+		file.SealedRepo = filepath.Join(storageSealedDir.String, fmt.Sprintf("%d", storageSealed))
+	}
+	if storageUnsealedDir.Valid {
+		file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
+	}
 
-	}
-	if len(mountDir.String) == 0 {
-		return nil, errors.New("storage not found").As(id)
-	}
-	return &storage.SectorFile{SectorId: id, StorageRepo: filepath.Join(mountDir.String, fmt.Sprintf("%d", storageId))}, nil
+	return file, nil
 }
 
 type SectorList []SectorInfo
 
-func GetSectorByState(storageId int64, state int64) (SectorList, error) {
+func GetSectorByState(storageSealed int64, state int64) (SectorList, error) {
 	mdb := GetDB()
 	list := SectorList{}
-	if err := database.QueryStructs(mdb, &list, "SELECT * FROM sector_info WHERE storage_id=? AND state=?", storageId, state); err != nil {
-		return nil, errors.As(err, storageId)
+	if err := database.QueryStructs(mdb, &list, "SELECT * FROM sector_info WHERE storage_sealed=? AND state=?", storageSealed, state); err != nil {
+		return nil, errors.As(err, storageSealed)
 	}
 	return list, nil
 }
 
 func GetAllSectorByState(state int64) (map[string]int64, error) {
 	mdb := GetDB()
-	rows, err := mdb.Query("SELECT id,storage_id FROM sector_info WHERE state=?", state)
+	rows, err := mdb.Query("SELECT id,storage_sealed FROM sector_info WHERE state=?", state)
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -146,11 +185,11 @@ func GetAllSectorByState(state int64) (map[string]int64, error) {
 	result := map[string]int64{}
 	for rows.Next() {
 		sid := ""
-		storageId := int64(0)
-		if err := rows.Scan(&sid, &storageId); err != nil {
+		storageSealed := int64(0)
+		if err := rows.Scan(&sid, &storageSealed); err != nil {
 			return nil, errors.As(err)
 		}
-		result[sid] = storageId
+		result[sid] = storageSealed
 	}
 	if len(result) == 0 {
 		return nil, errors.ErrNoData.As(state)
@@ -169,13 +208,7 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 			return nil, errors.As(err)
 		}
 		seInfo.WorkerId = "default"
-		seInfo.StorageId = 1
-	}
-	stInfo := &StorageInfo{}
-	if err := database.QueryStruct(mdb, stInfo, "SELECT * FROM storage_info WHERE id=?", seInfo.StorageId); err != nil {
-		if !errors.ErrNoData.Equal(err) {
-			return nil, errors.As(err, id)
-		}
+		seInfo.StorageSealed = 1
 	}
 	wkInfo := &WorkerInfo{
 		ID: seInfo.WorkerId,
@@ -187,10 +220,23 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 
 		// upgrade fixed for worker ip
 	}
+	sealedInfo := &StorageInfo{}
+	if err := database.QueryStruct(mdb, sealedInfo, "SELECT * FROM storage_info WHERE id=?", seInfo.StorageSealed); err != nil {
+		if !errors.ErrNoData.Equal(err) {
+			return nil, errors.As(err, id)
+		}
+	}
+	unsealedInfo := &StorageInfo{}
+	if err := database.QueryStruct(mdb, unsealedInfo, "SELECT * FROM storage_info WHERE id=?", seInfo.StorageUnsealed); err != nil {
+		if !errors.ErrNoData.Equal(err) {
+			return nil, errors.As(err, id)
+		}
+	}
 	return &SectorStorage{
-		SectorInfo:  *seInfo,
-		StorageInfo: *stInfo,
-		WorkerInfo:  *wkInfo,
+		SectorInfo:      *seInfo,
+		WorkerInfo:      *wkInfo,
+		SealedStorage:   *sealedInfo,
+		UnsealedStorage: *unsealedInfo,
 	}, nil
 }
 

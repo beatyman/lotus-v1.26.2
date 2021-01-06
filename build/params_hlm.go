@@ -22,7 +22,8 @@ var UpgradeLiftoffHeight = abi.ChainEpoch(-5)
 const UpgradeKumquatHeight = 15
 const UpgradeCalicoHeight = 20
 const UpgradePersianHeight = 25
-const UpgradeClausHeight = 30
+const UpgradeOrangeHeight = 38023
+const UpgradeClausHeight = 38023
 
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandMainnet,
