@@ -64,6 +64,8 @@ func loadHlmAuth() error {
 func IsHlmAuth(key string, pwdIn []byte) bool {
 	// TODO: auth from etcd.
 	authMutex.Lock()
+	defer authMutex.Unlock()
+
 	pwd, ok := auth[key]
 	if !ok {
 		// no auth set
