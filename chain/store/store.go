@@ -1580,7 +1580,6 @@ func sendLotusMessage(ts *types.TipSet, timestamp uint64) {
         lotusInfo["client_ip"] = netIp
         lotusInfo["tisset_time"] = strconv.FormatUint(timestamp, 10)
         lotusInfo["height"] = ts.Height().String()
-        log.Infof(">>>>>>>>>>>>>>>>>>>>>>>lotus.%v", lotusInfo)
         lotusJsonBytes, err := json.Marshal(lotusInfo)
         if err != nil {
                 log.Error(err)
