@@ -512,7 +512,7 @@ selectWorker:
 	if len(remotes) == 0 {
 		// using the old version when EnableForceRemoteWindowPoSt is not set.
 		if !sb.remoteCfg.EnableForceRemoteWindowPoSt {
-			log.Info("No GpuService count needed, using local mode")
+			log.Info("No GpuService found, using local mode")
 			return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 		}
 
