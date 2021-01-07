@@ -338,12 +338,9 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	defer _remoteGpuLk.Unlock()
 
 	// select a remote worker
-	var count int = 0
 	var r *remote
 	_remotes.Range(func(key, val interface{}) bool {
-		count++
 		_r := val.(*remote)
-		log.Debug("lookup remote config", _r.cfg.WdPoStSrv)
 		_r.lock.Lock()
 		defer _r.lock.Unlock()
 		switch task.Type {
@@ -370,7 +367,6 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		// break range
 		return false
 	})
-	log.Info("lookup remote worker count:", count)
 	if r == nil {
 		return nil, false
 	}
