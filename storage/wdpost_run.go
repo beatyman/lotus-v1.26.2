@@ -450,6 +450,10 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 }
 
 func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
+	log.Info("================================start generage wdpost========================================")
+	defer func() {
+		log.Info("================================End generage wdpost========================================")
+	}()
 	epochTime := int64(build.BlockDelaySecs)
 	maxDelayEpoch := int64(di.Close-di.CurrentEpoch)
 	maxDelayTime:= maxDelayEpoch*epochTime
