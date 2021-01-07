@@ -19,9 +19,7 @@ func RunCollectMinerInfo(cctx *cli.Context,timer int64) chan bool {
 		for {
 			select {
 			case <-ticker.C:
-				log.Info("Time to collect miner info > > >")
 				minerInfo, err := miner.CollectMinerInfo(cctx)
-				log.Errorf("============----------------==============",err)
 				if err != nil {
 					log.Error(err)
 					continue
@@ -35,7 +33,6 @@ func RunCollectMinerInfo(cctx *cli.Context,timer int64) chan bool {
 					DataType: "miner_info",
 					Data:     minerInfoDataBytes,
 				}
-				log.Errorf("=================================--------------=====================%v",minerInfo)
 				reqDataBytes, err := json.Marshal(reqData)
 				report.SendReport(reqDataBytes)
 			case <-quit:

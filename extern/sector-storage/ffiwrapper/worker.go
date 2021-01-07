@@ -1005,7 +1005,6 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	// send the task to daemon work.
 	log.Infof("DEBUG: send task %s to %s (locked:%s)", task.Key(), r.cfg.ID, task.WorkerID)
 	go func() {
-	        log.Infof("################## Collect sector state in Start state ####################")
 	        CollectSectorStateInfo(task, "01")
 	}()
 	select {
@@ -1149,7 +1148,6 @@ func CollectSectorStateInfo(task WorkerTask, workerType string) error {
 		log.Error(err)
 	}
 
-	log.Errorf("\nreqData => %v", reqData)
 	//_, err := report.ReportData("POST", reqData)
 	report.SendReport(reqDataBytes)
 	if err != nil {

@@ -301,7 +301,6 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	// Collect sector state
 	if sInfo != nil && !strings.EqualFold(sInfo.MinerId, "") {
 		go func() {
-			log.Infof("################## Collect sector state. ####################>>>>SectorId:%v, State: %v",state.SectorNumber,string(state.State))
 
 			sectorStateInfo := &buriedmodel.SectorState{
 				SectorID:   storage.SectorName(m.minerSectorID(state.SectorNumber)),

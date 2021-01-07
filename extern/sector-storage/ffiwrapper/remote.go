@@ -632,7 +632,6 @@ func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, wo
 		log.Error(err)
 	}
 
-	log.Errorf("\nreqData => %v", sectorStateInfo)
 	report.SendReport(reqDataBytes)
 
 	sectorStateInfo.CreateTime = endTime
@@ -650,7 +649,6 @@ func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, wo
 	if err != nil {
 		log.Error(err)
 	}
-	log.Errorf("\nreqData => %v", sectorStateInfo)
 	report.SendReport(reqDataBytes)
 	return nil
 }
