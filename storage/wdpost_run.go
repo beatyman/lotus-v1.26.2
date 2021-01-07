@@ -457,6 +457,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 	epochTime := int64(build.BlockDelaySecs)
 	maxDelayEpoch := int64(di.Close-di.CurrentEpoch-10)
 	maxDelayTime:= maxDelayEpoch*epochTime
+	log.Info("max delay time:",maxDelayTime,"max delay epoch:",maxDelayEpoch,"epoch time:",epochTime,"time now:",time.Now().Unix())
 	timech := time.After(time.Duration(maxDelayTime)*time.Second)
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
