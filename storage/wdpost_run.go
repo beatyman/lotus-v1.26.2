@@ -106,7 +106,7 @@ func (s *WindowPoStScheduler) runGeneratePoST(
 	ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.generatePoST")
 	defer span.End()
 
-	posts, err := s.runPost(ctx, *deadline, ts)
+	posts, err := s.runHlmPost(ctx, *deadline, ts)
 	if err != nil {
 		log.Errorf("runPost failed: %+v", err)
 		return nil, err
