@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	auth      = map[string][]byte{}
+	auth      = map[string][]byte{} // address:auth
 	authMutex = sync.Mutex{}
 )
 
@@ -64,14 +64,10 @@ func loadHlmAuth() error {
 func IsHlmAuth(key string, pwdIn []byte) bool {
 	// TODO: auth from etcd.
 	authMutex.Lock()
-	defer authMutex.Unlock()
-	if len(auth) == 0 {
-		// no set for auth
-		return true
-	}
 	pwd, ok := auth[key]
 	if !ok {
-		return false
+		// no auth set
+		return true
 	}
 
 	return bytes.Compare(pwd, pwdIn) != 0
