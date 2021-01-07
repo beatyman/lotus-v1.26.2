@@ -552,7 +552,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 	for batchIdx_p, batch_p := range partitionBatches {
 		count++
 		go func(batchIdx int,batch []api.Partition) {
-			log.Info("lookup batchIdx:",batchIdx)
+			log.Info("lookup start batchIdx:",batchIdx)
 			batchPartitionStartIdx := 0
 			for _, batch := range partitionBatches[:batchIdx] {
 				batchPartitionStartIdx += len(batch)
