@@ -35,6 +35,8 @@ type DiskPool interface {
 	Delete(sid string) error
 
 	Show() error
+
+	Showext() ([]string, error)
 }
 
 var dp *SSM
@@ -292,6 +294,21 @@ func (Ssm *SSM) Show() error {
 	}
 
 	return nil
+}
+
+func (Ssm *SSM) Showext() ([]string, error) {
+	Ssm.mutex.Lock()
+	defer Ssm.mutex.Unlock()
+	var r []string
+	for mnt, sids := range Ssm.maptbl {
+		r = append(r, fmt.Sprintf("moint point %s sector list:", mnt))
+		for _, sid := range *sids {
+			r = append(r, fmt.Sprintf(" %s,", sid))
+		}
+		r = append(r, "\r\n")
+	}
+
+	return r, nil
 }
 
 func (Ssm *SSM) Repos() []string {

@@ -270,6 +270,11 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	w.sealers[repo] = sealer
 	w.workMu.Unlock()
 
+	mapstr, err := w.diskPool.Showext()
+	if err == nil {
+		log.Info("worker ssd -> sector map tupple is:\r\n %+s", mapstr)
+	}
+
 	// checking is the cache in a different storage server, do fetch when it is.
 	if w.workerCfg.CacheMode == 0 && task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit && task.WorkerID != w.workerCfg.ID {
 		// fetch the precommit cache data
