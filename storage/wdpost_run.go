@@ -3,8 +3,6 @@ package storage
 import (
 	"bytes"
 	"context"
-	//"github.com/filecoin-project/lotus/chain/actors/builtin"
-
 	"time"
 
 	"github.com/gwaylib/errors"
@@ -106,7 +104,7 @@ func (s *WindowPoStScheduler) runGeneratePoST(
 	ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.generatePoST")
 	defer span.End()
 
-	posts, err := s.runHlmPost(ctx, *deadline, ts)
+	posts, err := s.runPost(ctx, *deadline, ts)
 	if err != nil {
 		log.Errorf("runPost failed: %+v", err)
 		return nil, err
@@ -450,6 +448,9 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 }
 
 func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
+	if EnableSeparatePartition{
+		return s.runHlmPost(ctx, di , ts )
+	}
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
 
