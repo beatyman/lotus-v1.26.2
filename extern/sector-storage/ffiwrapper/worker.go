@@ -995,7 +995,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		log.Infof("Delete task result waiting :%s", taskKey)
 		go func() {
 			log.Infof("################## Collect sector state in Done state ####################")
-			CollectSectorStateInfo(task, "02")
+			CollectSectorStateInfo(task, "02",r.cfg)
 		}()
 		_remoteResultLk.Lock()
 		delete(_remoteResult, taskKey)
@@ -1005,7 +1005,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	// send the task to daemon work.
 	log.Infof("DEBUG: send task %s to %s (locked:%s)", task.Key(), r.cfg.ID, task.WorkerID)
 	go func() {
-	        CollectSectorStateInfo(task, "01")
+	        CollectSectorStateInfo(task, "01",r.cfg)
 	}()
 	select {
 	case <-ctx.Done():
@@ -1072,7 +1072,7 @@ func (sb *Sealer) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof
 
 
 // CollectSectorState ::q
-func CollectSectorStateInfo(task WorkerTask, workerType string) error {
+func CollectSectorStateInfo(task WorkerTask, workerType string,workerCfg WorkerCfg) error {
 	// WorkerAddPiece       WorkerTaskType = 0
 	// WorkerAddPieceDone                  = 1
 	// WorkerPreCommit1                    = 10
@@ -1088,8 +1088,8 @@ func CollectSectorStateInfo(task WorkerTask, workerType string) error {
 	// workerCfg.ID, minerEndpoint, workerCfg.IP
 	sectorStateInfo := &buriedmodel.SectorState{
 		MinerID:    task.SectorStorage.SectorInfo.MinerId,
-		WorkerID:   task.WorkerID,
-		ClientIP:   task.SectorStorage.WorkerInfo.Ip,
+		WorkerID:   workerCfg.ID,
+		ClientIP:   workerCfg.IP,
 //		SectorSize: task.SectorStorage.StorageInfo.SectorSize,
 		// SectorID: storage.SectorName(m.minerSectorID(state.SectorNumber)),
 		SectorID: task.SectorStorage.SectorInfo.ID,
