@@ -252,11 +252,11 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 
 	// allocate worker sealer
+	w.workMu.Lock()
 	repo, err := w.diskPool.Allocate(task.SectorName())
 	if err != nil {
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
-	w.workMu.Lock()
 	sealer, ok := w.sealers[repo]
 	if !ok {
 		sealer, err = ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{

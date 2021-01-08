@@ -37,6 +37,7 @@ func (w *worker) CleanCache(ctx context.Context) error {
 		if err := w.cleanCache(ctx, repo, "unsealed"); err != nil {
 			return errors.As(err)
 		}
+		//delete(w.sealers, repo)
 	}
 	return nil
 }
