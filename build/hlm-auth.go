@@ -72,7 +72,7 @@ func IsHlmAuth(key string, pwdIn []byte) bool {
 		return true
 	}
 
-	return bytes.Compare(pwd, pwdIn) != 0
+	return bytes.Compare(pwd, pwdIn) == 0
 }
 
 func GetHlmAuth(key address.Address) []byte {
