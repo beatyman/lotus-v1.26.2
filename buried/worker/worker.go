@@ -25,8 +25,6 @@ func CollectSectorState(sectorStateInfo *buriedmodel.SectorState) error {
 		log.Println(err)
 	}
 
-	log.Println("\nreqData => ", string(reqDataBytes))
-	//_, err := report.ReportData("POST", reqData)
 	report.SendReport(reqDataBytes)
 	if err != nil {
 		return err
@@ -94,8 +92,6 @@ func CollectSectorStateInfo(task ffiwrapper.WorkerTask) error {
 		log.Println(err)
 	}
 
-	log.Println("\nreqData => ", string(reqDataBytes))
-	//_, err := report.ReportData("POST", reqData)
 	report.SendReport(reqDataBytes)
 	if err != nil {
 		return err
