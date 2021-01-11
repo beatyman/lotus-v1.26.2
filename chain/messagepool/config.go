@@ -50,7 +50,7 @@ func saveConfig(cfg *types.MpoolConfig, ds dtypes.MetadataDS) error {
 		return err
 	}
 	minGasCap = cfg.MinGasCap
-	minGasCap = cfg.MinGasCap
+	maxGasCap = cfg.MaxGasCap
 	return ds.Put(ConfigKey, cfgBytes)
 }
 

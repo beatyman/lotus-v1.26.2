@@ -448,6 +448,9 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 }
 
 func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
+	if EnableSeparatePartition{
+		return s.runHlmPost(ctx, di , ts )
+	}
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
 
