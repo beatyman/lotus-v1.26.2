@@ -331,11 +331,10 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, off
 	// TODO: unseal with concurrency
 	// TODO: make global lock
 	unsealKey := fmt.Sprintf("unsealing-%s", sectorName(sector.ID))
-	_, exist := sb.unsealing.Load(unsealKey)
+	_, exist := sb.unsealing.LoadOrStore(unsealKey, true)
 	if exist {
 		return errors.New("the sector is unsealing").As(sectorName(sector.ID))
 	}
-	sb.unsealing.Store(unsealKey, true)
 	defer sb.unsealing.Delete(unsealKey)
 
 	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
@@ -403,6 +402,11 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	}
 }
 func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+	// remote worker haven't set.
+	if sb.remoteCfg.WinningPoSt == 0 {
+		return sb.generateWinningPoSt(ctx, minerID, sectorInfo, randomness)
+	}
+
 	type req = struct {
 		remote *remote
 		task   *WorkerTask
@@ -476,16 +480,22 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	if len(sectorInfo) == 0 {
 		return nil, nil, errors.New("not sectors set")
 	}
-
 	sessionKey := uuid.New().String()
-	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t),%s,session:%s", sb.remoteCfg.SealSector, minerID, sessionKey)
+	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t,%t),%s,session:%s", sb.remoteCfg.SealSector, sb.remoteCfg.EnableForceRemoteWindowPoSt, minerID, sessionKey)
 	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s,session:%s", minerID, sessionKey)
+
+	// remote worker haven't set.
+	if sb.remoteCfg.WindowPoSt == 0 {
+		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+	}
 
 	type req = struct {
 		remote *remote
 		task   *WorkerTask
 	}
 	remotes := []*req{}
+	var retrycount int = 0
+selectWorker:
 	for i := 0; i < sb.remoteCfg.WindowPoSt; i++ {
 		task := WorkerTask{
 			Type:       WorkerWindowPoSt,
@@ -503,8 +513,22 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		log.Infof("Selected GpuService:%s", r.cfg.SvcUri)
 	}
 	if len(remotes) == 0 {
-		log.Info("No GpuService Found, using local mode")
-		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+		// using the old version when EnableForceRemoteWindowPoSt is not set.
+
+		if !sb.remoteCfg.EnableForceRemoteWindowPoSt {
+			log.Info("No GpuService count needed, using local mode")
+			return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+		}
+
+		retrycount++
+		if retrycount < 60 {
+			log.Warnf(" retry select gpuservice:%d", retrycount)
+			time.Sleep(10 * time.Second)
+			goto selectWorker
+		}
+
+		log.Error("timeout for select gpuservice, no gpu service found")
+		return nil, nil, errors.New("timeout for select gpuservice,no gpu service found")
 	}
 
 	type resp struct {
