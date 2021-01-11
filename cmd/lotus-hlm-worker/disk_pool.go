@@ -15,7 +15,7 @@ import (
 
 const (
 	DISK_MOUNT_ROOT = "/data/lotus-cache"
-	//DISK_MOUNT_ROOT = "/run/user/"
+	SECTOR_CACHE_DIR = "cache"
 )
 
 type DiskPool interface {
@@ -57,6 +57,9 @@ func NewDiskPool(ssize abi.SectorSize) (DiskPool, error) {
 		fmt.Println("-----------------> new diskpool instance, only create once")
 		dp = &SSM{}
 		err = dp.init_(uint64(ssize))
+		if err == nil {
+			err = dp.load_his(uint64(ssize))
+		}
 	})
 
 	return dp, err
@@ -207,6 +210,45 @@ func (Ssm *SSM) init_(ssize uint64) error {
 	}
 
 	return errors.New("No disk is mounted on " + DISK_MOUNT_ROOT)
+}
+
+func (Ssm *SSM) load_his(ssize uint64) error {
+	Ssm.mutex.Lock()
+	defer Ssm.mutex.Unlock()
+	if _, err := os.Stat(DISK_MOUNT_ROOT); os.IsNotExist(err) {
+		return errors.New("please make sure " + DISK_MOUNT_ROOT + "/xxx exists")
+	}
+
+	dir, err := ioutil.ReadDir(DISK_MOUNT_ROOT)
+	if err != nil {
+		return err
+	}
+
+	for _, d := range dir {
+		if d.IsDir() {
+			if IsMountPoint(path.Join(DISK_MOUNT_ROOT, d.Name())) == true || ssize != 32*GB {
+				dirc, err := ioutil.ReadDir(path.Join(DISK_MOUNT_ROOT, d.Name(), SECTOR_CACHE_DIR))
+				if err == nil {
+					for _, dc := range dirc {
+						if dc.IsDir() {
+							for _, v := range Ssm.captbl {
+								if v.mnt == path.Join(DISK_MOUNT_ROOT, d.Name()) {
+									if v.ds.UsedSector < v.ds.MaxSector {
+										Ssm.regtbl[dc.Name()] = path.Join(DISK_MOUNT_ROOT, d.Name())
+										sids := Ssm.maptbl[v.mnt]
+										*sids = append(*sids, dc.Name())
+										v.ds.UsedSector++
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (Ssm *SSM) Allocate(sid string) (string, error) {
