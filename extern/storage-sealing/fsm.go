@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"reflect"
 	"time"
-
+	"strings"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	buriedmodel "github.com/filecoin-project/lotus/buried/model"
+	buriedworker "github.com/filecoin-project/lotus/buried/worker"
 	statemachine "github.com/filecoin-project/go-statemachine"
 	"github.com/filecoin-project/specs-storage/storage"
 
@@ -294,6 +296,45 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	*/
 
 	m.stats.updateSector(m.minerSectorID(state.SectorNumber), state.State)
+
+	// <buried>
+	// Collect sector state
+	if sInfo != nil && !strings.EqualFold(sInfo.MinerId, "") {
+		go func() {
+
+			sectorStateInfo := &buriedmodel.SectorState{
+				SectorID:   storage.SectorName(m.minerSectorID(state.SectorNumber)),
+				State:      string(state.State),
+				StatusType: "01",
+				CreateTime: time.Now().Unix(),
+			}
+			
+			if sInfo != nil {
+				sectorStateInfo.MinerID = sInfo.MinerId
+				sectorStateInfo.WorkerID = sInfo.WorkerId
+
+				//if sInfo.StorageId > 0 {
+				//	storeInfo, err := database.GetStorageInfo(sInfo.StorageId)
+				//	if err != nil {
+				//		log.Warn(err)
+				//	}
+				//	if storeInfo != nil {
+				//		sectorStateInfo.SectorSize = storeInfo.SectorSize
+				//	}
+				//}
+			}
+
+			wInfo, err := database.GetWorkerInfo(sInfo.WorkerId)
+			if err != nil {
+				log.Warn(errors.As(err))
+			}
+			if wInfo != nil {
+				sectorStateInfo.ClientIP = wInfo.Ip
+			}
+			buriedworker.CollectSectorState(sectorStateInfo)
+		}()
+	}
+	// </buried>
 
 	switch state.State {
 	// Happy path

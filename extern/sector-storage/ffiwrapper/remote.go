@@ -2,7 +2,10 @@ package ffiwrapper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	buriedmodel "github.com/filecoin-project/lotus/buried/model"
+	"github.com/filecoin-project/lotus/lib/report"
 	"math"
 	"os"
 	"sync"
@@ -581,6 +584,16 @@ var selectCommit2ServiceLock = sync.Mutex{}
 func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*WorkerCfg, error) {
 	log.Infof("SelectCommit2Service in:s-t%d-%d", sector.Miner, sector.Number)
 	selectCommit2ServiceLock.Lock()
+	handler := func(r *remote) {
+		endTime := time.Now().Unix()
+		minerId := "s-t0" + sector.Miner.String()
+		sectorId := minerId + "-" + sector.Number.String()
+		log.Infof("Report sector in:%v", sectorId)
+		err := CollectSectorC2StateInfo(endTime, minerId, sectorId, r.cfg)
+		if err != nil {
+			log.Error("Sector-Report Err,SectorId:%d", sector.Number, err)
+		}
+	}
 	defer func() {
 		log.Infof("SelectCommit2Service out:s-t%d-%d", sector.Miner, sector.Number)
 		selectCommit2ServiceLock.Unlock()
@@ -610,8 +623,56 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 			if !ok {
 				continue
 			}
+			handler(r)
 			return &r.cfg, nil
 		}
 	}
 	return nil, errors.New("not reach here").As(sid)
+}
+
+func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, workercfg WorkerCfg) error {
+	sectorStateInfo := &buriedmodel.SectorState{
+		MinerID:  minerId,
+		WorkerID: workercfg.ID,
+		ClientIP: workercfg.IP,
+		//		SectorSize: task.SectorStorage.StorageInfo.SectorSize,
+		// SectorID: storage.SectorName(m.minerSectorID(state.SectorNumber)),
+		SectorID:   sectorId,
+		State:      "Commit2WaitDone",
+		CreateTime: endTime,
+		StatusType: "02",
+	}
+	sectorsDataBytes, err := json.Marshal(sectorStateInfo)
+
+	if err != nil {
+		return err
+	}
+	reqData := &buriedmodel.BuriedDataCollectParams{
+		DataType: "sector_state",
+		Data:     sectorsDataBytes,
+	}
+	reqDataBytes, err := json.Marshal(reqData)
+	if err != nil {
+		log.Error(err)
+	}
+
+	report.SendReport(reqDataBytes)
+
+	sectorStateInfo.CreateTime = endTime
+	sectorStateInfo.State = "Commit2Start"
+	sectorsDataBytes, err = json.Marshal(sectorStateInfo)
+
+	if err != nil {
+		return err
+	}
+	reqData = &buriedmodel.BuriedDataCollectParams{
+		DataType: "sector_state",
+		Data:     sectorsDataBytes,
+	}
+	reqDataBytes, err = json.Marshal(reqData)
+	if err != nil {
+		log.Error(err)
+	}
+	report.SendReport(reqDataBytes)
+	return nil
 }
