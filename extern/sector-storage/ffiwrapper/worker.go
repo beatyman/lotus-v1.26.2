@@ -994,7 +994,6 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 
 		log.Infof("Delete task result waiting :%s", taskKey)
 		go func() {
-			log.Infof("################## Collect sector state in Done state ####################")
 			CollectSectorStateInfo(task, "02",r.cfg)
 		}()
 		_remoteResultLk.Lock()
