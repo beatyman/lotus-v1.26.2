@@ -142,7 +142,7 @@ func checkLotusEpoch() {
 		}
 
 		// inverted order
-		return lotusNodes[i].curHeight > lotusNodes[j].curHeight && lotusNodes[i].usedTimes < lotusNodes[j].usedTimes
+		return lotusNodes[i].curHeight > lotusNodes[j].curHeight
 	})
 	// no client set
 	if len(lotusNodes) == 0 {
