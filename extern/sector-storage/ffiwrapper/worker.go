@@ -49,7 +49,7 @@ func (sb *Sealer) PrepareWorkerConn() (*database.WorkerInfo, error) {
 	}
 
 	// random the source for the old version
-	minConnRemote := available[rand.Intn(len(available)-1)]
+	minConnRemote := available[rand.Intn(len(available))]
 	workerId := minConnRemote.cfg.ID
 	info, err := database.GetWorkerInfo(workerId)
 	if err != nil {
