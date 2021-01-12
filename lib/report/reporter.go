@@ -69,6 +69,9 @@ func (r *Reporter) Run() {
 	r.lk.Unlock()
 	r.survivalServer = true
 	errBuff := [][]byte{}
+	go func() {
+		r.runTimerTestingServer()
+	}()
 	for {
 		select {
 		case data := <-r.reports:
@@ -95,41 +98,41 @@ func (r *Reporter) Run() {
 		case <-r.ctx.Done():
 		}
 	}
-	go func() {
-		r.runTimerTestingServer()
-	}()
 }
 
 func (r *Reporter) runTimerTestingServer() {
-	log.Errorf("-------------------survivalServer=%v",r.survivalServer)
 	ticker := time.NewTicker(time.Duration(10) * time.Second)
 	quit := make(chan bool, 1)
 
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				//定义超时3s
-				client := &http.Client{Timeout: 3 * time.Second}
-				resp, err := client.Get(r.serverUrl)
-				if err != nil {
-					//服务不可用
-					r.survivalServer = false
-				}
-				defer resp.Body.Close()
+    go func() {
+        for {
+            select {
+            case <-ticker.C:
+                //定义超时3s
+                if r.serverUrl != "" {
+                    client := &http.Client{Timeout: 3 * time.Second}
+                    resp, err := client.Get(r.serverUrl)
+                    if err != nil {
+                        //服务不可用
+                        r.survivalServer = false
+                        log.Errorf("report error is ", err)
+                    } else {
 
-				if resp.StatusCode == 200 {
-					r.survivalServer = true
-				}else{
-					r.survivalServer = false
-				}
-			case <-quit:
-				ticker.Stop()
-			}
-		}
-	}()
+                        defer resp.Body.Close()
+                        if resp.StatusCode == 200 {
+                            r.survivalServer = true
+                        } else {
+                            r.survivalServer = false
+                        }   
+                    }   
+                }   
+            case <-quit:
+                ticker.Stop()
+            }   
+        }   
+    }() 
+
 }
-
 func (r *Reporter) SetUrl(url string) {
 	r.lk.Lock()
 	defer r.lk.Unlock()
