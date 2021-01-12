@@ -23,13 +23,13 @@ func (w *worker) RemoveCache(ctx context.Context, sid string) error {
 	}
 
 	log.Infof("Remove cache:%s,%s", w.workerRepo, sid)
-	if err := os.RemoveAll(filepath.Join(w.workerRepo, "sealed", sid)); err != nil {
+	if err := os.Remove(filepath.Join(w.workerRepo, "sealed", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
 	if err := os.RemoveAll(filepath.Join(w.workerRepo, "cache", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
-	if err := os.RemoveAll(filepath.Join(w.workerRepo, "unsealed", sid)); err != nil {
+	if err := os.Remove(filepath.Join(w.workerRepo, "unsealed", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
 	return nil

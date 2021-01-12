@@ -170,7 +170,8 @@ type StorageMiner interface {
 	WorkerSearch(ctx context.Context, ip string) ([]database.WorkerInfo, error)
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 	WorkerAddConn(ctx context.Context, wid string, num int) error
-	WorkerPreConn(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)
+	WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error)
+	WorkerPreConnV1(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)
 	WorkerMinerConn(ctx context.Context) (int, error)
 
 	//Storage

@@ -168,8 +168,11 @@ func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disabl
 func (sm *StorageMinerAPI) WorkerAddConn(ctx context.Context, wid string, num int) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddWorkerConn(wid, num)
 }
-func (sm *StorageMinerAPI) WorkerPreConn(ctx context.Context, skipWid []string) (*database.WorkerInfo, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PrepareWorkerConn(skipWid)
+func (sm *StorageMinerAPI) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PrepareWorkerConn()
+}
+func (sm *StorageMinerAPI) WorkerPreConnV1(ctx context.Context, skipWid []string) (*database.WorkerInfo, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PrepareWorkerConnV1(skipWid)
 }
 func (sm *StorageMinerAPI) WorkerMinerConn(ctx context.Context) (int, error) {
 	return fileserver.Conns(), nil
