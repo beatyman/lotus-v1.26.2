@@ -108,15 +108,14 @@ func (r *Reporter) runTimerTestingServer() {
         for {
             select {
             case <-ticker.C:
-		log.Errorf("serUrl >>>>>>>>>>>>>>>>>>>>>%v",r.GetSurvivalServer())
                 //定义超时3s
                 if r.serverUrl != "" {
                     client := &http.Client{Timeout: 3 * time.Second}
                     resp, err := client.Get(r.serverUrl)
                     if err != nil {
+                        log.Errorf("report error is ", err)
                         //服务不可用
 			r.SetSurvivalServer(false)
-                        log.Errorf("report error is ", err)
                     } else {
 
                         defer resp.Body.Close()
