@@ -28,10 +28,10 @@ func init() {
 }
 
 func LoadHlmAuth() error {
-	return loadHlmAuth()
+	return loadHlmAuth(authFile)
 }
 
-func loadHlmAuth() error {
+func loadHlmAuth(authFile string) error {
 	data, err := ioutil.ReadFile(authFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -48,11 +48,17 @@ func loadHlmAuth() error {
 	if err != nil {
 		return errors.As(err)
 	}
-
+	// format check
 	for idx, line := range records {
 		if len(line) != 2 {
 			return errors.New("error auth format").As(idx, line)
 		}
+	}
+
+	authMutex.Lock()
+	auth = map[string][]byte{}
+	authMutex.Unlock()
+	for _, line := range records {
 		authMutex.Lock()
 		auth[line[0]] = []byte(line[1])
 		authMutex.Unlock()
@@ -75,13 +81,17 @@ func IsHlmAuth(key string, pwdIn []byte) bool {
 	return bytes.Compare(pwd, pwdIn) == 0
 }
 
-func GetHlmAuth(key address.Address) []byte {
+func HlmAuthPwd(key string) []byte {
 	authMutex.Lock()
 	defer authMutex.Unlock()
 
-	pwd, ok := auth[key.String()]
+	pwd, ok := auth[key]
 	if !ok {
 		return nil
 	}
 	return pwd
+}
+
+func GetHlmAuth(key address.Address) []byte {
+	return HlmAuthPwd(key.String())
 }
