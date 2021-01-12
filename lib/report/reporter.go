@@ -45,7 +45,7 @@ func (r *Reporter) send(data []byte) error {
 
 	r.lk.Lock()
 	defer r.lk.Unlock()
-	if len(r.serverUrl) == 0 || !r.GetSurvivalServer{
+	if len(r.serverUrl) == 0 || !r.GetSurvivalServer(){
 		return nil
 	}
 	resp, err := http.Post(r.serverUrl, "encoding/json", bytes.NewReader(data))
