@@ -219,7 +219,7 @@ func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName 
 	dlWorkerUsed := false
 	skipDownloadSrv[0] = w.workerCfg.ID
 	// try download from worker
-	dlWorker, err := napi.WorkerPreConn(ctx, skipDownloadSrv)
+	dlWorker, err := napi.WorkerPreConnV1(ctx, skipDownloadSrv)
 	if err != nil {
 		if !errors.ErrNoData.Equal(err) {
 			return errors.As(err)
