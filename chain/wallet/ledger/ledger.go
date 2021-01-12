@@ -42,7 +42,7 @@ var _ api.WalletAPI = (*LedgerWallet)(nil)
 func (lw LedgerWallet) WalletSign(ctx context.Context, auth []byte, signer address.Address, toSign []byte, meta api.MsgMeta) (*crypto.Signature, error) {
 	// implement hlm auth
 	if !build.IsHlmAuth(signer.String(), auth) {
-		return nil, xerrors.Errorf("wallet(%s) auth failed, please conntact administrator.", signer.String())
+		return nil, xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", signer.String(), string(auth))
 	}
 	// implement hlm end
 
@@ -104,7 +104,7 @@ func (lw LedgerWallet) getKeyInfo(addr address.Address) (*LedgerKeyInfo, error) 
 func (lw LedgerWallet) WalletDelete(ctx context.Context, auth []byte, k address.Address) error {
 	// implement hlm auth
 	if !build.IsHlmAuth(k.String(), auth) {
-		return xerrors.Errorf("wallet(%s) auth failed, please conntact administrator.", k.String())
+		return xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", k.String(), string(auth))
 	}
 	// implement hlm end
 	return lw.ds.Delete(keyForAddr(k))
@@ -113,7 +113,7 @@ func (lw LedgerWallet) WalletDelete(ctx context.Context, auth []byte, k address.
 func (lw LedgerWallet) WalletExport(ctx context.Context, auth []byte, k address.Address) (*types.KeyInfo, error) {
 	// implement hlm auth
 	if !build.IsHlmAuth(k.String(), auth) {
-		return nil, xerrors.Errorf("wallet(%s) auth failed, please conntact administrator.", k.String())
+		return nil, xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", k.String(), string(auth))
 	}
 	// implement hlm end
 
