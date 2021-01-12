@@ -1148,7 +1148,7 @@ func CollectSectorStateInfo(task WorkerTask, workerType string,workerCfg WorkerC
 	}
 
 	//_, err := report.ReportData("POST", reqData)
-	report.SendReport(reqDataBytes)
+	go report.SendReport(reqDataBytes)
 	if err != nil {
 		return err
 	}

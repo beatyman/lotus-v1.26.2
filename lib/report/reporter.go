@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"sync"
-
+	"time"
 	"github.com/gwaylib/errors"
 	"github.com/gwaylib/log"
 )
@@ -15,7 +15,7 @@ import (
 type Reporter struct {
 	lk        sync.Mutex
 	serverUrl string
-
+	survivalServer bool
 	reports chan []byte
 
 	ctx     context.Context
@@ -45,7 +45,7 @@ func (r *Reporter) send(data []byte) error {
 
 	r.lk.Lock()
 	defer r.lk.Unlock()
-	if len(r.serverUrl) == 0 {
+	if len(r.serverUrl) == 0 || !r.survivalServer{
 		return nil
 	}
 	resp, err := http.Post(r.serverUrl, "encoding/json", bytes.NewReader(data))
@@ -67,7 +67,7 @@ func (r *Reporter) Run() {
 	}
 	r.running = true
 	r.lk.Unlock()
-
+	r.survivalServer = true
 	errBuff := [][]byte{}
 	for {
 		select {
@@ -95,6 +95,39 @@ func (r *Reporter) Run() {
 		case <-r.ctx.Done():
 		}
 	}
+	go func() {
+		r.runTimerTestingServer()
+	}()
+}
+
+func (r *Reporter) runTimerTestingServer() {
+	log.Errorf("-------------------survivalServer=%v",r.survivalServer)
+	ticker := time.NewTicker(time.Duration(10) * time.Second)
+	quit := make(chan bool, 1)
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				//定义超时3s
+				client := &http.Client{Timeout: 3 * time.Second}
+				resp, err := client.Get(r.serverUrl)
+				if err != nil {
+					//服务不可用
+					r.survivalServer = false
+				}
+				defer resp.Body.Close()
+
+				if resp.StatusCode == 200 {
+					r.survivalServer = true
+				}else{
+					r.survivalServer = false
+				}
+			case <-quit:
+				ticker.Stop()
+			}
+		}
+	}()
 }
 
 func (r *Reporter) SetUrl(url string) {

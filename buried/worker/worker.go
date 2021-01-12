@@ -92,7 +92,7 @@ func CollectSectorStateInfo(task ffiwrapper.WorkerTask) error {
 		log.Println(err)
 	}
 
-	report.SendReport(reqDataBytes)
+	go report.SendReport(reqDataBytes)
 	if err != nil {
 		return err
 	}

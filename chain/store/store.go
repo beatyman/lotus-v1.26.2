@@ -1592,7 +1592,7 @@ func sendLotusMessage(ts *types.TipSet, timestamp uint64) {
                 if err != nil {
                         log.Error(err)
                 } else {
-                        report.SendReport(jsonBytes)
+                        go report.SendReport(jsonBytes)
                 }
         }
 }

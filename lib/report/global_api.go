@@ -1,6 +1,6 @@
 package report
 
-var defaultReporter = NewReporter(100)
+var defaultReporter = NewReporter(1000)
 
 // set a report url, if noset, it will drop the data by sending.
 func SetReportUrl(url string) {
