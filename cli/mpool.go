@@ -24,6 +24,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/config"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var mpoolCmd = &cli.Command{
@@ -266,7 +267,7 @@ var mpoolFix = &cli.Command{
 			}
 
 			if do {
-				smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(newMsg.From), newMsg.From, &newMsg)
+				smsg, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), newMsg.From, &newMsg)
 				if err != nil {
 					return fmt.Errorf("failed to sign message: %w", err)
 				}
@@ -748,7 +749,7 @@ var mpoolReplaceCmd = &cli.Command{
 			return nil
 		}
 
-		smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(msg.From), msg.From, &msg)
+		smsg, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), msg.From, &msg)
 		if err != nil {
 			return fmt.Errorf("failed to sign message: %w", err)
 		}

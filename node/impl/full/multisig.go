@@ -8,10 +8,10 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/multisig"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 
 	multisig2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/multisig"
 
@@ -51,7 +51,7 @@ func (a *MsigAPI) MsigCreate(ctx context.Context, req uint64, addrs []address.Ad
 	}
 
 	// send the message out to the network
-	smsg, err := a.MpoolAPI.MpoolPushMessage(ctx, build.GetHlmAuth(msg.From), msg, nil)
+	smsg, err := a.MpoolAPI.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}

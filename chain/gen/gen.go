@@ -43,6 +43,7 @@ import (
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/lib/blockstore"
 	"github.com/filecoin-project/lotus/lib/sigs"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/repo"
 )
 
@@ -539,7 +540,7 @@ func getRandomMessages(cg *ChainGen) ([]*types.SignedMessage, error) {
 			GasPremium: types.NewInt(0),
 		}
 
-		sig, err := cg.w.WalletSign(context.TODO(), build.GetHlmAuth(cg.banker), cg.banker, msg.Cid().Bytes(), api.MsgMeta{
+		sig, err := cg.w.WalletSign(context.TODO(), auth.GetHlmAuth(), cg.banker, msg.Cid().Bytes(), api.MsgMeta{
 			Type: api.MTUnknown, // testing
 		})
 		if err != nil {
@@ -668,7 +669,7 @@ func VerifyVRF(ctx context.Context, worker address.Address, vrfBase, vrfproof []
 }
 
 func ComputeVRF(ctx context.Context, sign SignFunc, worker address.Address, sigInput []byte) ([]byte, error) {
-	sig, err := sign(ctx, build.GetHlmAuth(worker), worker, sigInput)
+	sig, err := sign(ctx, auth.GetHlmAuth(), worker, sigInput)
 	if err != nil {
 		return nil, err
 	}

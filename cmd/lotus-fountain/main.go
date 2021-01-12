@@ -18,6 +18,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var log = logging.Logger("main")
@@ -173,7 +174,7 @@ func (h *handler) send(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	smsg, err := h.api.MpoolPushMessage(h.ctx, build.GetHlmAuth(h.from), &types.Message{
+	smsg, err := h.api.MpoolPushMessage(h.ctx, auth.GetHlmAuth(), &types.Message{
 		Value: types.BigInt(h.sendPerRequest),
 		From:  h.from,
 		To:    to,

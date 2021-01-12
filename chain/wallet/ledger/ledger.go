@@ -17,8 +17,8 @@ import (
 	"github.com/filecoin-project/go-state-types/crypto"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 )
 
@@ -39,10 +39,10 @@ type LedgerKeyInfo struct {
 
 var _ api.WalletAPI = (*LedgerWallet)(nil)
 
-func (lw LedgerWallet) WalletSign(ctx context.Context, auth []byte, signer address.Address, toSign []byte, meta api.MsgMeta) (*crypto.Signature, error) {
+func (lw LedgerWallet) WalletSign(ctx context.Context, authData []byte, signer address.Address, toSign []byte, meta api.MsgMeta) (*crypto.Signature, error) {
 	// implement hlm auth
-	if !build.IsHlmAuth(signer.String(), auth) {
-		return nil, xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", signer.String(), string(auth))
+	if !auth.IsHlmAuth(signer.String(), authData) {
+		return nil, xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", signer.String(), string(authData))
 	}
 	// implement hlm end
 
@@ -101,19 +101,19 @@ func (lw LedgerWallet) getKeyInfo(addr address.Address) (*LedgerKeyInfo, error) 
 	return &out, nil
 }
 
-func (lw LedgerWallet) WalletDelete(ctx context.Context, auth []byte, k address.Address) error {
+func (lw LedgerWallet) WalletDelete(ctx context.Context, authData []byte, k address.Address) error {
 	// implement hlm auth
-	if !build.IsHlmAuth(k.String(), auth) {
-		return xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", k.String(), string(auth))
+	if !auth.IsHlmAuth(k.String(), authData) {
+		return xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", k.String(), string(authData))
 	}
 	// implement hlm end
 	return lw.ds.Delete(keyForAddr(k))
 }
 
-func (lw LedgerWallet) WalletExport(ctx context.Context, auth []byte, k address.Address) (*types.KeyInfo, error) {
+func (lw LedgerWallet) WalletExport(ctx context.Context, authData []byte, k address.Address) (*types.KeyInfo, error) {
 	// implement hlm auth
-	if !build.IsHlmAuth(k.String(), auth) {
-		return nil, xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", k.String(), string(auth))
+	if !auth.IsHlmAuth(k.String(), authData) {
+		return nil, xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", k.String(), string(authData))
 	}
 	// implement hlm end
 

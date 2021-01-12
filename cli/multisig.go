@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/stmgr"
@@ -426,7 +427,7 @@ var msigProposeCmd = &cli.Command{
 			return fmt.Errorf("actor %s is not a multisig actor", msig)
 		}
 
-		msgCid, err := api.MsigPropose(ctx, build.GetHlmAuth(msig), msig, dest, types.BigInt(value), from, method, params)
+		msgCid, err := api.MsigPropose(ctx, auth.GetHlmAuth(), msig, dest, types.BigInt(value), from, method, params)
 		if err != nil {
 			return err
 		}
@@ -515,7 +516,7 @@ var msigApproveCmd = &cli.Command{
 
 		var msgCid cid.Cid
 		if cctx.Args().Len() == 2 {
-			msgCid, err = api.MsigApprove(ctx, build.GetHlmAuth(msig), msig, txid, from)
+			msgCid, err = api.MsigApprove(ctx, auth.GetHlmAuth(), msig, txid, from)
 			if err != nil {
 				return err
 			}
@@ -558,7 +559,7 @@ var msigApproveCmd = &cli.Command{
 				params = p
 			}
 
-			msgCid, err = api.MsigApproveTxnHash(ctx, build.GetHlmAuth(msig), msig, txid, proposer, dest, types.BigInt(value), from, method, params)
+			msgCid, err = api.MsigApproveTxnHash(ctx, auth.GetHlmAuth(), msig, txid, proposer, dest, types.BigInt(value), from, method, params)
 			if err != nil {
 				return err
 			}
@@ -630,7 +631,7 @@ var msigRemoveProposeCmd = &cli.Command{
 			from = defaddr
 		}
 
-		msgCid, err := api.MsigRemoveSigner(ctx, build.GetHlmAuth(msig), msig, from, addr, cctx.Bool("decrease-threshold"))
+		msgCid, err := api.MsigRemoveSigner(ctx, auth.GetHlmAuth(), msig, from, addr, cctx.Bool("decrease-threshold"))
 		if err != nil {
 			return err
 		}
@@ -708,7 +709,7 @@ var msigAddProposeCmd = &cli.Command{
 			from = defaddr
 		}
 
-		msgCid, err := api.MsigAddPropose(ctx, build.GetHlmAuth(msig), msig, from, addr, cctx.Bool("increase-threshold"))
+		msgCid, err := api.MsigAddPropose(ctx, auth.GetHlmAuth(), msig, from, addr, cctx.Bool("increase-threshold"))
 		if err != nil {
 			return err
 		}
@@ -790,7 +791,7 @@ var msigAddApproveCmd = &cli.Command{
 			from = defaddr
 		}
 
-		msgCid, err := api.MsigAddApprove(ctx, build.GetHlmAuth(from), msig, from, txid, prop, newAdd, inc)
+		msgCid, err := api.MsigAddApprove(ctx, auth.GetHlmAuth(), msig, from, txid, prop, newAdd, inc)
 		if err != nil {
 			return err
 		}
@@ -867,7 +868,7 @@ var msigAddCancelCmd = &cli.Command{
 			from = defaddr
 		}
 
-		msgCid, err := api.MsigAddCancel(ctx, build.GetHlmAuth(from), msig, from, txid, newAdd, inc)
+		msgCid, err := api.MsigAddCancel(ctx, auth.GetHlmAuth(), msig, from, txid, newAdd, inc)
 		if err != nil {
 			return err
 		}
@@ -939,7 +940,7 @@ var msigSwapProposeCmd = &cli.Command{
 			from = defaddr
 		}
 
-		msgCid, err := api.MsigSwapPropose(ctx, build.GetHlmAuth(msig), msig, from, oldAdd, newAdd)
+		msgCid, err := api.MsigSwapPropose(ctx, auth.GetHlmAuth(), msig, from, oldAdd, newAdd)
 		if err != nil {
 			return err
 		}
@@ -1021,7 +1022,7 @@ var msigSwapApproveCmd = &cli.Command{
 			from = defaddr
 		}
 
-		msgCid, err := api.MsigSwapApprove(ctx, build.GetHlmAuth(msig), msig, from, txid, prop, oldAdd, newAdd)
+		msgCid, err := api.MsigSwapApprove(ctx, auth.GetHlmAuth(), msig, from, txid, prop, oldAdd, newAdd)
 		if err != nil {
 			return err
 		}
@@ -1098,7 +1099,7 @@ var msigSwapCancelCmd = &cli.Command{
 			from = defaddr
 		}
 
-		msgCid, err := api.MsigSwapCancel(ctx, build.GetHlmAuth(msig), msig, from, txid, oldAdd, newAdd)
+		msgCid, err := api.MsigSwapCancel(ctx, auth.GetHlmAuth(), msig, from, txid, oldAdd, newAdd)
 		if err != nil {
 			return err
 		}
@@ -1185,7 +1186,7 @@ var msigLockProposeCmd = &cli.Command{
 			return actErr
 		}
 
-		msgCid, err := api.MsigPropose(ctx, build.GetHlmAuth(msig), msig, msig, big.Zero(), from, uint64(multisig.Methods.LockBalance), params)
+		msgCid, err := api.MsigPropose(ctx, auth.GetHlmAuth(), msig, msig, big.Zero(), from, uint64(multisig.Methods.LockBalance), params)
 		if err != nil {
 			return err
 		}
@@ -1282,7 +1283,7 @@ var msigLockApproveCmd = &cli.Command{
 			return actErr
 		}
 
-		msgCid, err := api.MsigApproveTxnHash(ctx, build.GetHlmAuth(msig), msig, txid, prop, msig, big.Zero(), from, uint64(multisig.Methods.LockBalance), params)
+		msgCid, err := api.MsigApproveTxnHash(ctx, auth.GetHlmAuth(), msig, txid, prop, msig, big.Zero(), from, uint64(multisig.Methods.LockBalance), params)
 		if err != nil {
 			return err
 		}
@@ -1374,7 +1375,7 @@ var msigLockCancelCmd = &cli.Command{
 			return actErr
 		}
 
-		msgCid, err := api.MsigCancel(ctx, build.GetHlmAuth(msig), msig, txid, msig, big.Zero(), from, uint64(multisig.Methods.LockBalance), params)
+		msgCid, err := api.MsigCancel(ctx, auth.GetHlmAuth(), msig, txid, msig, big.Zero(), from, uint64(multisig.Methods.LockBalance), params)
 		if err != nil {
 			return err
 		}
@@ -1511,7 +1512,7 @@ var msigProposeThresholdCmd = &cli.Command{
 			return actErr
 		}
 
-		msgCid, err := api.MsigPropose(ctx, build.GetHlmAuth(msig), msig, msig, types.NewInt(0), from, uint64(multisig.Methods.ChangeNumApprovalsThreshold), params)
+		msgCid, err := api.MsigPropose(ctx, auth.GetHlmAuth(), msig, msig, types.NewInt(0), from, uint64(multisig.Methods.ChangeNumApprovalsThreshold), params)
 		if err != nil {
 			return fmt.Errorf("failed to propose change of threshold: %w", err)
 		}
