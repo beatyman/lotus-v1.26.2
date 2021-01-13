@@ -14,6 +14,7 @@ import (
 
 type Reporter struct {
 	lk        sync.Mutex
+	lkSurvivalServer        sync.Mutex
 	serverUrl string
 	survivalServer bool
 	reports chan []byte
@@ -45,6 +46,7 @@ func (r *Reporter) send(data []byte) error {
 
 	r.lk.Lock()
 	defer r.lk.Unlock()
+
 	if len(r.serverUrl) == 0 || !r.GetSurvivalServer(){
 		return nil
 	}
@@ -140,14 +142,14 @@ func (r *Reporter) SetUrl(url string) {
 }
 
 func (r *Reporter) SetSurvivalServer(surServer bool) {
-        r.lk.Lock()
-        defer r.lk.Unlock()
+        r.lkSurvivalServer.Lock()
+        defer r.lkSurvivalServer.Unlock()
         r.survivalServer = surServer
 }
 
 func (r *Reporter) GetSurvivalServer() bool {
-        r.lk.Lock()
-        defer r.lk.Unlock()
+	r.lkSurvivalServer.Lock()
+        defer r.lkSurvivalServer.Unlock()
 	return r.survivalServer
 }
 
