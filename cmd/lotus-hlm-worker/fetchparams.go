@@ -217,9 +217,10 @@ func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName 
 	}
 	paramUri := ""
 	dlWorkerUsed := false
+	dlWorkerId := ""
 	skipDownloadSrv[0] = w.workerCfg.ID
 	// try download from worker
-	dlWorker, err := napi.WorkerPreConn(ctx, skipDownloadSrv)
+	dlWorker, err := napi.WorkerPreConnV1(ctx, skipDownloadSrv)
 	if err != nil {
 		if !errors.ErrNoData.Equal(err) {
 			return errors.As(err)
@@ -228,8 +229,8 @@ func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName 
 	} else {
 		// mark the server has used
 		dlWorkerUsed = true
+		dlWorkerId = dlWorker.ID
 		paramUri = "http://" + dlWorker.SvcUri + PARAMS_PATH
-		skipDownloadSrv = append(skipDownloadSrv, dlWorker.ID)
 	}
 	defer func() {
 		if !dlWorkerUsed {
@@ -268,8 +269,11 @@ func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName 
 	}
 
 	// the miner has tried, return then try end.
-	if err != nil && !dlWorkerUsed {
-		return ErrMinerDone
+	if err != nil {
+		if !dlWorkerUsed {
+			return ErrMinerDone
+		}
+		skipDownloadSrv = append(skipDownloadSrv, dlWorkerId)
 	}
 	return err
 }
