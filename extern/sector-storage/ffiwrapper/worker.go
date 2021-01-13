@@ -1145,10 +1145,11 @@ func CollectSectorStateInfo(task WorkerTask, workerType string,workerCfg WorkerC
 	reqDataBytes, err := json.Marshal(reqData)
 	if err != nil {
 		log.Error(err)
+		return err
 	}
 
 	//_, err := report.ReportData("POST", reqData)
-	report.SendReport(reqDataBytes)
+	go report.SendReport(reqDataBytes)
 	if err != nil {
 		return err
 	}

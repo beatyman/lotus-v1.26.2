@@ -7,15 +7,16 @@ import (
 	"net/http"
 	"runtime/debug"
 	"sync"
-
+	"time"
 	"github.com/gwaylib/errors"
 	"github.com/gwaylib/log"
 )
 
 type Reporter struct {
 	lk        sync.Mutex
+	lkSurvivalServer        sync.Mutex
 	serverUrl string
-
+	survivalServer bool
 	reports chan []byte
 
 	ctx     context.Context
@@ -45,7 +46,8 @@ func (r *Reporter) send(data []byte) error {
 
 	r.lk.Lock()
 	defer r.lk.Unlock()
-	if len(r.serverUrl) == 0 {
+
+	if len(r.serverUrl) == 0 || !r.GetSurvivalServer(){
 		return nil
 	}
 	resp, err := http.Post(r.serverUrl, "encoding/json", bytes.NewReader(data))
@@ -67,8 +69,11 @@ func (r *Reporter) Run() {
 	}
 	r.running = true
 	r.lk.Unlock()
-
+	r.SetSurvivalServer(true)
 	errBuff := [][]byte{}
+	go func() {
+		r.runTimerTestingServer()
+	}()
 	for {
 		select {
 		case data := <-r.reports:
@@ -97,10 +102,55 @@ func (r *Reporter) Run() {
 	}
 }
 
+func (r *Reporter) runTimerTestingServer() {
+	ticker := time.NewTicker(time.Duration(10) * time.Second)
+	quit := make(chan bool, 1)
+
+    go func() {
+        for {
+            select {
+            case <-ticker.C:
+                //定义超时3s
+                if r.serverUrl != "" {
+                    client := &http.Client{Timeout: 3 * time.Second}
+                    resp, err := client.Get(r.serverUrl)
+                    if err != nil {
+                        log.Errorf("report error is ", err)
+                        //服务不可用
+			r.SetSurvivalServer(false)
+                    } else {
+
+                        defer resp.Body.Close()
+                        if resp.StatusCode == 200 {
+			    r.SetSurvivalServer(true)
+                        } else {
+			    r.SetSurvivalServer(false)
+                        }   
+                    }   
+                }   
+            case <-quit:
+                ticker.Stop()
+            }   
+        }   
+    }() 
+
+}
 func (r *Reporter) SetUrl(url string) {
 	r.lk.Lock()
 	defer r.lk.Unlock()
 	r.serverUrl = url
+}
+
+func (r *Reporter) SetSurvivalServer(surServer bool) {
+        r.lkSurvivalServer.Lock()
+        defer r.lkSurvivalServer.Unlock()
+        r.survivalServer = surServer
+}
+
+func (r *Reporter) GetSurvivalServer() bool {
+	r.lkSurvivalServer.Lock()
+        defer r.lkSurvivalServer.Unlock()
+	return r.survivalServer
 }
 
 func (r *Reporter) Send(data []byte) {

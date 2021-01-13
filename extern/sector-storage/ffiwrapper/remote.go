@@ -654,9 +654,10 @@ func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, wo
 	reqDataBytes, err := json.Marshal(reqData)
 	if err != nil {
 		log.Error(err)
+	}else{
+		go report.SendReport(reqDataBytes)
 	}
 
-	report.SendReport(reqDataBytes)
 
 	sectorStateInfo.CreateTime = endTime
 	sectorStateInfo.State = "Commit2Start"
@@ -672,7 +673,8 @@ func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, wo
 	reqDataBytes, err = json.Marshal(reqData)
 	if err != nil {
 		log.Error(err)
+	}else{
+		go report.SendReport(reqDataBytes)
 	}
-	report.SendReport(reqDataBytes)
 	return nil
 }

@@ -34,7 +34,7 @@ func RunCollectMinerInfo(cctx *cli.Context,timer int64) chan bool {
 					Data:     minerInfoDataBytes,
 				}
 				reqDataBytes, err := json.Marshal(reqData)
-				report.SendReport(reqDataBytes)
+				go report.SendReport(reqDataBytes)
 			case <-quit:
 				ticker.Stop()
 			}
