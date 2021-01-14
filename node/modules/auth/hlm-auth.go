@@ -74,7 +74,7 @@ func LoadHlmAuth() error {
 	return nil
 }
 
-func IsHlmAuth(authScope string, authData []byte) bool {
+func IsHlmAuth(authAddr string, authData []byte) bool {
 	// TODO: auth from etcd.
 	authMutex.Lock()
 	defer authMutex.Unlock()
@@ -92,7 +92,7 @@ func IsHlmAuth(authScope string, authData []byte) bool {
 
 	for key, _ := range tmpAuth {
 		addrs, ok := auths[string(key)]
-		if ok && strings.Contains(addrs, authScope) {
+		if ok && strings.Contains(addrs, authAddr) {
 			return true
 		}
 	}
@@ -107,4 +107,10 @@ func GetHlmAuth() []byte {
 	defer authMutex.Unlock()
 
 	return authData
+}
+
+func IsHlmAuthOn() bool {
+	authMutex.Lock()
+	defer authMutex.Unlock()
+	return len(auths) > 0
 }
