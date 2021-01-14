@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"encoding/json"
 	"math"
+	"math/rand"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -32,8 +33,40 @@ func (sb *Sealer) AddWorkerConn(id string, num int) error {
 
 }
 
+// for the old worker version
+func (sb *Sealer) PrepareWorkerConn() (*database.WorkerInfo, error) {
+	workerConnLock.Lock()
+	defer workerConnLock.Unlock()
+
+	var available []*remote
+	_remotes.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
+		if r.cfg.ParallelCommit > 0 || r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv {
+			available = append(available, r)
+		}
+		return true
+	})
+
+	if len(available) == 0 {
+		return nil, errors.ErrNoData
+	}
+
+	// random the source for the old version
+	minConnRemote := available[rand.Intn(len(available))]
+	workerId := minConnRemote.cfg.ID
+	info, err := database.GetWorkerInfo(workerId)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	minConnRemote.srvConn++
+	_remotes.Store(workerId, minConnRemote)
+	database.AddWorkerConn(workerId, 1)
+	return info, nil
+
+}
+
 // prepare worker connection will auto increment the connections
-func (sb *Sealer) PrepareWorkerConn(skipWid []string) (*database.WorkerInfo, error) {
+func (sb *Sealer) PrepareWorkerConnV1(skipWid []string) (*database.WorkerInfo, error) {
 	workerConnLock.Lock()
 	defer workerConnLock.Unlock()
 
