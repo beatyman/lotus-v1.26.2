@@ -1,6 +1,5 @@
 #!/bin/sh
 
-export BELLMAN_NO_GPU=1
 export RUST_LOG=info
 export RUST_BACKTRACE=1
 

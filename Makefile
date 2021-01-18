@@ -81,6 +81,9 @@ etcdctl: $(BUILD_DEPS)
 .PHONY: etcdctl
 BINS+=etcdctl
 
+calibnet: GOFLAGS+=-tags=calibnet
+calibnet: lotus lotus-miner lotus-worker lotus-seed
+
 lotus: $(BUILD_DEPS)
 	rm -f lotus
 	go build $(GOFLAGS) -o lotus ./cmd/lotus
