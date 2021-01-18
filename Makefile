@@ -82,7 +82,7 @@ etcdctl: $(BUILD_DEPS)
 BINS+=etcdctl
 
 calibnet: GOFLAGS+=-tags=calibnet
-calibnet: lotus lotus-miner lotus-worker lotus-seed
+calibnet: lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
 
 lotus: $(BUILD_DEPS)
 	rm -f lotus

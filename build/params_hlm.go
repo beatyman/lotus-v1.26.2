@@ -8,6 +8,9 @@ import (
 	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
 )
 
+const BootstrappersFile = "devnet.pi"
+const GenesisFile = "devnet.car"
+
 const UpgradeBreezeHeight = -1
 const BreezeGasTampingDuration = 0
 

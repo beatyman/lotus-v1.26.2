@@ -7,8 +7,8 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 )
 
-const BootstrappersFile = ""
-const GenesisFile = ""
+const BootstrappersFile = "devnet.pi"
+const GenesisFile = "devnet.car"
 
 const UpgradeBreezeHeight = -1
 const BreezeGasTampingDuration = 0
