@@ -14,22 +14,19 @@ export FFI_BUILD_FROM_SOURCE=1
 echo "make "$1
 case $1 in
     "debug")
-        cp -f scripts/bootstrappers.pi build/bootstrap/bootstrappers.pi
+        cp -f scripts/bootstrappers.pi build/bootstrap/devnet.pi
         cp -f scripts/devnet.car build/genesis/devnet.car
         make debug
         git checkout build
     ;;
     "hlm")
-        cp -f scripts/bootstrappers.pi build/bootstrap/bootstrappers.pi
+        cp -f scripts/bootstrappers.pi build/bootstrap/devnet.pi
         cp -f scripts/devnet-hlm.car build/genesis/devnet.car
         make hlm
         git checkout build
     ;;
     "calibration")
-        cp -f scripts/bootstrappers-calibration.pi build/bootstrap/bootstrappers.pi
-        cp -f scripts/devnet-calibration.car build/genesis/devnet.car
-        make calibration
-        git checkout build
+        make calibnet
     ;;
     *)
         make $1

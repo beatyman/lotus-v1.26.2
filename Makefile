@@ -70,7 +70,7 @@ calibration: lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
 2k: lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools
 
 calibnet: GOFLAGS+=-tags=calibnet
-calibnet: lotus lotus-miner lotus-worker lotus-seed
+calibnet: lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
 
 lotus: $(BUILD_DEPS)
 	rm -f lotus
