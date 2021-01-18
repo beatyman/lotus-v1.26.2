@@ -7,12 +7,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	marketactor "github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/market"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/impl/full"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 type MarketAPI struct {
@@ -28,7 +28,7 @@ func (a *MarketAPI) MarketAddBalance(ctx context.Context, wallet, addr address.A
 		return cid.Undef, err
 	}
 
-	smsg, aerr := a.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+	smsg, aerr := a.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 		To:     marketactor.Address,
 		From:   wallet,
 		Value:  amt,
