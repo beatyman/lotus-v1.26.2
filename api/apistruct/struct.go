@@ -252,6 +252,8 @@ type FullNodeStruct struct {
 		MsigSwapCancel          func(context.Context, address.Address, address.Address, uint64, address.Address, address.Address) (cid.Cid, error)                               `perm:"sign"`
 		MsigRemoveSigner        func(ctx context.Context, msig address.Address, proposer address.Address, toRemove address.Address, decrease bool) (cid.Cid, error)              `perm:"sign"`
 
+		MarketAddBalance   func(ctx context.Context, wallet, addr address.Address, amt types.BigInt) (cid.Cid, error)                 `perm:"sign"`
+		MarketGetReserved  func(ctx context.Context, addr address.Address) (types.BigInt, error)                                      `perm:"sign"`
 		MarketReserveFunds func(ctx context.Context, wallet address.Address, addr address.Address, amt types.BigInt) (cid.Cid, error) `perm:"sign"`
 		MarketReleaseFunds func(ctx context.Context, addr address.Address, amt types.BigInt) error                                    `perm:"sign"`
 		MarketWithdraw     func(ctx context.Context, wallet, addr address.Address, amt types.BigInt) (cid.Cid, error)                 `perm:"sign"`
@@ -320,6 +322,9 @@ type StorageMinerStruct struct {
 		SectorGetExpectedSealDuration func(context.Context) (time.Duration, error)                                                  `perm:"read"`
 		SectorsUpdate                 func(context.Context, abi.SectorNumber, api.SectorState) error                                `perm:"admin"`
 		SectorRemove                  func(context.Context, abi.SectorNumber) error                                                 `perm:"admin"`
+		SectorTerminate               func(context.Context, abi.SectorNumber) error                                                 `perm:"admin"`
+		SectorTerminateFlush          func(ctx context.Context) (*cid.Cid, error)                                                   `perm:"admin"`
+		SectorTerminatePending        func(ctx context.Context) ([]abi.SectorID, error)                                             `perm:"admin"`
 		SectorMarkForUpgrade          func(ctx context.Context, id abi.SectorNumber) error                                          `perm:"admin"`
 
 		WorkerConnect func(context.Context, string) error                                `perm:"admin" retry:"true"` // TODO: worker perm
@@ -1220,6 +1225,14 @@ func (c *FullNodeStruct) MsigRemoveSigner(ctx context.Context, msig address.Addr
 	return c.Internal.MsigRemoveSigner(ctx, msig, proposer, toRemove, decrease)
 }
 
+func (c *FullNodeStruct) MarketAddBalance(ctx context.Context, wallet address.Address, addr address.Address, amt types.BigInt) (cid.Cid, error) {
+	return c.Internal.MarketAddBalance(ctx, wallet, addr, amt)
+}
+
+func (c *FullNodeStruct) MarketGetReserved(ctx context.Context, addr address.Address) (types.BigInt, error) {
+	return c.Internal.MarketGetReserved(ctx, addr)
+}
+
 func (c *FullNodeStruct) MarketReserveFunds(ctx context.Context, wallet address.Address, addr address.Address, amt types.BigInt) (cid.Cid, error) {
 	return c.Internal.MarketReserveFunds(ctx, wallet, addr, amt)
 }
@@ -1530,6 +1543,18 @@ func (c *StorageMinerStruct) SectorsUpdate(ctx context.Context, id abi.SectorNum
 
 func (c *StorageMinerStruct) SectorRemove(ctx context.Context, number abi.SectorNumber) error {
 	return c.Internal.SectorRemove(ctx, number)
+}
+
+func (c *StorageMinerStruct) SectorTerminate(ctx context.Context, number abi.SectorNumber) error {
+	return c.Internal.SectorTerminate(ctx, number)
+}
+
+func (c *StorageMinerStruct) SectorTerminateFlush(ctx context.Context) (*cid.Cid, error) {
+	return c.Internal.SectorTerminateFlush(ctx)
+}
+
+func (c *StorageMinerStruct) SectorTerminatePending(ctx context.Context) ([]abi.SectorID, error) {
+	return c.Internal.SectorTerminatePending(ctx)
 }
 
 func (c *StorageMinerStruct) SectorMarkForUpgrade(ctx context.Context, number abi.SectorNumber) error {
