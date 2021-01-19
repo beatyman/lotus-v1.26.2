@@ -930,6 +930,20 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			return
 		}
 		// can be scheduled
+
+		// this is fix the bug of remove error when finalizing in v1.4.0-patch2
+		if task.task.Type == WorkerFinalize && (r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv) {
+			if err := database.UpdateSectorState(
+				ss.SectorInfo.ID, r.cfg.ID,
+				fmt.Sprintf("done:%d", task.task.Type), database.SECTOR_STATE_DONE); err != nil {
+				task.ret <- sb.errTask(task, errors.As(err))
+				return
+			}
+			r.freeTask(ss.SectorInfo.ID)
+			task.ret <- sb.errTask(task, nil)
+			return
+		}
+		// end fix bug
 	}
 	// update status
 	if err := database.UpdateSectorState(ss.SectorInfo.ID, r.cfg.ID, "task in", int(task.task.Type)); err != nil {

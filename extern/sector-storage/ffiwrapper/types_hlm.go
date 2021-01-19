@@ -258,6 +258,7 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	// no limit list
 	switch typ {
 	case WorkerFinalize:
+		// TODO: return r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv
 		return false
 	}
 

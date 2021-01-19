@@ -182,11 +182,6 @@ var mpoolFix = &cli.Command{
 			Usage: "limit the message. 0 is ignored",
 			Value: 0,
 		},
-		&cli.StringFlag{
-			Name:  "limit-gas",
-			Usage: "limit the gas. default is 1FIL in max",
-			Value: "1000000000000000000",
-		},
 	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() < 1 {
@@ -217,7 +212,6 @@ var mpoolFix = &cli.Command{
 		if err != nil {
 			return err
 		}
-		limitGas := cctx.Int64("limit-gas")
 		limitMsg := cctx.Uint64("limit-msg")
 		nonce := cctx.Uint64("nonce")
 		ratePremium := cctx.Uint64("rate-premium")
@@ -261,10 +255,6 @@ var mpoolFix = &cli.Command{
 			// gas-limit
 			newMsg.GasLimit = newMsg.GasLimit*rateLimit/10000 + 1
 			gasUsed = types.BigAdd(gasUsed, types.BigMul(newMsg.GasFeeCap, types.NewInt(uint64(newMsg.GasLimit))))
-			if types.BigCmp(gasUsed, types.NewInt(uint64(limitGas))) >= 0 {
-				return fmt.Errorf("gas out of limit: base:%s,used:%s", baseFee, gasUsed)
-			}
-
 			if do {
 				smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), newMsg.From, &newMsg)
 				if err != nil {
