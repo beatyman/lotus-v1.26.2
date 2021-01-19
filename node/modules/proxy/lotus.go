@@ -286,29 +286,53 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 		return errors.New("no data or error format").As(len(records))
 	}
 
+	nodes := []*LotusNode{}
 	// the first line is for the proxy addr
 	for i := 1; i < len(records); i++ {
 		if len(records[i]) != 1 {
 			return errors.New("no data or error format").As(records[i])
 		}
-		lotusNodes = append(lotusNodes, &LotusNode{
+		nodes = append(nodes, &LotusNode{
 			ctx:     ctx,
 			apiInfo: cliutil.ParseApiInfo(strings.TrimSpace(records[i][0])),
 		})
 	}
 
 	// checksum the token
-	if len(lotusNodes) == 0 {
+	if len(nodes) == 0 {
 		return errors.New("client not found")
 	}
 
 	// TODO: support different token.
 	proxyAddr := cliutil.ParseApiInfo(strings.TrimSpace(records[0][0]))
 	token := string(proxyAddr.Token)
-	for i := len(lotusNodes) - 1; i > 0; i-- {
-		if token != string(lotusNodes[i].apiInfo.Token) {
-			return errors.New("tokens are not same").As(lotusNodes[i].apiInfo.Addr)
+	for i := len(nodes) - 1; i > 0; i-- {
+		if token != string(nodes[i].apiInfo.Token) {
+			return errors.New("tokens are not same").As(nodes[i].apiInfo.Addr)
 		}
+	}
+
+	// clean nodes
+	removeNodes := []*LotusNode{}
+	for _, node := range lotusNodes {
+		token := node.apiInfo.String()
+		found := -1
+		for i, tmpNode := range nodes {
+			if tmpNode.apiInfo.String() == token {
+				found = i
+				break
+			}
+		}
+		if found < 0 {
+			removeNodes = append(removeNodes, node)
+		} else {
+			nodes[found] = node
+		}
+	}
+	lotusNodes = nodes
+	for _, node := range removeNodes {
+		node.Close()
+		log.Infof("remove lotus node:%s", node.apiInfo.String())
 	}
 
 	// start the proxy
@@ -317,6 +341,7 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 			// the proxy has not changed
 			return nil
 		}
+
 		if lotusProxyCloser != nil {
 			lotusProxyCloser.Close()
 			lotusProxyCloser = nil
