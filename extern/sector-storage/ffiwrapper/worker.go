@@ -966,6 +966,19 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		sectorId := res.SectorID()
 		if res.GoErr != nil || len(res.Err) > 0 {
 			// ignore error and do retry until cancel task by manully.
+
+			// this is fix the bug of remove error when finalizing in v1.4.0-patch2
+			if task.task.Type == WorkerFinalize && (r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv) {
+				res = sb.errTask(task, nil)
+				if err := database.UpdateSectorState(
+					sectorId, r.cfg.ID,
+					fmt.Sprintf("done:%d", task.task.Type), database.SECTOR_STATE_DONE); err != nil {
+					res = sb.errTask(task, errors.As(err))
+				}
+				r.freeTask(sectorId)
+			}
+			// fix end
+
 		} else if task.task.Type == WorkerFinalize || task.task.Type == WorkerUnseal {
 			// make a link to storage
 			if err := sb.MakeLink(&task.task); err != nil {
