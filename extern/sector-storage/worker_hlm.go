@@ -103,20 +103,21 @@ func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storage.SectorRef
 	if err := l.sb.FinalizeSector(ctx, sector, keepUnsealed); err != nil {
 		return xerrors.Errorf("finalizing sector: %w", err)
 	}
-	if len(keepUnsealed) == 0 {
-		if err := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true); err != nil {
-			return xerrors.Errorf("removing unsealed data: %w", err)
-		}
-		var err error
-		sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
-		if err != nil {
-			return errors.As(err)
-		}
-		if sector.HasRepo() {
-			log.Warnf("Remove file:%s", sector.UnsealedFile())
-			return os.Remove(sector.UnsealedFile())
-		}
-	}
+	// TODO: release unsealed
+	//if len(keepUnsealed) == 0 {
+	//	if err := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true); err != nil {
+	//		return xerrors.Errorf("removing unsealed data: %w", err)
+	//	}
+	//	var err error
+	//	sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
+	//	if err != nil {
+	//		return errors.As(err)
+	//	}
+	//	if sector.HasRepo() {
+	//		log.Warnf("Remove file:%s", sector.UnsealedFile())
+	//		return os.Remove(sector.UnsealedFile())
+	//	}
+	//}
 
 	return nil
 }
