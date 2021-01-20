@@ -2,6 +2,7 @@ package impl
 
 import (
 	"context"
+	"os/exec"
 	"time"
 
 	"github.com/filecoin-project/go-address"
@@ -12,6 +13,7 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
@@ -19,13 +21,23 @@ import (
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
 	return sm.Miner.Testing(ctx, fnName, args)
 }
+
+func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
+	return proxy.LotusProxyStatus(ctx), nil
+}
+func (sm *StorageMinerAPI) ProxyReload(ctx context.Context) error {
+	return proxy.RealoadLotusProxy(ctx)
+}
+func (sm *StorageMinerAPI) StatusMinerStorage(ctx context.Context) ([]byte, error) {
+	return exec.CommandContext(ctx, "zpool", "status", "-x").CombinedOutput()
+}
 func (sm *StorageMinerAPI) WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error {
 	return sm.Miner.WdpostEnablePartitionSeparate(enable)
 }
 func (sm *StorageMinerAPI) WdpostSetPartitionNumber(ctx context.Context, number int) error {
 	return sm.Miner.WdpostSetPartitionNumber(number)
-	return nil
 }
+
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
 	return sm.Miner.RunPledgeSector()
 }

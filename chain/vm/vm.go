@@ -460,6 +460,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 		incrementNonceStart        = time.Time{}
 		SnapshotStart              = time.Time{}
 		vmSendStart                = time.Time{}
+		vmSendRet                  = time.Time{}
 		shouldBurnStart            = time.Time{}
 		ComputeGasOutputsStart     = time.Time{}
 		transferFromGasHolderStart = time.Time{}
@@ -476,7 +477,8 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 				"transferToGasHolder", incrementNonceStart.Sub(transferToGasHolderStart),
 				"incrementNonce", SnapshotStart.Sub(incrementNonceStart),
 				"Snapshot", vmSendStart.Sub(SnapshotStart),
-				"vmSend", shouldBurnStart.Sub(vmSendStart),
+				"vmSend", vmSendRet.Sub(vmSendStart),
+				"vmSendRet", shouldBurnStart.Sub(vmSendRet),
 				"shouldBurn", ComputeGasOutputsStart.Sub(shouldBurnStart),
 				"ComputeGasOutputs", transferFromGasHolderStart.Sub(ComputeGasOutputsStart),
 				"transferFromGasHolder", applyMessageEnd.Sub(transferFromGasHolderStart),
@@ -612,6 +614,7 @@ func (vm *VM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet,
 	if aerrors.IsFatal(actorErr) {
 		return nil, xerrors.Errorf("[from=%s,to=%s,n=%d,m=%d,h=%d] fatal error: %w", msg.From, msg.To, msg.Nonce, msg.Method, vm.blockHeight, actorErr)
 	}
+	vmSendRet = build.Clock.Now()
 
 	if actorErr != nil {
 		log.Warnw("Send actor error", "from", msg.From, "to", msg.To, "nonce", msg.Nonce, "method", msg.Method, "height", vm.blockHeight, "error", fmt.Sprintf("%+v", actorErr))

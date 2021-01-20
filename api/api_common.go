@@ -16,12 +16,13 @@ import (
 )
 
 type Common interface {
-
 	// MethodGroup: Auth
-	// Reload the auth key
-	ReloadHlmAuth(context.Context) error
 	AuthVerify(ctx context.Context, token string) ([]auth.Permission, error)
 	AuthNew(ctx context.Context, perms []auth.Permission) ([]byte, error)
+
+	// Reload the auth key
+	ReloadHlmAuth(context.Context) error
+	IsHlmAuthOn(context.Context) (bool, error)
 
 	// MethodGroup: Net
 

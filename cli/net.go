@@ -153,7 +153,7 @@ var netConnect = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "protect",
-			Value: true,
+			Value: false,
 			Usage: "protect the libp2p connection",
 		},
 		&cli.BoolFlag{

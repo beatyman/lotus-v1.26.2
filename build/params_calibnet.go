@@ -55,6 +55,8 @@ func init() {
 	SetAddressNetwork(address.Testnet)
 
 	Devnet = true
+
+	BuildType |= BuildCalibration
 }
 
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)

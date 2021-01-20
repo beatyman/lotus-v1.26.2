@@ -72,6 +72,10 @@ var runCmd = &cli.Command{
 				return err
 			}
 		}
+		// use the cluster proxy if it's exist.
+		if err := lcli.UseLotusProxy(cctx); err != nil {
+			log.Infof("lotus proxy is invalid:%+s", err.Error())
+		}
 
 		nodeApi, ncloser, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {

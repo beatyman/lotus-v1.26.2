@@ -27,8 +27,11 @@ func BuiltinBootstrap() ([]peer.AddrInfo, error) {
 			return nil, nil
 		}
 		pi, err := addrutil.ParseAddresses(context.TODO(), strings.Split(strings.TrimSpace(spi), "\n"))
-		out = append(out, pi...)
-		return nil, err
+		if err != nil {
+			log.Warn(err)
+		} else {
+			out = append(out, pi...)
+		}
 	}
 
 	// TODO:fetch from fivestar chains server

@@ -8,6 +8,9 @@ import (
 	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
 )
 
+const BootstrappersFile = "devnet.pi"
+const GenesisFile = "devnet.car"
+
 const UpgradeBreezeHeight = -1
 const BreezeGasTampingDuration = 0
 
@@ -37,7 +40,7 @@ func init() {
 		abi.RegisteredSealProof_StackedDrg64GiBV1,
 	)
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
-	BuildType |= Build2k
+	BuildType |= BuildHLM
 }
 
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)

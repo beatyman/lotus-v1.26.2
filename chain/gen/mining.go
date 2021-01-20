@@ -10,10 +10,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/sigs/bls"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 func MinerCreateBlock(ctx context.Context, sm *stmgr.StateManager, w api.WalletAPI, bt *api.BlockTemplate) (*types.FullBlock, error) {
@@ -122,7 +122,7 @@ func MinerCreateBlock(ctx context.Context, sm *stmgr.StateManager, w api.WalletA
 		return nil, xerrors.Errorf("failed to get signing bytes for block: %w", err)
 	}
 
-	sig, err := w.WalletSign(ctx, build.GetHlmAuth(), worker, nosigbytes, api.MsgMeta{
+	sig, err := w.WalletSign(ctx, auth.GetHlmAuth(), worker, nosigbytes, api.MsgMeta{
 		Type: api.MTBlock,
 	})
 	if err != nil {

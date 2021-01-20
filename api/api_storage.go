@@ -30,8 +30,10 @@ import (
 type StorageMiner interface {
 	Common
 
-	// Reload the auth key
-	ReloadHlmAuth(context.Context) error
+	// implement the proxy
+	ProxyStatus(context.Context) ([]ProxyStatus, error)
+	ProxyReload(context.Context) error
+	StatusMinerStorage(ctx context.Context) ([]byte, error)
 
 	ActorAddress(context.Context) (address.Address, error)
 
