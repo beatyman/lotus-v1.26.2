@@ -10,20 +10,38 @@ import (
 
 var (
 	etcMutex   = sync.Mutex{}
+	etcdAddr   = "" //http://127.0.0.1:2379
 	etcdClient *clientv3.Client
 )
+
+func InitAddr(addr string) {
+	etcMutex.Lock()
+	defer etcMutex.Unlock()
+	etcdAddr = addr
+}
+
+func HasOn() bool {
+	etcMutex.Lock()
+	defer etcMutex.Unlock()
+	return len(etcdAddr) > 0
+}
 
 func Client() (*clientv3.Client, error) {
 	etcMutex.Lock()
 	defer etcMutex.Unlock()
+	if len(etcdAddr) == 0 {
+		return nil, errors.ErrNoData
+	}
+
 	if etcdClient == nil {
-		client, err := clientv3.NewFromURL("http://127.0.0.1:2379") // local gateway, TODO: make to configuration
+		client, err := clientv3.NewFromURL("http://127.0.0.1:2379")
 		if err != nil {
 			etcdClient = nil
 			return nil, errors.As(err)
 		}
 		etcdClient = client
 	}
+
 	return etcdClient, nil
 }
 

@@ -43,6 +43,7 @@ import (
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/modules"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	"github.com/filecoin-project/lotus/node/modules/etcd"
 	"github.com/filecoin-project/lotus/node/modules/testing"
 	"github.com/filecoin-project/lotus/node/repo"
 )
@@ -80,6 +81,10 @@ var DaemonCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "api",
 			Value: "1234",
+		},
+		&cli.StringFlag{
+			Name:  "etcd",
+			Value: "",
 		},
 		&cli.StringFlag{
 			Name:  "report-url",
@@ -152,6 +157,8 @@ var DaemonCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		etcd.InitAddr(cctx.String("etcd"))
+
 		isLite := cctx.Bool("lite")
 
 		err := runmetrics.Enable(runmetrics.RunMetricOptions{

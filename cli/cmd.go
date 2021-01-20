@@ -106,7 +106,7 @@ func envForRepoDeprecation(t repo.RepoType) string {
 }
 
 func UseLotusProxy(ctx *cli.Context) error {
-	repoFlag := flagForRepo(repo.StorageMiner)
+	repoFlag := flagForRepo(repo.FullNode)
 	p, err := homedir.Expand(ctx.String(repoFlag))
 	if err != nil {
 		return xerrors.Errorf("could not expand home dir (%s): %w", repoFlag, err)

@@ -119,12 +119,14 @@ func (ms *MessageSigner) nextNonce(addr address.Address) (uint64, error) {
 	addrNonceKey := ms.dstoreKey(addr)
 	dsNonceBytes := []byte{}
 
-	resp, err := etcd.Get(context.TODO(), addrNonceKey.String())
-	if err != nil {
-		// maybe is not found when the etcd has broken.
-		log.Warn(xerrors.Errorf("failed to read nonce from etcd: %w", err))
-	} else if len(resp.Kvs) > 0 {
-		dsNonceBytes = resp.Kvs[0].Value
+	if etcd.HasOn() {
+		resp, err := etcd.Get(context.TODO(), addrNonceKey.String())
+		if err != nil {
+			// maybe is not found when the etcd has broken.
+			log.Warn(xerrors.Errorf("failed to read nonce from etcd: %w", err))
+		} else if len(resp.Kvs) > 0 {
+			dsNonceBytes = resp.Kvs[0].Value
+		}
 	}
 
 	// no data from etcd, read local datastore
@@ -177,9 +179,11 @@ func (ms *MessageSigner) saveNonce(addr address.Address, nonce uint64) error {
 	}
 
 	// put to etcd
-	ctx := context.TODO()
-	if _, err := etcd.Put(ctx, addrNonceKey.String(), string(buf.Bytes())); err != nil {
-		return xerrors.Errorf("failed to write nonce to etcd: %w", err)
+	if etcd.HasOn() {
+		ctx := context.TODO()
+		if _, err := etcd.Put(ctx, addrNonceKey.String(), string(buf.Bytes())); err != nil {
+			return xerrors.Errorf("failed to write nonce to etcd: %w", err)
+		}
 	}
 
 	// put to local store

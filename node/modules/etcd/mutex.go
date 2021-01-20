@@ -24,6 +24,10 @@ type mutex struct {
 
 func (m *mutex) Lock(ctx context.Context) error {
 	m.memMutex.Lock()
+	if !HasOn() {
+		return nil
+	}
+
 	if err := m.locker.Lock(ctx); err != nil {
 		m.memMutex.Unlock()
 		return err
@@ -35,11 +39,19 @@ func (m *mutex) Lock(ctx context.Context) error {
 
 func (m *mutex) Unlock(ctx context.Context) {
 	m.memMutex.Unlock()
+	if !HasOn() {
+		return
+	}
+
 	if err := m.locker.Unlock(ctx); err != nil {
 		log.Warn(errors.As(err, m.locker.Key()))
 	}
 }
 func (m *mutex) Close() {
+	if !HasOn() {
+		return
+	}
+
 	if err := m.sess.Close(); err != nil {
 		log.Warn(errors.As(err, m.locker.Key()))
 	}
@@ -47,6 +59,11 @@ func (m *mutex) Close() {
 
 // key mutex locker
 func NewMutex(key string, opts ...concurrency.SessionOption) (Mutex, error) {
+	if !HasOn() {
+		// return memory lock
+		return &mutex{}, nil
+	}
+
 	cli, err := Client()
 	if err != nil {
 		return nil, errors.As(err)
