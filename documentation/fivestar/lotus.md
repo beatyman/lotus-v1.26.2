@@ -4,6 +4,7 @@
 - [国内安装技巧](#国内安装技巧)
 - [下载lotus源代码](#下载lotus源代码)
 - [创建本地开发环境](#搭建创世节点)
+- [启用链集群](#启用链集群)
 - [目录规范](#目录规范)
     - [存储节点上的目录](#存储节点上的目录)
     - [链节点目录](#链节点目录)
@@ -113,30 +114,6 @@ git checkout testing # 检出最新代码
 
 ```
 
-## 启动etcd服务(此为链依赖项)
-配置/etc/hosts
-```
-127.0.0.1 bootstrap0.etcd.grandhelmsman.com
-127.0.0.1 bootstrap1.etcd.grandhelmsman.com
-127.0.0.1 bootstrap2.etcd.grandhelmsman.com
-```
-启动etcd服务
-```
-hlmd ctl start etcd-bootstrap-0 
-hlmd ctl start etcd-bootstrap-1
-hlmd ctl start etcd-bootstrap-2 
-hlmd ctl start etcd-gwateway
-```
-
-链接入etcd部署的图, etcd-gateway需要在链节点上启动, 同一个物理节点的进程共用一个gateway
-```text
-ectd0   etcd1   etcd2
-    \     |     /
-    etcd-gateway
-          |
-        lotus
-```
-
 ## 创建本地开发网络
 
 ### 搭建创世节点
@@ -184,14 +161,14 @@ rm -rf /data/sdb/lotus-user-1/.lotus* # 注意!!!! 需要确认此库不是正�
 ```
 
 shell 1, 运行链
-```
+```shell
 cd ~/hlm-miner/apps/lotus
 # 运行前注意修改脚本中的netip地址段，默认只支持10段
 ./daemon.sh # 或者直接hlmd ctl start lotus-daemon-1, hlmd ctl tail lotus-daemon-1 stderr -f 看日志
 ```
 
 shell 2, 创建私网矿工
-```
+```shell
 cd ~/hlm-miner/script/lotus/lotus-user/
 . env/lotus.sh
 . env/1.sh
@@ -200,13 +177,13 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 ```
 
 shell 3, 运行矿工
-```
+```shell
 cd ~/hlm-miner/apps/lotus
 ./miner.sh # 或者直接hlmd ctl start lotus-user-1,hlmd ctl tail lotus-user-1 stderr -f 看日志
 ```
 
 shell 4，导入存储节点
-```
+```shell
 cd ~/hlm-miner/script/lotus/lotus-user/
 
 # 添加存储节点(含sealed与unsealed存储在里边)
@@ -240,6 +217,52 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 
 # miner的其他指令，参阅
 ./miner.sh --help
+```
+
+## 启用链集群
+
+(此为开发可选项)
+
+链接入etcd部署的图, etcd-gateway需要在链节点上启动, 同一个物理节点的进程共用一个gateway
+```text
+ectd0   etcd1   etcd2
+    \     |     /
+    etcd-gateway(127.0.0.1:2379)
+          |
+        lotus
+```
+
+
+配置/etc/hosts
+```
+127.0.0.1 bootstrap0.etcd.grandhelmsman.com
+127.0.0.1 bootstrap1.etcd.grandhelmsman.com
+127.0.0.1 bootstrap2.etcd.grandhelmsman.com
+```
+
+启动etcd服务, 此处为三个节点在同一台机器上部署
+```
+hlmd ctl start etcd-bootstrap-0 
+hlmd ctl start etcd-bootstrap-1
+hlmd ctl start etcd-bootstrap-2 
+hlmd ctl start etcd-gwateway
+```
+
+配置lotus接入到etcd集群
+```
+lotus daemon --etcd="http://127.0.0.1:2379" # 在apps/lotus/daemon.sh里配置
+# 重启链
+```
+
+配置miner接入到多个链节点
+```
+mkdir -p $miner_repo # 自行填写此目录变量，默认为/data/sdb/lotus-user-1/.lotus
+cd $miner_repo
+echo "# the first line is for proxy addr">lotus.proxy
+echo $(cat token)":/ip4/127.0.0.1/tpc/1345/http">>lotus.proxy
+echo "# bellow is the cluster node.">>lotus.proxy
+echo $(cat token)":"$(cat api)>>lotus.proxy
+# 重启miner
 ```
 
 ## 目录规范
