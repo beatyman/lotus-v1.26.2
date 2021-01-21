@@ -36,17 +36,16 @@ type worker struct {
 	workOn  map[string]ffiwrapper.WorkerTask // task key
 	sealers map[string]*ffiwrapper.Sealer
 
-	pushMu            sync.Mutex
-	sealedMounted     map[string]string
-	sealedMountedFile string
+	pushMu           sync.Mutex
+	sealedMounted    map[string]string
+	sealedMountedCfg string
 }
 
 func acceptJobs(ctx context.Context,
-	sealedSB *ffiwrapper.Sealer,
 	rpcServer *rpcServer,
 	act, workerAddr address.Address,
 	minerEndpoint string, auth http.Header,
-	sealedRepo, mountedFile string,
+	workerRepo, sealedRepo, mountedCfg string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
 checkingApi:
@@ -63,13 +62,10 @@ checkingApi:
 		return err
 	}
 
-	diskPool, err := NewDiskPool(ssize)
-	if err != nil {
-		return errors.As(err)
-	}
-	mapstr, err := diskPool.Showext()
+	diskPool := NewDiskPool(ssize, workerRepo)
+	mapstr, err := diskPool.ShowExt()
 	if err == nil {
-		log.Info("new diskPool instance, worker ssd -> sector map tupple is:\r\n %+s", mapstr)
+		log.Infof("new diskPool instance, worker ssd -> sector map tupple is:\r\n %+v", mapstr)
 	}
 
 	w := &worker{
@@ -86,8 +82,8 @@ checkingApi:
 		workOn:  map[string]ffiwrapper.WorkerTask{},
 		sealers: map[string]*ffiwrapper.Sealer{},
 
-		sealedMounted:     map[string]string{},
-		sealedMountedFile: mountedFile,
+		sealedMounted:    map[string]string{},
+		sealedMountedCfg: mountedCfg,
 	}
 
 	to := "/var/tmp/filecoin-proof-parameters"
@@ -274,9 +270,9 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	w.sealers[repo] = sealer
 	w.workMu.Unlock()
 
-	mapstr, err := w.diskPool.Showext()
+	mapstr, err := w.diskPool.ShowExt()
 	if err == nil {
-		log.Info("accept one new task, really time worker ssd -> sector map tupple is:\r\n %+s", mapstr)
+		log.Infof("accept one new task, really time worker ssd -> sector map tupple is:\r\n %+v", mapstr)
 	}
 
 	// checking is the cache in a different storage server, do fetch when it is.
