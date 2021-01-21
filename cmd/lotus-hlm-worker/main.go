@@ -293,12 +293,6 @@ var runCmd = &cli.Command{
 			return errors.As(err, workerRepo)
 		}
 
-		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
-			Root: workerRepo,
-		})
-		if err != nil {
-			return err
-		}
 		minerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: minerRepo,
 		})
@@ -396,11 +390,11 @@ var runCmd = &cli.Command{
 
 		log.Info("starting acceptJobs")
 		if err := acceptJobs(ctx,
-			workerSealer, sealedSB,
+			sealedSB,
 			workerApi,
 			act, workerAddr,
 			minerAddr, ainfo.AuthHeader(),
-			workerRepo, sealedRepo, sealedMountedFile,
+			sealedRepo, sealedMountedFile,
 			workerCfg,
 		); err != nil {
 			if err := umountAllRemote(sealedMountedFile); err != nil {
