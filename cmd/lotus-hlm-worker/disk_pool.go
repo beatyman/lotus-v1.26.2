@@ -91,7 +91,9 @@ func sectorCap(total, ssize uint64) uint64 {
 	case 8 * MB:
 		return total / (125 * KB)
 	case 2 * KB:
-		return total / (100 * KB)
+		// const this value, so, it should easy to test.
+		return 4
+		// return total / (100 * KB)
 	default:
 		return 0
 	}
