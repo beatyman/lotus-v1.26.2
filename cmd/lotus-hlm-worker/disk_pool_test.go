@@ -8,11 +8,7 @@ import (
 )
 
 func TestDiskPool(t *testing.T) {
-	diskpool, err := NewDiskPool(2 * KB)
-	if err != nil {
-		fmt.Println("===============================")
-		panic(err)
-	}
+	diskpool := NewDiskPool(2*KB, "./")
 
 	for i := 10; i < 20; i++ {
 		//fmt.Println("s-t0%d", i)
@@ -38,7 +34,7 @@ func TestDiskPool(t *testing.T) {
 	}
 
 	fmt.Println("------------------------before delete some sector")
-	d, err := diskpool.Showext()
+	d, err := diskpool.ShowExt()
 	if err == nil {
 		fmt.Println(d)
 	}
@@ -48,13 +44,18 @@ func TestDiskPool(t *testing.T) {
 		sid := fmt.Sprintf("s-t0%d", i)
 		diskpool.Delete(sid)
 	}
-	d, err = diskpool.Showext()
+	d, err = diskpool.ShowExt()
 	if err == nil {
 		fmt.Println(d)
 	}
 }
 
-func TestMain(m *testing.M) {
-	fmt.Println("Test begins....")
-	m.Run()
-}
+//func TestMain(m *testing.M) {
+//	fmt.Println("Test begins....")
+//	m.Run()
+//}
+
+//func TestScanRepo(t *testing.T) {
+//	result := scanRepo("/data/cache/.lotusworker")
+//	fmt.Printf("%+v\n", result)
+//}

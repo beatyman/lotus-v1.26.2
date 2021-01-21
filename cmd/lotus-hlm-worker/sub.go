@@ -63,13 +63,10 @@ checkingApi:
 		return err
 	}
 
-	diskPool, err := NewDiskPool(ssize, workerRepo)
-	if err != nil {
-		return errors.As(err)
-	}
-	mapstr, err := diskPool.Showext()
+	diskPool := NewDiskPool(ssize, workerRepo)
+	mapstr, err := diskPool.ShowExt()
 	if err == nil {
-		log.Info("new diskPool instance, worker ssd -> sector map tupple is:\r\n %+s", mapstr)
+		log.Infof("new diskPool instance, worker ssd -> sector map tupple is:\r\n %+v", mapstr)
 	}
 
 	w := &worker{
@@ -275,9 +272,9 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	w.sealers[repo] = sealer
 	w.workMu.Unlock()
 
-	mapstr, err := w.diskPool.Showext()
+	mapstr, err := w.diskPool.ShowExt()
 	if err == nil {
-		log.Info("accept one new task, really time worker ssd -> sector map tupple is:\r\n %+s", mapstr)
+		log.Infof("accept one new task, really time worker ssd -> sector map tupple is:\r\n %+v", mapstr)
 	}
 
 	// checking is the cache in a different storage server, do fetch when it is.
