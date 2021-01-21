@@ -291,6 +291,11 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 		minRepo = dpImpl.defaultRepo
 	}
 
+	if len(minRepo) == 0 {
+		// no disk for allocation.
+		return "", errors.ErrNoData.As(sid)
+	}
+
 	dpImpl.sectors[sid] = minRepo
 	return minRepo, nil
 }
