@@ -330,7 +330,7 @@ func (dpImpl *diskPoolImpl) ShowExt() ([]string, error) {
 		group[mnt] = data
 	}
 
-	var r []string
+	r := []string{"\n"}
 	for mnt, sids := range group {
 		r = append(r, fmt.Sprintf("moint point %s, sector list:", mnt))
 		for _, sid := range sids {
