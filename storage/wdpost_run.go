@@ -27,12 +27,14 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 func (s *WindowPoStScheduler) failPost(err error, ts *types.TipSet, deadline *dline.Info) {
@@ -339,7 +341,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 		return recoveries, nil, err
 	}
 
-	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)})
+	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)})
 	if err != nil {
 		return recoveries, sm, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
@@ -426,7 +428,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 		return faults, nil, err
 	}
 
-	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, spec)
+	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, spec)
 	if err != nil {
 		return faults, sm, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
@@ -447,6 +449,9 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 }
 
 func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
+	if EnableSeparatePartition {
+		return s.runHlmPost(ctx, di, ts)
+	}
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
 
@@ -527,7 +532,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 	if err != nil {
 		return nil, xerrors.Errorf("getting partitions: %w", err)
 	}
-	log.Infof("DEBUG doPost StateMinerPartitions:%d,len:%d", di.Index, len(partitions))
+	log.Infof("DEBUG doPost StateMinerPartitions, index:%d, partions len:%d", di.Index, len(partitions))
 
 	// Split partitions into batches, so as not to exceed the number of sectors
 	// allowed in a single message
@@ -680,6 +685,9 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 	return posts, nil
 }
 
+var PartitionsPerMsg int = 1
+var EnableSeparatePartition bool = false
+
 func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]api.Partition, error) {
 	// We don't want to exceed the number of sectors allowed in a message.
 	// So given the number of sectors in a partition, work out the number of
@@ -691,10 +699,18 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]a
 	// sectors per partition    3:  ooo
 	// partitions per message   2:  oooOOO
 	//                              <1><2> (3rd doesn't fit)
+	log.Info("lookup:s.proofType:", s.proofType)
 	partitionsPerMsg, err := policy.GetMaxPoStPartitions(s.proofType)
+	log.Info("lookup:partitionsPerMsg", partitionsPerMsg)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sectors per partition: %w", err)
 	}
+	//var partitionsPerMsg int = 1
+	if EnableSeparatePartition {
+		log.Info("EnableSeparatePartition")
+		partitionsPerMsg = PartitionsPerMsg
+	}
+	log.Info("lookup wdpost config, enable:", EnableSeparatePartition, "partitionsPerMsg:", partitionsPerMsg)
 
 	// The number of messages will be:
 	// ceiling(number of partitions / partitions per message)
@@ -807,7 +823,7 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	}
 
 	// TODO: consider maybe caring about the output
-	sm, err := s.api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, spec)
+	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, spec)
 
 	if err != nil {
 		return nil, xerrors.Errorf("pushing message to mpool: %w", err)

@@ -61,6 +61,10 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.StorageMiner)
 			continue
 		}
 
+		if cacheInfo.Kind != database.STORAGE_KIND_SEALED {
+			continue
+		}
+
 		// version not match
 		if err := database.Mount(
 			info.MountType,

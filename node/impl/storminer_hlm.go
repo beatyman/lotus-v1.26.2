@@ -2,6 +2,7 @@ package impl
 
 import (
 	"context"
+	"os/exec"
 	"time"
 
 	"github.com/filecoin-project/go-address"
@@ -12,12 +13,29 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
 
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
 	return sm.Miner.Testing(ctx, fnName, args)
+}
+
+func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
+	return proxy.LotusProxyStatus(ctx), nil
+}
+func (sm *StorageMinerAPI) ProxyReload(ctx context.Context) error {
+	return proxy.RealoadLotusProxy(ctx)
+}
+func (sm *StorageMinerAPI) StatusMinerStorage(ctx context.Context) ([]byte, error) {
+	return exec.CommandContext(ctx, "zpool", "status", "-x").CombinedOutput()
+}
+func (sm *StorageMinerAPI) WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error {
+	return sm.Miner.WdpostEnablePartitionSeparate(enable)
+}
+func (sm *StorageMinerAPI) WdpostSetPartitionNumber(ctx context.Context, number int) error {
+	return sm.Miner.WdpostSetPartitionNumber(number)
 }
 
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
@@ -150,8 +168,11 @@ func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disabl
 func (sm *StorageMinerAPI) WorkerAddConn(ctx context.Context, wid string, num int) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddWorkerConn(wid, num)
 }
-func (sm *StorageMinerAPI) WorkerPreConn(ctx context.Context, skipWid []string) (*database.WorkerInfo, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PrepareWorkerConn(skipWid)
+func (sm *StorageMinerAPI) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PrepareWorkerConn()
+}
+func (sm *StorageMinerAPI) WorkerPreConnV1(ctx context.Context, skipWid []string) (*database.WorkerInfo, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PrepareWorkerConnV1(skipWid)
 }
 func (sm *StorageMinerAPI) WorkerMinerConn(ctx context.Context) (int, error) {
 	return fileserver.Conns(), nil

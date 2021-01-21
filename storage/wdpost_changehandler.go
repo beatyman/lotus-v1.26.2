@@ -238,7 +238,7 @@ func (p *proveHandler) processHeadChange(ctx context.Context, newTS *types.TipSe
 	// checking does it in running.
 	cacheDi, ok := runningIndex.Load(di.Index)
 	if ok && cacheDi.(*dline.Info).Open == di.Open {
-		log.Warnf("wdpost has been running deadline index:%d", di.Index)
+		log.Warnf("wdpost has been running by deadline index:%d", di.Index)
 		return
 	}
 

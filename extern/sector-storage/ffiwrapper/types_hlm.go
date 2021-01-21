@@ -37,9 +37,10 @@ const (
 )
 
 type RemoteCfg struct {
-	SealSector  bool
-	WindowPoSt  int // 0, close remote function, >0, using number of thread to work at the same time.
-	WinningPoSt int // 0, close remote function, >0, using number of thread to work at the same time.
+	SealSector                  bool
+	WindowPoSt                  int // 0, close remote function, >0, using number of thread to work at the same time.
+	WinningPoSt                 int // 0, close remote function, >0, using number of thread to work at the same time.
+	EnableForceRemoteWindowPoSt bool
 }
 
 type WorkerTaskType int
@@ -257,6 +258,7 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	// no limit list
 	switch typ {
 	case WorkerFinalize:
+		// TODO: return r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv
 		return false
 	}
 

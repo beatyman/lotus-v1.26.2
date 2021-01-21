@@ -45,7 +45,7 @@ func (w *worker) umountRemote(sid, mountDir string) error {
 		return errors.As(err)
 	}
 	log.Infof("Remove mount point:%s", mountDir)
-	if err := os.RemoveAll(mountDir); err != nil {
+	if err := os.Remove(mountDir); err != nil {
 		return errors.As(err)
 	}
 
@@ -74,7 +74,7 @@ func umountAllRemote(sealedMountedFile string) error {
 			if _, err := database.Umount(p); err != nil {
 				log.Info(err)
 			} else {
-				if err := os.RemoveAll(p); err != nil {
+				if err := os.Remove(p); err != nil {
 					log.Error(err)
 				}
 			}

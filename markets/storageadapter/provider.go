@@ -31,6 +31,7 @@ import (
 	"github.com/filecoin-project/lotus/lib/sigs"
 	"github.com/filecoin-project/lotus/markets/utils"
 	"github.com/filecoin-project/lotus/node/config"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
 )
@@ -87,7 +88,7 @@ func (n *ProviderNodeAdapter) PublishDeals(ctx context.Context, deal storagemark
 	}
 
 	// TODO: We may want this to happen after fetching data
-	smsg, err := n.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+	smsg, err := n.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 		To:     market.Address,
 		From:   mi.Worker,
 		Value:  types.NewInt(0),
@@ -186,7 +187,7 @@ func (n *ProviderNodeAdapter) SignBytes(ctx context.Context, signer address.Addr
 		return nil, err
 	}
 
-	localSignature, err := n.WalletSign(ctx, build.GetHlmAuth(), signer, b)
+	localSignature, err := n.WalletSign(ctx, auth.GetHlmAuth(), signer, b)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +205,7 @@ func (n *ProviderNodeAdapter) ReleaseFunds(ctx context.Context, addr address.Add
 // Adds funds with the StorageMinerActor for a storage participant.  Used by both providers and clients.
 func (n *ProviderNodeAdapter) AddFunds(ctx context.Context, addr address.Address, amount abi.TokenAmount) (cid.Cid, error) {
 	// (Provider Node API)
-	smsg, err := n.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+	smsg, err := n.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 		To:     market.Address,
 		From:   addr,
 		Value:  amount,

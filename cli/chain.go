@@ -35,6 +35,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	types "github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var chainCmd = &cli.Command{
@@ -1106,10 +1107,6 @@ var slashConsensusFault = &cli.Command{
 	ArgsUsage: "[blockCid1 blockCid2]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "miner",
-			Usage: "Miner address",
-		},
-		&cli.StringFlag{
 			Name:  "extra",
 			Usage: "Extra block cid",
 		},
@@ -1140,6 +1137,10 @@ var slashConsensusFault = &cli.Command{
 		b2, err := api.ChainGetBlock(ctx, c2)
 		if err != nil {
 			return xerrors.Errorf("getting block 2: %w", err)
+		}
+
+		if b1.Miner != b2.Miner {
+			return xerrors.Errorf("block1.miner:%s block2.miner:%s", b1.Miner, b2.Miner)
 		}
 
 		def, err := api.WalletDefaultAddress(ctx)
@@ -1186,24 +1187,15 @@ var slashConsensusFault = &cli.Command{
 			return err
 		}
 
-		if cctx.String("miner") == "" {
-			return xerrors.Errorf("--miner flag is required")
-		}
-
-		maddr, err := address.NewFromString(cctx.String("miner"))
-		if err != nil {
-			return err
-		}
-
 		msg := &types.Message{
-			To:     maddr,
+			To:     b2.Miner,
 			From:   def,
 			Value:  types.NewInt(0),
 			Method: builtin.MethodsMiner.ReportConsensusFault,
 			Params: enc,
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
 		if err != nil {
 			return err
 		}

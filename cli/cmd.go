@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/gwaylib/errors"
@@ -103,7 +105,25 @@ func envForRepoDeprecation(t repo.RepoType) string {
 	}
 }
 
+func UseLotusProxy(ctx *cli.Context) error {
+	repoFlag := flagForRepo(repo.FullNode)
+	p, err := homedir.Expand(ctx.String(repoFlag))
+	if err != nil {
+		return xerrors.Errorf("could not expand home dir (%s): %w", repoFlag, err)
+	}
+	proxyFile := filepath.Join(p, "lotus.proxy")
+	return proxy.LoadLotusProxy(ctx.Context, proxyFile)
+}
+
 func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (cliutil.APIInfo, error) {
+	switch t {
+	case repo.FullNode:
+		proxyAddr := proxy.LotusProxyAddr()
+		if proxyAddr != nil {
+			return *proxyAddr, nil
+		}
+	}
+
 	// Check if there was a flag passed with the listen address of the API
 	// server (only used by the tests)
 	apiFlag := flagForAPI(t)

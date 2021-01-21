@@ -30,8 +30,10 @@ import (
 type StorageMiner interface {
 	Common
 
-	// Reload the auth key
-	ReloadHlmAuth(context.Context) error
+	// implement the proxy
+	ProxyStatus(context.Context) ([]ProxyStatus, error)
+	ProxyReload(context.Context) error
+	StatusMinerStorage(ctx context.Context) ([]byte, error)
 
 	ActorAddress(context.Context) (address.Address, error)
 
@@ -71,7 +73,17 @@ type StorageMiner interface {
 	// SectorGetExpectedSealDuration gets the expected time for a sector to seal
 	SectorGetExpectedSealDuration(context.Context) (time.Duration, error)
 	SectorsUpdate(context.Context, abi.SectorNumber, SectorState) error
+	// SectorRemove removes the sector from storage. It doesn't terminate it on-chain, which can
+	// be done with SectorTerminate. Removing and not terminating live sectors will cause additional penalties.
 	SectorRemove(context.Context, abi.SectorNumber) error
+	// SectorTerminate terminates the sector on-chain (adding it to a termination batch first), then
+	// automatically removes it from storage
+	SectorTerminate(context.Context, abi.SectorNumber) error
+	// SectorTerminateFlush immediately sends a terminate message with sectors batched for termination.
+	// Returns null if message wasn't sent
+	SectorTerminateFlush(ctx context.Context) (*cid.Cid, error)
+	// SectorTerminatePending returns a list of pending sector terminations to be sent in the next batch message
+	SectorTerminatePending(ctx context.Context) ([]abi.SectorID, error)
 	SectorMarkForUpgrade(ctx context.Context, id abi.SectorNumber) error
 
 	StorageList(ctx context.Context) (map[stores.ID][]stores.Decl, error)
@@ -139,6 +151,8 @@ type StorageMiner interface {
 	CheckProvable(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error)
 
 	// implements by hlm
+	WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error
+	WdpostSetPartitionNumber(ctx context.Context, number int) error
 	Testing(ctx context.Context, fnName string, args []string) error
 	RunPledgeSector(context.Context) error
 	StatusPledgeSector(context.Context) (int, error)
@@ -166,7 +180,8 @@ type StorageMiner interface {
 	WorkerSearch(ctx context.Context, ip string) ([]database.WorkerInfo, error)
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
 	WorkerAddConn(ctx context.Context, wid string, num int) error
-	WorkerPreConn(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)
+	WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error)
+	WorkerPreConnV1(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)
 	WorkerMinerConn(ctx context.Context) (int, error)
 
 	//Storage
@@ -274,9 +289,12 @@ const (
 	PreCommitAddr AddrUse = iota
 	CommitAddr
 	PoStAddr
+
+	TerminateSectorsAddr
 )
 
 type AddressConfig struct {
 	PreCommitControl []address.Address
 	CommitControl    []address.Address
+	TerminateControl []address.Address
 }

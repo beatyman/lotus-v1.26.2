@@ -22,6 +22,8 @@ type Sealer struct {
 	//// for remote worker end
 
 	postLk sync.Mutex
+
+	unsealing sync.Map
 }
 
 func (sb *Sealer) Stop() {

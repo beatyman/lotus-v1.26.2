@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -29,8 +30,40 @@ func (sb *Sealer) AddWorkerConn(id string, num int) error {
 
 }
 
+// for the old worker version
+func (sb *Sealer) PrepareWorkerConn() (*database.WorkerInfo, error) {
+	workerConnLock.Lock()
+	defer workerConnLock.Unlock()
+
+	var available []*remote
+	_remotes.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
+		if r.cfg.ParallelCommit > 0 || r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv {
+			available = append(available, r)
+		}
+		return true
+	})
+
+	if len(available) == 0 {
+		return nil, errors.ErrNoData
+	}
+
+	// random the source for the old version
+	minConnRemote := available[rand.Intn(len(available))]
+	workerId := minConnRemote.cfg.ID
+	info, err := database.GetWorkerInfo(workerId)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	minConnRemote.srvConn++
+	_remotes.Store(workerId, minConnRemote)
+	database.AddWorkerConn(workerId, 1)
+	return info, nil
+
+}
+
 // prepare worker connection will auto increment the connections
-func (sb *Sealer) PrepareWorkerConn(skipWid []string) (*database.WorkerInfo, error) {
+func (sb *Sealer) PrepareWorkerConnV1(skipWid []string) (*database.WorkerInfo, error) {
 	workerConnLock.Lock()
 	defer workerConnLock.Unlock()
 
@@ -891,12 +924,26 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		}
 
 		if task.task.Type != WorkerFinalize && r.fullTask() && !r.busyOn(task.task.SectorName()) {
-			log.Infof("Worker(%s,%s) in full working:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
+			log.Infof("Worker(%s,%s) is full working:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
 			// remote worker is locking for the task, and should not accept a new task.
 			go sb.toRemoteFree(task)
 			return
 		}
 		// can be scheduled
+
+		// this is fix the bug of remove error when finalizing in v1.4.0-patch2
+		if task.task.Type == WorkerFinalize && (r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv) {
+			if err := database.UpdateSectorState(
+				ss.SectorInfo.ID, r.cfg.ID,
+				fmt.Sprintf("done:%d", task.task.Type), database.SECTOR_STATE_DONE); err != nil {
+				task.ret <- sb.errTask(task, errors.As(err))
+				return
+			}
+			r.freeTask(ss.SectorInfo.ID)
+			task.ret <- sb.errTask(task, nil)
+			return
+		}
+		// end fix bug
 	}
 	// update status
 	if err := database.UpdateSectorState(ss.SectorInfo.ID, r.cfg.ID, "task in", int(task.task.Type)); err != nil {

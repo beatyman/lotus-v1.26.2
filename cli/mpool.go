@@ -24,6 +24,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/config"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var mpoolCmd = &cli.Command{
@@ -182,11 +183,6 @@ var mpoolFix = &cli.Command{
 			Usage: "limit the message. 0 is ignored",
 			Value: 0,
 		},
-		&cli.StringFlag{
-			Name:  "limit-gas",
-			Usage: "limit the gas. default is 1FIL in max",
-			Value: "1000000000000000000",
-		},
 	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() < 1 {
@@ -217,7 +213,6 @@ var mpoolFix = &cli.Command{
 		if err != nil {
 			return err
 		}
-		limitGas := cctx.Int64("limit-gas")
 		limitMsg := cctx.Uint64("limit-msg")
 		nonce := cctx.Uint64("nonce")
 		ratePremium := cctx.Uint64("rate-premium")
@@ -261,12 +256,8 @@ var mpoolFix = &cli.Command{
 			// gas-limit
 			newMsg.GasLimit = newMsg.GasLimit*rateLimit/10000 + 1
 			gasUsed = types.BigAdd(gasUsed, types.BigMul(newMsg.GasFeeCap, types.NewInt(uint64(newMsg.GasLimit))))
-			if types.BigCmp(gasUsed, types.NewInt(uint64(limitGas))) >= 0 {
-				return fmt.Errorf("gas out of limit: base:%s,used:%s", baseFee, gasUsed)
-			}
-
 			if do {
-				smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), newMsg.From, &newMsg)
+				smsg, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), newMsg.From, &newMsg)
 				if err != nil {
 					return fmt.Errorf("failed to sign message: %w", err)
 				}
@@ -611,15 +602,15 @@ var mpoolReplaceCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "gas-feecap",
-			Usage: "gas feecap for new message",
+			Usage: "gas feecap for new message (burn and pay to miner, attoFIL/GasUnit)",
 		},
 		&cli.StringFlag{
 			Name:  "gas-premium",
-			Usage: "gas price for new message",
+			Usage: "gas price for new message (pay to miner, attoFIL/GasUnit)",
 		},
 		&cli.Int64Flag{
 			Name:  "gas-limit",
-			Usage: "gas price for new message",
+			Usage: "gas limit for new message (GasUnit)",
 		},
 		&cli.BoolFlag{
 			Name:  "auto",
@@ -627,7 +618,7 @@ var mpoolReplaceCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "max-fee",
-			Usage: "Spend up to X FIL for this message (applicable for auto mode)",
+			Usage: "Spend up to X attoFIL for this message (applicable for auto mode)",
 		},
 	},
 	ArgsUsage: "<from nonce> | <message-cid>",
@@ -748,7 +739,7 @@ var mpoolReplaceCmd = &cli.Command{
 			return nil
 		}
 
-		smsg, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), msg.From, &msg)
+		smsg, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), msg.From, &msg)
 		if err != nil {
 			return fmt.Errorf("failed to sign message: %w", err)
 		}
