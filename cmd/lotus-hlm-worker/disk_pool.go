@@ -253,7 +253,7 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 		return "", errors.As(err)
 	}
 	minRepo := ""
-	minAllocated := math.MaxInt32
+	minAllocated := math.MaxFloat64
 	for repo, sectors := range diskSectors {
 		diskInfo, err := DiskUsage(repo, uint64(dpImpl.ssize))
 		if err != nil {
@@ -279,7 +279,11 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 			allocated++
 		}
 
-		percent := allocated * 100 / int(diskInfo.MaxSector)
+		percent := float64(allocated*100) / float64(diskInfo.MaxSector)
+		if percent >= 100 {
+			// task is full.
+			continue
+		}
 		if minAllocated > percent {
 			minRepo = repo
 			minAllocated = percent
@@ -293,7 +297,7 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 
 	if len(minRepo) == 0 {
 		// no disk for allocation.
-		return "", errors.ErrNoData.As(sid)
+		return "", errors.ErrNoData.As(sid, diskSectors)
 	}
 
 	dpImpl.sectors[sid] = minRepo
