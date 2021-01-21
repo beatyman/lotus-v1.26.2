@@ -91,7 +91,9 @@ func sectorCap(total, ssize uint64) uint64 {
 	case 8 * MB:
 		return total / (125 * KB)
 	case 2 * KB:
-		return total / (100 * KB)
+		// const this value, so, it should easy to test.
+		return 4
+		// return total / (100 * KB)
 	default:
 		return 0
 	}
@@ -139,7 +141,7 @@ func IsMountPoint(dir string) bool {
 	ctx, cancel := context.WithTimeout(context.TODO(), 3e9)
 	defer cancel()
 	if err := exec.CommandContext(ctx, "mountpoint", "-q", dir).Run(); err != nil {
-		log.Error(errors.As(err))
+		log.Info(errors.As(err, dir))
 		return false
 	}
 	return true
@@ -253,7 +255,7 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 		return "", errors.As(err)
 	}
 	minRepo := ""
-	minAllocated := math.MaxInt32
+	minAllocated := math.MaxFloat64
 	for repo, sectors := range diskSectors {
 		diskInfo, err := DiskUsage(repo, uint64(dpImpl.ssize))
 		if err != nil {
@@ -279,7 +281,11 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 			allocated++
 		}
 
-		percent := allocated * 100 / int(diskInfo.MaxSector)
+		percent := float64(allocated*100) / float64(diskInfo.MaxSector)
+		if percent >= 100 {
+			// task is full.
+			continue
+		}
 		if minAllocated > percent {
 			minRepo = repo
 			minAllocated = percent
@@ -293,7 +299,7 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 
 	if len(minRepo) == 0 {
 		// no disk for allocation.
-		return "", errors.ErrNoData.As(sid)
+		return "", errors.ErrNoData.As(sid, diskSectors)
 	}
 
 	dpImpl.sectors[sid] = minRepo
