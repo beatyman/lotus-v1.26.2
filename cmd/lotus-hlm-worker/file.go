@@ -119,11 +119,11 @@ func copyFile(ctx context.Context, from, to string) error {
 		return errors.New("Same file").As(from, to)
 	}
 	if err := os.MkdirAll(filepath.Dir(to), 0755); err != nil {
-		return errors.As(err)
+		return errors.As(err, to)
 	}
 	fromFile, err := os.Open(from)
 	if err != nil {
-		return errors.As(err)
+		return errors.As(err, from)
 	}
 	defer fromFile.Close()
 	fromStat, err := fromFile.Stat()
@@ -131,18 +131,18 @@ func copyFile(ctx context.Context, from, to string) error {
 		if os.IsNotExist(err) {
 			return errors.ErrNoData.As(to)
 		}
-		return errors.As(err)
+		return errors.As(err, to)
 	}
 
 	// TODO: make chtime
 	toFile, err := os.OpenFile(to, os.O_RDWR|os.O_CREATE, fromStat.Mode())
 	if err != nil {
-		return errors.As(err)
+		return errors.As(err, to, uint64(fromStat.Mode()))
 	}
 	defer toFile.Close()
 	toStat, err := toFile.Stat()
 	if err != nil {
-		return errors.As(err)
+		return errors.As(err, to)
 	}
 
 	// checking continue
@@ -253,7 +253,7 @@ func CopyFile(ctx context.Context, from, to string) error {
 			cancel()
 			log.Warn(errors.As(err))
 
-			// do retry
+			// try again
 			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
 			if err := copyFile(tCtx, src, toFile); err != nil {
 				cancel()
