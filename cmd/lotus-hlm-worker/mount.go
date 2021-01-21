@@ -19,11 +19,11 @@ func (w *worker) mountRemote(sid, mountType, mountUri, mountDir, mountOpt string
 	mountedData, err := json.Marshal(w.sealedMounted)
 	if err != nil {
 		w.pushMu.Unlock()
-		return errors.As(err, w.sealedMountedFile)
+		return errors.As(err, w.sealedMountedCfg)
 	}
-	if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
+	if err := ioutil.WriteFile(w.sealedMountedCfg, mountedData, 0666); err != nil {
 		w.pushMu.Unlock()
-		return errors.As(err, w.sealedMountedFile)
+		return errors.As(err, w.sealedMountedCfg)
 	}
 	w.pushMu.Unlock()
 
@@ -56,7 +56,7 @@ func (w *worker) umountRemote(sid, mountDir string) error {
 		w.pushMu.Unlock()
 		return errors.As(err)
 	}
-	if err := ioutil.WriteFile(w.sealedMountedFile, mountedData, 0666); err != nil {
+	if err := ioutil.WriteFile(w.sealedMountedCfg, mountedData, 0666); err != nil {
 		w.pushMu.Unlock()
 		return errors.As(err)
 	}
@@ -64,11 +64,11 @@ func (w *worker) umountRemote(sid, mountDir string) error {
 	return nil
 }
 
-func umountAllRemote(sealedMountedFile string) error {
+func umountAllRemote(sealedMountedCfg string) error {
 	sealedMounted := map[string]string{}
-	if mountedData, err := ioutil.ReadFile(sealedMountedFile); err == nil {
+	if mountedData, err := ioutil.ReadFile(sealedMountedCfg); err == nil {
 		if err := json.Unmarshal(mountedData, &sealedMounted); err != nil {
-			return errors.As(err, sealedMountedFile)
+			return errors.As(err, sealedMountedCfg)
 		}
 		for _, p := range sealedMounted {
 			if _, err := database.Umount(p); err != nil {
