@@ -139,7 +139,7 @@ func IsMountPoint(dir string) bool {
 	ctx, cancel := context.WithTimeout(context.TODO(), 3e9)
 	defer cancel()
 	if err := exec.CommandContext(ctx, "mountpoint", "-q", dir).Run(); err != nil {
-		log.Info(errors.As(err))
+		log.Info(errors.As(err, dir))
 		return false
 	}
 	return true
