@@ -19,7 +19,6 @@ import (
 
 type worker struct {
 	minerEndpoint string
-	workerRepo    string
 	sealedRepo    string
 	auth          http.Header
 
@@ -71,7 +70,6 @@ checkingApi:
 
 	w := &worker{
 		minerEndpoint: minerEndpoint,
-		workerRepo:    workerRepo,
 		sealedRepo:    sealedRepo,
 		auth:          auth,
 
