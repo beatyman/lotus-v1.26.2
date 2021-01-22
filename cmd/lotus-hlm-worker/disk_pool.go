@@ -84,6 +84,8 @@ type DiskStatus struct {
 
 func sectorCap(total, ssize uint64) uint64 {
 	switch ssize {
+	case 64 * GB:
+		return total / (1000 * GB)
 	case 32 * GB:
 		return total / (500 * GB)
 	case 512 * MB:
@@ -299,7 +301,7 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 
 	if len(minRepo) == 0 {
 		// no disk for allocation.
-		return "", errors.ErrNoData.As(sid, diskSectors)
+		return "", errors.New("No disk for allocation").As(sid, diskSectors)
 	}
 
 	dpImpl.sectors[sid] = minRepo

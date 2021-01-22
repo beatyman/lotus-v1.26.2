@@ -258,7 +258,7 @@ reAllocate:
 	if err != nil {
 		w.workMu.Unlock()
 		log.Warn(errors.As(err))
-		time.Sleep(1e9)
+		time.Sleep(60e9)
 		goto reAllocate
 	}
 	sealer, ok := w.sealers[repo]
