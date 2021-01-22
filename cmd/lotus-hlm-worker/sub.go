@@ -252,10 +252,14 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 
 	// allocate worker sealer
+reAllocate:
 	w.workMu.Lock()
 	repo, err := w.diskPool.Allocate(task.SectorName())
 	if err != nil {
-		return errRes(errors.As(err, w.workerCfg), &res)
+		w.workMu.Unlock()
+		log.Warn(errors.As(err))
+		time.Sleep(1e9)
+		goto reAllocate
 	}
 	sealer, ok := w.sealers[repo]
 	if !ok {
