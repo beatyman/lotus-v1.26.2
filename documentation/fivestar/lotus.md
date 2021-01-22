@@ -256,10 +256,10 @@ lotus daemon --etcd="http://127.0.0.1:2379" # 在apps/lotus/daemon.sh里配置
 
 配置miner接入到多个链节点
 ```
-mkdir -p $miner_repo # 自行填写此目录变量，默认为/data/sdb/lotus-user-1/.lotus
-cd $miner_repo
+mkdir -p $repo # 自行填写此miner的链目录变量，默认为/data/sdb/lotus-user-1/.lotus
+cd $repo
 echo "# the first line is for proxy addr">lotus.proxy
-echo $(cat token)":/ip4/127.0.0.1/tpc/1345/http">>lotus.proxy
+echo $(cat token)":/ip4/127.0.0.1/tcp/1345/http">>lotus.proxy
 echo "# bellow is the cluster node.">>lotus.proxy
 echo $(cat token)":"$(cat api)>>lotus.proxy
 # 重启miner
