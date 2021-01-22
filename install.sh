@@ -55,9 +55,12 @@ fi
 if [ -f ./lotus-shed ]; then
     cp -rf lotus-shed $install_path
 fi
+if [ -f ./lotus-bench ]; then
+    cp -vrf lotus-bench $install_path
+fi
 if [ -f ./leveldb-tools ]; then
     cp -vrf leveldb-tools $install_path
 fi
-if [ -f ./lotus-bench ]; then
-    cp -vrf lotus-bench $install_path
+if [ -f ./storage-watch ]; then
+    cp -vrf storage-watch $install_path
 fi

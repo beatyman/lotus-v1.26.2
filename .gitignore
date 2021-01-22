@@ -16,6 +16,7 @@
 /lotus-gateway
 /lotus-pcr
 /leveldb-tools
+/storage-watch
 /lotus-wallet
 /lotus-keygen
 /bench.json

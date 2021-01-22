@@ -58,16 +58,16 @@ deps: $(BUILD_DEPS)
 .PHONY: deps
 
 debug: GOFLAGS+=-tags=debug
-debug: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools
+debug: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools storage-watch
 
 hlm: GOFLAGS+=-tags=hlm
-hlm: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools
+hlm: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools storage-watch
 
 calibration: GOFLAGS+=-tags=calibration
-calibration: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
+calibration: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools storage-watch
 
 2k: GOFLAGS+=-tags=2k
-2k: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools
+2k: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools storage-watch
 
 etcd: $(BUILD_DEPS)
 	rm -f etcd
@@ -127,7 +127,7 @@ lotus-gateway: $(BUILD_DEPS)
 .PHONY: lotus-gateway
 BINS+=lotus-gateway
 
-build: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
+build: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools storage-watch
 	@[[ $$(type -P "lotus") ]] && echo "Caution: you have \
 an existing lotus binary in your PATH. This may cause problems if you don't run 'sudo make install'" || true
 
@@ -229,7 +229,13 @@ BINS+=lotus-health
 
 leveldb-tools:
 	rm -f leveldb-tools 
-	go build -o leveldb-tools ./cmd/tools/leveldb-tools/main.go
+	go build -o leveldb-tools ./cmd/tools/leveldb-tools
+.PHONY: leveldb-tools
+BINS+=leveldb-tools
+
+storage-watch:
+	rm -f storage-watch
+	go build -o storage-watch ./cmd/tools/storage-watch
 .PHONY: leveldb-tools
 BINS+=leveldb-tools
 
