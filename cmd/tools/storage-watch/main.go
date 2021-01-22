@@ -2,10 +2,12 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"log"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/gwaylib/errors"
+	"github.com/gwaylib/log"
 )
 
 var (
@@ -20,10 +22,20 @@ var (
 
 func main() {
 	flag.Parse()
-	fmt.Printf("repo:%s\n", *repoFlag)
-	fmt.Printf("api:%s\n", *apiFlag)
+	log.Infof("repo:%s", *repoFlag)
+	log.Infof("api:%s", *apiFlag)
 
 	repos = strings.Split(*repoFlag, ",")
+
+	go func() {
+		for {
+			log.Info("start protect")
+			if err := protectPath(repos); err != nil {
+				log.Warn(errors.As(err))
+			}
+			time.Sleep(1e9)
+		}
+	}()
 
 	log.Fatal(http.ListenAndServe(*apiFlag, &HttpHandler{}))
 }
