@@ -223,10 +223,14 @@ func GetFullNodeAPI(ctx *cli.Context) (api.FullNode, jsonrpc.ClientCloser, error
 
 	addr, headers, err := GetRawAPI(ctx, repo.FullNode)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.As(err)
 	}
 
-	return client.NewFullNodeRPC(ctx.Context, addr, headers)
+	nApi, closer, err := client.NewFullNodeRPC(ctx.Context, addr, headers)
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
+	return nApi, closer, nil
 }
 
 type GetStorageMinerOptions struct {

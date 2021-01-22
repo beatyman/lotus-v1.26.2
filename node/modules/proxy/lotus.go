@@ -272,19 +272,20 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 		if os.IsNotExist(err) {
 			return errors.ErrNoData.As(cfgFile)
 		}
-		return errors.As(err)
+		return errors.As(err, cfgFile)
 	}
 	r := csv.NewReader(bytes.NewReader(cfgData))
 	r.Comment = '#'
 
 	records, err := r.ReadAll()
 	if err != nil {
-		return errors.As(err)
+		return errors.As(err, cfgFile)
 	}
 
 	if len(records) < 2 {
-		return errors.New("no data or error format").As(len(records))
+		return errors.New("no data or error format").As(len(records), cfgFile)
 	}
+	log.Infof("load lotus proxy:%s, len:%d", cfgFile, len(records))
 
 	nodes := []*LotusNode{}
 	// the first line is for the proxy addr
@@ -355,9 +356,8 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 	}
 	closer, err := startLotusProxy(host)
 	if err != nil {
-		return errors.As(err)
+		return errors.As(err, host)
 	}
-	log.Infof("using lotus proxy: %s", host)
 	lotusProxyCloser = closer
 	lotusProxyAddr = &proxyAddr
 	return nil
