@@ -236,8 +236,8 @@ BINS+=leveldb-tools
 storage-watch:
 	rm -f storage-watch
 	go build -o storage-watch ./cmd/tools/storage-watch
-.PHONY: leveldb-tools
-BINS+=leveldb-tools
+.PHONY: storage-watch
+BINS+=storage-watch
 
 lotus-wallet:
 	rm -f lotus-wallet

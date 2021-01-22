@@ -22,10 +22,9 @@ var (
 
 func main() {
 	flag.Parse()
-	log.Infof("repo:%s", *repoFlag)
-	log.Infof("api:%s", *apiFlag)
 
 	repos = strings.Split(*repoFlag, ",")
+	log.Infof("repo:%v", repos)
 
 	go func() {
 		for {
@@ -37,5 +36,6 @@ func main() {
 		}
 	}()
 
+	log.Infof("api:%s", *apiFlag)
 	log.Fatal(http.ListenAndServe(*apiFlag, &HttpHandler{}))
 }
