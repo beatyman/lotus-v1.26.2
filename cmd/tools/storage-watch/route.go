@@ -28,6 +28,16 @@ func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Not found"))
 		return
 	}
+	// no auth
+	switch r.URL.Path {
+	case "/check":
+		if err := handle(w, r); err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		return
+	}
 
 	// auth
 	username, passwd, ok := r.BasicAuth()
@@ -47,6 +57,7 @@ func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
+	return
 }
 
 func writeMsg(w http.ResponseWriter, code int, msg string) error {
