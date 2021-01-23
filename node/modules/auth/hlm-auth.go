@@ -92,7 +92,15 @@ func IsHlmAuth(authAddr string, authData []byte) bool {
 
 	for key, _ := range tmpAuth {
 		addrs, ok := auths[string(key)]
-		if ok && strings.Contains(addrs, authAddr) {
+		if !ok {
+			continue
+		}
+		// server has configured any address is ok.
+		if addrs == "*" {
+			return true
+		}
+
+		if strings.Contains(addrs, authAddr) {
 			return true
 		}
 	}
