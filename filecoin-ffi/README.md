@@ -12,7 +12,7 @@ cp filecoin-ffi/api.toml ../rust-filecoin-proofs-api/Cargo.toml
 
 git clone --origin fivestar https://github.com/filecoin-fivestar/rust-fil-proofs ../
 cd ../rust-fil-proofs
-git checkout v5.4.0 # git pull fivestar更新到最新
+git checkout v5.4.0-patch2 
 
 cd -
 make clean
