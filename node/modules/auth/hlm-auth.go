@@ -3,8 +3,6 @@
 package auth
 
 import (
-	"bytes"
-	"encoding/csv"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -29,25 +27,39 @@ func init() {
 }
 
 func parseHlmAuth(data []byte) (map[string]string, error) {
-	r := csv.NewReader(bytes.NewReader(data))
-	r.Comment = '#'
-	r.Comma = ':'
+	lines := strings.Split(string(data), "\n")
 
-	records, err := r.ReadAll()
-	if err != nil {
-		return nil, errors.As(err)
-	}
 	// format check
 	tmpAuth := map[string]string{}
-	for idx, line := range records {
-		if len(line) != 2 {
-			return nil, errors.New("error auth format").As(idx, line)
+	for _, line := range lines {
+		trim := strings.TrimSpace(line)
+		if len(trim) == 0 {
+			continue
 		}
-		_, ok := tmpAuth[line[0]]
+		if strings.HasPrefix(trim, "#") {
+			continue
+		}
+
+		auth := strings.Split(trim, ":")
+		if len(auth) < 1 {
+			continue
+		}
+		key := strings.TrimSpace(auth[0])
+		if len(key) == 0 {
+			continue
+		}
+		_, ok := tmpAuth[key]
 		if ok {
-			return nil, errors.New("duplicate key").As(line[0])
+			return nil, errors.New("duplicate key").As(auth[0])
 		}
-		tmpAuth[line[0]] = line[1]
+
+		if len(auth) == 1 {
+			// for the old version
+			tmpAuth[key] = "*"
+		} else {
+			// for the scope version
+			tmpAuth[key] = auth[1]
+		}
 	}
 	return tmpAuth, nil
 }
