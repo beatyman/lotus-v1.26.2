@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -50,6 +51,7 @@ type diskPoolImpl struct {
 	defaultRepo string
 
 	sectors map[string]string // sid:moint_point
+	hasDisk bool
 }
 
 // defaultRepo -- if disk pool not found, use the old repo for work.
@@ -139,14 +141,14 @@ func formatFileSize(fileSize uint64) (size string) {
 	}
 }
 
-func IsMountPoint(dir string) bool {
-	ctx, cancel := context.WithTimeout(context.TODO(), 3e9)
+func IsMountPoint(dir string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), 30e9)
 	defer cancel()
-	if err := exec.CommandContext(ctx, "mountpoint", "-q", dir).Run(); err != nil {
-		log.Info(errors.As(err, dir))
-		return false
+	output, err := exec.CommandContext(ctx, "mount", "-l").CombinedOutput()
+	if err != nil {
+		return false, errors.As(err, dir)
 	}
-	return true
+	return strings.Contains(string(output), dir), nil
 }
 
 func scanRepo(repo string) map[string]bool {
@@ -197,7 +199,11 @@ func scanDisk() (map[string]map[string]bool, error) {
 	result := map[string]map[string]bool{}
 	for _, file := range files {
 		repo := filepath.Join(DISK_MOUNT_ROOT, file.Name())
-		if !IsMountPoint(repo) {
+		mounted, err := IsMountPoint(repo)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+		if !mounted {
 			continue
 		}
 		result[repo] = scanRepo(repo)
@@ -256,6 +262,10 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 	if err != nil {
 		return "", errors.As(err)
 	}
+	if len(diskSectors) > 0 {
+		dpImpl.hasDisk = true
+	}
+
 	minRepo := ""
 	minAllocated := math.MaxFloat64
 	for repo, sectors := range diskSectors {
@@ -294,8 +304,8 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 		}
 	}
 
-	// no disk mounted, use the default repo.
-	if len(minRepo) == 0 && len(diskSectors) == 0 {
+	// no disk mounted when start the program, use the default repo.
+	if len(minRepo) == 0 && !dpImpl.hasDisk {
 		minRepo = dpImpl.defaultRepo
 	}
 

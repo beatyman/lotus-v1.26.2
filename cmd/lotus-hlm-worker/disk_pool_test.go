@@ -59,3 +59,8 @@ func TestDiskPool(t *testing.T) {
 //	result := scanRepo("/data/cache/.lotusworker")
 //	fmt.Printf("%+v\n", result)
 //}
+
+//func TestIsMountPoint(t *testing.T) {
+//	fmt.Println(IsMountPoint("/data/lotus-cache/4"))
+//	time.Sleep(1e9)
+//}
