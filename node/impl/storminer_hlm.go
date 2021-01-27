@@ -24,8 +24,8 @@ func (sm *StorageMinerAPI) WdpostEnablePartitionSeparate(ctx context.Context, en
 }
 func (sm *StorageMinerAPI) WdpostSetPartitionNumber(ctx context.Context, number int) error {
 	return sm.Miner.WdpostSetPartitionNumber(number)
-	return nil
 }
+
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
 	return sm.Miner.RunPledgeSector()
 }
@@ -82,7 +82,7 @@ func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeo
 	all, _, _, err := ffiwrapper.CheckProvable(ctx, []storage.SectorRef{
 		storage.SectorRef{
 			ID:         id,
-			ProofType:  mi.SealProofType,
+			ProofType:  abi.RegisteredSealProof(mi.WindowPoStProofType),
 			SectorFile: *file,
 		},
 	}, nil, timeout)

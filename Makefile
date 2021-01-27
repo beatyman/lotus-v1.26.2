@@ -69,6 +69,9 @@ calibration: lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
 2k: GOFLAGS+=-tags=2k
 2k: lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools
 
+calibnet: GOFLAGS+=-tags=calibnet
+calibnet: lotus lotus-miner lotus-worker lotus-seed
+
 lotus: $(BUILD_DEPS)
 	rm -f lotus
 	go build $(GOFLAGS) -o lotus ./cmd/lotus
