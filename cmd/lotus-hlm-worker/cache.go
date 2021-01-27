@@ -110,11 +110,15 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		return errors.As(err)
 	}
 	mountUri := ss.MountTransfUri
-	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
-		log.Infof("found local storage, chagne %s to mount local", mountUri)
-		// fix to 127.0.0.1 if it has the same ip.
-		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
-	}
+	// BUG:
+	// mount -t "nfs" -o vers=3,rw,nolock,intr,proto=tcp,rsize=1048576,wsize=1048576,hard,timeo=7,retrans=10,actimeo=10,retry=5 127.0.0.1:/data/zfs/ /data/lotus-push/s-t01003-6
+	// open /data/lotus-push/s-t01003-6/sealed/s-t01003-6: permission denied
+	// BUG end
+	//if strings.Index(mountUri, w.workerCfg.IP) > -1 {
+	//	log.Infof("found local storage, chagne %s to mount local", mountUri)
+	//	// fix to 127.0.0.1 if it has the same ip.
+	//	mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
+	//}
 	mountDir := filepath.Join(w.sealedRepo, sid)
 	if err := w.mountRemote(
 		sid,
@@ -166,11 +170,16 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	}
 
 	mountUri := ss.MountTransfUri
-	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
-		log.Infof("found local storage, chagne %s to mount local", mountUri)
-		// fix to 127.0.0.1 if it has the same ip.
-		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
-	}
+
+	// BUG:
+	// mount -t "nfs" -o vers=3,rw,nolock,intr,proto=tcp,rsize=1048576,wsize=1048576,hard,timeo=7,retrans=10,actimeo=10,retry=5 127.0.0.1:/data/zfs/ /data/lotus-push/s-t01003-6
+	// open /data/lotus-push/s-t01003-6/sealed/s-t01003-6: permission denied
+	// BUG end
+	//if strings.Index(mountUri, w.workerCfg.IP) > -1 {
+	//	log.Infof("found local storage, chagne %s to mount local", mountUri)
+	//	// fix to 127.0.0.1 if it has the same ip.
+	//	mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
+	//}
 	mountDir := filepath.Join(w.sealedRepo, sid)
 	if err := w.mountRemote(
 		sid,
@@ -209,11 +218,16 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 	}
 
 	mountUri := ss.MountTransfUri
-	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
-		log.Infof("found local storage, chagne %s to mount local", mountUri)
-		// fix to 127.0.0.1 if it has the same ip.
-		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
-	}
+
+	// BUG:
+	// mount -t "nfs" -o vers=3,rw,nolock,intr,proto=tcp,rsize=1048576,wsize=1048576,hard,timeo=7,retrans=10,actimeo=10,retry=5 127.0.0.1:/data/zfs/ /data/lotus-push/s-t01003-6
+	// open /data/lotus-push/s-t01003-6/sealed/s-t01003-6: permission denied
+	// BUG end
+	//if strings.Index(mountUri, w.workerCfg.IP) > -1 {
+	//	log.Infof("found local storage, chagne %s to mount local", mountUri)
+	//	// fix to 127.0.0.1 if it has the same ip.
+	//	mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
+	//}
 	mountDir := filepath.Join(w.sealedRepo, sid)
 	if err := w.mountRemote(
 		sid,
@@ -251,11 +265,16 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 	}
 
 	mountUri := ss.MountTransfUri
-	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
-		log.Infof("found local storage, chagne %s to mount local", mountUri)
-		// fix to 127.0.0.1 if it has the same ip.
-		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
-	}
+
+	// BUG:
+	// mount -t "nfs" -o vers=3,rw,nolock,intr,proto=tcp,rsize=1048576,wsize=1048576,hard,timeo=7,retrans=10,actimeo=10,retry=5 127.0.0.1:/data/zfs/ /data/lotus-push/s-t01003-6
+	// open /data/lotus-push/s-t01003-6/sealed/s-t01003-6: permission denied
+	// BUG end
+	//if strings.Index(mountUri, w.workerCfg.IP) > -1 {
+	//	log.Infof("found local storage, chagne %s to mount local", mountUri)
+	//	// fix to 127.0.0.1 if it has the same ip.
+	//	mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
+	//}
 	mountDir := filepath.Join(w.sealedRepo, sid)
 	if err := w.mountRemote(
 		sid,
