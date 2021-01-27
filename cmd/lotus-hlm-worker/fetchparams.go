@@ -44,7 +44,7 @@ func addChecked(file string) {
 }
 func delChecked(file string) {
 	log.Warnf("Parameter file sum failed, remove:%s", file)
-	if err := os.RemoveAll(file); err != nil {
+	if err := os.Remove(file); err != nil {
 		log.Error(errors.As(err))
 	}
 	checkedLk.Lock()
