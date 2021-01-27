@@ -235,7 +235,7 @@ BINS+=leveldb-tools
 
 storage-watch:
 	rm -f storage-watch
-	go build -o storage-watch ./cmd/tools/storage-watch
+	go build -o storage-watch ./cmd/storage-watch
 .PHONY: storage-watch
 BINS+=storage-watch
 
