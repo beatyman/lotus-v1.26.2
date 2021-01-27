@@ -94,7 +94,7 @@ func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeo
 	all, _, _, err := ffiwrapper.CheckProvable(ctx, []storage.SectorRef{
 		storage.SectorRef{
 			ID:         id,
-			ProofType:  mi.SealProofType,
+			ProofType:  abi.RegisteredSealProof(mi.WindowPoStProofType),
 			SectorFile: *file,
 		},
 	}, nil, timeout)

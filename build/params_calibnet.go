@@ -44,6 +44,9 @@ const UpgradeClausHeight = 161386
 // 2021-01-17T19:00:00Z
 const UpgradeOrangeHeight = 250666
 
+// 2021-01-27T07:00:00Z
+const UpgradeActorsV3Height = 278026
+
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
 	policy.SetSupportedProofTypes(
@@ -56,7 +59,7 @@ func init() {
 
 	Devnet = true
 
-	BuildType |= BuildCalibration
+	BuildType = BuildCalibnet
 }
 
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
