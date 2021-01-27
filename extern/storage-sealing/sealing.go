@@ -514,7 +514,12 @@ func (m *Sealing) currentSealProof(ctx context.Context) (abi.RegisteredSealProof
 		return 0, err
 	}
 
-	return mi.SealProofType, nil
+	ver, err := m.api.StateNetworkVersion(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	return miner.PreferredSealProofTypeFromWindowPoStType(ver, mi.WindowPoStProofType)
 }
 
 func (m *Sealing) fillSectorFile(sector storage.SectorRef) (storage.SectorRef, error) {
