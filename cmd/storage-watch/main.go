@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	repoFlag = flag.String("storage-repos", "/data/zfs", "storage repo, seperate with ','")
+	repoFlag = flag.String("storage-repos", "", "storage repo, seperate with ','")
 	apiFlag  = flag.String("listen", ":1330", "api listen at")
 
 	usernameFlag = flag.String("username", "hlm-miner", "http base auth")
@@ -22,19 +22,19 @@ var (
 
 func main() {
 	flag.Parse()
-
-	repos = strings.Split(*repoFlag, ",")
-	log.Infof("repo:%v", repos)
-
-	go func() {
-		for {
-			log.Info("start protect")
-			if err := protectPath(repos); err != nil {
-				log.Warn(errors.As(err))
+	if len(*repoFlag) > 0 {
+		repos = strings.Split(*repoFlag, ",")
+		log.Infof("repo:%v", repos)
+		go func() {
+			for {
+				log.Info("start protect")
+				if err := protectPath(repos); err != nil {
+					log.Warn(errors.As(err))
+				}
+				time.Sleep(1e9)
 			}
-			time.Sleep(1e9)
-		}
-	}()
+		}()
+	}
 
 	log.Infof("api:%s", *apiFlag)
 	log.Fatal(http.ListenAndServe(*apiFlag, &HttpHandler{}))
