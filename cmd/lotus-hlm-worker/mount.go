@@ -65,6 +65,11 @@ func (w *worker) umountRemote(sid, mountDir string) error {
 }
 
 func umountAllRemote(sealedMountedCfg string) error {
+	defer func() {
+		if err := ioutil.WriteFile(sealedMountedCfg, []byte("{}"), 0666); err != nil {
+			log.Warn(errors.As(err))
+		}
+	}()
 	sealedMounted := map[string]string{}
 	if mountedData, err := ioutil.ReadFile(sealedMountedCfg); err != nil {
 		// drop the file error
@@ -81,10 +86,6 @@ func umountAllRemote(sealedMountedCfg string) error {
 					log.Info(err)
 				}
 			}
-		}
-
-		if err := ioutil.WriteFile(sealedMountedCfg, []byte("{}"), 0666); err != nil {
-			log.Warn(errors.As(err))
 		}
 	}
 	return nil
