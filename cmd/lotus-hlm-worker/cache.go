@@ -44,13 +44,13 @@ func (w *worker) CleanCache(ctx context.Context) error {
 
 func (w *worker) removeCache(ctx context.Context, repo, sid string) error {
 	log.Infof("Remove cache:%s,%s", repo, sid)
-	if err := os.RemoveAll(filepath.Join(repo, "sealed", sid)); err != nil {
+	if err := os.Remove(filepath.Join(repo, "sealed", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
 	if err := os.RemoveAll(filepath.Join(repo, "cache", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
-	if err := os.RemoveAll(filepath.Join(repo, "unsealed", sid)); err != nil {
+	if err := os.Remove(filepath.Join(repo, "unsealed", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
 	if err := w.diskPool.Delete(sid); err != nil {

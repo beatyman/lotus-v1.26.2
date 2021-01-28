@@ -172,9 +172,7 @@ func copyFile(ctx context.Context, from, to string) error {
 		}
 	default:
 		fmt.Printf("%s ====== new \n", to)
-		if _, err := fromFile.Seek(0, 0); err != nil {
-			return errors.As(err)
-		}
+		// TODO: allow truncate, current need to delete the files by manully.
 		if err := toFile.Truncate(0); err != nil {
 			return errors.As(err)
 		}
@@ -226,10 +224,11 @@ func copyFile(ctx context.Context, from, to string) error {
 		if stats == append_file_completed {
 			return nil
 		}
-		if _, err := toFile.Seek(0, 0); err != nil {
+		// TODO: allow truncate, current need to delete the files by manully.
+		if err := toFile.Truncate(0); err != nil {
 			return errors.As(err, toFile)
 		}
-		if err := toFile.Truncate(0); err != nil {
+		if _, err := toFile.Seek(0, 0); err != nil {
 			return errors.As(err, toFile)
 		}
 		return errors.New("finalize has completed, but checksum failed.").As(stats, from, to, fromStat.Size(), toStat.Size())
