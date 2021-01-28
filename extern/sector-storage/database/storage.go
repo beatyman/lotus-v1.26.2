@@ -179,3 +179,25 @@ func GetStorageCheck(id int64) (StorageStatusSort, error) {
 	}
 	return list, nil
 }
+func GetAllStorageInfoAll() ([]StorageInfo, error) {
+	list := []StorageInfo{}
+	mdb := GetDB()
+	var rows *sql.Rows
+	var err error
+	rows, err = mdb.Query("SELECT * FROM storage_info")
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		info := StorageInfo{}
+		if err := rows.Scan(&info); err != nil {
+			return nil, errors.As(err)
+		}
+		list = append(list, info)
+	}
+	if len(list) == 0 {
+		return nil, errors.ErrNoData
+	}
+	return list, nil
+}

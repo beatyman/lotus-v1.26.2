@@ -70,6 +70,11 @@ var runCmd = &cli.Command{
 			Usage: "Timer time try. The time is minutes. The default is 30 minutes",
 			Value: "30",
 		},
+		&cli.StringFlag{
+			Name:  "storage-collect-interval",
+			Usage: "Timer time try. The time is minutes. The default is 30 minutes",
+			Value: "30",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		if !cctx.Bool("enable-gpu-proving") {
@@ -241,11 +246,14 @@ var runCmd = &cli.Command{
 		}
                 // <buried>
                 // Collect miner info
-		timer := cctx.Int64("timer");
-                go func() {
-                        buried.RunCollectMinerInfo(cctx,timer)
-                }()
-                // </buried>
+		timer := cctx.Int64("timer")
+         go func() {
+            buried.RunCollectMinerInfo(cctx,timer)
+         }()
+		 interval:=cctx.Int64("storage-collect-interval")        // </buried>
+         go func() {
+         	buried.RunCollectStorageNodeStatus(cctx,interval)
+		 }()
 		return srv.Serve(manet.NetListener(lst))
 	},
 }
