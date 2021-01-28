@@ -58,16 +58,31 @@ deps: $(BUILD_DEPS)
 .PHONY: deps
 
 debug: GOFLAGS+=-tags=debug
-debug: lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools
+debug: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools storage-watch
 
 hlm: GOFLAGS+=-tags=hlm
-hlm: lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools
+hlm: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools storage-watch
 
 calibration: GOFLAGS+=-tags=calibration
-calibration: lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
+calibration: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools storage-watch
 
 2k: GOFLAGS+=-tags=2k
-2k: lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools
+2k: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools storage-watch
+
+etcd: $(BUILD_DEPS)
+	rm -f etcd
+	go build $(GOFLAGS) -o etcd ./cmd/etcd
+.PHONY: etcd
+BINS+=etcd
+
+etcdctl: $(BUILD_DEPS)
+	rm -f etcdctl
+	go build $(GOFLAGS) -o etcdctl ./cmd/etcdctl
+.PHONY: etcdctl
+BINS+=etcdctl
+
+calibnet: GOFLAGS+=-tags=calibnet
+calibnet: lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
 
 lotus: $(BUILD_DEPS)
 	rm -f lotus
@@ -112,7 +127,7 @@ lotus-gateway: $(BUILD_DEPS)
 .PHONY: lotus-gateway
 BINS+=lotus-gateway
 
-build: lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
+build: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools storage-watch
 	@[[ $$(type -P "lotus") ]] && echo "Caution: you have \
 an existing lotus binary in your PATH. This may cause problems if you don't run 'sudo make install'" || true
 
@@ -214,9 +229,15 @@ BINS+=lotus-health
 
 leveldb-tools:
 	rm -f leveldb-tools 
-	go build -o leveldb-tools ./cmd/tools/leveldb-tools/main.go
+	go build -o leveldb-tools ./cmd/tools/leveldb-tools
 .PHONY: leveldb-tools
 BINS+=leveldb-tools
+
+storage-watch:
+	rm -f storage-watch
+	go build -o storage-watch ./cmd/storage-watch
+.PHONY: storage-watch
+BINS+=storage-watch
 
 lotus-wallet:
 	rm -f lotus-wallet

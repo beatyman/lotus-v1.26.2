@@ -24,6 +24,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/events"
 	"github.com/filecoin-project/lotus/chain/events/state"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -31,6 +32,7 @@ import (
 	"github.com/filecoin-project/lotus/lib/sigs"
 	"github.com/filecoin-project/lotus/markets/utils"
 	"github.com/filecoin-project/lotus/node/config"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
 )
@@ -41,6 +43,7 @@ var log = logging.Logger("storageadapter")
 
 type ProviderNodeAdapter struct {
 	api.FullNode
+	*apiWrapper
 
 	// this goes away with the data transfer module
 	dag dtypes.StagingDAG
@@ -55,7 +58,8 @@ type ProviderNodeAdapter struct {
 func NewProviderNodeAdapter(fc *config.MinerFeeConfig) func(dag dtypes.StagingDAG, secb *sectorblocks.SectorBlocks, full api.FullNode) storagemarket.StorageProviderNode {
 	return func(dag dtypes.StagingDAG, secb *sectorblocks.SectorBlocks, full api.FullNode) storagemarket.StorageProviderNode {
 		na := &ProviderNodeAdapter{
-			FullNode: full,
+			FullNode:   full,
+			apiWrapper: &apiWrapper{api: full},
 
 			dag:       dag,
 			secb:      secb,
@@ -87,7 +91,7 @@ func (n *ProviderNodeAdapter) PublishDeals(ctx context.Context, deal storagemark
 	}
 
 	// TODO: We may want this to happen after fetching data
-	smsg, err := n.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+	smsg, err := n.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 		To:     market.Address,
 		From:   mi.Worker,
 		Value:  types.NewInt(0),
@@ -154,30 +158,36 @@ func (n *ProviderNodeAdapter) VerifySignature(ctx context.Context, sig crypto.Si
 	return err == nil, err
 }
 
-func (n *ProviderNodeAdapter) GetMinerWorkerAddress(ctx context.Context, miner address.Address, tok shared.TipSetToken) (address.Address, error) {
+func (n *ProviderNodeAdapter) GetMinerWorkerAddress(ctx context.Context, maddr address.Address, tok shared.TipSetToken) (address.Address, error) {
 	tsk, err := types.TipSetKeyFromBytes(tok)
 	if err != nil {
 		return address.Undef, err
 	}
 
-	mi, err := n.StateMinerInfo(ctx, miner, tsk)
+	mi, err := n.StateMinerInfo(ctx, maddr, tsk)
 	if err != nil {
 		return address.Address{}, err
 	}
 	return mi.Worker, nil
 }
 
-func (n *ProviderNodeAdapter) GetProofType(ctx context.Context, miner address.Address, tok shared.TipSetToken) (abi.RegisteredSealProof, error) {
+func (n *ProviderNodeAdapter) GetProofType(ctx context.Context, maddr address.Address, tok shared.TipSetToken) (abi.RegisteredSealProof, error) {
 	tsk, err := types.TipSetKeyFromBytes(tok)
 	if err != nil {
 		return 0, err
 	}
 
-	mi, err := n.StateMinerInfo(ctx, miner, tsk)
+	mi, err := n.StateMinerInfo(ctx, maddr, tsk)
 	if err != nil {
 		return 0, err
 	}
-	return mi.SealProofType, nil
+
+	nver, err := n.StateNetworkVersion(ctx, tsk)
+	if err != nil {
+		return 0, err
+	}
+
+	return miner.PreferredSealProofTypeFromWindowPoStType(nver, mi.WindowPoStProofType)
 }
 
 func (n *ProviderNodeAdapter) SignBytes(ctx context.Context, signer address.Address, b []byte) (*crypto.Signature, error) {
@@ -186,7 +196,7 @@ func (n *ProviderNodeAdapter) SignBytes(ctx context.Context, signer address.Addr
 		return nil, err
 	}
 
-	localSignature, err := n.WalletSign(ctx, build.GetHlmAuth(), signer, b)
+	localSignature, err := n.WalletSign(ctx, auth.GetHlmAuth(), signer, b)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +214,7 @@ func (n *ProviderNodeAdapter) ReleaseFunds(ctx context.Context, addr address.Add
 // Adds funds with the StorageMinerActor for a storage participant.  Used by both providers and clients.
 func (n *ProviderNodeAdapter) AddFunds(ctx context.Context, addr address.Address, amount abi.TokenAmount) (cid.Cid, error) {
 	// (Provider Node API)
-	smsg, err := n.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+	smsg, err := n.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 		To:     market.Address,
 		From:   addr,
 		Value:  amount,

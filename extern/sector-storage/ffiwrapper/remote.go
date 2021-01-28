@@ -133,7 +133,7 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 	log.Infof("DEBUG:SealPreCommit1 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
 	defer log.Infof("DEBUG:SealPreCommit1 out,%+v", sector)
 
-	// if the FIL_PROOFS_MULTICORE_SDR_PRODUCERS haven't set, set it by auto.
+	// if the FIL_PROOFS_MULTICORE_SDR_PRODUCERS is not set, set it by auto.
 	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
 		if err := autoPrecommit1Env(ctx); err != nil {
 			return storage.PreCommit1Out{}, errors.As(err)
@@ -402,7 +402,7 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	}
 }
 func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
-	// remote worker haven't set.
+	// remote worker is not set, use local mode
 	if sb.remoteCfg.WinningPoSt == 0 {
 		return sb.generateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 	}
@@ -484,7 +484,7 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	log.Infof("DEBUG:GenerateWindowPoSt in(remote:%t,%t),%s,session:%s", sb.remoteCfg.SealSector, sb.remoteCfg.EnableForceRemoteWindowPoSt, minerID, sessionKey)
 	defer log.Infof("DEBUG:GenerateWindowPoSt out,%s,session:%s", minerID, sessionKey)
 
-	// remote worker haven't set.
+	// remote worker is not set, use local mode
 	if sb.remoteCfg.WindowPoSt == 0 {
 		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 	}
@@ -516,7 +516,7 @@ selectWorker:
 		// using the old version when EnableForceRemoteWindowPoSt is not set.
 
 		if !sb.remoteCfg.EnableForceRemoteWindowPoSt {
-			log.Info("No GpuService count needed, using local mode")
+			log.Info("No GpuService found, using local mode")
 			return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 		}
 
