@@ -166,7 +166,6 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	}
 
 	mountUri := ss.MountTransfUri
-
 	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
 		log.Infof("found local storage, chagne %s to mount local", mountUri)
 		// fix to 127.0.0.1 if it has the same ip.
@@ -210,7 +209,6 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 	}
 
 	mountUri := ss.MountTransfUri
-
 	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
 		log.Infof("found local storage, chagne %s to mount local", mountUri)
 		// fix to 127.0.0.1 if it has the same ip.
@@ -253,7 +251,6 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 	}
 
 	mountUri := ss.MountTransfUri
-
 	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
 		log.Infof("found local storage, chagne %s to mount local", mountUri)
 		// fix to 127.0.0.1 if it has the same ip.
