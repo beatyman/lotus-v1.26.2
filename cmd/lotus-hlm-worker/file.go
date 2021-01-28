@@ -172,7 +172,7 @@ func copyFile(ctx context.Context, from, to string) error {
 		}
 	default:
 		fmt.Printf("%s ====== new \n", to)
-		// TODO: allow truncate
+		// TODO: allow truncate, current need to delete the files by manully.
 		if err := toFile.Truncate(0); err != nil {
 			return errors.As(err)
 		}
@@ -224,6 +224,7 @@ func copyFile(ctx context.Context, from, to string) error {
 		if stats == append_file_completed {
 			return nil
 		}
+		// TODO: allow truncate, current need to delete the files by manully.
 		if err := toFile.Truncate(0); err != nil {
 			return errors.As(err, toFile)
 		}
