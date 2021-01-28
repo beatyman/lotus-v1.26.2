@@ -243,7 +243,13 @@ func (ss *syscallShim) workerKeyAtLookback(height abi.ChainEpoch) (address.Addre
 	return ResolveToKeyAddr(ss.cstate, ss.cst, info.Worker)
 }
 
+var verifyPoStLimit = make(chan int, 1)
 func (ss *syscallShim) VerifyPoSt(proof proof2.WindowPoStVerifyInfo) error {
+	verifyPoStLimit <- 1
+	defer func() {
+		<-verifyPoStLimit
+	}()
+
 	ok, err := ss.verifier.VerifyWindowPoSt(context.TODO(), proof)
 	if err != nil {
 		return err
@@ -256,7 +262,7 @@ func (ss *syscallShim) VerifyPoSt(proof proof2.WindowPoStVerifyInfo) error {
 
 // TODO: waitting offical fix
 // https://filecoinproject.slack.com/archives/C017CCH1MHB/p1597754475177800?thread_ts=1597578727.267400&cid=C017CCH1MHB
-var verifySealLimit = make(chan int, 10)
+var verifySealLimit = make(chan int, goruntime.NumCPU())
 
 func (ss *syscallShim) VerifySeal(info proof2.SealVerifyInfo) error {
 	verifySealLimit <- 1

@@ -24,6 +24,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	mauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/lp2p"
 )
@@ -48,7 +49,11 @@ type jwtPayload struct {
 }
 
 func (n *CommonAPI) ReloadHlmAuth(ctx context.Context) error {
-	return build.LoadHlmAuth()
+	return mauth.LoadHlmAuth()
+}
+
+func (n *CommonAPI) IsHlmAuthOn(ctx context.Context) (bool, error) {
+	return mauth.IsHlmAuthOn(), nil
 }
 func (a *CommonAPI) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 	var payload jwtPayload

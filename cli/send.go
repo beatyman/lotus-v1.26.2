@@ -15,9 +15,10 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var sendCmd = &cli.Command{
@@ -52,7 +53,7 @@ var sendCmd = &cli.Command{
 		&cli.Uint64Flag{
 			Name:  "method",
 			Usage: "specify method to invoke",
-			Value: 0,
+			Value: uint64(builtin.MethodSend),
 		},
 		&cli.StringFlag{
 			Name:  "params-json",
@@ -61,6 +62,10 @@ var sendCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "params-hex",
 			Usage: "specify invocation parameters in hex",
+		},
+		&cli.BoolFlag{
+			Name:  "force",
+			Usage: "must be specified for the action to take effect if maybe SysErrInsufficientFunds etc",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -144,9 +149,23 @@ var sendCmd = &cli.Command{
 			Params:     params,
 		}
 
+		if !cctx.Bool("force") {
+			// Funds insufficient check
+			fromBalance, err := api.WalletBalance(ctx, msg.From)
+			if err != nil {
+				return err
+			}
+			totalCost := types.BigAdd(types.BigMul(msg.GasFeeCap, types.NewInt(uint64(msg.GasLimit))), msg.Value)
+
+			if fromBalance.LessThan(totalCost) {
+				fmt.Printf("WARNING: From balance %s less than total cost %s\n", types.FIL(fromBalance), types.FIL(totalCost))
+				return fmt.Errorf("--force must be specified for this action to have an effect; you have been warned")
+			}
+		}
+
 		if cctx.IsSet("nonce") {
 			msg.Nonce = cctx.Uint64("nonce")
-			sm, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), fromAddr, msg)
+			sm, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), fromAddr, msg)
 			if err != nil {
 				return err
 			}
@@ -157,7 +176,7 @@ var sendCmd = &cli.Command{
 			}
 			fmt.Println(sm.Cid())
 		} else {
-			sm, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+			sm, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
 			if err != nil {
 				return err
 			}

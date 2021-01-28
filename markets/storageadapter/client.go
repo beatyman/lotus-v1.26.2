@@ -31,12 +31,12 @@ import (
 	"github.com/filecoin-project/lotus/lib/sigs"
 	"github.com/filecoin-project/lotus/markets/utils"
 	"github.com/filecoin-project/lotus/node/impl/full"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 type ClientNodeAdapter struct {
-	full.StateAPI
-	full.ChainAPI
-	full.MpoolAPI
+	*clientApi
+	*apiWrapper
 
 	fundmgr   *market.FundManager
 	ev        *events.Events
@@ -46,14 +46,14 @@ type ClientNodeAdapter struct {
 type clientApi struct {
 	full.ChainAPI
 	full.StateAPI
+	full.MpoolAPI
 }
 
 func NewClientNodeAdapter(stateapi full.StateAPI, chain full.ChainAPI, mpool full.MpoolAPI, fundmgr *market.FundManager) storagemarket.StorageClientNode {
-	capi := &clientApi{chain, stateapi}
+	capi := &clientApi{chain, stateapi, mpool}
 	return &ClientNodeAdapter{
-		StateAPI: stateapi,
-		ChainAPI: chain,
-		MpoolAPI: mpool,
+		clientApi:  capi,
+		apiWrapper: &apiWrapper{api: capi},
 
 		fundmgr:   fundmgr,
 		ev:        events.NewEvents(context.TODO(), capi),
@@ -99,7 +99,7 @@ func (c *ClientNodeAdapter) VerifySignature(ctx context.Context, sig crypto.Sign
 // Adds funds with the StorageMinerActor for a storage participant.  Used by both providers and clients.
 func (c *ClientNodeAdapter) AddFunds(ctx context.Context, addr address.Address, amount abi.TokenAmount) (cid.Cid, error) {
 	// (Provider Node API)
-	smsg, err := c.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+	smsg, err := c.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 		To:     miner2.StorageMarketActorAddr,
 		From:   addr,
 		Value:  amount,
@@ -326,7 +326,7 @@ func (c *ClientNodeAdapter) SignProposal(ctx context.Context, signer address.Add
 		return nil, err
 	}
 
-	sig, err := c.Wallet.WalletSign(ctx, build.GetHlmAuth(), signer, buf, api.MsgMeta{
+	sig, err := c.Wallet.WalletSign(ctx, auth.GetHlmAuth(), signer, buf, api.MsgMeta{
 		Type: api.MTDealProposal,
 	})
 	if err != nil {
@@ -381,7 +381,7 @@ func (c *ClientNodeAdapter) SignBytes(ctx context.Context, signer address.Addres
 		return nil, err
 	}
 
-	localSignature, err := c.Wallet.WalletSign(ctx, build.GetHlmAuth(), signer, b, api.MsgMeta{
+	localSignature, err := c.Wallet.WalletSign(ctx, auth.GetHlmAuth(), signer, b, api.MsgMeta{
 		Type: api.MTUnknown, // TODO: pass type here
 	})
 	if err != nil {

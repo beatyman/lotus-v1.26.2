@@ -1,4 +1,4 @@
-// +build calibration
+// +build calibnet
 
 package build
 
@@ -12,6 +12,9 @@ import (
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandMainnet,
 }
+
+const BootstrappersFile = "calibnet.pi"
+const GenesisFile = "calibnet.car"
 
 const UpgradeBreezeHeight = -1
 const BreezeGasTampingDuration = 120
@@ -35,10 +38,14 @@ const UpgradeKumquatHeight = 90
 const UpgradeCalicoHeight = 92000
 const UpgradePersianHeight = UpgradeCalicoHeight + (builtin2.EpochsInHour * 60)
 
-const UpgradeOrangeHeight = 336458 // TODO: fix this.
-
 // 2020-12-17T19:00:00Z
 const UpgradeClausHeight = 161386
+
+// 2021-01-17T19:00:00Z
+const UpgradeOrangeHeight = 250666
+
+// 2021-01-27T07:00:00Z
+const UpgradeActorsV3Height = 278026
 
 func init() {
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
@@ -51,6 +58,8 @@ func init() {
 	SetAddressNetwork(address.Testnet)
 
 	Devnet = true
+
+	BuildType = BuildCalibnet
 }
 
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)

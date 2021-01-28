@@ -27,6 +27,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var actorCmd = &cli.Command{
@@ -103,7 +104,7 @@ var actorSetAddrsCmd = &cli.Command{
 
 		gasLimit := cctx.Int64("gas-limit")
 
-		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 			To:       maddr,
 			From:     minfo.Worker,
 			Value:    types.NewInt(0),
@@ -168,7 +169,7 @@ var actorSetPeeridCmd = &cli.Command{
 
 		gasLimit := cctx.Int64("gas-limit")
 
-		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 			To:       maddr,
 			From:     minfo.Worker,
 			Value:    types.NewInt(0),
@@ -270,7 +271,7 @@ var actorWithdrawCmd = &cli.Command{
 			if err != nil {
 				return err
 			}
-			sm, err := api.WalletSignMessage(ctx, build.GetHlmAuth(), sAddr, msg)
+			sm, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), sAddr, msg)
 			if err != nil {
 				return err
 			}
@@ -281,7 +282,7 @@ var actorWithdrawCmd = &cli.Command{
 			}
 			smsg = sm
 		} else {
-			sm, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+			sm, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
 			if err != nil {
 				return err
 			}
@@ -376,7 +377,7 @@ var actorRepayDebtCmd = &cli.Command{
 			return xerrors.Errorf("sender isn't a controller of miner: %s", fromId)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 			To:     maddr,
 			From:   fromId,
 			Value:  amount,
@@ -638,7 +639,7 @@ var actorControlSet = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: miner.Methods.ChangeWorkerAddress,
@@ -658,8 +659,8 @@ var actorControlSet = &cli.Command{
 
 var actorSetOwnerCmd = &cli.Command{
 	Name:      "set-owner",
-	Usage:     "Set owner address",
-	ArgsUsage: "[address]",
+	Usage:     "Set owner address (this command should be invoked twice, first with the old owner as the senderAddress, and then with the new owner)",
+	ArgsUsage: "[newOwnerAddress senderAddress]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "really-do-it",
@@ -673,8 +674,8 @@ var actorSetOwnerCmd = &cli.Command{
 			return nil
 		}
 
-		if !cctx.Args().Present() {
-			return fmt.Errorf("must pass address of new owner address")
+		if cctx.NArg() != 2 {
+			return fmt.Errorf("must pass new owner address and sender address")
 		}
 
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
@@ -696,7 +697,17 @@ var actorSetOwnerCmd = &cli.Command{
 			return err
 		}
 
-		newAddr, err := api.StateLookupID(ctx, na, types.EmptyTSK)
+		newAddrId, err := api.StateLookupID(ctx, na, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		fa, err := address.NewFromString(cctx.Args().Get(1))
+		if err != nil {
+			return err
+		}
+
+		fromAddrId, err := api.StateLookupID(ctx, fa, types.EmptyTSK)
 		if err != nil {
 			return err
 		}
@@ -711,13 +722,17 @@ var actorSetOwnerCmd = &cli.Command{
 			return err
 		}
 
-		sp, err := actors.SerializeParams(&newAddr)
+		if fromAddrId != mi.Owner && fromAddrId != newAddrId {
+			return xerrors.New("from address must either be the old owner or the new owner")
+		}
+
+		sp, err := actors.SerializeParams(&newAddrId)
 		if err != nil {
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
-			From:   mi.Owner,
+		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+			From:   fromAddrId,
 			To:     maddr,
 			Method: miner.Methods.ChangeOwnerAddress,
 			Value:  big.Zero(),
@@ -727,7 +742,7 @@ var actorSetOwnerCmd = &cli.Command{
 			return xerrors.Errorf("mpool push: %w", err)
 		}
 
-		fmt.Println("Propose Message CID:", smsg.Cid())
+		fmt.Println("Message CID:", smsg.Cid())
 
 		// wait for it to get mined into a block
 		wait, err := api.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence)
@@ -737,34 +752,11 @@ var actorSetOwnerCmd = &cli.Command{
 
 		// check it executed successfully
 		if wait.Receipt.ExitCode != 0 {
-			fmt.Println("Propose owner change failed!")
+			fmt.Println("owner change failed!")
 			return err
 		}
 
-		smsg, err = api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
-			From:   newAddr,
-			To:     maddr,
-			Method: miner.Methods.ChangeOwnerAddress,
-			Value:  big.Zero(),
-			Params: sp,
-		}, nil)
-		if err != nil {
-			return xerrors.Errorf("mpool push: %w", err)
-		}
-
-		fmt.Println("Approve Message CID:", smsg.Cid())
-
-		// wait for it to get mined into a block
-		wait, err = api.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence)
-		if err != nil {
-			return err
-		}
-
-		// check it executed successfully
-		if wait.Receipt.ExitCode != 0 {
-			fmt.Println("Approve owner change failed!")
-			return err
-		}
+		fmt.Println("message succeeded!")
 
 		return nil
 	},
@@ -845,7 +837,7 @@ var actorProposeChangeWorker = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: miner.Methods.ChangeWorkerAddress,
@@ -952,7 +944,7 @@ var actorConfirmChangeWorker = &cli.Command{
 			return nil
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: miner.Methods.ConfirmUpdateWorkerKey,

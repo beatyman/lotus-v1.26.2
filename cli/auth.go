@@ -147,3 +147,24 @@ var authReloadHlmAuth = &cli.Command{
 		return napi.ReloadHlmAuth(ctx)
 	},
 }
+
+var authHlmAuthOn = &cli.Command{
+	Name:  "hlm-auth-on",
+	Usage: "show the hlm-auth is it open.",
+	Action: func(cctx *cli.Context) error {
+		napi, closer, err := GetAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ctx := ReqContext(cctx)
+		on, err := napi.IsHlmAuthOn(ctx)
+		if err != nil {
+			fmt.Println(err.Error())
+		} else {
+			fmt.Println(on)
+		}
+		return nil
+	},
+}

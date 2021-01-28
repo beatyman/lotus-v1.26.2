@@ -13,10 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
-	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 )
 
@@ -81,10 +79,10 @@ func (w *worker) fetchRemoteFile(uri, to string) error {
 	return nil
 }
 
-func (w *worker) fetchRemote(serverUri string, sectorID string, typ ffiwrapper.WorkerTaskType) error {
+func (w *worker) fetchRemote(serverUri, sectorID, toRepo string, typ ffiwrapper.WorkerTaskType) error {
 	var err error
 	for i := 0; i < 3; i++ {
-		err = w.tryFetchRemote(serverUri, sectorID, typ)
+		err = w.tryFetchRemote(serverUri, sectorID, toRepo, typ)
 		if err != nil {
 			log.Warn(errors.As(err, i, serverUri, sectorID, typ))
 			continue
@@ -93,18 +91,13 @@ func (w *worker) fetchRemote(serverUri string, sectorID string, typ ffiwrapper.W
 	}
 	return err
 }
-func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrapper.WorkerTaskType) error {
-	// Close the fetch in the miner storage directory.
-	// TODO: fix to env
-	if filepath.Base(w.workerRepo) == ".lotusstorage" {
-		return nil
-	}
+func (w *worker) tryFetchRemote(serverUri string, sectorID, toRepo string, typ ffiwrapper.WorkerTaskType) error {
 	switch typ {
 	case ffiwrapper.WorkerPreCommit1:
 		// fetch unsealed
 		if err := w.fetchRemoteFile(
 			fmt.Sprintf("%s/file/storage/unsealed/%s", serverUri, sectorID),
-			filepath.Join(w.workerRepo, "unsealed", sectorID),
+			filepath.Join(toRepo, "unsealed", sectorID),
 		); err != nil {
 			return errors.As(err, typ)
 		}
@@ -113,7 +106,7 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 		// fetch unsealed, prepare for p2 or c2 failed to p1, p1 need the unsealed.
 		if err := w.fetchRemoteFile(
 			fmt.Sprintf("%s/file/storage/unsealed/%s", serverUri, sectorID),
-			filepath.Join(w.workerRepo, "unsealed", sectorID),
+			filepath.Join(toRepo, "unsealed", sectorID),
 		); err != nil {
 			return errors.As(err, typ)
 		}
@@ -141,13 +134,13 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 		if err := xml.Unmarshal(cacheRespData, cacheDir); err != nil {
 			return errors.As(err, serverUri, sectorID, typ)
 		}
-		if err := os.MkdirAll(filepath.Join(w.workerRepo, "cache", sectorID), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(toRepo, "cache", sectorID), 0755); err != nil {
 			return errors.As(err, serverUri, sectorID, typ)
 		}
 		for _, file := range cacheDir.Files {
 			if err := w.fetchRemoteFile(
 				fmt.Sprintf("%s/file/storage/cache/%s/%s", serverUri, sectorID, file.Value),
-				filepath.Join(w.workerRepo, "cache", sectorID, file.Value),
+				filepath.Join(toRepo, "cache", sectorID, file.Value),
 			); err != nil {
 				return errors.As(err, serverUri, sectorID, typ)
 			}
@@ -156,7 +149,7 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 		// fetch sealed
 		if err := w.fetchRemoteFile(
 			fmt.Sprintf("%s/file/storage/sealed/%s", serverUri, sectorID),
-			filepath.Join(w.workerRepo, "sealed", sectorID),
+			filepath.Join(toRepo, "sealed", sectorID),
 		); err != nil {
 			return errors.As(err, serverUri, sectorID, typ)
 		}
@@ -166,12 +159,6 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID string, typ ffiwrappe
 }
 
 func (w *worker) rsync(ctx context.Context, fromPath, toPath string) error {
-	// Close the fetch in the miner storage directory.
-	// TODO: fix to env
-	if filepath.Base(w.workerRepo) == ".lotusstorage" {
-		return nil
-	}
-
 	stat, err := os.Stat(fromPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -191,10 +178,4 @@ func (w *worker) rsync(ctx context.Context, fromPath, toPath string) error {
 		}
 	}
 	return nil
-}
-
-func (w *worker) remove(typ string, sectorID abi.SectorID) error {
-	filename := filepath.Join(w.workerRepo, typ, storage.SectorName(sectorID))
-	log.Infof("Remove file: %s", filename)
-	return os.RemoveAll(filename)
 }
