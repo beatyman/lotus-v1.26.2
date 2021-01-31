@@ -22,8 +22,8 @@ type MinerInfo struct {
 	MarketBalanceEscrow     string `json:"market_balance_escrow"`
 	MarketBalanceLocked     string `json:"market_balance_locked"`
 	ExpectedSealDuration    int    `json:"expected_seal_duration"`
-	CreateTime              int64 `json:"create_time"`
-	PeerId     string `json:"peer_id"`
+	CreateTime              int64  `json:"create_time"`
+	PeerId                  string `json:"peer_id"`
 }
 
 // SectorState :
@@ -37,7 +37,7 @@ type SectorState struct {
 	SectorSize int64  `json:"sector_size"`
 	State      string `json:"state"`
 	Msg        string `json:"msg"`
-	CreateTime int64 `json:"create_time"`
+	CreateTime int64  `json:"create_time"`
 }
 
 // SectorInfo :
@@ -50,12 +50,20 @@ type SectorInfo struct {
 	SectorSize int64  `json:"sector_size"`
 	State      string `json:"state"`
 	Msg        string `json:"msg"`
-	CreateTime int64 `json:"create_time"`
-	UpdateTime int64 `json:"update_time"`
+	CreateTime int64  `json:"create_time"`
+	UpdateTime int64  `json:"update_time"`
 }
 
 // BuriedDataCollectParams :
 type BuriedDataCollectParams struct {
 	DataType string `json:"data_type"`
 	Data     []byte `json:"data"`
+}
+
+type KafkaRestData struct {
+	Records []KafkaRestValue `json:"records"`
+}
+
+type KafkaRestValue struct {
+	Value interface{} `json:"value"`
 }

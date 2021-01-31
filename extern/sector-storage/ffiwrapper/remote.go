@@ -589,10 +589,16 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 		minerId := "s-t0" + sector.Miner.String()
 		sectorId := minerId + "-" + sector.Number.String()
 		log.Infof("Report sector in:%v", sectorId)
-		err := CollectSectorC2StateInfo(endTime, minerId, sectorId, r.cfg)
+		err := CollectSectorC2StateInfo(endTime, minerId, sectorId, r.cfg, "Commit2WaitDone")
 		if err != nil {
 			log.Error("Sector-Report Err,SectorId:%d", sector.Number, err)
 		}
+
+		err = CollectSectorC2StateInfo(endTime, minerId, sectorId, r.cfg, "Commit2Start")
+		if err != nil {
+			log.Error("Sector-Report Err,SectorId:%d", sector.Number, err)
+		}
+
 	}
 	defer func() {
 		log.Infof("SelectCommit2Service out:s-t%d-%d", sector.Miner, sector.Number)
@@ -630,7 +636,7 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 	return nil, errors.New("not reach here").As(sid)
 }
 
-func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, workercfg WorkerCfg) error {
+func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, workercfg WorkerCfg, state string) error {
 	sectorStateInfo := &buriedmodel.SectorState{
 		MinerID:  minerId,
 		WorkerID: workercfg.ID,
@@ -638,7 +644,7 @@ func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, wo
 		//		SectorSize: task.SectorStorage.StorageInfo.SectorSize,
 		// SectorID: storage.SectorName(m.minerSectorID(state.SectorNumber)),
 		SectorID:   sectorId,
-		State:      "Commit2WaitDone",
+		State:      state,
 		CreateTime: endTime,
 		StatusType: "02",
 	}
@@ -651,30 +657,22 @@ func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, wo
 		DataType: "sector_state",
 		Data:     sectorsDataBytes,
 	}
-	reqDataBytes, err := json.Marshal(reqData)
-	if err != nil {
-		log.Error(err)
-	}else{
-		go report.SendReport(reqDataBytes)
+
+	kafkaRestValue := buriedmodel.KafkaRestValue{
+		Value: reqData,
 	}
 
+	var values []buriedmodel.KafkaRestValue
+	values = append(values, kafkaRestValue)
 
-	sectorStateInfo.CreateTime = endTime
-	sectorStateInfo.State = "Commit2Start"
-	sectorsDataBytes, err = json.Marshal(sectorStateInfo)
-
+	kafaRestData := &buriedmodel.KafkaRestData{
+		Records: values,
+	}
+	kafaRestDataBytes, err := json.Marshal(kafaRestData)
 	if err != nil {
 		return err
 	}
-	reqData = &buriedmodel.BuriedDataCollectParams{
-		DataType: "sector_state",
-		Data:     sectorsDataBytes,
-	}
-	reqDataBytes, err = json.Marshal(reqData)
-	if err != nil {
-		log.Error(err)
-	}else{
-		go report.SendReport(reqDataBytes)
-	}
+	go report.SendReport(kafaRestDataBytes)
+
 	return nil
 }

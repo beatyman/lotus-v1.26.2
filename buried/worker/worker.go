@@ -20,12 +20,23 @@ func CollectSectorState(sectorStateInfo *buriedmodel.SectorState) error {
 		DataType: "sector_state",
 		Data:     sectorDataBytes,
 	}
-	reqDataBytes, err := json.Marshal(reqData)
-	if err != nil {
-		log.Println(err)
+
+	kafkaRestValue := buriedmodel.KafkaRestValue{
+		Value: reqData,
 	}
 
-	report.SendReport(reqDataBytes)
+	var values []buriedmodel.KafkaRestValue
+	values = append(values, kafkaRestValue)
+
+	kafaRestData := &buriedmodel.KafkaRestData{
+		Records: values,
+	}
+	kafaRestDataBytes, err := json.Marshal(kafaRestData)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	report.SendReport(kafaRestDataBytes)
 	if err != nil {
 		return err
 	}
@@ -48,9 +59,9 @@ func CollectSectorStateInfo(task ffiwrapper.WorkerTask) error {
 
 	// workerCfg.ID, minerEndpoint, workerCfg.IP
 	sectorStateInfo := &buriedmodel.SectorState{
-		MinerID:    task.SectorStorage.SectorInfo.MinerId,
-		WorkerID:   task.WorkerID,
-		ClientIP:   task.SectorStorage.WorkerInfo.Ip,
+		MinerID:  task.SectorStorage.SectorInfo.MinerId,
+		WorkerID: task.WorkerID,
+		ClientIP: task.SectorStorage.WorkerInfo.Ip,
 		//SectorSize: task.SectorStorage.StorageInfo.SectorSize,
 		// SectorID: storage.SectorName(m.minerSectorID(state.SectorNumber)),
 		SectorID: task.SectorStorage.SectorInfo.ID,

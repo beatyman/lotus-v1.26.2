@@ -2,18 +2,18 @@ package ffiwrapper
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
+	"github.com/filecoin-project/go-state-types/abi"
+	buriedmodel "github.com/filecoin-project/lotus/buried/model"
+	"github.com/filecoin-project/lotus/lib/report"
 	"math"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
-	"strings"
 	"time"
-	buriedmodel "github.com/filecoin-project/lotus/buried/model"
-        "github.com/filecoin-project/lotus/lib/report"
-	"github.com/filecoin-project/go-state-types/abi"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
@@ -1041,7 +1041,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 
 		log.Infof("Delete task result waiting :%s", taskKey)
 		go func() {
-			CollectSectorStateInfo(task, "02",r.cfg)
+			CollectSectorStateInfo(task, "02", r.cfg)
 		}()
 		_remoteResultLk.Lock()
 		delete(_remoteResult, taskKey)
@@ -1051,7 +1051,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	// send the task to daemon work.
 	log.Infof("DEBUG: send task %s to %s (locked:%s)", task.Key(), r.cfg.ID, task.WorkerID)
 	go func() {
-	        CollectSectorStateInfo(task, "01",r.cfg)
+		CollectSectorStateInfo(task, "01", r.cfg)
 	}()
 	select {
 	case <-ctx.Done():
@@ -1116,9 +1116,8 @@ func (sb *Sealer) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof
 	panic("Should not call at here")
 }
 
-
 // CollectSectorState ::q
-func CollectSectorStateInfo(task WorkerTask, workerType string,workerCfg WorkerCfg) error {
+func CollectSectorStateInfo(task WorkerTask, workerType string, workerCfg WorkerCfg) error {
 	// WorkerAddPiece       WorkerTaskType = 0
 	// WorkerAddPieceDone                  = 1
 	// WorkerPreCommit1                    = 10
@@ -1133,10 +1132,10 @@ func CollectSectorStateInfo(task WorkerTask, workerType string,workerCfg WorkerC
 
 	// workerCfg.ID, minerEndpoint, workerCfg.IP
 	sectorStateInfo := &buriedmodel.SectorState{
-		MinerID:    task.SectorStorage.SectorInfo.MinerId,
-		WorkerID:   workerCfg.ID,
-		ClientIP:   workerCfg.IP,
-//		SectorSize: task.SectorStorage.StorageInfo.SectorSize,
+		MinerID:  task.SectorStorage.SectorInfo.MinerId,
+		WorkerID: workerCfg.ID,
+		ClientIP: workerCfg.IP,
+		//		SectorSize: task.SectorStorage.StorageInfo.SectorSize,
 		// SectorID: storage.SectorName(m.minerSectorID(state.SectorNumber)),
 		SectorID: task.SectorStorage.SectorInfo.ID,
 	}
@@ -1189,16 +1188,22 @@ func CollectSectorStateInfo(task WorkerTask, workerType string,workerCfg WorkerC
 		DataType: "sector_state",
 		Data:     sectorsDataBytes,
 	}
-	reqDataBytes, err := json.Marshal(reqData)
+	kafkaRestValue := buriedmodel.KafkaRestValue{
+		Value: reqData,
+	}
+
+	var values []buriedmodel.KafkaRestValue
+	values = append(values, kafkaRestValue)
+
+	kafaRestData := &buriedmodel.KafkaRestData{
+		Records: values,
+	}
+	kafaRestDataBytes, err := json.Marshal(kafaRestData)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
-
 	//_, err := report.ReportData("POST", reqData)
-	go report.SendReport(reqDataBytes)
-	if err != nil {
-		return err
-	}
+	go report.SendReport(kafaRestDataBytes)
 	return nil
 }

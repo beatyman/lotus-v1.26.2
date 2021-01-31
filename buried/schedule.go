@@ -13,7 +13,7 @@ import (
 )
 
 // RunCollectMinerInfo :
-func RunCollectMinerInfo(cctx *cli.Context,timer int64) chan bool {
+func RunCollectMinerInfo(cctx *cli.Context, timer int64) chan bool {
 	ticker := time.NewTicker(time.Duration(timer*60) * time.Second)
 	quit := make(chan bool, 1)
 
@@ -35,8 +35,22 @@ func RunCollectMinerInfo(cctx *cli.Context,timer int64) chan bool {
 					DataType: "miner_info",
 					Data:     minerInfoDataBytes,
 				}
-				reqDataBytes, err := json.Marshal(reqData)
-				go report.SendReport(reqDataBytes)
+				kafkaRestValue := buriedmodel.KafkaRestValue{
+					Value: reqData,
+				}
+
+				var values []buriedmodel.KafkaRestValue
+				values = append(values, kafkaRestValue)
+
+				kafaRestData := &buriedmodel.KafkaRestData{
+					Records: values,
+				}
+				kafaRestDataBytes, err := json.Marshal(kafaRestData)
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+				go report.SendReport(kafaRestDataBytes)
 			case <-quit:
 				ticker.Stop()
 			}
@@ -47,7 +61,7 @@ func RunCollectMinerInfo(cctx *cli.Context,timer int64) chan bool {
 }
 
 //monitor storage server status
-func RunCollectStorageNodeStatus(cctx *cli.Context,timer int64)  chan bool  {
+func RunCollectStorageNodeStatus(cctx *cli.Context, timer int64) chan bool {
 	ticker := time.NewTicker(time.Duration(timer*60) * time.Second)
 	quit := make(chan bool, 1)
 	go func() {
@@ -74,27 +88,37 @@ func RunCollectStorageNodeStatus(cctx *cli.Context,timer int64)  chan bool  {
 					continue
 				}
 				type StorageInfo struct {
-					Status []database.StorageStatus `json:"status"`
-					Infos  []database.StorageInfo   `json:"infos"`
+					Status  []database.StorageStatus `json:"status"`
+					Infos   []database.StorageInfo   `json:"infos"`
+					MinerId string                   `json:"miner_id"`
 				}
-				info:=StorageInfo{
-					Status: stats,
-					Infos: infos,
-				}
-				records := make(map[string]interface{})
-				records["records"] = []map[string]interface{}{
-					{"value":info},
-				}
-				storageInfoDataBytes, err := json.Marshal(records)
+				minerInfo, err := miner.CollectMinerInfo(cctx)
 				if err != nil {
 					log.Error(err)
 					continue
+				}
+
+				info := StorageInfo{
+					Status:  stats,
+					Infos:   infos,
+					MinerId: minerInfo.MinerID,
+				}
+				storageInfoDataBytes, err := json.Marshal(info)
+				if err != nil {
+					log.Error(err)
+					continue
+
 				}
 				reqData := &buriedmodel.BuriedDataCollectParams{
 					DataType: "storage_info",
 					Data:     storageInfoDataBytes,
 				}
-				reqDataBytes, err := json.Marshal(reqData)
+				records := make(map[string]interface{})
+				records["records"] = []map[string]interface{}{
+					{"value": reqData},
+				}
+
+				reqDataBytes, err := json.Marshal(records)
 				go report.SendReport(reqDataBytes)
 			case <-quit:
 				ticker.Stop()
