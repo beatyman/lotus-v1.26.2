@@ -19,14 +19,17 @@ const UpgradeIgnitionHeight = -2
 const UpgradeRefuelHeight = -3
 const UpgradeTapeHeight = -4
 
-var UpgradeActorsV2Height = abi.ChainEpoch(10)
-var UpgradeLiftoffHeight = abi.ChainEpoch(-5)
+const UpgradeActorsV2Height = 10
+const UpgradeLiftoffHeight = -5
 
 const UpgradeKumquatHeight = 15
 const UpgradeCalicoHeight = 20
 const UpgradePersianHeight = 25
-const UpgradeOrangeHeight = 38023
-const UpgradeClausHeight = 38023
+const UpgradeOrangeHeight = 27
+const UpgradeClausHeight = 30
+
+// TODO
+const UpgradeActorsV3Height = 999999999
 
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandMainnet,
