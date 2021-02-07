@@ -526,7 +526,8 @@ tailLoop:
 }
 
 func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[uint64]*types.SignedMessage, baseFee types.BigInt, ts *types.TipSet) ([]*types.SignedMessage, int64) {
-	result := make([]*types.SignedMessage, 0, mp.cfg.SizeLimitLow)
+	mpCfg := mp.getConfig()
+	result := make([]*types.SignedMessage, 0, mpCfg.SizeLimitLow)
 	gasLimit := int64(build.BlockGasLimit)
 	minGas := int64(gasguess.MinGas)
 	start := time.Now()
@@ -537,7 +538,7 @@ func (mp *MessagePool) selectPriorityMessages(pending map[address.Address]map[ui
 
 	// 1. Get priority actor chains
 	var chains []*msgChain
-	priority := mp.cfg.PriorityAddrs
+	priority := mpCfg.PriorityAddrs
 	for _, actor := range priority {
 		mset, ok := pending[actor]
 		if ok {
