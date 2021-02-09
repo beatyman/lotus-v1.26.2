@@ -293,12 +293,6 @@ var runCmd = &cli.Command{
 			return errors.As(err, workerRepo)
 		}
 
-		workerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
-			Root: workerRepo,
-		})
-		if err != nil {
-			return err
-		}
 		minerSealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
 			Root: minerRepo,
 		})
@@ -306,12 +300,6 @@ var runCmd = &cli.Command{
 			return err
 		}
 		if err := os.MkdirAll(sealedRepo, 0755); err != nil {
-			return errors.As(err, sealedRepo)
-		}
-		sealedSB, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
-			Root: sealedRepo,
-		})
-		if err != nil {
 			return errors.As(err, sealedRepo)
 		}
 		workerId := GetWorkerID(workerIdFile)
@@ -328,8 +316,8 @@ var runCmd = &cli.Command{
 
 		log.Info("umounting history sealed")
 		// init and clean the sealed dir who has mounted.
-		sealedMountedFile := workerIdFile + ".lock"
-		if err := umountAllRemote(sealedMountedFile); err != nil {
+		sealedMountedCfg := workerIdFile + ".lock"
+		if err := umountAllRemote(sealedMountedCfg); err != nil {
 			return errors.As(err)
 		}
 
@@ -396,14 +384,13 @@ var runCmd = &cli.Command{
 
 		log.Info("starting acceptJobs")
 		if err := acceptJobs(ctx,
-			workerSealer, sealedSB,
 			workerApi,
 			act, workerAddr,
 			minerAddr, ainfo.AuthHeader(),
-			workerRepo, sealedRepo, sealedMountedFile,
+			workerRepo, sealedRepo, sealedMountedCfg,
 			workerCfg,
 		); err != nil {
-			if err := umountAllRemote(sealedMountedFile); err != nil {
+			if err := umountAllRemote(sealedMountedCfg); err != nil {
 				log.Warn(errors.As(err))
 			}
 

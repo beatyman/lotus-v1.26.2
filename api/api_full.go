@@ -334,10 +334,14 @@ type FullNode interface {
 
 	// MethodGroup: State
 	// The State methods are used to query, inspect, and interact with chain state.
-	// Most methods take a TipSetKey as a parameter. The state looked up is the state at that tipset.
+	// Most methods take a TipSetKey as a parameter. The state looked up is the parent state of the tipset.
 	// A nil TipSetKey can be provided as a param, this will cause the heaviest tipset in the chain to be used.
 
 	// StateCall runs the given message and returns its result without any persisted changes.
+	//
+	// StateCall applies the message to the tipset's parent state. The
+	// message is not applied on-top-of the messages in the passed-in
+	// tipset.
 	StateCall(context.Context, *types.Message, types.TipSetKey) (*InvocResult, error)
 	// StateReplay replays a given message, assuming it was included in a block in the specified tipset.
 	// If no tipset key is provided, the appropriate tipset is looked up.
@@ -463,6 +467,12 @@ type FullNode interface {
 	// MsigGetVested returns the amount of FIL that vested in a multisig in a certain period.
 	// It takes the following params: <multisig address>, <start epoch>, <end epoch>
 	MsigGetVested(context.Context, address.Address, types.TipSetKey, types.TipSetKey) (types.BigInt, error)
+
+	//MsigGetPending returns pending transactions for the given multisig
+	//wallet. Once pending transactions are fully approved, they will no longer
+	//appear here.
+	MsigGetPending(context.Context, address.Address, types.TipSetKey) ([]*MsigTransaction, error)
+
 	// MsigCreate creates a multisig wallet
 	// It takes the following params: <required number of senders>, <approving addresses>, <unlock duration>
 	//<initial balance>, <sender address of the create msg>, <gas price>
@@ -470,11 +480,11 @@ type FullNode interface {
 	// MsigPropose proposes a multisig message
 	// It takes the following params: <multisig address>, <recipient address>, <value to transfer>,
 	// <sender address of the propose msg>, <method to call in the proposed message>, <params to include in the proposed message>
-	MsigPropose(context.Context, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)
+	MsigPropose(context.Context, []byte, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)
 
 	// MsigApprove approves a previously-proposed multisig message by transaction ID
 	// It takes the following params: <multisig address>, <proposed transaction ID> <signer address>
-	MsigApprove(context.Context, address.Address, uint64, address.Address) (cid.Cid, error)
+	MsigApprove(context.Context, []byte, address.Address, uint64, address.Address) (cid.Cid, error)
 
 	// MsigApproveTxnHash approves a previously-proposed multisig message, specified
 	// using both transaction ID and a hash of the parameters used in the
@@ -482,43 +492,43 @@ type FullNode interface {
 	// exactly the transaction you think you are.
 	// It takes the following params: <multisig address>, <proposed message ID>, <proposer address>, <recipient address>, <value to transfer>,
 	// <sender address of the approve msg>, <method to call in the proposed message>, <params to include in the proposed message>
-	MsigApproveTxnHash(context.Context, address.Address, uint64, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)
+	MsigApproveTxnHash(context.Context, []byte, address.Address, uint64, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)
 
 	// MsigCancel cancels a previously-proposed multisig message
 	// It takes the following params: <multisig address>, <proposed transaction ID>, <recipient address>, <value to transfer>,
 	// <sender address of the cancel msg>, <method to call in the proposed message>, <params to include in the proposed message>
-	MsigCancel(context.Context, address.Address, uint64, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)
+	MsigCancel(context.Context, []byte, address.Address, uint64, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)
 	// MsigAddPropose proposes adding a signer in the multisig
 	// It takes the following params: <multisig address>, <sender address of the propose msg>,
 	// <new signer>, <whether the number of required signers should be increased>
-	MsigAddPropose(context.Context, address.Address, address.Address, address.Address, bool) (cid.Cid, error)
+	MsigAddPropose(context.Context, []byte, address.Address, address.Address, address.Address, bool) (cid.Cid, error)
 	// MsigAddApprove approves a previously proposed AddSigner message
 	// It takes the following params: <multisig address>, <sender address of the approve msg>, <proposed message ID>,
 	// <proposer address>, <new signer>, <whether the number of required signers should be increased>
-	MsigAddApprove(context.Context, address.Address, address.Address, uint64, address.Address, address.Address, bool) (cid.Cid, error)
+	MsigAddApprove(context.Context, []byte, address.Address, address.Address, uint64, address.Address, address.Address, bool) (cid.Cid, error)
 	// MsigAddCancel cancels a previously proposed AddSigner message
 	// It takes the following params: <multisig address>, <sender address of the cancel msg>, <proposed message ID>,
 	// <new signer>, <whether the number of required signers should be increased>
-	MsigAddCancel(context.Context, address.Address, address.Address, uint64, address.Address, bool) (cid.Cid, error)
+	MsigAddCancel(context.Context, []byte, address.Address, address.Address, uint64, address.Address, bool) (cid.Cid, error)
 	// MsigSwapPropose proposes swapping 2 signers in the multisig
 	// It takes the following params: <multisig address>, <sender address of the propose msg>,
 	// <old signer>, <new signer>
-	MsigSwapPropose(context.Context, address.Address, address.Address, address.Address, address.Address) (cid.Cid, error)
+	MsigSwapPropose(context.Context, []byte, address.Address, address.Address, address.Address, address.Address) (cid.Cid, error)
 	// MsigSwapApprove approves a previously proposed SwapSigner
 	// It takes the following params: <multisig address>, <sender address of the approve msg>, <proposed message ID>,
 	// <proposer address>, <old signer>, <new signer>
-	MsigSwapApprove(context.Context, address.Address, address.Address, uint64, address.Address, address.Address, address.Address) (cid.Cid, error)
+	MsigSwapApprove(context.Context, []byte, address.Address, address.Address, uint64, address.Address, address.Address, address.Address) (cid.Cid, error)
 	// MsigSwapCancel cancels a previously proposed SwapSigner message
 	// It takes the following params: <multisig address>, <sender address of the cancel msg>, <proposed message ID>,
 	// <old signer>, <new signer>
-	MsigSwapCancel(context.Context, address.Address, address.Address, uint64, address.Address, address.Address) (cid.Cid, error)
+	MsigSwapCancel(context.Context, []byte, address.Address, address.Address, uint64, address.Address, address.Address) (cid.Cid, error)
 
 	// MsigRemoveSigner proposes the removal of a signer from the multisig.
 	// It accepts the multisig to make the change on, the proposer address to
 	// send the message from, the address to be removed, and a boolean
 	// indicating whether or not the signing threshold should be lowered by one
 	// along with the address removal.
-	MsigRemoveSigner(ctx context.Context, msig address.Address, proposer address.Address, toRemove address.Address, decrease bool) (cid.Cid, error)
+	MsigRemoveSigner(ctx context.Context, auth []byte, msig address.Address, proposer address.Address, toRemove address.Address, decrease bool) (cid.Cid, error)
 
 	// MarketAddBalance adds funds to the market actor
 	MarketAddBalance(ctx context.Context, wallet, addr address.Address, amt types.BigInt) (cid.Cid, error)
@@ -984,4 +994,14 @@ type MsigVesting struct {
 type MessageMatch struct {
 	To   address.Address
 	From address.Address
+}
+
+type MsigTransaction struct {
+	ID     int64
+	To     address.Address
+	Value  abi.TokenAmount
+	Method abi.MethodNum
+	Params []byte
+
+	Approved []address.Address
 }

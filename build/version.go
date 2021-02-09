@@ -15,6 +15,8 @@ const (
 	Build2k       = 0x2
 	BuildDebug    = 0x3
 	BuildCalibnet = 0x4
+
+	BuildHLM = 0xf0
 )
 
 func buildType() string {
@@ -25,6 +27,10 @@ func buildType() string {
 		return "+mainnet"
 	case Build2k:
 		return "+2k"
+
+	case BuildHLM:
+		return "+hlm"
+
 	case BuildDebug:
 		return "+debug"
 	case BuildCalibnet:
@@ -89,7 +95,7 @@ func VersionForType(nodeType NodeType) (Version, error) {
 
 // semver versions of the rpc api exposed
 var (
-	FullAPIVersion   = newVer(1, 0, 0)
+	FullAPIVersion   = newVer(1, 1, 0)
 	MinerAPIVersion  = newVer(1, 0, 1)
 	WorkerAPIVersion = newVer(1, 0, 0)
 )

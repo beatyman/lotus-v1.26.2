@@ -10,7 +10,6 @@ import (
 
 	"github.com/filecoin-project/go-address"
 
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 
 	miner3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/miner"
@@ -22,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/chain/store"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/urfave/cli/v2"
 )
 
@@ -118,7 +118,7 @@ var disputerMsgCmd = &cli.Command{
 				return err
 			}
 
-			sm, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), dmsg, mss)
+			sm, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), dmsg, mss)
 			if err != nil {
 				return err
 			}
@@ -263,7 +263,7 @@ var disputerStartCmd = &cli.Command{
 			// TODO: Parallelizeable / can be integrated into the previous deadline-iterating for loop
 			for _, dpmsg := range dpmsgs {
 				log.Infof("disputing a PoSt from miner %s", dpmsg.To)
-				m, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), dpmsg, mss)
+				m, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), dpmsg, mss)
 				if err != nil {
 					log.Infof("failed to dispute post message: %s", err.Error())
 				} else {

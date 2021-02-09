@@ -13,6 +13,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/impl/full"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
@@ -676,7 +677,7 @@ func (env *fundManagerEnvironment) AddFunds(
 		return cid.Undef, err
 	}
 
-	smsg, aerr := env.api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+	smsg, aerr := env.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 		To:     market.Address,
 		From:   wallet,
 		Value:  amt,
@@ -705,7 +706,7 @@ func (env *fundManagerEnvironment) WithdrawFunds(
 		return cid.Undef, xerrors.Errorf("serializing params: %w", err)
 	}
 
-	smsg, aerr := env.api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+	smsg, aerr := env.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 		To:     market.Address,
 		From:   wallet,
 		Value:  types.NewInt(0),

@@ -24,10 +24,10 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	cborutil "github.com/filecoin-project/go-cbor-util"
+	paramfetch "github.com/filecoin-project/go-paramfetch"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-statestore"
-	paramfetch "github.com/filecoin-project/go-paramfetch"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
@@ -50,6 +50,7 @@ import (
 	"github.com/filecoin-project/lotus/journal"
 	storageminer "github.com/filecoin-project/lotus/miner"
 	"github.com/filecoin-project/lotus/node/modules"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
@@ -321,7 +322,8 @@ func migratePreSealMeta(ctx context.Context, api lapi.FullNode, metadata string,
 						PieceCID: commD,
 					},
 					DealInfo: &sealing.DealInfo{
-						DealID: dealID,
+						DealID:       dealID,
+						DealProposal: &sector.Deal,
 						DealSchedule: sealing.DealSchedule{
 							StartEpoch: sector.Deal.StartEpoch,
 							EndEpoch:   sector.Deal.EndEpoch,
@@ -426,7 +428,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api lapi.FullNode,
 		return xerrors.Errorf("peer ID from private key: %w", err)
 	}
 
-	mds, err := lr.Datastore("/metadata")
+	mds, err := lr.Datastore(context.TODO(), "/metadata")
 	if err != nil {
 		return err
 	}
@@ -591,7 +593,7 @@ func configureStorageMiner(ctx context.Context, api lapi.FullNode, addr address.
 		GasPremium: gasPrice,
 	}
 
-	smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+	smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
 	if err != nil {
 		return err
 	}
@@ -639,7 +641,7 @@ func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, 
 	// make sure the worker account exists on chain
 	_, err = api.StateLookupID(ctx, worker, types.EmptyTSK)
 	if err != nil {
-		signed, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), &types.Message{
+		signed, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
 			From:  owner,
 			To:    worker,
 			Value: types.NewInt(0),
@@ -701,7 +703,7 @@ func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, 
 		GasPremium: gasPrice,
 	}
 
-	signed, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), createStorageMinerMsg, nil)
+	signed, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), createStorageMinerMsg, nil)
 	if err != nil {
 		return address.Undef, xerrors.Errorf("pushing createMiner message: %w", err)
 	}

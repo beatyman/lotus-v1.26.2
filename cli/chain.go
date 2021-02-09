@@ -36,6 +36,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	types "github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var chainCmd = &cli.Command{
@@ -1213,7 +1214,7 @@ var slashConsensusFault = &cli.Command{
 			Params: enc,
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, build.GetHlmAuth(), msg, nil)
+		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
 		if err != nil {
 			return err
 		}

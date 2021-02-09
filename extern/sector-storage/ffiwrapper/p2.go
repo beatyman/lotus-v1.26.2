@@ -95,6 +95,8 @@ var P2Cmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
+		stdout := os.Stdout
+		os.Stdout = os.Stderr
 
 		resp := ExecPrecommit2Resp{
 			Exit: 0,
@@ -104,7 +106,7 @@ var P2Cmd = &cli.Command{
 			if err != nil {
 				os.Stderr.Write([]byte(err.Error()))
 			} else {
-				os.Stdout.Write(result)
+				stdout.Write(result)
 			}
 		}()
 		workerRepo, err := homedir.Expand(cctx.String("worker-repo"))

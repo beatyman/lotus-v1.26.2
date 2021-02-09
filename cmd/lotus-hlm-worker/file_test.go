@@ -41,10 +41,11 @@ func TestCopyFile(t *testing.T) {
 	if err := os.MkdirAll("./tmp", 0666); err != nil {
 		t.Fatal(err)
 	}
-	// defer os.RemoveAll("./tmp")
+	defer os.RemoveAll("./tmp")
 	ctx := context.Background()
-	if err := CopyFile(ctx, "/usr/local/go", "./tmp"); err != nil {
-		t.Fatal(err)
+	interrupt, _ := context.WithTimeout(ctx, 1e9)
+	if err := CopyFile(interrupt, "/usr/local/go", "./tmp"); err != nil {
+		log.Info(err)
 	}
 
 	fmt.Println("do copy again for testing")

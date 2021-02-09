@@ -924,7 +924,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		}
 
 		if task.task.Type != WorkerFinalize && r.fullTask() && !r.busyOn(task.task.SectorName()) {
-			log.Infof("Worker(%s,%s) in full working:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
+			log.Infof("Worker(%s,%s) is full working:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
 			// remote worker is locking for the task, and should not accept a new task.
 			go sb.toRemoteFree(task)
 			return

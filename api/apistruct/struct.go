@@ -48,10 +48,12 @@ var _ = AllPermissions
 
 type CommonStruct struct {
 	Internal struct {
+		AuthVerify func(ctx context.Context, token string) ([]auth.Permission, error) `perm:"read"`
+		AuthNew    func(ctx context.Context, perms []auth.Permission) ([]byte, error) `perm:"admin"`
+
 		// Reload the auth key
-		ReloadHlmAuth func(context.Context) error                                        `perm:"write"`
-		AuthVerify    func(ctx context.Context, token string) ([]auth.Permission, error) `perm:"read"`
-		AuthNew       func(ctx context.Context, perms []auth.Permission) ([]byte, error) `perm:"admin"`
+		ReloadHlmAuth func(context.Context) error         `perm:"write"`
+		IsHlmAuthOn   func(context.Context) (bool, error) `perm:"read"`
 
 		NetConnectedness            func(context.Context, peer.ID) (network.Connectedness, error)    `perm:"read"`
 		NetPeers                    func(context.Context) ([]peer.AddrInfo, error)                   `perm:"read"`
@@ -237,21 +239,22 @@ type FullNodeStruct struct {
 		StateVMCirculatingSupplyInternal   func(context.Context, types.TipSetKey) (api.CirculatingSupply, error)                                               `perm:"read"`
 		StateNetworkVersion                func(context.Context, types.TipSetKey) (stnetwork.Version, error)                                                   `perm:"read"`
 
-		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                                                    `perm:"read"`
-		MsigGetVestingSchedule  func(context.Context, address.Address, types.TipSetKey) (api.MsigVesting, error)                                                                 `perm:"read"`
-		MsigGetVested           func(context.Context, address.Address, types.TipSetKey, types.TipSetKey) (types.BigInt, error)                                                   `perm:"read"`
-		MsigCreate              func(context.Context, uint64, []address.Address, abi.ChainEpoch, types.BigInt, address.Address, types.BigInt) (cid.Cid, error)                   `perm:"sign"`
-		MsigPropose             func(context.Context, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)                          `perm:"sign"`
-		MsigApprove             func(context.Context, address.Address, uint64, address.Address) (cid.Cid, error)                                                                 `perm:"sign"`
-		MsigApproveTxnHash      func(context.Context, address.Address, uint64, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error) `perm:"sign"`
-		MsigCancel              func(context.Context, address.Address, uint64, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)                  `perm:"sign"`
-		MsigAddPropose          func(context.Context, address.Address, address.Address, address.Address, bool) (cid.Cid, error)                                                  `perm:"sign"`
-		MsigAddApprove          func(context.Context, address.Address, address.Address, uint64, address.Address, address.Address, bool) (cid.Cid, error)                         `perm:"sign"`
-		MsigAddCancel           func(context.Context, address.Address, address.Address, uint64, address.Address, bool) (cid.Cid, error)                                          `perm:"sign"`
-		MsigSwapPropose         func(context.Context, address.Address, address.Address, address.Address, address.Address) (cid.Cid, error)                                       `perm:"sign"`
-		MsigSwapApprove         func(context.Context, address.Address, address.Address, uint64, address.Address, address.Address, address.Address) (cid.Cid, error)              `perm:"sign"`
-		MsigSwapCancel          func(context.Context, address.Address, address.Address, uint64, address.Address, address.Address) (cid.Cid, error)                               `perm:"sign"`
-		MsigRemoveSigner        func(ctx context.Context, msig address.Address, proposer address.Address, toRemove address.Address, decrease bool) (cid.Cid, error)              `perm:"sign"`
+		MsigGetAvailableBalance func(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)                                                                            `perm:"read"`
+		MsigGetVestingSchedule  func(context.Context, address.Address, types.TipSetKey) (api.MsigVesting, error)                                                                         `perm:"read"`
+		MsigGetVested           func(context.Context, address.Address, types.TipSetKey, types.TipSetKey) (types.BigInt, error)                                                           `perm:"read"`
+		MsigGetPending          func(context.Context, address.Address, types.TipSetKey) ([]*api.MsigTransaction, error)                                                                  `perm:"read"`
+		MsigCreate              func(context.Context, uint64, []address.Address, abi.ChainEpoch, types.BigInt, address.Address, types.BigInt) (cid.Cid, error)                           `perm:"sign"`
+		MsigPropose             func(context.Context, []byte, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)                          `perm:"sign"`
+		MsigApprove             func(context.Context, []byte, address.Address, uint64, address.Address) (cid.Cid, error)                                                                 `perm:"sign"`
+		MsigApproveTxnHash      func(context.Context, []byte, address.Address, uint64, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error) `perm:"sign"`
+		MsigCancel              func(context.Context, []byte, address.Address, uint64, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error)                  `perm:"sign"`
+		MsigAddPropose          func(context.Context, []byte, address.Address, address.Address, address.Address, bool) (cid.Cid, error)                                                  `perm:"sign"`
+		MsigAddApprove          func(context.Context, []byte, address.Address, address.Address, uint64, address.Address, address.Address, bool) (cid.Cid, error)                         `perm:"sign"`
+		MsigAddCancel           func(context.Context, []byte, address.Address, address.Address, uint64, address.Address, bool) (cid.Cid, error)                                          `perm:"sign"`
+		MsigSwapPropose         func(context.Context, []byte, address.Address, address.Address, address.Address, address.Address) (cid.Cid, error)                                       `perm:"sign"`
+		MsigSwapApprove         func(context.Context, []byte, address.Address, address.Address, uint64, address.Address, address.Address, address.Address) (cid.Cid, error)              `perm:"sign"`
+		MsigSwapCancel          func(context.Context, []byte, address.Address, address.Address, uint64, address.Address, address.Address) (cid.Cid, error)                               `perm:"sign"`
+		MsigRemoveSigner        func(ctx context.Context, auth []byte, msig address.Address, proposer address.Address, toRemove address.Address, decrease bool) (cid.Cid, error)         `perm:"sign"`
 
 		MarketAddBalance   func(ctx context.Context, wallet, addr address.Address, amt types.BigInt) (cid.Cid, error)                 `perm:"sign"`
 		MarketGetReserved  func(ctx context.Context, addr address.Address) (types.BigInt, error)                                      `perm:"sign"`
@@ -306,8 +309,10 @@ type StorageMinerStruct struct {
 		MarketGetRetrievalAsk     func(ctx context.Context) (*retrievalmarket.Ask, error)                                                                                                                      `perm:"read"`
 		MarketListDataTransfers   func(ctx context.Context) ([]api.DataTransferChannel, error)                                                                                                                 `perm:"write"`
 		MarketDataTransferUpdates func(ctx context.Context) (<-chan api.DataTransferChannel, error)                                                                                                            `perm:"write"`
-		MarketRestartDataTransfer func(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error                                                                     `perm:"read"`
-		MarketCancelDataTransfer  func(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error                                                                     `perm:"read"`
+		MarketRestartDataTransfer func(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error                                                                     `perm:"write"`
+		MarketCancelDataTransfer  func(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error                                                                     `perm:"write"`
+		MarketPendingDeals        func(ctx context.Context) (api.PendingDealInfo, error)                                                                                                                       `perm:"write"`
+		MarketPublishPendingDeals func(ctx context.Context) error                                                                                                                                              `perm:"admin"`
 
 		PledgeSector func(context.Context) error `perm:"write"`
 
@@ -389,6 +394,10 @@ type StorageMinerStruct struct {
 		CheckProvable func(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error) `perm:"admin"`
 
 		// implements by hlm
+
+		ProxyStatus                   func(ctx context.Context) ([]api.ProxyStatus, error)                                      `perm:"read"`
+		ProxyReload                   func(ctx context.Context) error                                                           `perm:"write"`
+		StatusMinerStorage            func(ctx context.Context) ([]byte, error)                                                 `perm:"read"`
 		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                              `perm:"write"`
 		WdpostSetPartitionNumber      func(ctx context.Context, number int) error                                               `perm:"write"`
 		RunPledgeSector               func(context.Context) error                                                               `perm:"write"`
@@ -495,6 +504,7 @@ type GatewayStruct struct {
 		MpoolPush                         func(ctx context.Context, sm *types.SignedMessage) (cid.Cid, error)
 		MsigGetAvailableBalance           func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (types.BigInt, error)
 		MsigGetVested                     func(ctx context.Context, addr address.Address, start types.TipSetKey, end types.TipSetKey) (types.BigInt, error)
+		MsigGetPending                    func(context.Context, address.Address, types.TipSetKey) ([]*api.MsigTransaction, error)
 		StateAccountKey                   func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (address.Address, error)
 		StateDealProviderCollateralBounds func(ctx context.Context, size abi.PaddedPieceSize, verified bool, tsk types.TipSetKey) (api.DealCollateralBounds, error)
 		StateGetActor                     func(ctx context.Context, actor address.Address, ts types.TipSetKey) (*types.Actor, error)
@@ -505,9 +515,10 @@ type GatewayStruct struct {
 		StateMinerProvingDeadline         func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*dline.Info, error)
 		StateMinerPower                   func(context.Context, address.Address, types.TipSetKey) (*api.MinerPower, error)
 		StateMarketBalance                func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (api.MarketBalance, error)
-		StateSearchMsg                    func(ctx context.Context, msg cid.Cid) (*api.MsgLookup, error)
 		StateMarketStorageDeal            func(ctx context.Context, dealId abi.DealID, tsk types.TipSetKey) (*api.MarketDeal, error)
+		StateReadState                    func(context.Context, address.Address, types.TipSetKey) (*api.ActorState, error)
 		StateNetworkVersion               func(ctx context.Context, tsk types.TipSetKey) (stnetwork.Version, error)
+		StateSearchMsg                    func(ctx context.Context, msg cid.Cid) (*api.MsgLookup, error)
 		StateSectorGetInfo                func(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (*miner.SectorOnChainInfo, error)
 		StateVerifiedClientStatus         func(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*abi.StoragePower, error)
 		StateWaitMsg                      func(ctx context.Context, msg cid.Cid, confidence uint64) (*api.MsgLookup, error)
@@ -530,6 +541,9 @@ type WalletStruct struct {
 
 func (c *CommonStruct) ReloadHlmAuth(ctx context.Context) error {
 	return c.Internal.ReloadHlmAuth(ctx)
+}
+func (c *CommonStruct) IsHlmAuthOn(ctx context.Context) (bool, error) {
+	return c.Internal.IsHlmAuthOn(ctx)
 }
 func (c *CommonStruct) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 	return c.Internal.AuthVerify(ctx, token)
@@ -1183,52 +1197,56 @@ func (c *FullNodeStruct) MsigGetVested(ctx context.Context, a address.Address, s
 	return c.Internal.MsigGetVested(ctx, a, sTsk, eTsk)
 }
 
+func (c *FullNodeStruct) MsigGetPending(ctx context.Context, a address.Address, tsk types.TipSetKey) ([]*api.MsigTransaction, error) {
+	return c.Internal.MsigGetPending(ctx, a, tsk)
+}
+
 func (c *FullNodeStruct) MsigCreate(ctx context.Context, req uint64, addrs []address.Address, duration abi.ChainEpoch, val types.BigInt, src address.Address, gp types.BigInt) (cid.Cid, error) {
 	return c.Internal.MsigCreate(ctx, req, addrs, duration, val, src, gp)
 }
 
-func (c *FullNodeStruct) MsigPropose(ctx context.Context, msig address.Address, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
-	return c.Internal.MsigPropose(ctx, msig, to, amt, src, method, params)
+func (c *FullNodeStruct) MsigPropose(ctx context.Context, auth []byte, msig address.Address, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
+	return c.Internal.MsigPropose(ctx, auth, msig, to, amt, src, method, params)
 }
 
-func (c *FullNodeStruct) MsigApprove(ctx context.Context, msig address.Address, txID uint64, signer address.Address) (cid.Cid, error) {
-	return c.Internal.MsigApprove(ctx, msig, txID, signer)
+func (c *FullNodeStruct) MsigApprove(ctx context.Context, auth []byte, msig address.Address, txID uint64, signer address.Address) (cid.Cid, error) {
+	return c.Internal.MsigApprove(ctx, auth, msig, txID, signer)
 }
 
-func (c *FullNodeStruct) MsigApproveTxnHash(ctx context.Context, msig address.Address, txID uint64, proposer address.Address, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
-	return c.Internal.MsigApproveTxnHash(ctx, msig, txID, proposer, to, amt, src, method, params)
+func (c *FullNodeStruct) MsigApproveTxnHash(ctx context.Context, auth []byte, msig address.Address, txID uint64, proposer address.Address, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
+	return c.Internal.MsigApproveTxnHash(ctx, auth, msig, txID, proposer, to, amt, src, method, params)
 }
 
-func (c *FullNodeStruct) MsigCancel(ctx context.Context, msig address.Address, txID uint64, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
-	return c.Internal.MsigCancel(ctx, msig, txID, to, amt, src, method, params)
+func (c *FullNodeStruct) MsigCancel(ctx context.Context, auth []byte, msig address.Address, txID uint64, to address.Address, amt types.BigInt, src address.Address, method uint64, params []byte) (cid.Cid, error) {
+	return c.Internal.MsigCancel(ctx, auth, msig, txID, to, amt, src, method, params)
 }
 
-func (c *FullNodeStruct) MsigAddPropose(ctx context.Context, msig address.Address, src address.Address, newAdd address.Address, inc bool) (cid.Cid, error) {
-	return c.Internal.MsigAddPropose(ctx, msig, src, newAdd, inc)
+func (c *FullNodeStruct) MsigAddPropose(ctx context.Context, auth []byte, msig address.Address, src address.Address, newAdd address.Address, inc bool) (cid.Cid, error) {
+	return c.Internal.MsigAddPropose(ctx, auth, msig, src, newAdd, inc)
 }
 
-func (c *FullNodeStruct) MsigAddApprove(ctx context.Context, msig address.Address, src address.Address, txID uint64, proposer address.Address, newAdd address.Address, inc bool) (cid.Cid, error) {
-	return c.Internal.MsigAddApprove(ctx, msig, src, txID, proposer, newAdd, inc)
+func (c *FullNodeStruct) MsigAddApprove(ctx context.Context, auth []byte, msig address.Address, src address.Address, txID uint64, proposer address.Address, newAdd address.Address, inc bool) (cid.Cid, error) {
+	return c.Internal.MsigAddApprove(ctx, auth, msig, src, txID, proposer, newAdd, inc)
 }
 
-func (c *FullNodeStruct) MsigAddCancel(ctx context.Context, msig address.Address, src address.Address, txID uint64, newAdd address.Address, inc bool) (cid.Cid, error) {
-	return c.Internal.MsigAddCancel(ctx, msig, src, txID, newAdd, inc)
+func (c *FullNodeStruct) MsigAddCancel(ctx context.Context, auth []byte, msig address.Address, src address.Address, txID uint64, newAdd address.Address, inc bool) (cid.Cid, error) {
+	return c.Internal.MsigAddCancel(ctx, auth, msig, src, txID, newAdd, inc)
 }
 
-func (c *FullNodeStruct) MsigSwapPropose(ctx context.Context, msig address.Address, src address.Address, oldAdd address.Address, newAdd address.Address) (cid.Cid, error) {
-	return c.Internal.MsigSwapPropose(ctx, msig, src, oldAdd, newAdd)
+func (c *FullNodeStruct) MsigSwapPropose(ctx context.Context, auth []byte, msig address.Address, src address.Address, oldAdd address.Address, newAdd address.Address) (cid.Cid, error) {
+	return c.Internal.MsigSwapPropose(ctx, auth, msig, src, oldAdd, newAdd)
 }
 
-func (c *FullNodeStruct) MsigSwapApprove(ctx context.Context, msig address.Address, src address.Address, txID uint64, proposer address.Address, oldAdd address.Address, newAdd address.Address) (cid.Cid, error) {
-	return c.Internal.MsigSwapApprove(ctx, msig, src, txID, proposer, oldAdd, newAdd)
+func (c *FullNodeStruct) MsigSwapApprove(ctx context.Context, auth []byte, msig address.Address, src address.Address, txID uint64, proposer address.Address, oldAdd address.Address, newAdd address.Address) (cid.Cid, error) {
+	return c.Internal.MsigSwapApprove(ctx, auth, msig, src, txID, proposer, oldAdd, newAdd)
 }
 
-func (c *FullNodeStruct) MsigSwapCancel(ctx context.Context, msig address.Address, src address.Address, txID uint64, oldAdd address.Address, newAdd address.Address) (cid.Cid, error) {
-	return c.Internal.MsigSwapCancel(ctx, msig, src, txID, oldAdd, newAdd)
+func (c *FullNodeStruct) MsigSwapCancel(ctx context.Context, auth []byte, msig address.Address, src address.Address, txID uint64, oldAdd address.Address, newAdd address.Address) (cid.Cid, error) {
+	return c.Internal.MsigSwapCancel(ctx, auth, msig, src, txID, oldAdd, newAdd)
 }
 
-func (c *FullNodeStruct) MsigRemoveSigner(ctx context.Context, msig address.Address, proposer address.Address, toRemove address.Address, decrease bool) (cid.Cid, error) {
-	return c.Internal.MsigRemoveSigner(ctx, msig, proposer, toRemove, decrease)
+func (c *FullNodeStruct) MsigRemoveSigner(ctx context.Context, auth []byte, msig address.Address, proposer address.Address, toRemove address.Address, decrease bool) (cid.Cid, error) {
+	return c.Internal.MsigRemoveSigner(ctx, auth, msig, proposer, toRemove, decrease)
 }
 
 func (c *FullNodeStruct) MarketAddBalance(ctx context.Context, wallet address.Address, addr address.Address, amt types.BigInt) (cid.Cid, error) {
@@ -1322,6 +1340,15 @@ func (c *FullNodeStruct) CreateBackup(ctx context.Context, fpath string) error {
 // StorageMinerStruct
 
 // implements by hlm start
+func (c *StorageMinerStruct) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
+	return c.Internal.ProxyStatus(ctx)
+}
+func (c *StorageMinerStruct) ProxyReload(ctx context.Context) error {
+	return c.Internal.ProxyReload(ctx)
+}
+func (c *StorageMinerStruct) StatusMinerStorage(ctx context.Context) ([]byte, error) {
+	return c.Internal.StatusMinerStorage(ctx)
+}
 func (c *StorageMinerStruct) WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error {
 	return c.Internal.WdpostEnablePartitionSeparate(ctx, enable)
 }
@@ -1731,6 +1758,14 @@ func (c *StorageMinerStruct) MarketCancelDataTransfer(ctx context.Context, trans
 	return c.Internal.MarketCancelDataTransfer(ctx, transferID, otherPeer, isInitiator)
 }
 
+func (c *StorageMinerStruct) MarketPendingDeals(ctx context.Context) (api.PendingDealInfo, error) {
+	return c.Internal.MarketPendingDeals(ctx)
+}
+
+func (c *StorageMinerStruct) MarketPublishPendingDeals(ctx context.Context) error {
+	return c.Internal.MarketPublishPendingDeals(ctx)
+}
+
 func (c *StorageMinerStruct) DealsImportData(ctx context.Context, dealPropCid cid.Cid, file string) error {
 	return c.Internal.DealsImportData(ctx, dealPropCid, file)
 }
@@ -1969,6 +2004,10 @@ func (g GatewayStruct) MsigGetVested(ctx context.Context, addr address.Address, 
 	return g.Internal.MsigGetVested(ctx, addr, start, end)
 }
 
+func (g GatewayStruct) MsigGetPending(ctx context.Context, addr address.Address, tsk types.TipSetKey) ([]*api.MsigTransaction, error) {
+	return g.Internal.MsigGetPending(ctx, addr, tsk)
+}
+
 func (g GatewayStruct) StateAccountKey(ctx context.Context, addr address.Address, tsk types.TipSetKey) (address.Address, error) {
 	return g.Internal.StateAccountKey(ctx, addr, tsk)
 }
@@ -2031,6 +2070,10 @@ func (g GatewayStruct) StateVerifiedClientStatus(ctx context.Context, addr addre
 
 func (g GatewayStruct) StateWaitMsg(ctx context.Context, msg cid.Cid, confidence uint64) (*api.MsgLookup, error) {
 	return g.Internal.StateWaitMsg(ctx, msg, confidence)
+}
+
+func (g GatewayStruct) StateReadState(ctx context.Context, addr address.Address, ts types.TipSetKey) (*api.ActorState, error) {
+	return g.Internal.StateReadState(ctx, addr, ts)
 }
 
 func (c *WalletStruct) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {
