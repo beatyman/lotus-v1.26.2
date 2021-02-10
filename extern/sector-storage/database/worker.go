@@ -18,7 +18,9 @@ type WorkerInfo struct {
 }
 
 func GetWorkerInfo(id string) (*WorkerInfo, error) {
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	info := &WorkerInfo{}
 	if err := database.QueryStruct(db, info, "SELECT * FROM worker_info WHERE id=?", id); err != nil {
 		return nil, errors.As(err)
@@ -28,7 +30,9 @@ func GetWorkerInfo(id string) (*WorkerInfo, error) {
 }
 
 func SearchWorkerInfo(ip string) ([]WorkerInfo, error) {
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	infos := []WorkerInfo{}
 	if err := database.QueryStructs(db, &infos, "SELECT * FROM worker_info WHERE ip=?", ip); err != nil {
 		return nil, errors.As(err)
@@ -37,7 +41,9 @@ func SearchWorkerInfo(ip string) ([]WorkerInfo, error) {
 }
 
 func AllWorkerInfo() ([]WorkerInfo, error) {
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	infos := []WorkerInfo{}
 	if err := database.QueryStructs(db, &infos, "SELECT * FROM worker_info"); err != nil {
 		return nil, errors.As(err)
@@ -46,7 +52,9 @@ func AllWorkerInfo() ([]WorkerInfo, error) {
 }
 
 func OnlineWorker(info *WorkerInfo) error {
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	exist := 0
 	if err := database.QueryElem(db, &exist, "SELECT count(*) FROM worker_info WHERE id=?", info.ID); err != nil {
 		return errors.As(err, *info)
@@ -67,7 +75,9 @@ func OnlineWorker(info *WorkerInfo) error {
 }
 
 func OfflineWorker(id string) error {
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	if _, err := db.Exec("UPDATE worker_info SET online=0,updated_at=? WHERE id=?", time.Now(), id); err != nil {
 		return errors.As(err, id)
 	}
@@ -75,7 +85,9 @@ func OfflineWorker(id string) error {
 }
 
 func DisableWorker(id string, disable bool) error {
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	if _, err := db.Exec("UPDATE worker_info SET disable=?,updated_at=? WHERE id=?", disable, time.Now(), id); err != nil {
 		return errors.As(err, id, disable)
 	}
@@ -83,7 +95,9 @@ func DisableWorker(id string, disable bool) error {
 }
 
 func AddWorkerConn(id string, num int) error {
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	if _, err := db.Exec("UPDATE worker_info SET svc_conn=svc_conn+? WHERE id=?", num, id); err != nil {
 		return errors.As(err, id)
 	}

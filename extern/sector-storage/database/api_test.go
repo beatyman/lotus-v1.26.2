@@ -2,7 +2,6 @@ package database
 
 import (
 	"fmt"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -10,20 +9,19 @@ import (
 )
 
 func TestDiskUsage(t *testing.T) {
-	InitDB("./")
-	storageInfo, err := GetStorageInfo(1)
-	dir := filepath.Join(storageInfo.MountDir, fmt.Sprintf("%d", storageInfo.ID))
-	diskStatus, err := DiskUsage(dir)
+	diskStatus, err := DiskUsage("/")
 	if err != nil {
 		t.Fatal(err)
 	} else {
-		log.Info("size:", diskStatus.All)
+		fmt.Println("size:", diskStatus.All)
 	}
 }
 
 func TestAllocateStorage(t *testing.T) {
 	InitDB("./")
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	// clean test case
 	if _, err := db.Exec("DELETE FROM storage_info"); err != nil {
 		t.Fatal(err)
@@ -79,7 +77,9 @@ func TestAllocateStorage(t *testing.T) {
 
 func TestMountAllStorage(t *testing.T) {
 	InitDB("./")
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	// analogue data
 	if _, err := db.Exec("DELETE FROM storage_info"); err != nil {
 		t.Fatal(err)

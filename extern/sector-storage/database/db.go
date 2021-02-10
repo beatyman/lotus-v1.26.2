@@ -56,11 +56,10 @@ func HasDB() bool {
 	return mdb != nil
 }
 
-func GetDB() *database.DB {
+func GetDB() (*database.DB, sync.Mutex) {
 	mdblk.Lock()
-	defer mdblk.Unlock()
 	if mdb == nil {
 		panic("Need InitDB at first")
 	}
-	return mdb
+	return mdb, mdblk
 }

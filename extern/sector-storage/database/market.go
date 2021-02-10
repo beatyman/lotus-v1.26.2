@@ -5,16 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
-)
-
-var (
-	exireMarketRetrieveLock = sync.Mutex{}
 )
 
 type MarketRetrieve struct {
@@ -24,7 +19,9 @@ type MarketRetrieve struct {
 }
 
 func GetMarketRetrieve(sid string) (*MarketRetrieve, error) {
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
 	info := &MarketRetrieve{}
 	if err := database.QueryStruct(mdb, info, "SELECT * FROM market_retrieve WHERE sid=?", sid); err != nil {
 		return nil, errors.As(err)
@@ -33,7 +30,10 @@ func GetMarketRetrieve(sid string) (*MarketRetrieve, error) {
 }
 
 func AddMarketRetrieve(sid string) error {
-	tx, err := GetDB().Begin()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
+	tx, err := db.Begin()
 	if err != nil {
 		return errors.As(err, sid)
 	}
@@ -64,15 +64,20 @@ func AddMarketRetrieve(sid string) error {
 }
 
 func GetExpireMarketRetrieve(invalidTime time.Time) ([]MarketRetrieve, error) {
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	result := []MarketRetrieve{}
-	if err := database.QueryStructs(GetDB(), &result, "SELECT * FROM market_retrieve WHERE retrieve_time<? AND active=1", invalidTime); err != nil {
+	if err := database.QueryStructs(db, &result, "SELECT * FROM market_retrieve WHERE retrieve_time<? AND active=1", invalidTime); err != nil {
 		return nil, errors.As(err, invalidTime)
 	}
 	return result, nil
 }
 
 func ExpireMarketRetrieve(sid string) error {
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	if _, err := db.Exec("UPDATE market_retrieve SET active=0 WHERE sid=?", sid); err != nil {
 		return errors.As(err, sid)
 	}
@@ -80,10 +85,9 @@ func ExpireMarketRetrieve(sid string) error {
 }
 
 func ExpireAllMarketRetrieve(invalidTime time.Time, minerRepo string) ([]storage.SectorFile, error) {
-	exireMarketRetrieveLock.Lock()
-	defer exireMarketRetrieveLock.Unlock()
+	db, lk := GetDB()
+	defer lk.Unlock()
 
-	db := GetDB()
 	rows, err := db.Query(`
 SELECT tb1.sid, tb3.id,tb3.mount_dir, tb4.id,tb4.mount_dir
 FROM

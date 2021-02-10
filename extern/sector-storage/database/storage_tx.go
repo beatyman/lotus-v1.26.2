@@ -42,7 +42,9 @@ func PrepareStorage(sectorId, fromIp string, kind int) (*StorageTx, *StorageInfo
 	default:
 		return nil, nil, errors.New("unknow kind").As(sectorId, fromIp, kind)
 	}
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	// has allocated
 	if info.ID > 0 {
 		allocateMux.Lock()
@@ -139,7 +141,9 @@ func (tx *StorageTx) Commit() error {
 		return nil
 	}
 
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	if _, err := db.Exec("UPDATE storage_info SET used_size=used_size+sector_size,cur_work=cur_work-1 WHERE id=?", info.ID); err != nil {
 		return errors.As(err, *tx)
 	}
@@ -171,7 +175,9 @@ func (tx *StorageTx) Rollback() error {
 	if info.ID == 0 {
 		return nil
 	}
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work-1 WHERE id=?", info.ID); err != nil {
 		return errors.As(err, *tx, info.ID)
 	}
@@ -181,7 +187,9 @@ func (tx *StorageTx) Rollback() error {
 
 // SPEC: only do this at system starting.
 func ClearStorageWork() error {
-	db := GetDB()
+	db, lk := GetDB()
+	defer lk.Unlock()
+
 	if _, err := db.Exec("UPDATE storage_info SET cur_work=0"); err != nil {
 		return errors.As(err)
 	}

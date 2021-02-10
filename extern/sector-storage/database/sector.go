@@ -63,7 +63,9 @@ func (g StorageStatusSort) Less(i, j int) bool {
 }
 
 func AddSectorInfo(info *SectorInfo) error {
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
 	if _, err := database.InsertStruct(mdb, info, "sector_info"); err != nil {
 		return errors.As(err)
 	}
@@ -72,7 +74,9 @@ func AddSectorInfo(info *SectorInfo) error {
 
 // if data not found, it will return a 'default' WorkerId
 func GetSectorInfo(id string) (*SectorInfo, error) {
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
 	info := &SectorInfo{
 		ID: id,
 	}
@@ -87,7 +91,9 @@ func GetSectorInfo(id string) (*SectorInfo, error) {
 }
 
 func GetSectorState(id string) (int, error) {
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
 	state := -1
 	if err := database.QueryElem(mdb, &state, "SELECT state FROM sector_info WHERE id=?", id); err != nil {
 		return state, errors.As(err, id)
@@ -118,12 +124,95 @@ func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.Secto
 
 var getSectorFileLock = sync.Mutex{}
 
+func GetSectorsFile(sectors []string, defaultRepo string) ([]storage.SectorFile, error) {
+	startTime := time.Now()
+	defer func() {
+		took := time.Now().Sub(startTime)
+		if took > 5e9 {
+			log.Warnf("GetSectorsFile took : %s", took)
+		}
+	}()
+	getSectorFileLock.Lock()
+	defer getSectorFileLock.Unlock()
+
+	defaultResult := []storage.SectorFile{}
+	if !HasDB() {
+		for _, sectorId := range sectors {
+			defaultResult = append(defaultResult, storage.SectorFile{
+				SectorId:     sectorId,
+				SealedRepo:   defaultRepo,
+				UnsealedRepo: defaultRepo,
+			})
+		}
+		return defaultResult, nil
+	}
+
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
+	// preload storage data
+	storages := map[uint64]sql.NullString{} // id:mount_dir
+	rows, err := mdb.Query("SELECT id, mount_dir FROM stroage_info")
+	if err != nil {
+		return nil, errors.As(err, sectors)
+	}
+	for rows.Next() {
+		id := uint64(0)
+		dir := sql.NullString{}
+		if err := rows.Scan(&id, dir); err != nil {
+			database.Close(rows)
+			return nil, errors.As(err, sectors)
+		}
+		storages[id] = dir
+	}
+	database.Close(rows)
+
+	// get sector info
+	sectorStmt, err := mdb.Prepare("SELECT storage_sealed,storage_unsealed FROM sector_info WHERE id=?")
+	if err != nil {
+		return nil, errors.As(err, sectors)
+	}
+	defer sectorStmt.Close()
+
+	result := []storage.SectorFile{}
+	for _, sectorId := range sectors {
+		file := &storage.SectorFile{
+			SectorId:     sectorId,
+			SealedRepo:   defaultRepo,
+			UnsealedRepo: defaultRepo,
+		}
+
+		storageSealed := uint64(0)
+		storageUnsealed := uint64(0)
+		if err := sectorStmt.
+			QueryRow(sectorId).
+			Scan(&storageSealed, &storageUnsealed); err != nil {
+			if err != sql.ErrNoRows {
+				return nil, errors.As(err, sectorId)
+			}
+			// sector not found in db, return default.
+		} else {
+			// fix the file
+			storageSealedDir, _ := storages[storageSealed]
+			storageUnsealedDir, _ := storages[storageUnsealed]
+			if storageSealedDir.Valid {
+				file.SealedRepo = filepath.Join(storageSealedDir.String, fmt.Sprintf("%d", storageSealed))
+			}
+			if storageUnsealedDir.Valid {
+				file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
+			}
+		}
+		result = append(result, *file)
+	}
+	return result, nil
+}
+
 func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 	startTime := time.Now()
-	defer func(){
+	defer func() {
 		took := time.Now().Sub(startTime)
-		if took>5e8{
-			log.Warnf("GetSectorFile(%s) took : %s",sectorId,took)
+		if took > 5e8 {
+			log.Warnf("GetSectorFile(%s) took : %s", sectorId, took)
 		}
 	}()
 	getSectorFileLock.Lock()
@@ -138,7 +227,8 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 		return file, nil
 	}
 
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
 
 	storageSealed := uint64(0)
 	storageUnsealed := uint64(0)
@@ -186,7 +276,9 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 type SectorList []SectorInfo
 
 func GetSectorByState(storageSealed int64, state int64) (SectorList, error) {
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
 	list := SectorList{}
 	if err := database.QueryStructs(mdb, &list, "SELECT * FROM sector_info WHERE storage_sealed=? AND state=?", storageSealed, state); err != nil {
 		return nil, errors.As(err, storageSealed)
@@ -195,7 +287,9 @@ func GetSectorByState(storageSealed int64, state int64) (SectorList, error) {
 }
 
 func GetAllSectorByState(state int64) (map[string]int64, error) {
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
 	rows, err := mdb.Query("SELECT id,storage_sealed FROM sector_info WHERE state=?", state)
 	if err != nil {
 		return nil, errors.As(err)
@@ -218,7 +312,9 @@ func GetAllSectorByState(state int64) (map[string]int64, error) {
 }
 
 func GetSectorStorage(id string) (*SectorStorage, error) {
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
 	// TODO: make left join
 	seInfo := &SectorInfo{
 		ID: id,
@@ -261,7 +357,9 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 }
 
 func UpdateSectorState(sid, wid, msg string, state int) error {
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
 	if _, err := mdb.Exec(`
 UPDATE
 	sector_info
@@ -302,7 +400,9 @@ func (ws WorkingSectors) IsFullWork(maxTaskNum, cacheNum int) bool {
 	return false
 }
 func GetWorking(workerId string) (WorkingSectors, error) {
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
 	sectors := WorkingSectors{}
 	if err := database.QueryStructs(mdb, &sectors, "SELECT * FROM sector_info WHERE worker_id=? AND state<200", workerId); err != nil {
 		return nil, errors.As(err, workerId)
@@ -327,7 +427,9 @@ func CheckWorkingById(sid []string) (WorkingSectors, error) {
 	if len(args) > 0 {
 		args = args[1:] // remove ',' in the head.
 	}
-	mdb := GetDB()
+	mdb, lk := GetDB()
+	defer lk.Unlock()
+
 	sqlStr := fmt.Sprintf("SELECT * FROM sector_info WHERE id in (%s) AND state<200", string(args))
 	if err := database.QueryStructs(mdb, &sectors, sqlStr); err != nil {
 		return nil, errors.As(err)
