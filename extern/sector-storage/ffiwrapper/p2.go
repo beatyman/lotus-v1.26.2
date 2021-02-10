@@ -74,7 +74,7 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 		return storage.SectorCids{}, errors.As(err, string(stdout.Bytes()))
 	}
 	if resp.Exit != 0 {
-		return storage.SectorCids{}, errors.Parse(resp.Err)
+		return storage.SectorCids{}, errors.Parse(resp.Err).As(resp.Exit)
 	}
 	return resp.Data, nil
 }
@@ -117,7 +117,7 @@ var P2Cmd = &cli.Command{
 		}
 
 		input := ""
-		if _, err := fmt.Scanln(&input); err != nil {
+		if _, err := fmt.Scan(&input); err != nil {
 			resp.Exit = 1
 			resp.Err = errors.As(err).Error()
 			return nil
@@ -125,7 +125,7 @@ var P2Cmd = &cli.Command{
 		task := WorkerTask{}
 		if err := json.Unmarshal([]byte(input), &task); err != nil {
 			resp.Exit = 1
-			resp.Err = errors.As(err).Error()
+			resp.Err = errors.As(err, input).Error()
 			return nil
 		}
 
