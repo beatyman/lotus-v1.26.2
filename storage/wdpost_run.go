@@ -220,7 +220,21 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	if err != nil {
 		return bitfield.BitField{}, err
 	}
-	log.Infof("DEBUG:state miner sectors done: %d, took: %s", len(sectorInfos),time.Now().Sub(stateMinerStart))
+	log.Infof("DEBUG:state miner sectors done: %d, took: %s", len(sectorInfos), time.Now().Sub(stateMinerStart))
+
+	sFileNames := []string{}
+	for _, info := range sectorInfos {
+		s := abi.SectorID{
+			Miner:  abi.ActorID(mid),
+			Number: info.SectorNumber,
+		}
+		sFileNames = append(sFileNames, storage.SectorName(s))
+	}
+	sFiles, err := database.GetSectorsFile(sFileNames, repo)
+	if err != nil {
+		return bitfield.BitField{}, errors.As(err)
+	}
+	log.Infof("DEBUG:load sectors file done:%d", len(sFiles))
 
 	sectors := make(map[abi.SectorNumber]struct{})
 	var tocheck []storage.SectorRef
@@ -231,9 +245,9 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 			Miner:  abi.ActorID(mid),
 			Number: info.SectorNumber,
 		}
-		sFile, err := database.GetSectorFile(storage.SectorName(s), repo)
-		if err != nil {
-			log.Warn(errors.As(err))
+		sFile, ok := sFiles[storage.SectorName(s)]
+		if !ok {
+			log.Warn(errors.ErrNoData.As(s))
 			continue
 		}
 
@@ -244,7 +258,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 				Miner:  abi.ActorID(mid),
 				Number: info.SectorNumber,
 			},
-			SectorFile: *sFile,
+			SectorFile: sFile,
 		})
 	}
 
@@ -602,7 +616,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 				skipCount += sc
 
-				log.Infof("DEBUG: getSectorsForProof, partIdx:%d",partIdx)
+				log.Infof("DEBUG: getSectorsForProof, partIdx:%d", partIdx)
 				ssi, err := s.sectorsForProof(ctx, good, partition.AllSectors, ts)
 				if err != nil {
 					return nil, xerrors.Errorf("getting sorted sector info: %w", err)

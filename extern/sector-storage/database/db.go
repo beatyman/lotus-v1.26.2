@@ -48,6 +48,8 @@ func InitDB(repo string) {
 	if _, err := db.Exec(tb_market_sql); err != nil {
 		panic(err)
 	}
+
+	go gcSectorFileCache()
 }
 
 func HasDB() bool {

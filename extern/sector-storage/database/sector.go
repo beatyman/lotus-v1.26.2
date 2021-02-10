@@ -122,9 +122,34 @@ func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.Secto
 	return sector, nil
 }
 
-var getSectorFileLock = sync.Mutex{}
+type sectorFileCache struct {
+	SectorFile storage.SectorFile
+	CreateTime time.Time
+}
 
-func GetSectorsFile(sectors []string, defaultRepo string) ([]storage.SectorFile, error) {
+var (
+	sectorFileCaches  = map[string]sectorFileCache{}
+	sectorFileCacheLk = sync.Mutex{}
+)
+
+func gcSectorFileCache() {
+	timeout := 2 * time.Minute
+	tick := time.NewTicker(timeout)
+	for {
+		<-tick.C
+		now := time.Now()
+		sectorFileCacheLk.Lock()
+		for key, val := range sectorFileCaches {
+			if now.Sub(val.CreateTime) > timeout {
+				delete(sectorFileCaches, key)
+			}
+		}
+		log.Infof("gc db sector file:%d", len(sectorFileCaches))
+		sectorFileCacheLk.Unlock()
+	}
+}
+
+func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.SectorFile, error) {
 	startTime := time.Now()
 	defer func() {
 		took := time.Now().Sub(startTime)
@@ -132,17 +157,15 @@ func GetSectorsFile(sectors []string, defaultRepo string) ([]storage.SectorFile,
 			log.Warnf("GetSectorsFile took : %s", took)
 		}
 	}()
-	getSectorFileLock.Lock()
-	defer getSectorFileLock.Unlock()
 
-	defaultResult := []storage.SectorFile{}
+	defaultResult := map[string]storage.SectorFile{}
 	if !HasDB() {
 		for _, sectorId := range sectors {
-			defaultResult = append(defaultResult, storage.SectorFile{
+			defaultResult[sectorId] = storage.SectorFile{
 				SectorId:     sectorId,
 				SealedRepo:   defaultRepo,
 				UnsealedRepo: defaultRepo,
-			})
+			}
 		}
 		return defaultResult, nil
 	}
@@ -174,8 +197,18 @@ func GetSectorsFile(sectors []string, defaultRepo string) ([]storage.SectorFile,
 	}
 	defer sectorStmt.Close()
 
-	result := []storage.SectorFile{}
+	result := map[string]storage.SectorFile{}
 	for _, sectorId := range sectors {
+		// read from cache
+		sectorFileCacheLk.Lock()
+		sFile, ok := sectorFileCaches[sectorId]
+		if ok {
+			sectorFileCacheLk.Unlock()
+			result[sectorId] = sFile.SectorFile
+			continue
+		}
+		sectorFileCacheLk.Unlock()
+
 		file := &storage.SectorFile{
 			SectorId:     sectorId,
 			SealedRepo:   defaultRepo,
@@ -202,7 +235,15 @@ func GetSectorsFile(sectors []string, defaultRepo string) ([]storage.SectorFile,
 				file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
 			}
 		}
-		result = append(result, *file)
+		result[sectorId] = *file
+
+		// put to cache
+		sectorFileCacheLk.Lock()
+		sectorFileCaches[sectorId] = sectorFileCache{
+			SectorFile: *file,
+			CreateTime: time.Now(),
+		}
+		sectorFileCacheLk.Unlock()
 	}
 	return result, nil
 }
@@ -215,8 +256,6 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 			log.Warnf("GetSectorFile(%s) took : %s", sectorId, took)
 		}
 	}()
-	getSectorFileLock.Lock()
-	defer getSectorFileLock.Unlock()
 
 	file := &storage.SectorFile{
 		SectorId:     sectorId,
@@ -226,6 +265,14 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 	if !HasDB() {
 		return file, nil
 	}
+	// read from cache
+	sectorFileCacheLk.Lock()
+	sFile, ok := sectorFileCaches[sectorId]
+	if ok {
+		sectorFileCacheLk.Unlock()
+		return &sFile.SectorFile, nil
+	}
+	sectorFileCacheLk.Unlock()
 
 	mdb, lk := GetDB()
 	defer lk.Unlock()
@@ -269,6 +316,14 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 	if storageUnsealedDir.Valid {
 		file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
 	}
+
+	// put to cache
+	sectorFileCacheLk.Lock()
+	sectorFileCaches[sectorId] = sectorFileCache{
+		SectorFile: *file,
+		CreateTime: time.Now(),
+	}
+	sectorFileCacheLk.Unlock()
 
 	return file, nil
 }
