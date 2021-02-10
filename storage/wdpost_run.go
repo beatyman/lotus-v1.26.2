@@ -614,6 +614,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 			if len(sinfos) == 0 {
 				// nothing to prove for this batch
+				log.Infow("no sector info for deadline ", di)
 				break
 			}
 
@@ -718,18 +719,15 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]a
 	// sectors per partition    3:  ooo
 	// partitions per message   2:  oooOOO
 	//                              <1><2> (3rd doesn't fit)
-	log.Info("lookup:s.proofType:", s.proofType)
 	partitionsPerMsg, err := policy.GetMaxPoStPartitions(s.proofType)
-	log.Info("lookup:partitionsPerMsg", partitionsPerMsg)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sectors per partition: %w", err)
 	}
 	//var partitionsPerMsg int = 1
 	if EnableSeparatePartition {
-		log.Info("EnableSeparatePartition")
 		partitionsPerMsg = PartitionsPerMsg
 	}
-	log.Info("lookup wdpost config, enable:", EnableSeparatePartition, "partitionsPerMsg:", partitionsPerMsg)
+	log.Infow("proofType", s.proofType, "enableSeparatePartion", EnableSeparatePartition, "partitionsPerMsg:", partitionsPerMsg)
 
 	// The number of messages will be:
 	// ceiling(number of partitions / partitions per message)
