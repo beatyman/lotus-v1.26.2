@@ -119,6 +119,13 @@ func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.Secto
 var getSectorFileLock = sync.Mutex{}
 
 func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
+	startTime := time.Now()
+	defer func(){
+		took := time.Now().Sub(startTime)
+		if took>5e8{
+			log.Warnf("GetSectorFile(%s) took : %s",sectorId,took)
+		}
+	}()
 	getSectorFileLock.Lock()
 	defer getSectorFileLock.Unlock()
 
@@ -149,19 +156,14 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 	storageUnsealedDir := sql.NullString{}
 	rows, err := mdb.Query(fmt.Sprintf("SELECT id, mount_dir FROM storage_info WHERE id IN (%d,%d)", storageSealed, storageUnsealed))
 	if err != nil {
-		if err != sql.ErrNoRows {
-			return nil, errors.As(err, sectorId)
-		}
-		// sector not found in db, return default.
-		return file, nil
+		return nil, errors.As(err, sectorId)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		id := uint64(0)
 		dir := sql.NullString{}
-		if err := rows.Scan(&id, dir); err != nil {
-			// sector not found in db, return default.
-			return file, nil
+		if err := rows.Scan(&id, &dir); err != nil {
+			return nil, errors.As(err, sectorId)
 		}
 		if id == storageSealed {
 			storageSealedDir = dir

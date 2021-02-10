@@ -214,10 +214,13 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		log.Warn("not found default repo")
 	}
 
+	log.Infof("DEBUG:state miner sectors begin")
+	stateMinerStart := time.Now()
 	sectorInfos, err := s.api.StateMinerSectors(ctx, s.actor, &check, tsk)
 	if err != nil {
 		return bitfield.BitField{}, err
 	}
+	log.Infof("DEBUG:state miner sectors done: %d, took: %s", len(sectorInfos),time.Now().Sub(stateMinerStart))
 
 	sectors := make(map[abi.SectorNumber]struct{})
 	var tocheck []storage.SectorRef
@@ -245,6 +248,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		})
 	}
 
+	log.Infof("checkProvable:%d", len(tocheck))
 	all, _, _, err := s.faultTracker.CheckProvable(ctx, tocheck, nil, timeout)
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
@@ -574,10 +578,12 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 					return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
 				}
 
+				log.Infof("DEBUG: checkSectors of partIdx: %d", partIdx)
 				good, err := s.checkSectors(ctx, toProve, ts.Key(), build.GetProvingCheckTimeout())
 				if err != nil {
 					return nil, xerrors.Errorf("checking sectors to skip: %w", err)
 				}
+				log.Infof("DEBUG: checkSectors of partIdx %d done", partIdx)
 
 				good, err = bitfield.SubtractBitField(good, postSkipped)
 				if err != nil {
@@ -596,6 +602,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 				skipCount += sc
 
+				log.Infof("DEBUG: getSectorsForProof, partIdx:%d",partIdx)
 				ssi, err := s.sectorsForProof(ctx, good, partition.AllSectors, ts)
 				if err != nil {
 					return nil, xerrors.Errorf("getting sorted sector info: %w", err)
@@ -727,7 +734,7 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]a
 	if EnableSeparatePartition {
 		partitionsPerMsg = PartitionsPerMsg
 	}
-	log.Infow("separate partitoin",
+	log.Infow("Separate partition",
 		"proofType", s.proofType,
 		"enableSeparate", EnableSeparatePartition,
 		"partitionsPerMsg:", partitionsPerMsg,
