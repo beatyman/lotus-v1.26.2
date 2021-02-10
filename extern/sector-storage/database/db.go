@@ -19,12 +19,12 @@ type DBOnceLk struct{
 }
 
 func (lk *DBOnceLk)Lock(){
-	fmt.Println("db lock")
-	lk.Locker.Lock()
+	// TODO:
+	//lk.Locker.Lock()
 }
 func (lk *DBOnceLk)Unlock(){
-	fmt.Println("db unlock")
-	lk.Locker.Unlock()
+	// TODO:
+	//lk.Locker.Unlock()
 }
 
 var (
