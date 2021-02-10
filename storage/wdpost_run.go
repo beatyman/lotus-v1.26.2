@@ -727,7 +727,11 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]a
 	if EnableSeparatePartition {
 		partitionsPerMsg = PartitionsPerMsg
 	}
-	log.Infow("proofType", s.proofType, "enableSeparatePartion", EnableSeparatePartition, "partitionsPerMsg:", partitionsPerMsg)
+	log.Infow("separate partitoin",
+		"proofType", s.proofType,
+		"enableSeparate", EnableSeparatePartition,
+		"partitionsPerMsg:", partitionsPerMsg,
+	)
 
 	// The number of messages will be:
 	// ceiling(number of partitions / partitions per message)
