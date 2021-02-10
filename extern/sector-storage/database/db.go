@@ -14,9 +14,23 @@ func init() {
 	database.REFLECT_DRV_NAME = database.DRV_NAME_SQLITE3
 }
 
+type DBOnceLk struct{
+	Locker sync.Mutex
+}
+
+func (lk *DBOnceLk)Lock(){
+	fmt.Println("db lock")
+	lk.Locker.Lock()
+}
+func (lk *DBOnceLk)Unlock(){
+	fmt.Println("db unlock")
+	lk.Locker.Unlock()
+}
+
 var (
 	mdb   *database.DB
 	mdblk sync.Mutex
+	oneLk DBOnceLk
 )
 
 func InitDB(repo string) {
@@ -58,10 +72,12 @@ func HasDB() bool {
 	return mdb != nil
 }
 
-func GetDB() (*database.DB, sync.Mutex) {
+func GetDB() (*database.DB, *DBOnceLk) {
 	mdblk.Lock()
+	defer mdblk.Unlock()
 	if mdb == nil {
 		panic("Need InitDB at first")
 	}
-	return mdb, mdblk
+	oneLk.Lock()
+	return mdb, &oneLk
 }

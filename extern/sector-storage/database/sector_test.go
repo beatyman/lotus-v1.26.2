@@ -12,7 +12,7 @@ func TestSectorFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := GetSectorsFile([]string{"s-t010313-1"}, "")
+	result, err := GetSectorsFile([]string{"s-t010313-1","s-t010313-2"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -175,14 +175,14 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 
 	// preload storage data
 	storages := map[uint64]sql.NullString{} // id:mount_dir
-	rows, err := mdb.Query("SELECT id, mount_dir FROM stroage_info")
+	rows, err := mdb.Query("SELECT id, mount_dir FROM storage_info")
 	if err != nil {
 		return nil, errors.As(err, sectors)
 	}
 	for rows.Next() {
 		id := uint64(0)
 		dir := sql.NullString{}
-		if err := rows.Scan(&id, dir); err != nil {
+		if err := rows.Scan(&id, &dir); err != nil {
 			database.Close(rows)
 			return nil, errors.As(err, sectors)
 		}

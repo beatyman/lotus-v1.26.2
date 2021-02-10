@@ -24,16 +24,10 @@ func TestSqliteSingleInsert(t *testing.T) {
 	defer lk.Unlock()
 
 	for i := 0; i < 1000; i++ {
-		if _, err := db.Exec("INSERT INTO storage_info(max_size,mount_siganl_uri)VALUES(?,?)", 34359738368*30*8, "127.0.0.1:/data/zfs"); err != nil {
+		if _, err := db.Exec("INSERT INTO storage_info(max_size,mount_signal_uri)VALUES(?,?)", 34359738368*30*8, "127.0.0.1:/data/zfs"); err != nil {
 			t.Fatal(err)
 		}
 	}
-}
-func TestSqliteSingleQuery(t *testing.T) {
-	InitDB("./")
-	db, lk := GetDB()
-	defer lk.Unlock()
-
 	for i := 0; i < 1000; i++ {
 		uri := ""
 		if err := db.QueryRow("SELECT mount_signal_uri FROM storage_info where id=?", i+1).Scan(&uri); err != nil {
