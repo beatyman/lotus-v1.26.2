@@ -614,7 +614,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 			if len(sinfos) == 0 {
 				// nothing to prove for this batch
-				log.Infow("no sector info for deadline ", di)
+				log.Infof("no sector info for deadline:%d", di.Index)
 				break
 			}
 

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/filecoin-project/specs-storage/storage"
@@ -115,7 +116,12 @@ func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.Secto
 	return sector, nil
 }
 
+var getSectorFileLock = sync.Mutex{}
+
 func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
+	getSectorFileLock.Lock()
+	defer getSectorFileLock.Unlock()
+
 	file := &storage.SectorFile{
 		SectorId:     sectorId,
 		SealedRepo:   defaultRepo,
@@ -126,33 +132,45 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 	}
 
 	mdb := GetDB()
+
 	storageSealed := uint64(0)
-	storageSealedDir := sql.NullString{}
 	storageUnsealed := uint64(0)
-	storageUnsealedDir := sql.NullString{}
-	if err := mdb.QueryRow(`
-SELECT
-	tb1.storage_sealed,tb2.mount_dir as sealed_dir,
-	tb1.storage_unsealed,tb3.mount_dir as unsealed_dir
-FROM 
-	sector_info tb1 
-	LEFT JOIN storage_info tb2 on tb1.storage_sealed=tb2.id
-	LEFT JOIN storage_info tb3 on tb1.storage_unsealed=tb3.id
-WHERE
-	tb1.id=?
-`, sectorId).Scan(
-		&storageSealed,
-		&storageSealedDir,
-		&storageUnsealed,
-		&storageUnsealedDir,
-	); err != nil {
+	if err := mdb.
+		QueryRow("SELECT storage_sealed,storage_unsealed FROM sector_info WHERE id=?", sectorId).
+		Scan(&storageSealed, &storageUnsealed); err != nil {
 		if err != sql.ErrNoRows {
 			return nil, errors.As(err, sectorId)
 		}
-
 		// sector not found in db, return default.
 		return file, nil
 	}
+
+	storageSealedDir := sql.NullString{}
+	storageUnsealedDir := sql.NullString{}
+	rows, err := mdb.Query(fmt.Sprintf("SELECT id, mount_dir FROM storage_info WHERE id IN (%d,%d)", storageSealed, storageUnsealed))
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return nil, errors.As(err, sectorId)
+		}
+		// sector not found in db, return default.
+		return file, nil
+	}
+	defer rows.Close()
+	for rows.Next() {
+		id := uint64(0)
+		dir := sql.NullString{}
+		if err := rows.Scan(&id, dir); err != nil {
+			// sector not found in db, return default.
+			return file, nil
+		}
+		if id == storageSealed {
+			storageSealedDir = dir
+		}
+		if id == storageUnsealed {
+			storageUnsealedDir = dir
+		}
+	}
+
 	if storageSealedDir.Valid {
 		file.SealedRepo = filepath.Join(storageSealedDir.String, fmt.Sprintf("%d", storageSealed))
 	}
