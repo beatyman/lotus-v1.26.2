@@ -116,6 +116,12 @@ WHERE
 	allocateMux.Lock()
 	allocatePool[tx.Key()] = info.ID
 	allocateMux.Unlock()
+
+	// delete sector cache
+	sectorFileCacheLk.Lock()
+	delete(sectorFileCaches, sectorId)
+	sectorFileCacheLk.Unlock()
+
 	return tx, info, nil
 }
 func (tx *StorageTx) Commit() error {
