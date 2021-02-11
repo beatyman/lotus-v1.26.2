@@ -457,6 +457,9 @@ func GetWorking(workerId string) (WorkingSectors, error) {
 // SPECS: not call in more than 1000 tasks.
 func CheckWorkingById(sid []string) (WorkingSectors, error) {
 	sectors := WorkingSectors{}
+	if len(sid) == 0 {
+		return sectors, nil
+	}
 	args := []rune{}
 	for _, s := range sid {
 		// checking sql injection
@@ -470,6 +473,7 @@ func CheckWorkingById(sid []string) (WorkingSectors, error) {
 	if len(args) > 0 {
 		args = args[1:] // remove ',' in the head.
 	}
+
 	mdb := GetDB()
 	sqlStr := fmt.Sprintf("SELECT * FROM sector_info WHERE id in (%s) AND state<200", string(args))
 	if err := database.QueryStructs(mdb, &sectors, sqlStr); err != nil {
