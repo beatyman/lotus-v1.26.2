@@ -6,6 +6,19 @@ import (
 	"time"
 )
 
+func TestSectorFile(t *testing.T) {
+	InitDB("/data/sdb/lotus-user-1/.lotusstorage/")
+	_, err := GetSectorFile("s-t010313-1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := GetSectorsFile([]string{"s-t010313-1","s-t010313-2"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(result)
+}
+
 func TestSectorInfo(t *testing.T) {
 	InitDB("./")
 	minerId := "t0101"

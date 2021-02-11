@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/filecoin-project/specs-storage/storage"
@@ -115,7 +116,146 @@ func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.Secto
 	return sector, nil
 }
 
+type sectorFileCache struct {
+	SectorFile storage.SectorFile
+	CreateTime time.Time
+}
+
+var (
+	sectorFileCaches  = map[string]sectorFileCache{}
+	sectorFileCacheLk = sync.Mutex{}
+)
+
+func gcSectorFileCache() {
+	timeout := 2 * time.Minute
+	tick := time.NewTicker(timeout)
+	for {
+		<-tick.C
+		now := time.Now()
+		sectorFileCacheLk.Lock()
+		for key, val := range sectorFileCaches {
+			if now.Sub(val.CreateTime) > timeout {
+				delete(sectorFileCaches, key)
+			}
+		}
+		log.Infof("gc db sector file:%d", len(sectorFileCaches))
+		sectorFileCacheLk.Unlock()
+	}
+}
+
+func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.SectorFile, error) {
+	log.Infof("GetSectorsFile in, len:%d", len(sectors))
+	startTime := time.Now()
+	defer func() {
+		took := time.Now().Sub(startTime)
+		if took > 5e9 {
+			log.Warnf("GetSectorsFile took : %s", took)
+		}
+		log.Infof("GetSectorsFile out, len:%d", len(sectors))
+	}()
+
+	defaultResult := map[string]storage.SectorFile{}
+	if !HasDB() {
+		for _, sectorId := range sectors {
+			defaultResult[sectorId] = storage.SectorFile{
+				SectorId:     sectorId,
+				SealedRepo:   defaultRepo,
+				UnsealedRepo: defaultRepo,
+			}
+		}
+		return defaultResult, nil
+	}
+
+	dbGlobalLk.Lock()
+	defer dbGlobalLk.Unlock()
+
+	mdb := GetDB()
+	// preload storage data
+	storages := map[uint64]sql.NullString{} // id:mount_dir
+	rows, err := mdb.Query("SELECT id, mount_dir FROM storage_info")
+	if err != nil {
+		return nil, errors.As(err, sectors)
+	}
+	for rows.Next() {
+		id := uint64(0)
+		dir := sql.NullString{}
+		if err := rows.Scan(&id, &dir); err != nil {
+			database.Close(rows)
+			return nil, errors.As(err, sectors)
+		}
+		storages[id] = dir
+	}
+	database.Close(rows)
+	log.Info("DEBUG:storages loaded")
+
+	// get sector info
+	sectorStmt, err := mdb.Prepare("SELECT storage_sealed,storage_unsealed FROM sector_info WHERE id=?")
+	if err != nil {
+		return nil, errors.As(err, sectors)
+	}
+	defer sectorStmt.Close()
+
+	log.Info("DEBUG:sectors preparing")
+	result := map[string]storage.SectorFile{}
+	for _, sectorId := range sectors {
+		// read from cache
+		sectorFileCacheLk.Lock()
+		sFile, ok := sectorFileCaches[sectorId]
+		if ok {
+			sectorFileCacheLk.Unlock()
+			result[sectorId] = sFile.SectorFile
+			continue
+		}
+		sectorFileCacheLk.Unlock()
+
+		file := &storage.SectorFile{
+			SectorId:     sectorId,
+			SealedRepo:   defaultRepo,
+			UnsealedRepo: defaultRepo,
+		}
+
+		storageSealed := uint64(0)
+		storageUnsealed := uint64(0)
+		if err := sectorStmt.
+			QueryRow(sectorId).
+			Scan(&storageSealed, &storageUnsealed); err != nil {
+			if err != sql.ErrNoRows {
+				return nil, errors.As(err, sectorId)
+			}
+			// sector not found in db, return default.
+		} else {
+			// fix the file
+			storageSealedDir, _ := storages[storageSealed]
+			storageUnsealedDir, _ := storages[storageUnsealed]
+			if storageSealedDir.Valid {
+				file.SealedRepo = filepath.Join(storageSealedDir.String, fmt.Sprintf("%d", storageSealed))
+			}
+			if storageUnsealedDir.Valid {
+				file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
+			}
+		}
+		result[sectorId] = *file
+
+		// put to cache
+		sectorFileCacheLk.Lock()
+		sectorFileCaches[sectorId] = sectorFileCache{
+			SectorFile: *file,
+			CreateTime: time.Now(),
+		}
+		sectorFileCacheLk.Unlock()
+	}
+	return result, nil
+}
+
 func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
+	startTime := time.Now()
+	defer func() {
+		took := time.Now().Sub(startTime)
+		if took > 5e8 {
+			log.Warnf("GetSectorFile(%s) took : %s", sectorId, took)
+		}
+	}()
+
 	file := &storage.SectorFile{
 		SectorId:     sectorId,
 		SealedRepo:   defaultRepo,
@@ -124,41 +264,64 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 	if !HasDB() {
 		return file, nil
 	}
+	// read from cache
+	sectorFileCacheLk.Lock()
+	sFile, ok := sectorFileCaches[sectorId]
+	if ok {
+		sectorFileCacheLk.Unlock()
+		return &sFile.SectorFile, nil
+	}
+	sectorFileCacheLk.Unlock()
 
 	mdb := GetDB()
+
 	storageSealed := uint64(0)
-	storageSealedDir := sql.NullString{}
 	storageUnsealed := uint64(0)
-	storageUnsealedDir := sql.NullString{}
-	if err := mdb.QueryRow(`
-SELECT
-	tb1.storage_sealed,tb2.mount_dir as sealed_dir,
-	tb1.storage_unsealed,tb3.mount_dir as unsealed_dir
-FROM 
-	sector_info tb1 
-	LEFT JOIN storage_info tb2 on tb1.storage_sealed=tb2.id
-	LEFT JOIN storage_info tb3 on tb1.storage_unsealed=tb3.id
-WHERE
-	tb1.id=?
-`, sectorId).Scan(
-		&storageSealed,
-		&storageSealedDir,
-		&storageUnsealed,
-		&storageUnsealedDir,
-	); err != nil {
+	if err := mdb.
+		QueryRow("SELECT storage_sealed,storage_unsealed FROM sector_info WHERE id=?", sectorId).
+		Scan(&storageSealed, &storageUnsealed); err != nil {
 		if err != sql.ErrNoRows {
 			return nil, errors.As(err, sectorId)
 		}
-
 		// sector not found in db, return default.
 		return file, nil
 	}
+
+	storageSealedDir := sql.NullString{}
+	storageUnsealedDir := sql.NullString{}
+	rows, err := mdb.Query(fmt.Sprintf("SELECT id, mount_dir FROM storage_info WHERE id IN (%d,%d)", storageSealed, storageUnsealed))
+	if err != nil {
+		return nil, errors.As(err, sectorId)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		id := uint64(0)
+		dir := sql.NullString{}
+		if err := rows.Scan(&id, &dir); err != nil {
+			return nil, errors.As(err, sectorId)
+		}
+		if id == storageSealed {
+			storageSealedDir = dir
+		}
+		if id == storageUnsealed {
+			storageUnsealedDir = dir
+		}
+	}
+
 	if storageSealedDir.Valid {
 		file.SealedRepo = filepath.Join(storageSealedDir.String, fmt.Sprintf("%d", storageSealed))
 	}
 	if storageUnsealedDir.Valid {
 		file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
 	}
+
+	// put to cache
+	sectorFileCacheLk.Lock()
+	sectorFileCaches[sectorId] = sectorFileCache{
+		SectorFile: *file,
+		CreateTime: time.Now(),
+	}
+	sectorFileCacheLk.Unlock()
 
 	return file, nil
 }
