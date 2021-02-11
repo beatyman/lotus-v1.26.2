@@ -30,7 +30,7 @@ func (lk *DBOnceLk)Unlock(){
 var (
 	mdb   *database.DB
 	mdblk sync.Mutex
-	oneLk DBOnceLk
+	dbOneLk DBOnceLk
 )
 
 func InitDB(repo string) {
@@ -72,12 +72,11 @@ func HasDB() bool {
 	return mdb != nil
 }
 
-func GetDB() (*database.DB, *DBOnceLk) {
+func GetDB() (*database.DB) {
 	mdblk.Lock()
 	defer mdblk.Unlock()
 	if mdb == nil {
 		panic("Need InitDB at first")
 	}
-	oneLk.Lock()
-	return mdb, &oneLk
+	return mdb
 }

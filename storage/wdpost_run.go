@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gwaylib/errors"
@@ -197,7 +198,11 @@ func (s *WindowPoStScheduler) runSubmitPoST(
 	return submitErr
 }
 
+var checkSectorsMutex = sync.Mutex{}
 func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.BitField, tsk types.TipSetKey, timeout time.Duration) (bitfield.BitField, error) {
+	checkSectorsMutex.Lock()
+	defer checkSectorsMutex.Unlock()
+
 	mid, err := address.IDFromAddress(s.actor)
 	if err != nil {
 		return bitfield.BitField{}, err

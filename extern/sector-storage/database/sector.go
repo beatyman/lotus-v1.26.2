@@ -150,12 +150,14 @@ func gcSectorFileCache() {
 }
 
 func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.SectorFile, error) {
+	log.Infof("GetSectorsFile in, len:%d", len(sectors))
 	startTime := time.Now()
 	defer func() {
 		took := time.Now().Sub(startTime)
 		if took > 5e9 {
 			log.Warnf("GetSectorsFile took : %s", took)
 		}
+		log.Infof("GetSectorsFile out, len:%d",len(sectors))
 	}()
 
 	defaultResult := map[string]storage.SectorFile{}
@@ -170,9 +172,10 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 		return defaultResult, nil
 	}
 
-	mdb, lk := GetDB()
-	defer lk.Unlock()
+	dbOneLk.Locker.Lock()
+	defer dbOneLk.Locker.Unlock()
 
+	mdb := GetDB()
 	// preload storage data
 	storages := map[uint64]sql.NullString{} // id:mount_dir
 	rows, err := mdb.Query("SELECT id, mount_dir FROM storage_info")
@@ -189,6 +192,7 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 		storages[id] = dir
 	}
 	database.Close(rows)
+	log.Info("DEBUG:storages loaded")
 
 	// get sector info
 	sectorStmt, err := mdb.Prepare("SELECT storage_sealed,storage_unsealed FROM sector_info WHERE id=?")
@@ -197,6 +201,7 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 	}
 	defer sectorStmt.Close()
 
+	log.Info("DEBUG:sectors preparing")
 	result := map[string]storage.SectorFile{}
 	for _, sectorId := range sectors {
 		// read from cache
