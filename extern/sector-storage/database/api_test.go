@@ -17,7 +17,7 @@ func TestDiskUsage(t *testing.T) {
 
 func TestAllocateStorage(t *testing.T) {
 	InitDB("./")
-	db, lk := GetDB()
+	db := GetDB()
 	// clean test case
 	if _, err := db.Exec("DELETE FROM storage_info"); err != nil {
 		t.Fatal(err)
@@ -31,24 +31,21 @@ func TestAllocateStorage(t *testing.T) {
 		MountSignalUri: "127.0.0.1:/data/zfs",
 		MountTransfUri: "127.0.0.1:/data/zfs",
 	}
-	lk.Unlock()
 
 	if _, err := AddStorageInfo(info); err != nil {
 		t.Fatal(err)
 	}
-
 	// case 0 make a error cancel
-	tx, aInfo, err := PrepareStorage("0", "", 0)
+	tx, aInfo, err := PrepareStorage("1", "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.Rollback(); err != nil {
 		t.Fatal(err)
 	}
-
 	// case 1, return one valid storage at least.
 	for i := 0; i < 9; i++ {
-		tx, aInfo, err = PrepareStorage("0", "", 0)
+		tx, aInfo, err = PrepareStorage("1", "", 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +57,7 @@ func TestAllocateStorage(t *testing.T) {
 			t.Fatal(err)
 		}
 		if aInfo.CurWork != cInfo.CurWork {
-			t.Fatal(*aInfo, *cInfo)
+			t.Fatal(aInfo.CurWork, cInfo.CurWork)
 		}
 		if aInfo.UsedSize != cInfo.UsedSize-cInfo.SectorSize {
 			t.Fatal(*aInfo, *cInfo)
@@ -68,14 +65,14 @@ func TestAllocateStorage(t *testing.T) {
 	}
 
 	// case 2, testing full storage , it expect no sector allcate.
-	if _, _, err := PrepareStorage("0", "", 0); !ErrNoStorage.Equal(err) {
+	if _, _, err := PrepareStorage("1", "", 0); !ErrNoStorage.Equal(err) {
 		t.Fatal(err)
 	}
 }
 
 func TestMountAllStorage(t *testing.T) {
 	InitDB("./")
-	db, lk := GetDB()
+	db := GetDB()
 
 	// analogue data
 	if _, err := db.Exec("DELETE FROM storage_info"); err != nil {
@@ -87,7 +84,6 @@ func TestMountAllStorage(t *testing.T) {
 	if _, err := db.Exec("UPDATE sqlite_sequence SET seq=0 WHERE name='storage_info'"); err != nil {
 		t.Fatal(err)
 	}
-	lk.Unlock()
 
 	// for local
 	if _, err := AddStorageInfo(&StorageInfo{

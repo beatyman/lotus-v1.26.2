@@ -6,8 +6,7 @@ import (
 
 func TestSqlite(t *testing.T) {
 	InitDB("./")
-	db, lk := GetDB()
-	defer lk.Unlock()
+	db := GetDB()
 
 	num := 0
 	if err := db.QueryRow("SELECT COUNT(*) FROM sector_info").Scan(&num); err != nil {
@@ -20,8 +19,7 @@ func TestSqlite(t *testing.T) {
 
 func TestSqliteSingleInsert(t *testing.T) {
 	InitDB("./")
-	db, lk := GetDB()
-	defer lk.Unlock()
+	db := GetDB()
 
 	for i := 0; i < 1000; i++ {
 		if _, err := db.Exec("INSERT INTO storage_info(max_size,mount_signal_uri)VALUES(?,?)", 34359738368*30*8, "127.0.0.1:/data/zfs"); err != nil {
@@ -40,8 +38,7 @@ func TestSqliteSingleInsert(t *testing.T) {
 // go test -bench=BenchmarkSqliteParallel -benchtime=10000x
 func BenchmarkSqliteParallel(b *testing.B) {
 	InitDB("./")
-	db, lk := GetDB()
-	defer lk.Unlock()
+	db := GetDB()
 
 	db.SetMaxOpenConns(1) // more than one should happen:database is locked
 	// b.SetParallelism(12)

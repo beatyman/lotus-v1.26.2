@@ -16,6 +16,9 @@ var (
 type StorageTx struct {
 	SectorId string
 	Kind     int
+
+	// TODO: open this value
+	storageId int64
 }
 
 func (s *StorageTx) Key() string {
@@ -42,9 +45,7 @@ func PrepareStorage(sectorId, fromIp string, kind int) (*StorageTx, *StorageInfo
 	default:
 		return nil, nil, errors.New("unknow kind").As(sectorId, fromIp, kind)
 	}
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	// has allocated
 	if info.ID > 0 {
 		allocateMux.Lock()
@@ -113,6 +114,7 @@ WHERE
 		return nil, nil, errors.As(err)
 	}
 
+	tx.storageId = info.ID
 	allocateMux.Lock()
 	allocatePool[tx.Key()] = info.ID
 	allocateMux.Unlock()
@@ -141,15 +143,18 @@ func (tx *StorageTx) Commit() error {
 
 	// no prepare
 	if info.ID == 0 {
-		allocateMux.Lock()
-		delete(allocatePool, tx.Key())
-		allocateMux.Unlock()
-		return nil
+		if tx.storageId == 0 {
+			allocateMux.Lock()
+			delete(allocatePool, tx.Key())
+			allocateMux.Unlock()
+			return nil
+		}
+		info.ID = tx.storageId
 	}
 
-	db, lk := GetDB()
-	defer lk.Unlock()
+	db := GetDB()
 
+	// TODO: read from real storage
 	if _, err := db.Exec("UPDATE storage_info SET used_size=used_size+sector_size,cur_work=cur_work-1 WHERE id=?", info.ID); err != nil {
 		return errors.As(err, *tx)
 	}
@@ -179,10 +184,12 @@ func (tx *StorageTx) Rollback() error {
 	}
 	// no prepare
 	if info.ID == 0 {
-		return nil
+		if tx.storageId == 0 {
+			return nil
+		}
+		info.ID = tx.storageId
 	}
-	db, lk := GetDB()
-	defer lk.Unlock()
+	db := GetDB()
 
 	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work-1 WHERE id=?", info.ID); err != nil {
 		return errors.As(err, *tx, info.ID)
@@ -193,9 +200,7 @@ func (tx *StorageTx) Rollback() error {
 
 // SPEC: only do this at system starting.
 func ClearStorageWork() error {
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	if _, err := db.Exec("UPDATE storage_info SET cur_work=0"); err != nil {
 		return errors.As(err)
 	}

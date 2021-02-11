@@ -169,9 +169,7 @@ func Mount(mountType, mountUri, mountPoint, mountOpts string) error {
 }
 
 func MountAllStorage(block bool) error {
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	rows, err := db.Query("SELECT id, mount_type, mount_signal_uri, mount_dir, mount_opt FROM storage_info WHERE disable=0")
 	if err != nil {
 		return errors.As(err)
@@ -196,9 +194,7 @@ func MountAllStorage(block bool) error {
 
 // gc concurrency worker on the storage.
 func GetTimeoutTask(invalidTime time.Time) ([]SectorInfo, error) {
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	result := []SectorInfo{}
 	if err := database.QueryStructs(db, &result, "SELECT * FROM sector_info WHERE state<?", 200); err != nil {
 		return nil, errors.As(err)

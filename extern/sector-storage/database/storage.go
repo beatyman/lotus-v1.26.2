@@ -43,9 +43,7 @@ func AddStorageInfo(info *StorageInfo) (int64, error) {
 	}
 	info.UpdateTime = time.Now()
 
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	if _, err := database.InsertStruct(db, info, "storage_info"); err != nil {
 		return 0, errors.As(err, *info)
 	}
@@ -53,9 +51,7 @@ func AddStorageInfo(info *StorageInfo) (int64, error) {
 }
 
 func GetStorageInfo(id int64) (*StorageInfo, error) {
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	info := &StorageInfo{}
 	if err := database.QueryStruct(db, info, "SELECT * FROM storage_info WHERE id=?", id); err != nil {
 		return nil, errors.As(err, id)
@@ -64,9 +60,7 @@ func GetStorageInfo(id int64) (*StorageInfo, error) {
 }
 
 func DisableStorage(id int64, disable bool) error {
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	if _, err := db.Exec("UPDATE storage_info SET disable=?,ver=? WHERE id=?", disable, time.Now().UnixNano(), id); err != nil {
 		return errors.As(err, id)
 	}
@@ -74,9 +68,7 @@ func DisableStorage(id int64, disable bool) error {
 }
 
 func UpdateStorageInfo(info *StorageInfo) error {
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	info.UpdateTime = time.Now()
 	if _, err := db.Exec(`
 UPDATE
@@ -107,18 +99,14 @@ WHERE
 
 func GetAllStorageInfo() ([]StorageInfo, error) {
 	list := []StorageInfo{}
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	if err := database.QueryStructs(db, &list, "SELECT * FROM storage_info WHERE disable=0"); err != nil {
 		return nil, errors.As(err, "all")
 	}
 	return list, nil
 }
 func SearchStorageInfoBySignalIp(ip string) ([]StorageInfo, error) {
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	list := []StorageInfo{}
 	if err := database.QueryStructs(db, &list, "SELECT * FROM storage_info WHERE mount_signal_uri like ?", ip+"%"); err != nil {
 		return nil, errors.As(err, ip)
@@ -127,9 +115,7 @@ func SearchStorageInfoBySignalIp(ip string) ([]StorageInfo, error) {
 }
 
 func StorageMaxVer() (int64, error) {
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	ver := sql.NullInt64{}
 	if err := database.QueryElem(db, &ver, "SELECT max(ver) FROM storage_info"); err != nil {
 		return 0, errors.As(err)
@@ -139,9 +125,7 @@ func StorageMaxVer() (int64, error) {
 
 // max(ver) is the compare key.
 func ChecksumStorage(sumVer int64) ([]StorageInfo, error) {
-	db, lk := GetDB()
-	defer lk.Unlock()
-
+	db := GetDB()
 	ver := sql.NullInt64{}
 	if err := database.QueryElem(db, &ver, "SELECT max(ver) FROM storage_info"); err != nil {
 		return nil, errors.As(err, sumVer)
@@ -156,9 +140,7 @@ func ChecksumStorage(sumVer int64) ([]StorageInfo, error) {
 
 // SPEC: id ==0 will return all storage node
 func GetStorageCheck(id int64) (StorageStatusSort, error) {
-	mdb, lk := GetDB()
-	defer lk.Unlock()
-
+	mdb := GetDB()
 	var rows *sql.Rows
 	var err error
 	if id > 0 {

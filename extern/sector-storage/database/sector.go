@@ -63,9 +63,7 @@ func (g StorageStatusSort) Less(i, j int) bool {
 }
 
 func AddSectorInfo(info *SectorInfo) error {
-	mdb, lk := GetDB()
-	defer lk.Unlock()
-
+	mdb := GetDB()
 	if _, err := database.InsertStruct(mdb, info, "sector_info"); err != nil {
 		return errors.As(err)
 	}
@@ -74,9 +72,7 @@ func AddSectorInfo(info *SectorInfo) error {
 
 // if data not found, it will return a 'default' WorkerId
 func GetSectorInfo(id string) (*SectorInfo, error) {
-	mdb, lk := GetDB()
-	defer lk.Unlock()
-
+	mdb := GetDB()
 	info := &SectorInfo{
 		ID: id,
 	}
@@ -91,9 +87,7 @@ func GetSectorInfo(id string) (*SectorInfo, error) {
 }
 
 func GetSectorState(id string) (int, error) {
-	mdb, lk := GetDB()
-	defer lk.Unlock()
-
+	mdb := GetDB()
 	state := -1
 	if err := database.QueryElem(mdb, &state, "SELECT state FROM sector_info WHERE id=?", id); err != nil {
 		return state, errors.As(err, id)
@@ -157,7 +151,7 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 		if took > 5e9 {
 			log.Warnf("GetSectorsFile took : %s", took)
 		}
-		log.Infof("GetSectorsFile out, len:%d",len(sectors))
+		log.Infof("GetSectorsFile out, len:%d", len(sectors))
 	}()
 
 	defaultResult := map[string]storage.SectorFile{}
@@ -172,8 +166,8 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 		return defaultResult, nil
 	}
 
-	dbOneLk.Locker.Lock()
-	defer dbOneLk.Locker.Unlock()
+	dbGlobalLk.Lock()
+	defer dbGlobalLk.Unlock()
 
 	mdb := GetDB()
 	// preload storage data
@@ -279,8 +273,7 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 	}
 	sectorFileCacheLk.Unlock()
 
-	mdb, lk := GetDB()
-	defer lk.Unlock()
+	mdb := GetDB()
 
 	storageSealed := uint64(0)
 	storageUnsealed := uint64(0)
@@ -336,9 +329,7 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 type SectorList []SectorInfo
 
 func GetSectorByState(storageSealed int64, state int64) (SectorList, error) {
-	mdb, lk := GetDB()
-	defer lk.Unlock()
-
+	mdb := GetDB()
 	list := SectorList{}
 	if err := database.QueryStructs(mdb, &list, "SELECT * FROM sector_info WHERE storage_sealed=? AND state=?", storageSealed, state); err != nil {
 		return nil, errors.As(err, storageSealed)
@@ -347,9 +338,7 @@ func GetSectorByState(storageSealed int64, state int64) (SectorList, error) {
 }
 
 func GetAllSectorByState(state int64) (map[string]int64, error) {
-	mdb, lk := GetDB()
-	defer lk.Unlock()
-
+	mdb := GetDB()
 	rows, err := mdb.Query("SELECT id,storage_sealed FROM sector_info WHERE state=?", state)
 	if err != nil {
 		return nil, errors.As(err)
@@ -372,9 +361,7 @@ func GetAllSectorByState(state int64) (map[string]int64, error) {
 }
 
 func GetSectorStorage(id string) (*SectorStorage, error) {
-	mdb, lk := GetDB()
-	defer lk.Unlock()
-
+	mdb := GetDB()
 	// TODO: make left join
 	seInfo := &SectorInfo{
 		ID: id,
@@ -417,9 +404,7 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 }
 
 func UpdateSectorState(sid, wid, msg string, state int) error {
-	mdb, lk := GetDB()
-	defer lk.Unlock()
-
+	mdb := GetDB()
 	if _, err := mdb.Exec(`
 UPDATE
 	sector_info
@@ -460,9 +445,7 @@ func (ws WorkingSectors) IsFullWork(maxTaskNum, cacheNum int) bool {
 	return false
 }
 func GetWorking(workerId string) (WorkingSectors, error) {
-	mdb, lk := GetDB()
-	defer lk.Unlock()
-
+	mdb := GetDB()
 	sectors := WorkingSectors{}
 	if err := database.QueryStructs(mdb, &sectors, "SELECT * FROM sector_info WHERE worker_id=? AND state<200", workerId); err != nil {
 		return nil, errors.As(err, workerId)
@@ -487,9 +470,7 @@ func CheckWorkingById(sid []string) (WorkingSectors, error) {
 	if len(args) > 0 {
 		args = args[1:] // remove ',' in the head.
 	}
-	mdb, lk := GetDB()
-	defer lk.Unlock()
-
+	mdb := GetDB()
 	sqlStr := fmt.Sprintf("SELECT * FROM sector_info WHERE id in (%s) AND state<200", string(args))
 	if err := database.QueryStructs(mdb, &sectors, sqlStr); err != nil {
 		return nil, errors.As(err)
