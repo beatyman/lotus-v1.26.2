@@ -60,6 +60,10 @@ func (w *worker) removeCache(ctx context.Context, repo, sid string) error {
 
 func (w *worker) cleanCache(ctx context.Context, repo, typ string) error {
 	dir := filepath.Join(repo, typ)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return errors.As(err, w.workerCfg.IP)
+	}
+
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		log.Warn(errors.As(err))
@@ -68,6 +72,11 @@ func (w *worker) cleanCache(ctx context.Context, repo, typ string) error {
 		for _, f := range files {
 			fileNames = append(fileNames, f.Name())
 		}
+		// no file to clean
+		if len(fileNames) == 0 {
+			return nil
+		}
+
 		api, err := GetNodeApi()
 		if err != nil {
 			return errors.As(err)
@@ -88,9 +97,6 @@ func (w *worker) cleanCache(ctx context.Context, repo, typ string) error {
 				return errors.As(err, w.workerCfg.IP, repo, typ, f.Name())
 			}
 		}
-	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return errors.As(err, w.workerCfg.IP)
 	}
 	return nil
 }
