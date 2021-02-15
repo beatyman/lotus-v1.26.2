@@ -50,7 +50,7 @@ func InitDB(repo string) {
 		panic(err)
 	}
 
-	go gcSectorFileCache()
+	go initSectorFileCache(repo)
 }
 
 func HasDB() bool {
