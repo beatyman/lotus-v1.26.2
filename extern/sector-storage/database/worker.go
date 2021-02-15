@@ -30,12 +30,14 @@ func GetWorkerInfo(id string) (*WorkerInfo, error) {
 func SearchWorkerInfo(ip string) ([]WorkerInfo, error) {
 	db := GetDB()
 	infos := []WorkerInfo{}
+	// TODO: index
 	if err := database.QueryStructs(db, &infos, "SELECT * FROM worker_info WHERE ip=?", ip); err != nil {
 		return nil, errors.As(err)
 	}
 	return infos, nil
 }
 
+// TODO: limit call
 func AllWorkerInfo() ([]WorkerInfo, error) {
 	db := GetDB()
 	infos := []WorkerInfo{}

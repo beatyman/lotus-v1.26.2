@@ -491,6 +491,14 @@ func GetWorking(workerId string) (WorkingSectors, error) {
 // Only called in  cache-mode=1
 // SPECS: not call in more than 1000 tasks.
 func CheckWorkingById(sid []string) (WorkingSectors, error) {
+	startTime := time.Now()
+	defer func() {
+		took := time.Now().Sub(startTime)
+		if took > 5e9 {
+			log.Warnf("CheckWorkingById len(%d) took : %s", len(sid), took)
+		}
+	}()
+
 	sectors := WorkingSectors{}
 	if len(sid) == 0 {
 		return sectors, nil
