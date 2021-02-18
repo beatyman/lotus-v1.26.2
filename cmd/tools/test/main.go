@@ -14,37 +14,51 @@ import (
 	"github.com/filecoin-project/lotus/chain/wallet"
 )
 
+var _i = 0
+
 func main() {
 	fmt.Println("[ctrl+c to exit]")
 	end := make(chan os.Signal, 2)
 	signal.Notify(end, os.Interrupt, os.Kill)
 
 	start := time.Now()
-	println(start.Format(time.RFC3339Nano))
+	fmt.Println(start.Format(time.RFC3339Nano))
 	// f3sgcl2v6duorsedqqludj5pstfb3ukoajmefnoddqa3q77fgauc6apcardhhw7jhjz45iae467cdb4zy3tbmq
 	// 7b2254797065223a22626c73222c22507269766174654b6579223a22715463346d3353452f44446e685958435979575069515a2f796247616436526a47506434596934436a79513d227d
 	src := []byte("7b2254797065223a22626c73222c22507269766174654b6579223a22715463346d3353452f44446e685958435979575069515a2f796247616436526a47506434596934436a79513d227d")
 
-	half := len(src) - 30
-	for i := len(src) - 1; i > half; i-- {
+	head := 56
+	//clean := len(src) - head // head 56 are same
+	for i := len(src) - 1; i > head; i-- {
 		src[i] = []byte("0")[0]
 	}
 
 	// len = 148
-	for i := uint64(0); ; i++ {
-		select {
-		case <-end:
-			break
-		default:
-			to := make([]byte, len(src))
-			copy(to, src)
-			go find(to)
+	go func() {
+		for {
+			select {
+			case <-end:
+				break
+			default:
+				to := make([]byte, len(src))
+				copy(to, src)
+				go find(to)
 
-			increase(src)
+				increase(src)
+				if _i == 1000000000 {
+					_i = 0
+					fmt.Println(time.Now().Format(time.RFC3339Nano))
+					fmt.Println(string(src))
+				}
+				_i++
+			}
 		}
-	}
-	println(string(src))
-	println(time.Now().Sub(start).String())
+		end <- os.Interrupt
+	}()
+	<-end
+	fmt.Println(time.Now().Format(time.RFC3339Nano))
+	fmt.Println(string(src))
+	fmt.Println(time.Now().Sub(start).String())
 }
 
 var limit = make(chan int, runtime.NumCPU())
