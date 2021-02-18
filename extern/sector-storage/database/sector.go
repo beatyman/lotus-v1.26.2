@@ -126,7 +126,42 @@ var (
 	sectorFileCacheLk = sync.Mutex{}
 )
 
-func gcSectorFileCache() {
+func initSectorFileCache(repo string) {
+	// init data to memory, so it always can fetch fast.
+	mdb := GetDB()
+	ids := []string{}
+	if err := database.QueryElems(mdb, &ids, "SELECT id FROM sector_info"); err != nil {
+		log.Error(errors.As(err))
+		return
+	}
+
+	start := 0
+	end := 3000
+	limit := 3000
+	total := len(ids)
+	for {
+		if (start + limit) > total {
+			end = total
+		} else {
+			end = start + limit
+		}
+		fetchIds := ids[start:end]
+		_, err := GetSectorsFile(fetchIds, repo)
+		if err != nil {
+			log.Error(errors.As(err))
+			return
+		}
+		if end >= total {
+			break
+		}
+		start = end
+	}
+
+	sectorFileCacheLk.Lock()
+	log.Infof("sector file cache loaded:%d", len(sectorFileCaches))
+	sectorFileCacheLk.Unlock()
+	return
+
 	timeout := 2 * time.Minute
 	tick := time.NewTicker(timeout)
 	for {
@@ -144,14 +179,12 @@ func gcSectorFileCache() {
 }
 
 func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.SectorFile, error) {
-	log.Infof("GetSectorsFile in, len:%d", len(sectors))
 	startTime := time.Now()
 	defer func() {
 		took := time.Now().Sub(startTime)
 		if took > 5e9 {
 			log.Warnf("GetSectorsFile took : %s", took)
 		}
-		log.Infof("GetSectorsFile out, len:%d", len(sectors))
 	}()
 
 	defaultResult := map[string]storage.SectorFile{}
@@ -186,7 +219,6 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 		storages[id] = dir
 	}
 	database.Close(rows)
-	log.Info("DEBUG:storages loaded")
 
 	// get sector info
 	sectorStmt, err := mdb.Prepare("SELECT storage_sealed,storage_unsealed FROM sector_info WHERE id=?")
@@ -195,7 +227,6 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 	}
 	defer sectorStmt.Close()
 
-	log.Info("DEBUG:sectors preparing")
 	result := map[string]storage.SectorFile{}
 	for _, sectorId := range sectors {
 		// read from cache
@@ -456,6 +487,14 @@ func GetWorking(workerId string) (WorkingSectors, error) {
 // Only called in  cache-mode=1
 // SPECS: not call in more than 1000 tasks.
 func CheckWorkingById(sid []string) (WorkingSectors, error) {
+	startTime := time.Now()
+	defer func() {
+		took := time.Now().Sub(startTime)
+		if took > 5e9 {
+			log.Warnf("CheckWorkingById len(%d) took : %s", len(sid), took)
+		}
+	}()
+
 	sectors := WorkingSectors{}
 	if len(sid) == 0 {
 		return sectors, nil

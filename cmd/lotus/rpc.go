@@ -2,7 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
+	"math/big"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -10,6 +16,7 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
@@ -29,9 +36,58 @@ import (
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("main")
+
+func createTLSCert() error {
+	max := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, _ := rand.Int(rand.Reader, max)
+	subject := pkix.Name{
+		Organization:       []string{"Fivestar"},
+		OrganizationalUnit: []string{"lotus"},
+		CommonName:         "fivestar-lotus",
+	}
+
+	rootTemplate := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject:      subject,
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().AddDate(100, 0, 0),
+		KeyUsage:     x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	pk, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return errors.As(err)
+	}
+	derBytes, err := x509.CreateCertificate(rand.Reader, &rootTemplate, &rootTemplate, &pk.PublicKey, pk)
+	if err != nil {
+		return errors.As(err)
+	}
+
+	certOut, err := os.Create("/etc/lotus/lotus.crt")
+	if err != nil {
+		return errors.As(err)
+	}
+	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		return errors.As(err)
+	}
+
+	certOut.Close()
+
+	keyOut, err := os.Create("/etc/lotus/lotus.key")
+	if err != nil {
+		return errors.As(err)
+	}
+	if err := pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(pk)}); err != nil {
+		return errors.As(err)
+	}
+	keyOut.Close()
+	return nil
+}
 
 func serveRPC(a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}, maxRequestSize int64) error {
 	serverOptions := make([]jsonrpc.ServerOption, 0)
@@ -113,7 +169,18 @@ func serveRPC(a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shut
 	}()
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
-	err = srv.Serve(manet.NetListener(lst))
+	if _, err := os.Stat("/etc/lotus/lotus.crt"); err != nil {
+		log.Error(errors.As(err))
+		log.Warn("building tls cert automatic")
+		if err := os.MkdirAll("/etc/lotus", 0755); err != nil {
+			return errors.As(err)
+		}
+		if err := createTLSCert(); err != nil {
+			return errors.As(err)
+		}
+	}
+
+	err = srv.ServeTLS(manet.NetListener(lst), "/etc/lotus/lotus.crt", "/etc/lotus/lotus.key")
 	if err == http.ErrServerClosed {
 		<-shutdownDone
 		return nil
