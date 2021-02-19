@@ -77,6 +77,7 @@ func (s *WindowPoStScheduler) autoWithdraw(ts *types.TipSet) {
 		log.Info("auto withdraw interval not reached")
 		return
 	}
+	s.autoWithdrawLastEpoch = int64(ts.Height())
 
 	go func() {
 		if err := s.doWithdraw(cfg); err != nil {
@@ -94,7 +95,6 @@ func (s *WindowPoStScheduler) doWithdraw(cfg *WithdrawConfig) error {
 		s.autoWithdrawRunning = false
 		s.autoWithdrawLk.Unlock()
 	}()
-
 	api := s.api
 	ctx := context.TODO()
 	maddr := s.actor
