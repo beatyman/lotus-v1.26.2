@@ -21,6 +21,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/mitchellh/go-homedir"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	promclient "github.com/prometheus/client_golang/prometheus"
@@ -58,7 +59,7 @@ func createTLSCert(certPath, keyPath string) error {
 		NotAfter:     time.Now().AddDate(100, 0, 0),
 		KeyUsage:     x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		IPAddresses:  []net.IP{net.ParseIP("*")},
+		IPAddresses:  []net.IP{},
 	}
 	pk, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -91,6 +92,10 @@ func createTLSCert(certPath, keyPath string) error {
 }
 
 func serveRPC(repo string, a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}, maxRequestSize int64) error {
+	repo, err := homedir.Expand(repo)
+	if err != nil {
+		return errors.As(err)
+	}
 	serverOptions := make([]jsonrpc.ServerOption, 0)
 	if maxRequestSize != 0 { // config set
 		serverOptions = append(serverOptions, jsonrpc.WithMaxRequestSize(maxRequestSize))
