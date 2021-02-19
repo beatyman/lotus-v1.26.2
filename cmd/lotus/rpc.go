@@ -14,6 +14,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -41,7 +42,7 @@ import (
 
 var log = logging.Logger("main")
 
-func createTLSCert() error {
+func createTLSCert(certPath, keyPath string) error {
 	max := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, _ := rand.Int(rand.Reader, max)
 	subject := pkix.Name{
@@ -68,7 +69,7 @@ func createTLSCert() error {
 		return errors.As(err)
 	}
 
-	certOut, err := os.Create("/etc/lotus/lotus.crt")
+	certOut, err := os.Create(certPath)
 	if err != nil {
 		return errors.As(err)
 	}
@@ -78,7 +79,7 @@ func createTLSCert() error {
 
 	certOut.Close()
 
-	keyOut, err := os.Create("/etc/lotus/lotus.key")
+	keyOut, err := os.Create(keyPath)
 	if err != nil {
 		return errors.As(err)
 	}
@@ -89,7 +90,7 @@ func createTLSCert() error {
 	return nil
 }
 
-func serveRPC(a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}, maxRequestSize int64) error {
+func serveRPC(repo string, a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}, maxRequestSize int64) error {
 	serverOptions := make([]jsonrpc.ServerOption, 0)
 	if maxRequestSize != 0 { // config set
 		serverOptions = append(serverOptions, jsonrpc.WithMaxRequestSize(maxRequestSize))
@@ -169,15 +170,14 @@ func serveRPC(a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shut
 	}()
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
-	log.Warn("rebuilding tls cert automatic")
-	if err := os.MkdirAll("/etc/lotus", 0755); err != nil {
-		return errors.As(err)
-	}
-	if err := createTLSCert(); err != nil {
+	log.Info("rebuild tls cert automatic")
+	certPath := filepath.Join(repo, "lotus.crt")
+	keyPath := filepath.Join(repo, "lotus.key")
+	if err := createTLSCert(certPath, keyPath); err != nil {
 		return errors.As(err)
 	}
 
-	err = srv.ServeTLS(manet.NetListener(lst), "/etc/lotus/lotus.crt", "/etc/lotus/lotus.key")
+	err = srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
 	if err == http.ErrServerClosed {
 		<-shutdownDone
 		return nil

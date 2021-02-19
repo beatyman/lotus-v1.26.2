@@ -365,7 +365,7 @@ var DaemonCmd = &cli.Command{
 		}
 
 		// TODO: properly parse api endpoint (or make it a URL)
-		return serveRPC(api, stop, endpoint, shutdownChan, int64(cctx.Int("api-max-req-size")))
+		return serveRPC(cctx.String("repo"), api, stop, endpoint, shutdownChan, int64(cctx.Int("api-max-req-size")))
 	},
 	Subcommands: []*cli.Command{
 		daemonStopCmd,
