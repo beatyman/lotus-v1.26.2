@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gwaylib/errors"
@@ -43,6 +44,10 @@ type WindowPoStScheduler struct {
 
 	// failed abi.ChainEpoch // eps
 	// failLk sync.Mutex
+
+	autoWithdrawLk        sync.Mutex
+	autoWithdrawLastEpoch int64
+	autoWithdrawRunning   bool
 }
 
 func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, as *AddressSelector, sb storage.Prover, verif ffiwrapper.Verifier, ft sectorstorage.FaultTracker, j journal.Journal, actor address.Address) (*WindowPoStScheduler, error) {
@@ -108,6 +113,9 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 
 		log.Infof("Checking window post at:%d", bts.Height())
 		lastTsHeight = bts.Height()
+
+		s.autoWithdraw(bts)
+
 		s.update(ctx, nil, bts)
 
 		// loop to next time.
