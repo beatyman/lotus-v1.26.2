@@ -199,6 +199,7 @@ func (s *WindowPoStScheduler) runSubmitPoST(
 }
 
 var checkSectorsMutex = sync.Mutex{}
+
 func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.BitField, tsk types.TipSetKey, timeout time.Duration) (bitfield.BitField, error) {
 	checkSectorsMutex.Lock()
 	defer checkSectorsMutex.Unlock()
