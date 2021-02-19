@@ -57,7 +57,7 @@ func createTLSCert() error {
 		NotAfter:     time.Now().AddDate(100, 0, 0),
 		KeyUsage:     x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
+		IPAddresses:  []net.IP{net.ParseIP("*")},
 	}
 	pk, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -169,15 +169,12 @@ func serveRPC(a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shut
 	}()
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
-	if _, err := os.Stat("/etc/lotus/lotus.crt"); err != nil {
-		log.Error(errors.As(err))
-		log.Warn("building tls cert automatic")
-		if err := os.MkdirAll("/etc/lotus", 0755); err != nil {
-			return errors.As(err)
-		}
-		if err := createTLSCert(); err != nil {
-			return errors.As(err)
-		}
+	log.Warn("rebuilding tls cert automatic")
+	if err := os.MkdirAll("/etc/lotus", 0755); err != nil {
+		return errors.As(err)
+	}
+	if err := createTLSCert(); err != nil {
+		return errors.As(err)
 	}
 
 	err = srv.ServeTLS(manet.NetListener(lst), "/etc/lotus/lotus.crt", "/etc/lotus/lotus.key")
