@@ -171,8 +171,8 @@ func serveRPC(repo string, a api.FullNode, stop node.StopFunc, addr multiaddr.Mu
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
 	log.Info("rebuild tls cert automatic")
-	certPath := filepath.Join(repo, "lotus.crt")
-	keyPath := filepath.Join(repo, "lotus.key")
+	certPath := filepath.Join(repo, "lotus_crt.pem")
+	keyPath := filepath.Join(repo, "lotus_key.pem")
 	if err := createTLSCert(certPath, keyPath); err != nil {
 		return errors.As(err)
 	}
