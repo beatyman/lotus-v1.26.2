@@ -34,7 +34,7 @@ func Client() (*clientv3.Client, error) {
 	}
 
 	if etcdClient == nil {
-		client, err := clientv3.NewFromURL("http://127.0.0.1:2379")
+		client, err := clientv3.NewFromURL(etcdAddr)
 		if err != nil {
 			etcdClient = nil
 			return nil, errors.As(err)

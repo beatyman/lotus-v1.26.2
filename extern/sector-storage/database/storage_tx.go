@@ -16,6 +16,9 @@ var (
 type StorageTx struct {
 	SectorId string
 	Kind     int
+
+	// TODO: open this value
+	storageId int64
 }
 
 func (s *StorageTx) Key() string {
@@ -111,9 +114,16 @@ WHERE
 		return nil, nil, errors.As(err)
 	}
 
+	tx.storageId = info.ID
 	allocateMux.Lock()
 	allocatePool[tx.Key()] = info.ID
 	allocateMux.Unlock()
+
+	// delete sector cache
+	sectorFileCacheLk.Lock()
+	delete(sectorFileCaches, sectorId)
+	sectorFileCacheLk.Unlock()
+
 	return tx, info, nil
 }
 func (tx *StorageTx) Commit() error {
@@ -133,13 +143,18 @@ func (tx *StorageTx) Commit() error {
 
 	// no prepare
 	if info.ID == 0 {
-		allocateMux.Lock()
-		delete(allocatePool, tx.Key())
-		allocateMux.Unlock()
-		return nil
+		if tx.storageId == 0 {
+			allocateMux.Lock()
+			delete(allocatePool, tx.Key())
+			allocateMux.Unlock()
+			return nil
+		}
+		info.ID = tx.storageId
 	}
 
 	db := GetDB()
+
+	// TODO: read from real storage
 	if _, err := db.Exec("UPDATE storage_info SET used_size=used_size+sector_size,cur_work=cur_work-1 WHERE id=?", info.ID); err != nil {
 		return errors.As(err, *tx)
 	}
@@ -169,9 +184,13 @@ func (tx *StorageTx) Rollback() error {
 	}
 	// no prepare
 	if info.ID == 0 {
-		return nil
+		if tx.storageId == 0 {
+			return nil
+		}
+		info.ID = tx.storageId
 	}
 	db := GetDB()
+
 	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work-1 WHERE id=?", info.ID); err != nil {
 		return errors.As(err, *tx, info.ID)
 	}

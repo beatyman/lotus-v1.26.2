@@ -168,7 +168,7 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 replace github.com/filecoin-project/specs-storage => ./extern/specs-storage
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20210104062230-04567a3c34c8
+replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20210218102735-e2056fb8c2b9
 
 //replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
 replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-20201125193152-8a03d2e9614b
