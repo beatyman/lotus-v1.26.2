@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
+	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
@@ -113,7 +114,7 @@ var consensusCheckCmd = &cli.Command{
 				return err
 			}
 			ainfo := cliutil.APIInfo{Addr: apima.String()}
-			addr, err := ainfo.DialArgs()
+			addr, err := ainfo.DialArgs(repo.FullNode)
 			if err != nil {
 				return err
 			}

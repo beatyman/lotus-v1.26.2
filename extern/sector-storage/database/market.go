@@ -33,7 +33,8 @@ func GetMarketRetrieve(sid string) (*MarketRetrieve, error) {
 }
 
 func AddMarketRetrieve(sid string) error {
-	tx, err := GetDB().Begin()
+	db := GetDB()
+	tx, err := db.Begin()
 	if err != nil {
 		return errors.As(err, sid)
 	}
@@ -64,8 +65,9 @@ func AddMarketRetrieve(sid string) error {
 }
 
 func GetExpireMarketRetrieve(invalidTime time.Time) ([]MarketRetrieve, error) {
+	db := GetDB()
 	result := []MarketRetrieve{}
-	if err := database.QueryStructs(GetDB(), &result, "SELECT * FROM market_retrieve WHERE retrieve_time<? AND active=1", invalidTime); err != nil {
+	if err := database.QueryStructs(db, &result, "SELECT * FROM market_retrieve WHERE retrieve_time<? AND active=1", invalidTime); err != nil {
 		return nil, errors.As(err, invalidTime)
 	}
 	return result, nil

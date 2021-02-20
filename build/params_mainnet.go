@@ -4,6 +4,7 @@
 // +build !calibration
 // +build !testground
 // +build !calibnet
+// +build !nerpanet
 
 package build
 

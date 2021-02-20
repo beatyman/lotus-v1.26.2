@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
@@ -44,13 +43,13 @@ func (w *worker) CleanCache(ctx context.Context) error {
 
 func (w *worker) removeCache(ctx context.Context, repo, sid string) error {
 	log.Infof("Remove cache:%s,%s", repo, sid)
-	if err := os.RemoveAll(filepath.Join(repo, "sealed", sid)); err != nil {
+	if err := os.Remove(filepath.Join(repo, "sealed", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
 	if err := os.RemoveAll(filepath.Join(repo, "cache", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
-	if err := os.RemoveAll(filepath.Join(repo, "unsealed", sid)); err != nil {
+	if err := os.Remove(filepath.Join(repo, "unsealed", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
 	if err := w.diskPool.Delete(sid); err != nil {
@@ -61,6 +60,10 @@ func (w *worker) removeCache(ctx context.Context, repo, sid string) error {
 
 func (w *worker) cleanCache(ctx context.Context, repo, typ string) error {
 	dir := filepath.Join(repo, typ)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return errors.As(err, w.workerCfg.IP)
+	}
+
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		log.Warn(errors.As(err))
@@ -69,6 +72,11 @@ func (w *worker) cleanCache(ctx context.Context, repo, typ string) error {
 		for _, f := range files {
 			fileNames = append(fileNames, f.Name())
 		}
+		// no file to clean
+		if len(fileNames) == 0 {
+			return nil
+		}
+
 		api, err := GetNodeApi()
 		if err != nil {
 			return errors.As(err)
@@ -90,9 +98,6 @@ func (w *worker) cleanCache(ctx context.Context, repo, typ string) error {
 			}
 		}
 	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return errors.As(err, w.workerCfg.IP)
-	}
 	return nil
 }
 
@@ -110,11 +115,6 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		return errors.As(err)
 	}
 	mountUri := ss.MountTransfUri
-	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
-		log.Infof("found local storage, chagne %s to mount local", mountUri)
-		// fix to 127.0.0.1 if it has the same ip.
-		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
-	}
 	mountDir := filepath.Join(w.sealedRepo, sid)
 	if err := w.mountRemote(
 		sid,
@@ -166,11 +166,6 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	}
 
 	mountUri := ss.MountTransfUri
-	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
-		log.Infof("found local storage, chagne %s to mount local", mountUri)
-		// fix to 127.0.0.1 if it has the same ip.
-		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
-	}
 	mountDir := filepath.Join(w.sealedRepo, sid)
 	if err := w.mountRemote(
 		sid,
@@ -209,11 +204,6 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 	}
 
 	mountUri := ss.MountTransfUri
-	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
-		log.Infof("found local storage, chagne %s to mount local", mountUri)
-		// fix to 127.0.0.1 if it has the same ip.
-		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
-	}
 	mountDir := filepath.Join(w.sealedRepo, sid)
 	if err := w.mountRemote(
 		sid,
@@ -251,11 +241,6 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 	}
 
 	mountUri := ss.MountTransfUri
-	if strings.Index(mountUri, w.workerCfg.IP) > -1 {
-		log.Infof("found local storage, chagne %s to mount local", mountUri)
-		// fix to 127.0.0.1 if it has the same ip.
-		mountUri = strings.Replace(mountUri, w.workerCfg.IP, "127.0.0.1", -1)
-	}
 	mountDir := filepath.Join(w.sealedRepo, sid)
 	if err := w.mountRemote(
 		sid,

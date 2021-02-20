@@ -243,13 +243,7 @@ func (ss *syscallShim) workerKeyAtLookback(height abi.ChainEpoch) (address.Addre
 	return ResolveToKeyAddr(ss.cstate, ss.cst, info.Worker)
 }
 
-var verifyPoStLimit = make(chan int, 1)
 func (ss *syscallShim) VerifyPoSt(proof proof2.WindowPoStVerifyInfo) error {
-	verifyPoStLimit <- 1
-	defer func() {
-		<-verifyPoStLimit
-	}()
-
 	ok, err := ss.verifier.VerifyWindowPoSt(context.TODO(), proof)
 	if err != nil {
 		return err
