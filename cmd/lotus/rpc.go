@@ -30,7 +30,7 @@ import (
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
-	"github.com/filecoin-project/lotus/node/auth"
+	nauth "github.com/filecoin-project/lotus/node/auth"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/gwaylib/errors"
 )
@@ -124,7 +124,7 @@ func serveRPC(repo string, a api.FullNode, stop node.StopFunc, addr multiaddr.Mu
 	log.Info("rebuild tls cert automatic")
 	certPath := filepath.Join(repo, "lotus_crt.pem")
 	keyPath := filepath.Join(repo, "lotus_key.pem")
-	if err := auth.CreateTLSCert(certPath, keyPath); err != nil {
+	if err := nauth.CreateTLSCert(certPath, keyPath); err != nil {
 		return errors.As(err)
 	}
 
