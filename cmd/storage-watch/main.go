@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/gwaylib/errors"
 	"github.com/gwaylib/log"
 )
@@ -37,5 +38,13 @@ func main() {
 	}
 
 	log.Infof("api:%s", *apiFlag)
-	log.Fatal(http.ListenAndServe(*apiFlag, &HttpHandler{}))
+	crtPath := "./storage_crt.pem"
+	keyPath := "./storage_key.pem"
+
+	if err := auth.CreateTLSCert(crtPath, keyPath); err != nil {
+		log.Fatal(errors.As(err))
+		return
+	}
+
+	log.Fatal(http.ListenAndServeTLS(*apiFlag, crtPath, keyPath, &HttpHandler{}))
 }
