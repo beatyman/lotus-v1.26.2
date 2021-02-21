@@ -30,7 +30,7 @@ import (
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
-	nauth "github.com/filecoin-project/lotus/node/auth"
+	nauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/gwaylib/errors"
 )
