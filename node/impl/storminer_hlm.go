@@ -23,7 +23,7 @@ func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []st
 }
 
 func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
-	return proxy.LotusProxyStatus(ctx), nil
+	return proxy.LotusProxyStatus(ctx)
 }
 func (sm *StorageMinerAPI) ProxyReload(ctx context.Context) error {
 	return proxy.RealoadLotusProxy(ctx)

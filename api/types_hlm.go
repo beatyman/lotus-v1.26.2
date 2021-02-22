@@ -7,4 +7,7 @@ type ProxyStatus struct {
 	// for lotus
 	Height    int64
 	UsedTimes int
+
+	// lotus sync status
+	SyncStat *SyncState
 }
