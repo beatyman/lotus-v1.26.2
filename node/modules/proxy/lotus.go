@@ -157,7 +157,7 @@ func checkLotusEpoch() {
 				bestLotusNode.apiInfo.Addr, bestLotusNode.IsAlive(), bestLotusNode.curHeight,
 				lotusNodes[0].apiInfo.Addr, lotusNodes[0].IsAlive(), lotusNodes[0].curHeight,
 			)
-			bestLotusNode.Close()
+			//bestLotusNode.Close()
 			bestLotusNode = nil
 		}
 	}
