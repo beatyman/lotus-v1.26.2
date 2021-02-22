@@ -123,6 +123,9 @@ type storageMinerApi interface {
 
 	// implememt by hlm
 	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)
+	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
+	WalletSignMessage(context.Context, []byte, address.Address, *types.Message) (*types.SignedMessage, error)
+	MpoolPush(context.Context, *types.SignedMessage) (cid.Cid, error)
 }
 
 func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, journal journal.Journal, as *AddressSelector, fps *WindowPoStScheduler) (*Miner, error) {
