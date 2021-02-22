@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gwaylib/errors"
-
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
@@ -87,48 +85,12 @@ type changeHandlerAPIImpl struct {
 	*WindowPoStScheduler
 }
 
-func nextRoundTime(ts *types.TipSet) time.Time {
-	return time.Unix(int64(ts.MinTimestamp())+int64(build.BlockDelaySecs), 0)
-}
-
 func (s *WindowPoStScheduler) Run(ctx context.Context) {
 	// Initialize change handler
 	chImpl := &changeHandlerAPIImpl{storageMinerApi: s.api, WindowPoStScheduler: s}
 	s.ch = newChangeHandler(chImpl, s.actor)
 	defer s.ch.shutdown()
 	s.ch.start()
-
-	var lastTsHeight abi.ChainEpoch
-	for {
-		bts, err := s.api.ChainHead(ctx)
-		if err != nil {
-			log.Error(errors.As(err))
-			time.Sleep(time.Second)
-			continue
-		}
-		if bts.Height() == lastTsHeight {
-			time.Sleep(time.Second)
-			continue
-		}
-
-		log.Infof("Checking window post at:%d", bts.Height())
-		lastTsHeight = bts.Height()
-
-		s.autoWithdraw(bts)
-
-		s.update(ctx, nil, bts)
-
-		// loop to next time.
-		select {
-		case <-time.After(time.Until(nextRoundTime(bts))):
-			continue
-		case <-ctx.Done():
-			return
-		}
-	}
-
-	// close this function and use the timer from mining
-	return
 
 	var notifs <-chan []*api.HeadChange
 	var err error
@@ -206,6 +168,8 @@ func (s *WindowPoStScheduler) update(ctx context.Context, revert, apply *types.T
 		log.Error("no new tipset in window post WindowPoStScheduler.update")
 		return
 	}
+
+	s.autoWithdraw(apply) // by hlm
 
 	err := s.ch.update(ctx, revert, apply)
 	if err != nil {
