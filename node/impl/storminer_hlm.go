@@ -21,7 +21,9 @@ import (
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
 	return sm.Miner.Testing(ctx, fnName, args)
 }
-
+func (sm *StorageMinerAPI) ProxyUsing(ctx context.Context) (string, error) {
+	return proxy.LotusProxyUsing(), nil
+}
 func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
 	return proxy.LotusProxyStatus(ctx)
 }

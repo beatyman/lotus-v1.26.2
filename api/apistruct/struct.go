@@ -395,6 +395,7 @@ type StorageMinerStruct struct {
 
 		// implements by hlm
 
+		ProxyUsing                    func(ctx context.Context) (string, error)                                                 `perm:"read"`
 		ProxyStatus                   func(ctx context.Context) ([]api.ProxyStatus, error)                                      `perm:"read"`
 		ProxyReload                   func(ctx context.Context) error                                                           `perm:"write"`
 		StatusMinerStorage            func(ctx context.Context) ([]byte, error)                                                 `perm:"read"`
@@ -1340,6 +1341,9 @@ func (c *FullNodeStruct) CreateBackup(ctx context.Context, fpath string) error {
 // StorageMinerStruct
 
 // implements by hlm start
+func (c *StorageMinerStruct) ProxyUsing(ctx context.Context) (string, error) {
+	return c.Internal.ProxyUsing(ctx)
+}
 func (c *StorageMinerStruct) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
 	return c.Internal.ProxyStatus(ctx)
 }

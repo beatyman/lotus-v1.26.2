@@ -96,6 +96,7 @@ func (l *LotusNode) GetConn() (api.FullNode, net.Conn, error) {
 
 var (
 	lotusProxyCfg    string
+	lotusProxyOn     bool
 	lotusProxyAddr   *cliutil.APIInfo
 	lotusProxyCloser io.Closer
 	lotusNodes       = []*LotusNode{}
@@ -246,13 +247,18 @@ func handleLotus(srcConn net.Conn) {
 func UseLotusProxy(ctx context.Context, cfgFile string) error {
 	lotusNodesLock.Lock()
 	defer lotusNodesLock.Unlock()
-	return loadLotusProxy(ctx, cfgFile)
+	if err := loadLotusProxy(ctx, cfgFile); err != nil {
+		return errors.As(err)
+	}
+	lotusProxyOn = true
+	return nil
 }
 
 func UseLotusDefault(ctx context.Context, addr cliutil.APIInfo) error {
 	lotusNodesLock.Lock()
 	defer lotusNodesLock.Unlock()
 	lotusProxyAddr = &addr
+	lotusProxyOn = false
 	return reloadNodes(nil, []*LotusNode{
 		&LotusNode{
 			ctx:     ctx,
@@ -397,28 +403,8 @@ func reloadNodes(proxyAddr *cliutil.APIInfo, nodes []*LotusNode) error {
 	return nil
 }
 
-func LotusProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
+func lotusProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
 	result := []api.ProxyStatus{}
-
-	// best client always at the first position.
-	if bestLotusNode != nil {
-		st, err := bestLotusNode.nodeApi.SyncState(ctx)
-		if err != nil {
-			return nil, errors.As(err)
-		}
-		result = append(result, api.ProxyStatus{
-			Addr:      bestLotusNode.apiInfo.Addr,
-			Alive:     bestLotusNode.IsAlive(),
-			Height:    bestLotusNode.curHeight,
-			UsedTimes: bestLotusNode.usedTimes,
-			SyncStat:  st,
-		})
-	} else {
-		result = append(result, api.ProxyStatus{})
-	}
-
 	for _, c := range lotusNodes {
 		isAlive := c.IsAlive()
 		var stat *api.SyncState
@@ -440,8 +426,32 @@ func LotusProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
 	return result, nil
 }
 
+// for lotus api connect
+// if the proxy on, it would be miner's proxy.
+// else it should be the origin api connection.
 func LotusProxyAddr() *cliutil.APIInfo {
 	lotusNodesLock.Lock()
 	defer lotusNodesLock.Unlock()
 	return lotusProxyAddr
+}
+
+func LotusProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
+	lotusNodesLock.Lock()
+	defer lotusNodesLock.Unlock()
+	return lotusProxyStatus(ctx)
+}
+func LotusProxyUsing() string {
+	lotusNodesLock.Lock()
+	defer lotusNodesLock.Unlock()
+	if lotusProxyOn {
+		if bestLotusNode == nil {
+			return ""
+		}
+		return bestLotusNode.apiInfo.Addr
+	}
+
+	if lotusProxyAddr == nil {
+		return ""
+	}
+	return lotusProxyAddr.Addr
 }
