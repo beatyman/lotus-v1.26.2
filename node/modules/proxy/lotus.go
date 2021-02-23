@@ -97,7 +97,7 @@ var (
 	lotusProxyOn     bool
 	lotusAutoSelect  bool
 	lotusProxyAddr   *cliutil.APIInfo
-	lotusProxyCloser io.Closer
+	lotusProxyCloser func() error
 	lotusNodes       = []*LotusNode{}
 	bestLotusNode    *LotusNode
 	lotusNodesLock   = sync.Mutex{}
@@ -159,16 +159,24 @@ func checkLotusEpoch() {
 }
 
 func selectBestNode(diff int64) {
-	// change the best client
-	if len(lotusNodes) > 1 && bestLotusNode != nil {
-		if lotusNodes[0].curHeight-bestLotusNode.curHeight > diff || !bestLotusNode.IsAlive() {
-			log.Warnf("the best lotus node %s(alive:%t, height:%d) is unavailable, best lotus node should change to:%s(alive:%t, height:%d)",
-				bestLotusNode.apiInfo.Addr, bestLotusNode.IsAlive(), bestLotusNode.curHeight,
-				lotusNodes[0].apiInfo.Addr, lotusNodes[0].IsAlive(), lotusNodes[0].curHeight,
-			)
-		}
+	if bestLotusNode == nil {
+		changeLotusNode(0)
+		return
+	}
+	if len(lotusNodes) == 0 {
+		// no nodes to compare
+		return
+	}
+
+	// change the node
+	if lotusNodes[0].curHeight-bestLotusNode.curHeight > diff || !bestLotusNode.IsAlive() {
+		log.Warnf("the best lotus node %s(alive:%t, height:%d) is unavailable, best lotus node should change to:%s(alive:%t, height:%d)",
+			bestLotusNode.apiInfo.Addr, bestLotusNode.IsAlive(), bestLotusNode.curHeight,
+			lotusNodes[0].apiInfo.Addr, lotusNodes[0].IsAlive(), lotusNodes[0].curHeight,
+		)
 		changeLotusNode(0)
 	}
+	return
 }
 
 func changeLotusNode(idx int) {
@@ -186,24 +194,35 @@ func changeLotusNode(idx int) {
 	return
 }
 
-func startLotusProxy(addr string) (io.Closer, error) {
+func startLotusProxy(addr string) (func() error, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, errors.As(err, addr)
 	}
+	log.Infof("start lotus proxy : %s", addr)
 
+	exit := make(chan bool, 1)
 	go func() {
 		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				// handle error
-				log.Warn(errors.As(err))
-				continue
+			select {
+			case <-exit:
+				break
+			default:
+				conn, err := ln.Accept()
+				if err != nil {
+					// handle error
+					log.Warn(errors.As(err))
+					continue
+				}
+				log.Info("DEBUG : accept conn")
+				go handleLotus(conn)
 			}
-			go handleLotus(conn)
 		}
 	}()
-	return ln, nil
+	return func() error {
+		exit <- true
+		return ln.Close()
+	}, nil
 }
 
 func handleLotus(srcConn net.Conn) {
@@ -342,7 +361,7 @@ func reloadNodes(proxyAddr *cliutil.APIInfo, nodes []*LotusNode) error {
 		}
 
 		if lotusProxyCloser != nil {
-			lotusProxyCloser.Close()
+			lotusProxyCloser()
 			lotusProxyCloser = nil
 			lotusProxyAddr = nil
 		}
