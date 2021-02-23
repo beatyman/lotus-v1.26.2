@@ -144,11 +144,9 @@ func (s *WindowPoStScheduler) autoWithdraw(ts *types.TipSet) {
 		return
 	}
 	if len(cfg.SendToAddr) == 0 {
-		log.Info("send to addr not found")
 		return
 	}
 	if int64(ts.Height())-s.autoWithdrawLastEpoch < cfg.IntervalEpoch {
-		log.Info("auto withdraw interval not reached")
 		return
 	}
 	s.autoWithdrawLastEpoch = int64(ts.Height())
