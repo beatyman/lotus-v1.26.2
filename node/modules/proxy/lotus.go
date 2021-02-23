@@ -101,9 +101,15 @@ var (
 	lotusNodes       = []*LotusNode{}
 	bestLotusNode    *LotusNode
 	lotusNodesLock   = sync.Mutex{}
+	lotusCheckOnce   sync.Once
 )
 
 func checkLotusEpoch() {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Error(err)
+		}
+	}()
 	done := make(chan bool, len(lotusNodes))
 	for _, client := range lotusNodes {
 		go func(c *LotusNode) {
@@ -185,15 +191,6 @@ func startLotusProxy(addr string) (io.Closer, error) {
 				continue
 			}
 			go handleLotus(conn)
-		}
-	}()
-	go func() {
-		tick := time.Tick(time.Duration(build.BlockDelaySecs) * time.Second)
-		for {
-			lotusNodesLock.Lock()
-			checkLotusEpoch()
-			lotusNodesLock.Unlock()
-			<-tick
 		}
 	}()
 	return ln, nil
@@ -355,6 +352,19 @@ func reloadNodes(proxyAddr *cliutil.APIInfo, nodes []*LotusNode) error {
 		node.Close()
 		log.Infof("remove lotus node:%s", node.apiInfo.String())
 	}
+
+	// only once call.
+	go func() {
+		lotusCheckOnce.Do(func() {
+			tick := time.Tick(time.Duration(build.BlockDelaySecs) * time.Second)
+			for {
+				lotusNodesLock.Lock()
+				checkLotusEpoch()
+				lotusNodesLock.Unlock()
+				<-tick
+			}
+		})
+	}()
 
 	if proxyAddr == nil {
 		return nil

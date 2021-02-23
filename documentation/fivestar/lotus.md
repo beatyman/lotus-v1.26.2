@@ -39,6 +39,9 @@ export GOPROXY="https://goproxy.io,direct"
 export GOPRIVATE="github.com/filecoin-fivestar"
 export GIT_TERMINAL_PROMPT=1
 export PATH=$GOROOT/bin:$PATH:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+
+export FIL_PROOFS_PARENT_CACHE="/data/cache/filecoin-parents"
+export FIL_PROOFS_PARAMETER_CACHE="/data/cache/filecoin-proof-parameters/v28" 
 exit # 退出sudo su -
 ```
 
