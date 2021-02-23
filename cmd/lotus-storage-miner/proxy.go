@@ -70,6 +70,12 @@ var proxyChangeCmd = &cli.Command{
 var proxyStatusCmd = &cli.Command{
 	Name:  "status",
 	Usage: "get the proxy status",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "sync",
+			Usage: "show the lotus sync status",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -78,7 +84,7 @@ var proxyStatusCmd = &cli.Command{
 		defer closer()
 
 		ctx := lcli.ReqContext(cctx)
-		status, err := mApi.ProxyStatus(ctx)
+		status, err := mApi.ProxyStatus(ctx, cctx.Bool("sync"))
 		if err != nil {
 			return errors.As(err)
 		}
@@ -94,51 +100,53 @@ var proxyStatusCmd = &cli.Command{
 			)
 		}
 
-		fmt.Println()
-		fmt.Println("lotus sync:")
-		for i := 0; i < len(nodes); i++ {
-			fmt.Printf("addr:%s, ", nodes[i].Addr)
-			// for sync status
-			state := nodes[i].SyncStat
-			if state == nil {
-				fmt.Println("no state")
-				continue
-			}
-			result := []api.ActiveSync{}
-			for i := len(state.ActiveSyncs) - 1; i > -1; i-- {
-				result = append(result, state.ActiveSyncs[i])
-			}
-			fmt.Println("sync status:")
-			for _, ss := range result {
-				fmt.Printf("worker %d:\n", ss.WorkerID)
-				var base, target []cid.Cid
-				var heightDiff int64
-				var theight abi.ChainEpoch
-				if ss.Base != nil {
-					base = ss.Base.Cids()
-					heightDiff = int64(ss.Base.Height())
+		if cctx.Bool("sync") {
+			fmt.Println()
+			fmt.Println("lotus sync:")
+			for i := 0; i < len(nodes); i++ {
+				fmt.Printf("addr:%s, ", nodes[i].Addr)
+				// for sync status
+				state := nodes[i].SyncStat
+				if state == nil {
+					fmt.Println("no stats")
+					continue
 				}
-				if ss.Target != nil {
-					target = ss.Target.Cids()
-					heightDiff = int64(ss.Target.Height()) - heightDiff
-					theight = ss.Target.Height()
-				} else {
-					heightDiff = 0
+				result := []api.ActiveSync{}
+				for i := len(state.ActiveSyncs) - 1; i > -1; i-- {
+					result = append(result, state.ActiveSyncs[i])
 				}
-				fmt.Printf("\tBase:\t%s\n", base)
-				fmt.Printf("\tTarget:\t%s (%d)\n", target, theight)
-				fmt.Printf("\tHeight diff:\t%d\n", heightDiff)
-				fmt.Printf("\tStage: %s\n", ss.Stage)
-				fmt.Printf("\tHeight: %d\n", ss.Height)
-				if ss.End.IsZero() {
-					if !ss.Start.IsZero() {
-						fmt.Printf("\tElapsed: %s\n", time.Since(ss.Start))
+				fmt.Println("sync status:")
+				for _, ss := range result {
+					fmt.Printf("worker %d:\n", ss.WorkerID)
+					var base, target []cid.Cid
+					var heightDiff int64
+					var theight abi.ChainEpoch
+					if ss.Base != nil {
+						base = ss.Base.Cids()
+						heightDiff = int64(ss.Base.Height())
 					}
-				} else {
-					fmt.Printf("\tElapsed: %s\n", ss.End.Sub(ss.Start))
-				}
-				if ss.Stage == api.StageSyncErrored {
-					fmt.Printf("\tError: %s\n", ss.Message)
+					if ss.Target != nil {
+						target = ss.Target.Cids()
+						heightDiff = int64(ss.Target.Height()) - heightDiff
+						theight = ss.Target.Height()
+					} else {
+						heightDiff = 0
+					}
+					fmt.Printf("\tBase:\t%s\n", base)
+					fmt.Printf("\tTarget:\t%s (%d)\n", target, theight)
+					fmt.Printf("\tHeight diff:\t%d\n", heightDiff)
+					fmt.Printf("\tStage: %s\n", ss.Stage)
+					fmt.Printf("\tHeight: %d\n", ss.Height)
+					if ss.End.IsZero() {
+						if !ss.Start.IsZero() {
+							fmt.Printf("\tElapsed: %s\n", time.Since(ss.Start))
+						}
+					} else {
+						fmt.Printf("\tElapsed: %s\n", ss.End.Sub(ss.Start))
+					}
+					if ss.Stage == api.StageSyncErrored {
+						fmt.Printf("\tError: %s\n", ss.Message)
+					}
 				}
 			}
 		}

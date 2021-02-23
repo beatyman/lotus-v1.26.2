@@ -48,10 +48,15 @@ func UseLotusDefault(ctx context.Context, addr cliutil.APIInfo) error {
 func RealoadLotusProxy(ctx context.Context) error {
 	lotusNodesLock.Lock()
 	defer lotusNodesLock.Unlock()
+
 	if len(lotusProxyCfg) == 0 {
 		return errors.New("no proxy in running")
 	}
-	return UseLotusProxy(ctx, lotusProxyCfg)
+
+	if !lotusProxyOn {
+		return errors.New("proxy not on, need restart the deployment to lotus.proxy mode")
+	}
+	return loadLotusProxy(ctx, lotusProxyCfg)
 }
 
 func SelectBestNode() error {
@@ -93,9 +98,9 @@ func LotusProxyAddr() *cliutil.APIInfo {
 	return lotusProxyAddr
 }
 
-func LotusProxyStatus(ctx context.Context) (*api.ProxyStatus, error) {
+func LotusProxyStatus(ctx context.Context, getSync bool) (*api.ProxyStatus, error) {
 	lotusNodesLock.Lock()
 	defer lotusNodesLock.Unlock()
 	checkLotusEpoch()
-	return lotusProxyStatus(ctx)
+	return lotusProxyStatus(ctx, getSync)
 }

@@ -251,6 +251,7 @@ func handleLotus(srcConn net.Conn) {
 			log.Warn(errors.As(err))
 
 			lotusNodesLock.Lock()
+			bestLotusNode.Close()
 			checkLotusEpoch()
 			lotusNodesLock.Unlock()
 
@@ -264,6 +265,7 @@ func handleLotus(srcConn net.Conn) {
 			log.Warn(errors.As(err))
 
 			lotusNodesLock.Lock()
+			bestLotusNode.Close()
 			checkLotusEpoch()
 			lotusNodesLock.Unlock()
 
@@ -394,14 +396,13 @@ func lotusProxying() string {
 	return lotusProxyAddr.Addr
 }
 
-func lotusProxyStatus(ctx context.Context) (*api.ProxyStatus, error) {
-
+func lotusProxyStatus(ctx context.Context, getSync bool) (*api.ProxyStatus, error) {
 	proxyingAddr := lotusProxying()
 	nodes := []api.ProxyNode{}
 	for _, c := range lotusNodes {
 		isAlive := c.IsAlive()
 		var stat *api.SyncState
-		if isAlive {
+		if isAlive && getSync {
 			st, err := c.nodeApi.SyncState(ctx)
 			if err != nil {
 				continue

@@ -27,8 +27,8 @@ func (sm *StorageMinerAPI) ProxyAutoSelect(ctx context.Context, on bool) error {
 func (sm *StorageMinerAPI) ProxyChange(ctx context.Context, idx int) error {
 	return proxy.LotusProxyChange(idx)
 }
-func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context) (*api.ProxyStatus, error) {
-	return proxy.LotusProxyStatus(ctx)
+func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context, getSync bool) (*api.ProxyStatus, error) {
+	return proxy.LotusProxyStatus(ctx, getSync)
 }
 func (sm *StorageMinerAPI) ProxyReload(ctx context.Context) error {
 	return proxy.RealoadLotusProxy(ctx)

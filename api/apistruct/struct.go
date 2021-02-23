@@ -120,6 +120,7 @@ type FullNodeStruct struct {
 		GasEstimateMessageGas func(context.Context, *types.Message, *api.MessageSendSpec, types.TipSetKey) (*types.Message, error) `perm:"read"`
 
 		SyncState          func(context.Context) (*api.SyncState, error)                `perm:"read"`
+		SyncProgress       func(context.Context) (api.SyncProgress, error)              `perm:"read"`
 		SyncSubmitBlock    func(ctx context.Context, blk *types.BlockMsg) error         `perm:"write"`
 		SyncIncomingBlocks func(ctx context.Context) (<-chan *types.BlockHeader, error) `perm:"read"`
 		SyncCheckpoint     func(ctx context.Context, key types.TipSetKey) error         `perm:"admin"`
@@ -396,7 +397,7 @@ type StorageMinerStruct struct {
 		// implements by hlm
 		ProxyAutoSelect               func(ctx context.Context, on bool) error                                                  `perm:"write"`
 		ProxyChange                   func(ctx context.Context, idx int) error                                                  `perm:"write"`
-		ProxyStatus                   func(ctx context.Context) (*api.ProxyStatus, error)                                       `perm:"read"`
+		ProxyStatus                   func(ctx context.Context, getSync bool) (*api.ProxyStatus, error)                         `perm:"read"`
 		ProxyReload                   func(ctx context.Context) error                                                           `perm:"write"`
 		StatusMinerStorage            func(ctx context.Context) ([]byte, error)                                                 `perm:"read"`
 		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                              `perm:"write"`
@@ -965,6 +966,9 @@ func (c *FullNodeStruct) BeaconGetEntry(ctx context.Context, epoch abi.ChainEpoc
 func (c *FullNodeStruct) SyncState(ctx context.Context) (*api.SyncState, error) {
 	return c.Internal.SyncState(ctx)
 }
+func (c *FullNodeStruct) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
+	return c.Internal.SyncProgress(ctx)
+}
 
 func (c *FullNodeStruct) SyncSubmitBlock(ctx context.Context, blk *types.BlockMsg) error {
 	return c.Internal.SyncSubmitBlock(ctx, blk)
@@ -1347,8 +1351,8 @@ func (c *StorageMinerStruct) ProxyAutoSelect(ctx context.Context, on bool) error
 func (c *StorageMinerStruct) ProxyChange(ctx context.Context, idx int) error {
 	return c.Internal.ProxyChange(ctx, idx)
 }
-func (c *StorageMinerStruct) ProxyStatus(ctx context.Context) (*api.ProxyStatus, error) {
-	return c.Internal.ProxyStatus(ctx)
+func (c *StorageMinerStruct) ProxyStatus(ctx context.Context, getSync bool) (*api.ProxyStatus, error) {
+	return c.Internal.ProxyStatus(ctx, getSync)
 }
 func (c *StorageMinerStruct) ProxyReload(ctx context.Context) error {
 	return c.Internal.ProxyReload(ctx)
