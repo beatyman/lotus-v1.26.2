@@ -21,10 +21,13 @@ import (
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
 	return sm.Miner.Testing(ctx, fnName, args)
 }
-func (sm *StorageMinerAPI) ProxyUsing(ctx context.Context) (string, error) {
-	return proxy.LotusProxyUsing(), nil
+func (sm *StorageMinerAPI) ProxyAutoSelect(ctx context.Context, on bool) error {
+	return proxy.SetLotusAutoSelect(on)
 }
-func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
+func (sm *StorageMinerAPI) ProxyChange(ctx context.Context, idx int) error {
+	return proxy.LotusProxyChange(idx)
+}
+func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context) (*api.ProxyStatus, error) {
 	return proxy.LotusProxyStatus(ctx)
 }
 func (sm *StorageMinerAPI) ProxyReload(ctx context.Context) error {

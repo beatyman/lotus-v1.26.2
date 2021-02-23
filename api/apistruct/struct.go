@@ -394,9 +394,9 @@ type StorageMinerStruct struct {
 		CheckProvable func(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error) `perm:"admin"`
 
 		// implements by hlm
-
-		ProxyUsing                    func(ctx context.Context) (string, error)                                                 `perm:"read"`
-		ProxyStatus                   func(ctx context.Context) ([]api.ProxyStatus, error)                                      `perm:"read"`
+		ProxyAutoSelect               func(ctx context.Context, on bool) error                                                  `perm:"write"`
+		ProxyChange                   func(ctx context.Context, idx int) error                                                  `perm:"write"`
+		ProxyStatus                   func(ctx context.Context) (*api.ProxyStatus, error)                                       `perm:"read"`
 		ProxyReload                   func(ctx context.Context) error                                                           `perm:"write"`
 		StatusMinerStorage            func(ctx context.Context) ([]byte, error)                                                 `perm:"read"`
 		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                              `perm:"write"`
@@ -1341,10 +1341,13 @@ func (c *FullNodeStruct) CreateBackup(ctx context.Context, fpath string) error {
 // StorageMinerStruct
 
 // implements by hlm start
-func (c *StorageMinerStruct) ProxyUsing(ctx context.Context) (string, error) {
-	return c.Internal.ProxyUsing(ctx)
+func (c *StorageMinerStruct) ProxyAutoSelect(ctx context.Context, on bool) error {
+	return c.Internal.ProxyAutoSelect(ctx, on)
 }
-func (c *StorageMinerStruct) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
+func (c *StorageMinerStruct) ProxyChange(ctx context.Context, idx int) error {
+	return c.Internal.ProxyChange(ctx, idx)
+}
+func (c *StorageMinerStruct) ProxyStatus(ctx context.Context) (*api.ProxyStatus, error) {
 	return c.Internal.ProxyStatus(ctx)
 }
 func (c *StorageMinerStruct) ProxyReload(ctx context.Context) error {

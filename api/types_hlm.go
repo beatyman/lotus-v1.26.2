@@ -1,8 +1,9 @@
 package api
 
-type ProxyStatus struct {
+type ProxyNode struct {
 	Addr  string
 	Alive bool
+	Using bool
 
 	// for lotus
 	Height    int64
@@ -10,4 +11,10 @@ type ProxyStatus struct {
 
 	// lotus sync status
 	SyncStat *SyncState
+}
+
+type ProxyStatus struct {
+	ProxyOn    bool
+	AutoSelect bool
+	Nodes      []ProxyNode
 }

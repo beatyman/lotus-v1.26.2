@@ -32,9 +32,10 @@ type StorageMiner interface {
 	Common
 
 	// implement the proxy
-	ProxyUsing(context.Context) (string, error)
-	ProxyStatus(context.Context) ([]ProxyStatus, error)
+	ProxyAutoSelect(context.Context, bool) error
+	ProxyChange(context.Context, int) error
 	ProxyReload(context.Context) error
+	ProxyStatus(context.Context) (*ProxyStatus, error)
 	StatusMinerStorage(ctx context.Context) ([]byte, error)
 
 	ActorAddress(context.Context) (address.Address, error)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -17,8 +18,53 @@ var proxyCmd = &cli.Command{
 	Name:  "proxy",
 	Usage: "Manage proxy",
 	Subcommands: []*cli.Command{
+		proxyAutoCmd,
+		proxyChangeCmd,
 		proxyStatusCmd,
 		proxyReloadCmd,
+	},
+}
+var proxyAutoCmd = &cli.Command{
+	Name:  "auto",
+	Usage: "change the proxy auto select a node",
+	Action: func(cctx *cli.Context) error {
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		on := false
+		switch cctx.Args().First() {
+		case "off":
+			on = false
+		case "on":
+			on = true
+		default:
+			fmt.Println("need input 'on' or 'off'")
+			return nil
+		}
+
+		ctx := lcli.ReqContext(cctx)
+		return mApi.ProxyAutoSelect(ctx, on)
+	},
+}
+var proxyChangeCmd = &cli.Command{
+	Name:  "change",
+	Usage: "change the proxy to a node of given",
+	Action: func(cctx *cli.Context) error {
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		idx, err := strconv.Atoi(cctx.Args().First())
+		if err != nil {
+			fmt.Println("need index of list nodes")
+			return nil
+		}
+
+		ctx := lcli.ReqContext(cctx)
+		return mApi.ProxyChange(ctx, idx)
 	},
 }
 var proxyStatusCmd = &cli.Command{
@@ -32,30 +78,30 @@ var proxyStatusCmd = &cli.Command{
 		defer closer()
 
 		ctx := lcli.ReqContext(cctx)
-		// in using
-		usingAddr, err := mApi.ProxyUsing(ctx)
-		if err != nil {
-			return errors.As(err)
-		}
-
 		status, err := mApi.ProxyStatus(ctx)
 		if err != nil {
 			return errors.As(err)
 		}
-		fmt.Println("all lotus node:")
-		fmt.Println("------------------")
-		for i := 0; i < len(status); i++ {
-			fmt.Printf("addr:%s, inusing:%t, alive: %t, height:%d, used-times:%d\n", status[i].Addr == usingAddr, status[i].Addr, status[i].Alive, status[i].Height, status[i].UsedTimes)
+		fmt.Printf("proxy on: %t, auto select: %t \n", status.ProxyOn, status.AutoSelect)
+		fmt.Println("-----------------------------------")
+
+		nodes := status.Nodes
+		fmt.Println("lotus nodes:")
+		for i := 0; i < len(nodes); i++ {
+			fmt.Printf(
+				"idx:%d, addr:%s, using:%t, alive:%t, height:%d, used-times:%d\n",
+				i, nodes[i].Addr, nodes[i].Using, nodes[i].Alive, nodes[i].Height, nodes[i].UsedTimes,
+			)
 		}
 
 		fmt.Println()
-		fmt.Println("all lotus sync:")
-		fmt.Println("------------------")
-		for i := 0; i < len(status); i++ {
-			fmt.Printf("addr:%s, alive: %t, height:%d, used-times:%d\n", status[i].Addr, status[i].Alive, status[i].Height, status[i].UsedTimes)
+		fmt.Println("lotus sync:")
+		for i := 0; i < len(nodes); i++ {
+			fmt.Printf("addr:%s, ", nodes[i].Addr)
 			// for sync status
-			state := status[i].SyncStat
+			state := nodes[i].SyncStat
 			if state == nil {
+				fmt.Println("no state")
 				continue
 			}
 			result := []api.ActiveSync{}
@@ -99,6 +145,7 @@ var proxyStatusCmd = &cli.Command{
 		return nil
 	},
 }
+
 var proxyReloadCmd = &cli.Command{
 	Name:  "reload",
 	Usage: "Reload the proxy configration file",
