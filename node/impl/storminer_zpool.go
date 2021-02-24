@@ -29,7 +29,7 @@ func (sm *StorageMinerAPI) StatusMinerStorage(ctx context.Context) ([]byte, erro
 
 	_, err := exec.LookPath("zpool")
 	if err != nil {
-		out := []byte("zpool not found")
+		out := []byte("zpool command not found\n")
 		zpoolCache = &ZpoolQuery{
 			out:        out,
 			createTime: now,
