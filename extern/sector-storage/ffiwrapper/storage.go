@@ -2,11 +2,14 @@ package ffiwrapper
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -240,7 +243,8 @@ func (sb *Sealer) ChecksumStorage(sumVer int64) ([]database.StorageInfo, error) 
 	return database.ChecksumStorage(sumVer)
 }
 
-func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) {
+func (sb *Sealer) StorageStatus(ctx context.Context, id int64, origin bool, timeout time.Duration) ([]database.StorageStatus, error) {
+	httpsClient := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
 	checkFn := func(c *database.StorageStatus) error {
 		mountPath := filepath.Join(c.MountDir, fmt.Sprintf("%d", c.StorageId))
 
@@ -255,7 +259,33 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 		if string(output) != "success" {
 			return errors.New("output not match").As(string(output))
 		}
-		return nil
+
+		if !origin || c.Kind != 0 {
+			return nil
+		}
+
+		// TODO: set the url to database.
+		// checkt the storage status
+		uri := strings.Split(c.MountUri, ":")
+		if len(uri) < 1 {
+			return errors.New("error mount uri format")
+		}
+		resp, err := httpsClient.Get("https://" + uri[0] + ":1330/check")
+		if err != nil {
+			return errors.As(err)
+		}
+		defer resp.Body.Close()
+		data, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return errors.As(err)
+		}
+		if strings.Contains(string(data), "all pools are healthy") {
+			return nil
+		}
+		if len(data) > 0 {
+			return errors.New(string(data))
+		}
+		return errors.New("zpool error").As(resp.StatusCode, string(data))
 	}
 
 	result, err := database.GetStorageCheck(id)

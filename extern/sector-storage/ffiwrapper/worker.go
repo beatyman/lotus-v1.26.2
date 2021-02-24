@@ -1036,7 +1036,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		state := int(task.Type) + 1
 		r.UpdateTask(task.SectorName(), state) // set state to done
 
-		log.Infof("Delete task result waiting :%s", taskKey)
+		log.Infof("Delete task waiting :%s", taskKey)
 		_remoteResultLk.Lock()
 		delete(_remoteResult, taskKey)
 		_remoteResultLk.Unlock()
@@ -1068,7 +1068,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		return SealRes{}, true
 	case res := <-resCh:
 		// send the result back to the caller
-		log.Infof("Got task ret:%s", res.TaskID)
+		log.Infof("DEBUG: return task:%s", res.TaskID)
 		return res, false
 	}
 }

@@ -223,28 +223,19 @@ func (m *Miner) mine(ctx context.Context) {
 
 		syncLoop:
 			syncing := false
-			state, err := m.api.SyncState(ctx)
+			progress, err := m.api.SyncProgress(ctx)
 			if err == nil {
-				var maxCurHeight, maxTargetHeight abi.ChainEpoch
-				for _, ss := range state.ActiveSyncs {
-					if ss.Target == nil {
-						continue
-					}
-					if ss.Height > maxCurHeight {
-						maxCurHeight = ss.Height
-					}
-					if ss.Target.Height() > maxTargetHeight {
-						maxTargetHeight = ss.Target.Height()
-					}
-				}
-				// maybe > 1?
-				if maxTargetHeight > 0 && maxTargetHeight-maxCurHeight > 0 {
+				if progress.Syncing {
 					syncing = true
-					log.Infof("Waiting chain sync, current:%d, target:%d", maxCurHeight, maxTargetHeight)
+					log.Infof("Waiting chain sync, current:%d, target:%d",
+						progress.VerifyHeight,
+						progress.TargetHeight,
+					)
 					time.Sleep(5e9)
 					goto syncLoop
 				}
 				if syncing {
+					// when sync done, goto mining again
 					goto miningBegin
 				}
 			}

@@ -154,11 +154,11 @@ type handler struct {
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "only POST is allowed", http.StatusBadRequest)
-		return
-	}
-
+	//if r.Method != http.MethodPost {
+	//	http.Error(w, "only POST is allowed", http.StatusBadRequest)
+	//	return
+	//}
+	//
 	reqIP := r.Header.Get("X-Real-IP")
 	if reqIP == "" {
 		h, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -168,16 +168,16 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reqIP = h
 	}
 
-	capResp, err := VerifyToken(r.FormValue("g-recaptcha-response"), reqIP)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
-	}
-	if !capResp.Success || capResp.Score < h.recapThreshold {
-		log.Infow("spam", "capResp", capResp)
-		http.Error(w, "spam protection", http.StatusUnprocessableEntity)
-		return
-	}
+	//capResp, err := VerifyToken(r.FormValue("g-recaptcha-response"), reqIP)
+	//if err != nil {
+	//	http.Error(w, err.Error(), http.StatusBadGateway)
+	//	return
+	//}
+	//if !capResp.Success || capResp.Score < h.recapThreshold {
+	//	log.Infow("spam", "capResp", capResp)
+	//	http.Error(w, "spam protection", http.StatusUnprocessableEntity)
+	//	return
+	//}
 
 	to, err := address.NewFromString(r.FormValue("address"))
 	if err != nil {

@@ -2,10 +2,14 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
@@ -30,6 +34,76 @@ type WithdrawConfig struct {
 	SendToAddr      string
 	WithdrawAmount  string // FIL
 	KeepOwnerAmount string // FIL
+}
+
+func (s *WindowPoStScheduler) StateWaitMsg(ctx context.Context, sm *types.SignedMessage) (*api.MsgLookup, error) {
+	type WaitResult struct {
+		lookup *api.MsgLookup
+		err    error
+	}
+	result := make(chan *WaitResult, 1)
+	defer close(result)
+
+	cancelCtx, cancelFn := context.WithCancel(ctx)
+	defer cancelFn()
+	go func() {
+		lp, err := s.api.StateWaitMsg(cancelCtx, sm.Cid(), build.MessageConfidence)
+		result <- &WaitResult{lp, err}
+	}()
+	select {
+	case <-time.After(10 * time.Minute):
+		cancelFn()
+		smsg, err := s.fixMpool(ctx, sm)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+		return s.api.StateWaitMsg(cancelCtx, smsg.Cid(), build.MessageConfidence)
+	case res := <-result:
+		return res.lookup, res.err
+	}
+}
+
+// copy from cli/mpool.go#hlm-fix
+func (s *WindowPoStScheduler) fixMpool(ctx context.Context, sm *types.SignedMessage) (*types.SignedMessage, error) {
+	baseFee, err := s.api.ChainComputeBaseFee(ctx, types.EmptyTSK)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	ratePremium := uint64(12500)
+	rateFeeCap := uint64(12500)
+	rateLimit := int64(12500)
+
+	// fix with replace
+	newMsg := sm.Message
+	retm, err := s.api.GasEstimateMessageGas(ctx, &newMsg, &api.MessageSendSpec{}, types.EmptyTSK)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	// newMsg.GasFeeCap = retm.GasFeeCap
+	newMsg.GasFeeCap = types.BigAdd(
+		types.BigDiv(types.BigMul(baseFee, types.NewInt(rateFeeCap)), types.NewInt(10000)),
+		types.NewInt(1),
+	)
+
+	// Kubuxu said: The formula is 1.25*oldPremium + 1attoFIL
+	newMsg.GasPremium = types.BigAdd(
+		types.BigDiv(types.BigMul(newMsg.GasPremium, types.NewInt(ratePremium)), types.NewInt(10000)),
+		types.NewInt(1),
+	)
+	newMsg.GasPremium = big.Max(retm.GasPremium, newMsg.GasPremium)
+
+	// gas-limit
+	newMsg.GasLimit = newMsg.GasLimit*rateLimit/10000 + 1
+	smsg, err := s.api.WalletSignMessage(ctx, auth.GetHlmAuth(), newMsg.From, &newMsg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign message: %w", err)
+	}
+	cid, err := s.api.MpoolPush(ctx, smsg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to push new message to mempool: %w", err)
+	}
+	log.Warnf("BaseFee:%d, newCid:%s newMsg:%s oldMsg:%s", baseFee, cid, newMsg.String(), sm.Message.String())
+	return smsg, nil
 }
 
 func (s *WindowPoStScheduler) autoWithdraw(ts *types.TipSet) {
@@ -70,11 +144,9 @@ func (s *WindowPoStScheduler) autoWithdraw(ts *types.TipSet) {
 		return
 	}
 	if len(cfg.SendToAddr) == 0 {
-		log.Info("send to addr not found")
 		return
 	}
 	if int64(ts.Height())-s.autoWithdrawLastEpoch < cfg.IntervalEpoch {
-		log.Info("auto withdraw interval not reached")
 		return
 	}
 	s.autoWithdrawLastEpoch = int64(ts.Height())
@@ -153,7 +225,7 @@ func (s *WindowPoStScheduler) doWithdraw(cfg *WithdrawConfig) error {
 	if err != nil {
 		return errors.As(err, *cfg)
 	}
-	if _, err := s.api.StateWaitMsg(ctx, sm.Cid(), build.MessageConfidence); err != nil {
+	if _, err := s.StateWaitMsg(ctx, sm); err != nil {
 		return errors.As(err)
 	}
 
@@ -182,7 +254,7 @@ func (s *WindowPoStScheduler) withdrawSend(ctx context.Context, fromAddr, toAddr
 	if err != nil {
 		return errors.As(err)
 	}
-	if _, err := s.api.StateWaitMsg(ctx, sm.Cid(), build.MessageConfidence); err != nil {
+	if _, err := s.StateWaitMsg(ctx, sm); err != nil {
 		return errors.As(err)
 	}
 

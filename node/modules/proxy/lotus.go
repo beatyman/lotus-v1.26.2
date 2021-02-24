@@ -11,12 +11,10 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
-	"github.com/filecoin-project/lotus/build"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/gwaylib/database"
@@ -96,14 +94,22 @@ func (l *LotusNode) GetConn() (api.FullNode, net.Conn, error) {
 
 var (
 	lotusProxyCfg    string
+	lotusProxyOn     bool
+	lotusAutoSelect  bool
 	lotusProxyAddr   *cliutil.APIInfo
-	lotusProxyCloser io.Closer
+	lotusProxyCloser func() error
 	lotusNodes       = []*LotusNode{}
 	bestLotusNode    *LotusNode
 	lotusNodesLock   = sync.Mutex{}
+	lotusCheckOnce   sync.Once
 )
 
 func checkLotusEpoch() {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Error(err)
+		}
+	}()
 	done := make(chan bool, len(lotusNodes))
 	for _, client := range lotusNodes {
 		go func(c *LotusNode) {
@@ -145,57 +151,78 @@ func checkLotusEpoch() {
 		// inverted order
 		return lotusNodes[i].curHeight > lotusNodes[j].curHeight
 	})
-	// no client set
+
+	// auto select the best one
+	if lotusAutoSelect {
+		selectBestNode(3)
+	}
+}
+
+func selectBestNode(diff int64) {
+	if bestLotusNode == nil {
+		changeLotusNode(0)
+		return
+	}
 	if len(lotusNodes) == 0 {
+		// no nodes to compare
 		return
 	}
 
-	// change the best client
-	if len(lotusNodes) > 1 && bestLotusNode != nil {
-		if lotusNodes[0].curHeight-bestLotusNode.curHeight > 3 || !bestLotusNode.IsAlive() {
-			log.Warnf("the best lotus node %s(alive:%t, height:%d) is unavailable, best lotus node should change to:%s(alive:%t, height:%d)",
-				bestLotusNode.apiInfo.Addr, bestLotusNode.IsAlive(), bestLotusNode.curHeight,
-				lotusNodes[0].apiInfo.Addr, lotusNodes[0].IsAlive(), lotusNodes[0].curHeight,
-			)
-			bestLotusNode.Close()
-			bestLotusNode = nil
-		}
-	}
-	if bestLotusNode == nil {
-		log.Infof("change best lotus node to : %s", lotusNodes[0].apiInfo.Addr)
-		bestLotusNode = lotusNodes[0]
-		bestLotusNode.usedTimes++
+	// change the node
+	if lotusNodes[0].curHeight-bestLotusNode.curHeight > diff || !bestLotusNode.IsAlive() {
+		log.Warnf("the best lotus node %s(alive:%t, height:%d) is unavailable, best lotus node should change to:%s(alive:%t, height:%d)",
+			bestLotusNode.apiInfo.Addr, bestLotusNode.IsAlive(), bestLotusNode.curHeight,
+			lotusNodes[0].apiInfo.Addr, lotusNodes[0].IsAlive(), lotusNodes[0].curHeight,
+		)
+		changeLotusNode(0)
 	}
 	return
 }
 
-func startLotusProxy(addr string) (io.Closer, error) {
+func changeLotusNode(idx int) {
+	// no client set
+	if len(lotusNodes)-1 < idx && idx < 0 {
+		return
+	}
+	if bestLotusNode != nil && bestLotusNode.apiInfo.Addr != lotusNodes[idx].apiInfo.Addr {
+		// close the connection and let the client do reconnect.
+		bestLotusNode.Close()
+	}
+	log.Infof("change lotus node: idx:%d, addr:%s", idx, lotusNodes[idx].apiInfo.Addr)
+	bestLotusNode = lotusNodes[idx]
+	bestLotusNode.usedTimes++
+	return
+}
+
+func startLotusProxy(addr string) (func() error, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, errors.As(err, addr)
 	}
+	log.Infof("start lotus proxy : %s", addr)
 
+	exit := make(chan bool, 1)
 	go func() {
 		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				// handle error
-				log.Warn(errors.As(err))
-				continue
+			select {
+			case <-exit:
+				break
+			default:
+				conn, err := ln.Accept()
+				if err != nil {
+					// handle error
+					log.Warn(errors.As(err))
+					continue
+				}
+				log.Info("DEBUG : accept conn")
+				go handleLotus(conn)
 			}
-			go handleLotus(conn)
 		}
 	}()
-	go func() {
-		tick := time.Tick(time.Duration(build.BlockDelaySecs) * time.Second)
-		for {
-			lotusNodesLock.Lock()
-			checkLotusEpoch()
-			lotusNodesLock.Unlock()
-			<-tick
-		}
-	}()
-	return ln, nil
+	return func() error {
+		exit <- true
+		return ln.Close()
+	}, nil
 }
 
 func handleLotus(srcConn net.Conn) {
@@ -203,6 +230,7 @@ func handleLotus(srcConn net.Conn) {
 	defer lotusNodesLock.Unlock()
 	if bestLotusNode == nil {
 		checkLotusEpoch()
+		selectBestNode(3)
 	}
 	if bestLotusNode == nil {
 		srcConn.Close()
@@ -212,7 +240,6 @@ func handleLotus(srcConn net.Conn) {
 	_, targetConn, err := bestLotusNode.GetConn()
 	if err != nil {
 		log.Warn(errors.As(err))
-		bestLotusNode.Close()
 		database.Close(srcConn)
 		return
 	}
@@ -223,9 +250,8 @@ func handleLotus(srcConn net.Conn) {
 		if _, err := io.Copy(srcConn, targetConn); err != nil {
 			log.Warn(errors.As(err))
 
-			bestLotusNode.Close()
-
 			lotusNodesLock.Lock()
+			bestLotusNode.Close()
 			checkLotusEpoch()
 			lotusNodesLock.Unlock()
 
@@ -238,30 +264,14 @@ func handleLotus(srcConn net.Conn) {
 		if _, err := io.Copy(targetConn, srcConn); err != nil {
 			log.Warn(errors.As(err))
 
-			bestLotusNode.Close()
-
 			lotusNodesLock.Lock()
+			bestLotusNode.Close()
 			checkLotusEpoch()
 			lotusNodesLock.Unlock()
 
 			srcConn.Close()
 		}
 	}()
-}
-
-func LoadLotusProxy(ctx context.Context, cfgFile string) error {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
-	return loadLotusProxy(ctx, cfgFile)
-}
-
-func RealoadLotusProxy(ctx context.Context) error {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
-	if len(lotusProxyCfg) == 0 {
-		return errors.New("no proxy in running")
-	}
-	return LoadLotusProxy(ctx, lotusProxyCfg)
 }
 
 func loadLotusProxy(ctx context.Context, cfgFile string) error {
@@ -314,6 +324,10 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 		}
 	}
 
+	return reloadNodes(&proxyAddr, nodes)
+}
+
+func reloadNodes(proxyAddr *cliutil.APIInfo, nodes []*LotusNode) error {
 	// clean nodes
 	removeNodes := []*LotusNode{}
 	for _, node := range lotusNodes {
@@ -337,6 +351,10 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 		log.Infof("remove lotus node:%s", node.apiInfo.String())
 	}
 
+	if proxyAddr == nil {
+		return nil
+	}
+
 	// start the proxy
 	if lotusProxyAddr != nil {
 		if lotusProxyAddr.String() == proxyAddr.String() {
@@ -345,7 +363,7 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 		}
 
 		if lotusProxyCloser != nil {
-			lotusProxyCloser.Close()
+			lotusProxyCloser()
 			lotusProxyCloser = nil
 			lotusProxyAddr = nil
 		}
@@ -360,40 +378,49 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 		return errors.As(err, host)
 	}
 	lotusProxyCloser = closer
-	lotusProxyAddr = &proxyAddr
+	lotusProxyAddr = proxyAddr
 	return nil
 }
 
-func LotusProxyStatus(ctx context.Context) []api.ProxyStatus {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
-	result := []api.ProxyStatus{}
-
-	// best client always at the first position.
-	if bestLotusNode != nil {
-		result = append(result, api.ProxyStatus{
-			Addr:      bestLotusNode.apiInfo.Addr,
-			Alive:     bestLotusNode.IsAlive(),
-			Height:    bestLotusNode.curHeight,
-			UsedTimes: bestLotusNode.usedTimes,
-		})
-	} else {
-		result = append(result, api.ProxyStatus{})
+func lotusProxying() string {
+	if lotusProxyOn {
+		if bestLotusNode == nil {
+			return ""
+		}
+		return bestLotusNode.apiInfo.Addr
 	}
 
-	for _, c := range lotusNodes {
-		result = append(result, api.ProxyStatus{
-			Addr:      c.apiInfo.Addr,
-			Alive:     c.IsAlive(),
-			Height:    c.curHeight,
-			UsedTimes: c.usedTimes,
-		})
+	if lotusProxyAddr == nil {
+		return ""
 	}
-	return result
+	return lotusProxyAddr.Addr
 }
 
-func LotusProxyAddr() *cliutil.APIInfo {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
-	return lotusProxyAddr
+func lotusProxyStatus(ctx context.Context, getSync bool) (*api.ProxyStatus, error) {
+	proxyingAddr := lotusProxying()
+	nodes := []api.ProxyNode{}
+	for _, c := range lotusNodes {
+		isAlive := c.IsAlive()
+		var stat *api.SyncState
+		if isAlive && getSync {
+			st, err := c.nodeApi.SyncState(ctx)
+			if err != nil {
+				continue
+			}
+			stat = st
+		}
+		nodes = append(nodes, api.ProxyNode{
+			Addr:      c.apiInfo.Addr,
+			Alive:     c.IsAlive(),
+			Using:     c.apiInfo.Addr == proxyingAddr,
+			Height:    c.curHeight,
+			UsedTimes: c.usedTimes,
+			SyncStat:  stat,
+		})
+	}
+	return &api.ProxyStatus{
+		ProxyOn:    lotusProxyOn,
+		AutoSelect: lotusAutoSelect,
+		Nodes:      nodes,
+	}, nil
 }
