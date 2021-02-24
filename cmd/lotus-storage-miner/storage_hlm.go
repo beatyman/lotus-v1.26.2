@@ -512,7 +512,7 @@ var statusHLMStorageCmd = &cli.Command{
 		if err != nil {
 			fmt.Println(err.Error())
 		} else {
-			fmt.Println(string(minerStorageStatus))
+			fmt.Print(string(minerStorageStatus))
 		}
 		fmt.Println("=================================")
 		return nil
