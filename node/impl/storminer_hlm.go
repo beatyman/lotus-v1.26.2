@@ -210,8 +210,8 @@ func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, info *database
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
 }
-func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, timeout time.Duration) ([]database.StorageStatus, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, timeout)
+func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, origin bool, timeout time.Duration) ([]database.StorageStatus, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, origin, timeout)
 }
 func (sm *StorageMinerAPI) PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PreStorageNode(sectorId, clientIp, kind)

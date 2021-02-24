@@ -44,6 +44,7 @@ type SectorStorage struct {
 
 type StorageStatus struct {
 	StorageId int64
+	Kind      int
 	MountDir  string
 	MountUri  string
 	Disable   bool
