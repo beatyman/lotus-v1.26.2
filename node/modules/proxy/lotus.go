@@ -396,7 +396,8 @@ func lotusProxying() string {
 	return lotusProxyAddr.Addr
 }
 
-func lotusProxyStatus(ctx context.Context, getSync, getMpool bool) (*api.ProxyStatus, error) {
+func lotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.ProxyStatus, error) {
+	// for chain
 	proxyingAddr := lotusProxying()
 	nodes := []api.ProxyNode{}
 	for _, c := range lotusNodes {
@@ -404,7 +405,7 @@ func lotusProxyStatus(ctx context.Context, getSync, getMpool bool) (*api.ProxySt
 		var syncStat *api.SyncState
 		var mpStat []api.ProxyMpStat
 		if isAlive {
-			if getSync {
+			if cond.ChainSync {
 				st, err := c.nodeApi.SyncState(ctx)
 				if err != nil {
 					log.Warn(errors.As(err))
@@ -412,7 +413,7 @@ func lotusProxyStatus(ctx context.Context, getSync, getMpool bool) (*api.ProxySt
 				}
 				syncStat = st
 			}
-			if getMpool {
+			if cond.ChainMpool {
 				stats, err := lotusMpoolStat(ctx, c.nodeApi)
 				if err != nil {
 					log.Warn(errors.As(err))
@@ -431,9 +432,11 @@ func lotusProxyStatus(ctx context.Context, getSync, getMpool bool) (*api.ProxySt
 			MpoolStat: mpStat,
 		})
 	}
-	return &api.ProxyStatus{
+
+	stat := &api.ProxyStatus{
 		ProxyOn:    lotusProxyOn,
 		AutoSelect: lotusAutoSelect,
 		Nodes:      nodes,
-	}, nil
+	}
+	return stat, nil
 }
