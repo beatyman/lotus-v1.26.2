@@ -20,15 +20,21 @@ var (
 )
 
 func (sm *StorageMinerAPI) StatusMinerStorage(ctx context.Context) ([]byte, error) {
-	_, err := exec.LookPath("zpool")
-	if err != nil {
-		return nil, errors.New("zpool not found in miner node")
-	}
 	zpoolLk.Lock()
 	defer zpoolLk.Unlock()
 	now := time.Now()
 	if zpoolCache != nil && now.Sub(zpoolCache.createTime) < 5*time.Minute {
 		return zpoolCache.out, nil
+	}
+
+	_, err := exec.LookPath("zpool")
+	if err != nil {
+		out := []byte("zpool command not found\n")
+		zpoolCache = &ZpoolQuery{
+			out:        out,
+			createTime: now,
+		}
+		return out, nil
 	}
 
 	out, err := exec.CommandContext(ctx, "zpool", "status", "-x").CombinedOutput()
