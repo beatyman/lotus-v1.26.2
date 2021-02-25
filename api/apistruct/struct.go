@@ -120,6 +120,7 @@ type FullNodeStruct struct {
 		GasEstimateMessageGas func(context.Context, *types.Message, *api.MessageSendSpec, types.TipSetKey) (*types.Message, error) `perm:"read"`
 
 		SyncState          func(context.Context) (*api.SyncState, error)                `perm:"read"`
+		SyncProgress       func(context.Context) (api.SyncProgress, error)              `perm:"read"`
 		SyncSubmitBlock    func(ctx context.Context, blk *types.BlockMsg) error         `perm:"write"`
 		SyncIncomingBlocks func(ctx context.Context) (<-chan *types.BlockHeader, error) `perm:"read"`
 		SyncCheckpoint     func(ctx context.Context, key types.TipSetKey) error         `perm:"admin"`
@@ -394,8 +395,9 @@ type StorageMinerStruct struct {
 		CheckProvable func(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error) `perm:"admin"`
 
 		// implements by hlm
-
-		ProxyStatus                   func(ctx context.Context) ([]api.ProxyStatus, error)                                      `perm:"read"`
+		ProxyAutoSelect               func(ctx context.Context, on bool) error                                                  `perm:"write"`
+		ProxyChange                   func(ctx context.Context, idx int) error                                                  `perm:"write"`
+		ProxyStatus                   func(ctx context.Context, cond api.ProxyStatCondition) (*api.ProxyStatus, error)          `perm:"read"`
 		ProxyReload                   func(ctx context.Context) error                                                           `perm:"write"`
 		StatusMinerStorage            func(ctx context.Context) ([]byte, error)                                                 `perm:"read"`
 		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                              `perm:"write"`
@@ -429,26 +431,26 @@ type StorageMinerStruct struct {
 		WorkerPreConnV1               func(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)                 `perm:"read"`
 		WorkerMinerConn               func(ctx context.Context) (int, error)                                                    `perm:"read"`
 
-		Testing                func(ctx context.Context, fnName string, args []string) error                                 `perm:"admin"`
-		VerHLMStorage          func(ctx context.Context) (int64, error)                                                      `perm:"read"`
-		GetHLMStorage          func(ctx context.Context, id int64) (*database.StorageInfo, error)                            `perm:"read"`
-		SearchHLMStorage       func(ctx context.Context, ip string) ([]database.StorageInfo, error)                          `perm:"read"`
-		AddHLMStorage          func(ctx context.Context, sInfo *database.StorageInfo) error                                  `perm:"write"`
-		DisableHLMStorage      func(ctx context.Context, id int64, disable bool) error                                       `perm:"write"`
-		MountHLMStorage        func(ctx context.Context, id int64) error                                                     `perm:"write"`
-		UMountHLMStorage       func(ctx context.Context, id int64) error                                                     `perm:"write"`
-		RelinkHLMStorage       func(ctx context.Context, id int64) error                                                     `perm:"write"`
-		ReplaceHLMStorage      func(ctx context.Context, info *database.StorageInfo) error                                   `perm:"write"`
-		ScaleHLMStorage        func(ctx context.Context, id int64, size int64, work int64) error                             `perm:"write"`
-		StatusHLMStorage       func(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error)  `perm:"read"`
-		PreStorageNode         func(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) `perm:"write"`
-		CommitStorageNode      func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
-		CancelStorageNode      func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
-		ChecksumStorage        func(ctx context.Context, ver int64) ([]database.StorageInfo, error)                          `perm:"read"`
-		GetProvingCheckTimeout func(ctx context.Context) (time.Duration, error)                                              `perm:"read"`
-		SetProvingCheckTimeout func(ctx context.Context, timeout time.Duration) error                                        `perm:"write"`
-		GetFaultCheckTimeout   func(ctx context.Context) (time.Duration, error)                                              `perm:"read"`
-		SetFaultCheckTimeout   func(ctx context.Context, timeout time.Duration) error                                        `perm:"write"`
+		Testing                func(ctx context.Context, fnName string, args []string) error                                             `perm:"admin"`
+		VerHLMStorage          func(ctx context.Context) (int64, error)                                                                  `perm:"read"`
+		GetHLMStorage          func(ctx context.Context, id int64) (*database.StorageInfo, error)                                        `perm:"read"`
+		SearchHLMStorage       func(ctx context.Context, ip string) ([]database.StorageInfo, error)                                      `perm:"read"`
+		AddHLMStorage          func(ctx context.Context, sInfo *database.StorageInfo) error                                              `perm:"write"`
+		DisableHLMStorage      func(ctx context.Context, id int64, disable bool) error                                                   `perm:"write"`
+		MountHLMStorage        func(ctx context.Context, id int64) error                                                                 `perm:"write"`
+		UMountHLMStorage       func(ctx context.Context, id int64) error                                                                 `perm:"write"`
+		RelinkHLMStorage       func(ctx context.Context, id int64) error                                                                 `perm:"write"`
+		ReplaceHLMStorage      func(ctx context.Context, info *database.StorageInfo) error                                               `perm:"write"`
+		ScaleHLMStorage        func(ctx context.Context, id int64, size int64, work int64) error                                         `perm:"write"`
+		StatusHLMStorage       func(ctx context.Context, id int64, origin bool, timeout time.Duration) ([]database.StorageStatus, error) `perm:"read"`
+		PreStorageNode         func(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error)             `perm:"write"`
+		CommitStorageNode      func(ctx context.Context, sectorId string, kind int) error                                                `perm:"write"`
+		CancelStorageNode      func(ctx context.Context, sectorId string, kind int) error                                                `perm:"write"`
+		ChecksumStorage        func(ctx context.Context, ver int64) ([]database.StorageInfo, error)                                      `perm:"read"`
+		GetProvingCheckTimeout func(ctx context.Context) (time.Duration, error)                                                          `perm:"read"`
+		SetProvingCheckTimeout func(ctx context.Context, timeout time.Duration) error                                                    `perm:"write"`
+		GetFaultCheckTimeout   func(ctx context.Context) (time.Duration, error)                                                          `perm:"read"`
+		SetFaultCheckTimeout   func(ctx context.Context, timeout time.Duration) error                                                    `perm:"write"`
 	}
 }
 
@@ -964,6 +966,9 @@ func (c *FullNodeStruct) BeaconGetEntry(ctx context.Context, epoch abi.ChainEpoc
 func (c *FullNodeStruct) SyncState(ctx context.Context) (*api.SyncState, error) {
 	return c.Internal.SyncState(ctx)
 }
+func (c *FullNodeStruct) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
+	return c.Internal.SyncProgress(ctx)
+}
 
 func (c *FullNodeStruct) SyncSubmitBlock(ctx context.Context, blk *types.BlockMsg) error {
 	return c.Internal.SyncSubmitBlock(ctx, blk)
@@ -1340,8 +1345,14 @@ func (c *FullNodeStruct) CreateBackup(ctx context.Context, fpath string) error {
 // StorageMinerStruct
 
 // implements by hlm start
-func (c *StorageMinerStruct) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
-	return c.Internal.ProxyStatus(ctx)
+func (c *StorageMinerStruct) ProxyAutoSelect(ctx context.Context, on bool) error {
+	return c.Internal.ProxyAutoSelect(ctx, on)
+}
+func (c *StorageMinerStruct) ProxyChange(ctx context.Context, idx int) error {
+	return c.Internal.ProxyChange(ctx, idx)
+}
+func (c *StorageMinerStruct) ProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.ProxyStatus, error) {
+	return c.Internal.ProxyStatus(ctx, cond)
 }
 func (c *StorageMinerStruct) ProxyReload(ctx context.Context) error {
 	return c.Internal.ProxyReload(ctx)
@@ -1474,8 +1485,8 @@ func (c *StorageMinerStruct) ReplaceHLMStorage(ctx context.Context, info *databa
 func (c *StorageMinerStruct) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return c.Internal.ScaleHLMStorage(ctx, id, size, work)
 }
-func (c *StorageMinerStruct) StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) {
-	return c.Internal.StatusHLMStorage(ctx, id, timeout)
+func (c *StorageMinerStruct) StatusHLMStorage(ctx context.Context, id int64, origin bool, timeout time.Duration) ([]database.StorageStatus, error) {
+	return c.Internal.StatusHLMStorage(ctx, id, origin, timeout)
 }
 
 func (c *StorageMinerStruct) PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) {

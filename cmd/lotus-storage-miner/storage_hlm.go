@@ -449,6 +449,11 @@ var statusHLMStorageCmd = &cli.Command{
 			Usage: "output the normal sector message",
 			Value: false,
 		},
+		&cli.BoolFlag{
+			Name:  "origin",
+			Usage: "get the storage status when true",
+			Value: false,
+		},
 		&cli.Int64Flag{
 			Name:  "storage-id",
 			Usage: "storage ID",
@@ -457,7 +462,7 @@ var statusHLMStorageCmd = &cli.Command{
 		&cli.IntFlag{
 			Name:  "timeout",
 			Usage: "timeout for every node. Uint is in second",
-			Value: 3,
+			Value: 6,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -475,7 +480,7 @@ var statusHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		stats, err := nodeApi.StatusHLMStorage(ctx, storageId, time.Duration(timeout)*time.Second)
+		stats, err := nodeApi.StatusHLMStorage(ctx, storageId, cctx.Bool("origin"), time.Duration(timeout)*time.Second)
 		if err != nil {
 			return err
 		}
@@ -494,7 +499,7 @@ var statusHLMStorageCmd = &cli.Command{
 				continue
 			}
 			if len(stat.Err) > 0 {
-				fmt.Printf("bad node,     id:%d, uri:%s, used:%s\n", stat.StorageId, stat.MountUri, stat.Used)
+				fmt.Printf("bad node,     id:%d, uri:%s, used:%s, err:\n%s\n", stat.StorageId, stat.MountUri, stat.Used, stat.Err)
 				bad = append(bad, stat)
 				continue
 			}
@@ -507,7 +512,7 @@ var statusHLMStorageCmd = &cli.Command{
 		if err != nil {
 			fmt.Println(err.Error())
 		} else {
-			fmt.Println(string(minerStorageStatus))
+			fmt.Print(string(minerStorageStatus))
 		}
 		fmt.Println("=================================")
 		return nil

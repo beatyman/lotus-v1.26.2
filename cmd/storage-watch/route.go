@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gwaylib/errors"
+	"github.com/gwaylib/log"
 )
 
 type HandleFunc func(w http.ResponseWriter, r *http.Request) error
@@ -22,6 +23,7 @@ type HttpHandler struct {
 }
 
 func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Info(r.URL.Path)
 	handle, ok := handles[r.URL.Path]
 	if !ok {
 		w.WriteHeader(404)
