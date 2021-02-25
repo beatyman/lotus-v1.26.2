@@ -109,7 +109,7 @@ var proxyStatusCmd = &cli.Command{
 			fmt.Println("lotus mpool stat:")
 
 			for i := 0; i < len(nodes); i++ {
-				fmt.Printf("addr:%s, ", nodes[i].Addr)
+				fmt.Printf("addr:%s, \n", nodes[i].Addr)
 				var total api.ProxyMpStat
 				total.GasLimit = big.Zero()
 				for _, stat := range nodes[i].MpoolStat {
