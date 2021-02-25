@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/lotus/api"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/ipfs/go-cid"
@@ -75,6 +76,10 @@ var proxyStatusCmd = &cli.Command{
 			Name:  "sync",
 			Usage: "show the lotus sync status",
 		},
+		&cli.BoolFlag{
+			Name:  "mpool",
+			Usage: "show the local mpool",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
@@ -84,7 +89,7 @@ var proxyStatusCmd = &cli.Command{
 		defer closer()
 
 		ctx := lcli.ReqContext(cctx)
-		status, err := mApi.ProxyStatus(ctx, cctx.Bool("sync"))
+		status, err := mApi.ProxyStatus(ctx, cctx.Bool("sync"), cctx.Bool("mpool"))
 		if err != nil {
 			return errors.As(err)
 		}
@@ -99,7 +104,33 @@ var proxyStatusCmd = &cli.Command{
 				i, nodes[i].Addr, nodes[i].Using, nodes[i].Alive, nodes[i].Height, nodes[i].UsedTimes,
 			)
 		}
+		if cctx.Bool("mpool") {
+			fmt.Println()
+			fmt.Println("lotus mpool stat:")
 
+			for i := 0; i < len(nodes); i++ {
+				fmt.Printf("addr:%s, ", nodes[i].Addr)
+				var total api.ProxyMpStat
+				total.GasLimit = big.Zero()
+				for _, stat := range nodes[i].MpoolStat {
+					total.Past += stat.Past
+					total.Cur += stat.Cur
+					total.Future += stat.Future
+					total.GasLimit = big.Add(total.GasLimit, stat.GasLimit)
+
+					fmt.Printf(
+						"%s: Nonce past: %d, cur: %d, future: %d; gasLimit: %s\n",
+						stat.Addr, stat.Past, stat.Cur, stat.Future, stat.GasLimit,
+					)
+				}
+
+				fmt.Println("-----")
+				fmt.Printf(
+					"total: Nonce past: %d, cur: %d, future: %d; gasLimit: %s\n",
+					total.Past, total.Cur, total.Future, total.GasLimit,
+				)
+			}
+		}
 		if cctx.Bool("sync") {
 			fmt.Println()
 			fmt.Println("lotus sync:")

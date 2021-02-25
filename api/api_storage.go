@@ -35,7 +35,7 @@ type StorageMiner interface {
 	ProxyAutoSelect(context.Context, bool) error
 	ProxyChange(context.Context, int) error
 	ProxyReload(context.Context) error
-	ProxyStatus(context.Context, bool) (*ProxyStatus, error)
+	ProxyStatus(context.Context, bool, bool) (*ProxyStatus, error)
 	StatusMinerStorage(ctx context.Context) ([]byte, error)
 
 	ActorAddress(context.Context) (address.Address, error)

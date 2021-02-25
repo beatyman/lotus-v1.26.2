@@ -98,9 +98,9 @@ func LotusProxyAddr() *cliutil.APIInfo {
 	return lotusProxyAddr
 }
 
-func LotusProxyStatus(ctx context.Context, getSync bool) (*api.ProxyStatus, error) {
+func LotusProxyStatus(ctx context.Context, getSync, getMpool bool) (*api.ProxyStatus, error) {
 	lotusNodesLock.Lock()
 	defer lotusNodesLock.Unlock()
 	checkLotusEpoch()
-	return lotusProxyStatus(ctx, getSync)
+	return lotusProxyStatus(ctx, getSync, getMpool)
 }
