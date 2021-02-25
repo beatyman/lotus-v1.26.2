@@ -397,7 +397,7 @@ type StorageMinerStruct struct {
 		// implements by hlm
 		ProxyAutoSelect               func(ctx context.Context, on bool) error                                                  `perm:"write"`
 		ProxyChange                   func(ctx context.Context, idx int) error                                                  `perm:"write"`
-		ProxyStatus                   func(ctx context.Context, getSync bool) (*api.ProxyStatus, error)                         `perm:"read"`
+		ProxyStatus                   func(ctx context.Context, getSync, getMpool bool) (*api.ProxyStatus, error)               `perm:"read"`
 		ProxyReload                   func(ctx context.Context) error                                                           `perm:"write"`
 		StatusMinerStorage            func(ctx context.Context) ([]byte, error)                                                 `perm:"read"`
 		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                              `perm:"write"`
@@ -1351,8 +1351,8 @@ func (c *StorageMinerStruct) ProxyAutoSelect(ctx context.Context, on bool) error
 func (c *StorageMinerStruct) ProxyChange(ctx context.Context, idx int) error {
 	return c.Internal.ProxyChange(ctx, idx)
 }
-func (c *StorageMinerStruct) ProxyStatus(ctx context.Context, getSync bool) (*api.ProxyStatus, error) {
-	return c.Internal.ProxyStatus(ctx, getSync)
+func (c *StorageMinerStruct) ProxyStatus(ctx context.Context, getSync, getMpool bool) (*api.ProxyStatus, error) {
+	return c.Internal.ProxyStatus(ctx, getSync, getMpool)
 }
 func (c *StorageMinerStruct) ProxyReload(ctx context.Context) error {
 	return c.Internal.ProxyReload(ctx)
