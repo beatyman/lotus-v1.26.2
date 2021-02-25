@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gwaylib/errors"
-
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
