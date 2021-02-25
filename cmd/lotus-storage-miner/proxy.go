@@ -89,7 +89,11 @@ var proxyStatusCmd = &cli.Command{
 		defer closer()
 
 		ctx := lcli.ReqContext(cctx)
-		status, err := mApi.ProxyStatus(ctx, cctx.Bool("sync"), cctx.Bool("mpool"))
+		cond := api.ProxyStatCondition{
+			ChainSync:  cctx.Bool("sync"),
+			ChainMpool: cctx.Bool("mpool"),
+		}
+		status, err := mApi.ProxyStatus(ctx, cond)
 		if err != nil {
 			return errors.As(err)
 		}
@@ -104,7 +108,7 @@ var proxyStatusCmd = &cli.Command{
 				i, nodes[i].Addr, nodes[i].Using, nodes[i].Alive, nodes[i].Height, nodes[i].UsedTimes,
 			)
 		}
-		if cctx.Bool("mpool") {
+		if cond.ChainMpool {
 			fmt.Println()
 			fmt.Println("lotus mpool stat:")
 
@@ -131,7 +135,7 @@ var proxyStatusCmd = &cli.Command{
 				)
 			}
 		}
-		if cctx.Bool("sync") {
+		if cond.ChainSync {
 			fmt.Println()
 			fmt.Println("lotus sync:")
 			for i := 0; i < len(nodes); i++ {

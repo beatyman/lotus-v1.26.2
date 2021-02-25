@@ -23,6 +23,13 @@ type ProxyNode struct {
 
 	// local mpool stat
 	MpoolStat []ProxyMpStat
+
+	// miner info
+}
+
+type ProxyStatCondition struct {
+	ChainSync  bool
+	ChainMpool bool
 }
 
 type ProxyStatus struct {
