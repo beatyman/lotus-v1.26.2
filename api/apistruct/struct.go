@@ -395,18 +395,18 @@ type StorageMinerStruct struct {
 		CheckProvable func(ctx context.Context, sectors []storage.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error) `perm:"admin"`
 
 		// implements by hlm
-		ProxyAutoSelect               func(ctx context.Context, on bool) error                                                  `perm:"write"`
-		ProxyChange                   func(ctx context.Context, idx int) error                                                  `perm:"write"`
+		ProxyAutoSelect               func(ctx context.Context, on bool) error                                                  `perm:"admin"`
+		ProxyChange                   func(ctx context.Context, idx int) error                                                  `perm:"admin"`
 		ProxyStatus                   func(ctx context.Context, cond api.ProxyStatCondition) (*api.ProxyStatus, error)          `perm:"read"`
-		ProxyReload                   func(ctx context.Context) error                                                           `perm:"write"`
+		ProxyReload                   func(ctx context.Context) error                                                           `perm:"admin"`
 		StatusMinerStorage            func(ctx context.Context) ([]byte, error)                                                 `perm:"read"`
-		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                              `perm:"write"`
-		WdpostSetPartitionNumber      func(ctx context.Context, number int) error                                               `perm:"write"`
-		RunPledgeSector               func(context.Context) error                                                               `perm:"write"`
+		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                              `perm:"admin"`
+		WdpostSetPartitionNumber      func(ctx context.Context, number int) error                                               `perm:"admin"`
+		RunPledgeSector               func(context.Context) error                                                               `perm:"admin"`
 		StatusPledgeSector            func(context.Context) (int, error)                                                        `perm:"read"`
-		StopPledgeSector              func(context.Context) error                                                               `perm:"write"`
+		StopPledgeSector              func(context.Context) error                                                               `perm:"admin"`
 		HlmSectorGetState             func(ctx context.Context, sid string) (*database.SectorInfo, error)                       `perm:"read"`
-		HlmSectorSetState             func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)   `perm:"write"`
+		HlmSectorSetState             func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)   `perm:"admin"`
 		HlmSectorListAll              func(context.Context) ([]api.SectorInfo, error)                                           `perm:"read"`
 		HlmSectorFile                 func(ctx context.Context, sid string) (*storage.SectorFile, error)                        `perm:"read"`
 		HlmSectorCheck                func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)       `perm:"read"`
@@ -416,7 +416,7 @@ type StorageMinerStruct struct {
 		WorkerAddress                 func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
 		WorkerStatus                  func(context.Context) (ffiwrapper.WorkerStats, error)                                     `perm:"read"`
 		WorkerStatusAll               func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
-		WorkerQueue                   func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"admin"` // TODO: worker perm
+		WorkerQueue                   func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"write"`
 		WorkerWorking                 func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
 		WorkerWorkingById             func(ctx context.Context, sid []string) (database.WorkingSectors, error)                  `perm:"read"`
 		WorkerLock                    func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
@@ -425,23 +425,23 @@ type StorageMinerStruct struct {
 		WorkerDone                    func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"admin"`
 		WorkerInfo                    func(ctx context.Context, wid string) (*database.WorkerInfo, error)                       `perm:"read"`
 		WorkerSearch                  func(ctx context.Context, ip string) ([]database.WorkerInfo, error)                       `perm:"read"`
-		WorkerDisable                 func(ctx context.Context, wid string, disable bool) error                                 `perm:"write"`
+		WorkerDisable                 func(ctx context.Context, wid string, disable bool) error                                 `perm:"admin"`
 		WorkerAddConn                 func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
 		WorkerPreConn                 func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
-		WorkerPreConnV1               func(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)                 `perm:"read"`
-		WorkerMinerConn               func(ctx context.Context) (int, error)                                                    `perm:"read"`
+		WorkerPreConnV1               func(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)                 `perm:"write"`
+		WorkerMinerConn               func(ctx context.Context) (int, error)                                                    `perm:"write"`
 
 		Testing                func(ctx context.Context, fnName string, args []string) error                                             `perm:"admin"`
 		VerHLMStorage          func(ctx context.Context) (int64, error)                                                                  `perm:"read"`
 		GetHLMStorage          func(ctx context.Context, id int64) (*database.StorageInfo, error)                                        `perm:"read"`
 		SearchHLMStorage       func(ctx context.Context, ip string) ([]database.StorageInfo, error)                                      `perm:"read"`
-		AddHLMStorage          func(ctx context.Context, sInfo *database.StorageInfo) error                                              `perm:"write"`
-		DisableHLMStorage      func(ctx context.Context, id int64, disable bool) error                                                   `perm:"write"`
-		MountHLMStorage        func(ctx context.Context, id int64) error                                                                 `perm:"write"`
-		UMountHLMStorage       func(ctx context.Context, id int64) error                                                                 `perm:"write"`
-		RelinkHLMStorage       func(ctx context.Context, id int64) error                                                                 `perm:"write"`
+		AddHLMStorage          func(ctx context.Context, sInfo *database.StorageInfo) error                                              `perm:"admin"`
+		DisableHLMStorage      func(ctx context.Context, id int64, disable bool) error                                                   `perm:"admin"`
+		MountHLMStorage        func(ctx context.Context, id int64) error                                                                 `perm:"admin"`
+		UMountHLMStorage       func(ctx context.Context, id int64) error                                                                 `perm:"admin"`
+		RelinkHLMStorage       func(ctx context.Context, id int64) error                                                                 `perm:"admin"`
 		ReplaceHLMStorage      func(ctx context.Context, info *database.StorageInfo) error                                               `perm:"write"`
-		ScaleHLMStorage        func(ctx context.Context, id int64, size int64, work int64) error                                         `perm:"write"`
+		ScaleHLMStorage        func(ctx context.Context, id int64, size int64, work int64) error                                         `perm:"admin"`
 		StatusHLMStorage       func(ctx context.Context, id int64, origin bool, timeout time.Duration) ([]database.StorageStatus, error) `perm:"read"`
 		PreStorageNode         func(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error)             `perm:"write"`
 		CommitStorageNode      func(ctx context.Context, sectorId string, kind int) error                                                `perm:"write"`
