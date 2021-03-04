@@ -76,7 +76,7 @@ func RunCollectStorageNodeStatus(cctx *cli.Context, timer int64) chan bool {
 				defer closer()
 				ctx := lcli.ReqContext(cctx)
 				// todo "SELECT tb1.id, tb1.mount_dir, tb1.mount_signal_uri, disable FROM storage_info tb1 LIMIT 10000"
-				stats, err := nodeApi.StatusHLMStorage(ctx, 0, time.Duration(30)*time.Second)
+				stats, err := nodeApi.StatusHLMStorage(ctx, 0,true, time.Duration(30)*time.Second)
 				if err != nil {
 					log.Error(err)
 					continue
