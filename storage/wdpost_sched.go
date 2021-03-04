@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gwaylib/errors"
@@ -18,6 +19,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/node/config"
 
@@ -29,6 +31,7 @@ type WindowPoStScheduler struct {
 	feeCfg           config.MinerFeeConfig
 	addrSel          *AddressSelector
 	prover           storage.Prover
+	verifier         ffiwrapper.Verifier
 	faultTracker     sectorstorage.FaultTracker
 	proofType        abi.RegisteredPoStProof
 	partitionSectors uint64
@@ -41,9 +44,13 @@ type WindowPoStScheduler struct {
 
 	// failed abi.ChainEpoch // eps
 	// failLk sync.Mutex
+
+	autoWithdrawLk        sync.Mutex
+	autoWithdrawLastEpoch int64
+	autoWithdrawRunning   bool
 }
 
-func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, as *AddressSelector, sb storage.Prover, ft sectorstorage.FaultTracker, j journal.Journal, actor address.Address) (*WindowPoStScheduler, error) {
+func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, as *AddressSelector, sb storage.Prover, verif ffiwrapper.Verifier, ft sectorstorage.FaultTracker, j journal.Journal, actor address.Address) (*WindowPoStScheduler, error) {
 	log.Info("lookup default config: EnableSeparatePartition::", fc.EnableSeparatePartition, "PartitionsPerMsg::", fc.PartitionsPerMsg)
 	EnableSeparatePartition = fc.EnableSeparatePartition
 	if EnableSeparatePartition && fc.PartitionsPerMsg != 0 {
@@ -59,6 +66,7 @@ func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, as 
 		feeCfg:           fc,
 		addrSel:          as,
 		prover:           sb,
+		verifier:         verif,
 		faultTracker:     ft,
 		proofType:        mi.WindowPoStProofType,
 		partitionSectors: mi.WindowPoStPartitionSectors,
@@ -105,6 +113,9 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 
 		log.Infof("Checking window post at:%d", bts.Height())
 		lastTsHeight = bts.Height()
+
+		s.autoWithdraw(bts)
+
 		s.update(ctx, nil, bts)
 
 		// loop to next time.

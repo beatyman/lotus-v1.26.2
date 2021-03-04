@@ -106,8 +106,8 @@ func GetAllStorageInfo() ([]StorageInfo, error) {
 	return list, nil
 }
 func SearchStorageInfoBySignalIp(ip string) ([]StorageInfo, error) {
-	list := []StorageInfo{}
 	db := GetDB()
+	list := []StorageInfo{}
 	if err := database.QueryStructs(db, &list, "SELECT * FROM storage_info WHERE mount_signal_uri like ?", ip+"%"); err != nil {
 		return nil, errors.As(err, ip)
 	}

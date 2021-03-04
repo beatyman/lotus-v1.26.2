@@ -58,11 +58,11 @@ CREATE TABLE IF NOT EXISTS sector_info (
 	state_msg TEXT NOT NULL DEFAULT '', /* msg for state */
 	state_times INT NOT NULL DEFAULT 0 /* count the state change event times, cause the sealing should be ran in a loop. */
 );
-CREATE INDEX IF NOT EXISTS sector_info_idx0 ON sector_info(worker_id);
+CREATE INDEX IF NOT EXISTS sector_info_idx0 ON sector_info(worker_id,state);
 CREATE INDEX IF NOT EXISTS sector_info_idx1 ON sector_info(miner_id);
 CREATE INDEX IF NOT EXISTS sector_info_idx2 ON sector_info(state,state_time);
-CREATE INDEX IF NOT EXISTS sector_info_idx3 ON sector_info(storage_sealed);
-CREATE INDEX IF NOT EXISTS sector_info_idx4 ON sector_info(storage_unsealed);
+CREATE INDEX IF NOT EXISTS sector_info_idx3 ON sector_info(storage_sealed,state);
+CREATE INDEX IF NOT EXISTS sector_info_idx4 ON sector_info(storage_unsealed,state);
 `
 	tb_market_sql = `
 CREATE TABLE IF NOT EXISTS market_retrieve (

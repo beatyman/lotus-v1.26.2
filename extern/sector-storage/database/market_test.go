@@ -38,9 +38,11 @@ func TestMarketRetrieve(t *testing.T) {
 
 	// set the expired.
 	db := GetDB()
+
 	if _, err := db.Exec("UPDATE market_retrieve SET retrieve_time=? WHERE sid=?", now.AddDate(-1, 0, 0), sid); err != nil {
 		t.Fatal(err)
 	}
+
 	if expired, err := GetExpireMarketRetrieve(now.AddDate(0, -1, 0)); err != nil {
 		t.Fatal(err)
 	} else if len(expired) != 1 {

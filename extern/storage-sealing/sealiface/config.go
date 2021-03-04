@@ -18,4 +18,6 @@ type Config struct {
 	MaxDealsPerSector uint64
 
 	WaitDealsDelay time.Duration
+
+	AlwaysKeepUnsealedCopy bool
 }

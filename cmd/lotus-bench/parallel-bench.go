@@ -556,6 +556,9 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 				// p2
 				PreCommit1Out: task.PreCommit1Out,
 			})
+			if err != nil {
+				panic(err)
+			}
 		}
 		resultLk.Lock()
 		p2Result = append(p2Result, ParallelBenchResult{

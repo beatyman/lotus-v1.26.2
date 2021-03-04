@@ -182,7 +182,7 @@ func GetRawAPI(ctx *cli.Context, t repo.RepoType) (string, http.Header, error) {
 		return "", nil, xerrors.Errorf("could not get API info: %w", err)
 	}
 
-	addr, err := ainfo.DialArgs()
+	addr, err := ainfo.DialArgs(t)
 	if err != nil {
 		return "", nil, xerrors.Errorf("could not get DialArgs: %w", err)
 	}

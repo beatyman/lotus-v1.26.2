@@ -18,6 +18,7 @@ import (
 	"github.com/filecoin-project/lotus/api/client"
 	"github.com/filecoin-project/lotus/build"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
+	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
 	"golang.org/x/xerrors"
@@ -77,7 +78,7 @@ func (l *LotusNode) GetConn() (api.FullNode, net.Conn, error) {
 	}
 
 	if l.nodeApi == nil {
-		addr, err := l.apiInfo.DialArgs()
+		addr, err := l.apiInfo.DialArgs(repo.FullNode)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("could not get DialArgs: %w", err)
 		}
