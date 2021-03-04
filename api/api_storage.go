@@ -32,8 +32,10 @@ type StorageMiner interface {
 	Common
 
 	// implement the proxy
-	ProxyStatus(context.Context) ([]ProxyStatus, error)
+	ProxyAutoSelect(context.Context, bool) error
+	ProxyChange(context.Context, int) error
 	ProxyReload(context.Context) error
+	ProxyStatus(context.Context, ProxyStatCondition) (*ProxyStatus, error)
 	StatusMinerStorage(ctx context.Context) ([]byte, error)
 
 	ActorAddress(context.Context) (address.Address, error)
@@ -197,7 +199,7 @@ type StorageMiner interface {
 	RelinkHLMStorage(ctx context.Context, id int64) error
 	ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error
 	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
-	StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error)
+	StatusHLMStorage(ctx context.Context, id int64, origin bool, timeout time.Duration) ([]database.StorageStatus, error)
 	PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error)
 	CommitStorageNode(ctx context.Context, sectorId string, kind int) error
 	CancelStorageNode(ctx context.Context, sectorId string, kind int) error

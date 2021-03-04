@@ -157,6 +157,7 @@ type FullNode interface {
 
 	// SyncState returns the current status of the lotus sync system.
 	SyncState(context.Context) (*SyncState, error)
+	SyncProgress(context.Context) (SyncProgress, error)
 
 	// SyncSubmitBlock can be used to submit a newly created block to the.
 	// network through this node
@@ -653,6 +654,7 @@ type Message struct {
 
 type ActorState struct {
 	Balance types.BigInt
+	Code    cid.Cid
 	State   interface{}
 }
 
@@ -848,6 +850,12 @@ type SyncState struct {
 	ActiveSyncs []ActiveSync
 
 	VMApplied uint64
+}
+
+type SyncProgress struct {
+	Syncing      bool
+	VerifyHeight abi.ChainEpoch
+	TargetHeight abi.ChainEpoch
 }
 
 type SyncStateStage int

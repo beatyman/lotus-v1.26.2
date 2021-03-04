@@ -718,7 +718,7 @@ func (mp *MessagePool) createMessageChains(isPriority bool, actor address.Addres
 	//   the balance
 	a, err := mp.api.GetActorAfter(actor, ts)
 	if err != nil {
-		log.Errorf("failed to load actor state, not building chain for %s: %w", actor, err)
+		log.Errorf("failed to load actor state, not building chain for %s: %v", actor, err)
 		return nil
 	}
 
