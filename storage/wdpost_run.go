@@ -188,9 +188,17 @@ func (s *WindowPoStScheduler) runSubmitPoST(
 		post.ChainCommitRand = commRand
 
 		// Submit PoST
+		leftRetryTimes := 5
+	retry:
 		sm, submitErr := s.submitPost(ctx, post)
 		if submitErr != nil {
-			log.Errorf("submit window post failed: %+v", submitErr)
+			log.Errorf("submit window post failed, retry left:%d,: %+v", leftRetryTimes, submitErr)
+
+			leftRetryTimes--
+			if leftRetryTimes > 0 {
+				time.Sleep(time.Duration(build.BlockDelaySecs) * time.Second)
+				goto retry
+			}
 		} else {
 			s.recordProofsEvent(post.Partitions, sm.Cid())
 		}
