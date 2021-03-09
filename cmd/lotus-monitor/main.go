@@ -21,7 +21,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -87,8 +86,6 @@ func main() {
 		repo := filepath.Join(path, node, ".lotusstorage")
 		ctx, cancel := context.WithTimeout(context.TODO(), time.Minute)
 		defer cancel()
-		io.WriteString(w, fmt.Sprintf("\n\n==============%s begin==============\n", node))
-		defer io.WriteString(w, fmt.Sprintf("==============%s end==============\n", node))
 		switch kind {
 		case "wdpost":
 			r0, err := exec.CommandContext(ctx, "./lotus-miner", "--repo", "./node/lotus", "--miner-repo", repo, "proving", "deadlines").CombinedOutput()
