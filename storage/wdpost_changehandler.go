@@ -473,6 +473,18 @@ func (s *submitHandler) submitIfReady(ctx context.Context, advance *types.TipSet
 		return
 	}
 
+	// fix this issue of:
+	// 2021-03-08T12:14:12.036Z        ^[[34mINFO^[[0m miner   miner/miner.go:230      Waiting chain sync, current:563305, target:563308
+	// 2021-03-08T12:14:17.037Z        ^[[34mINFO^[[0m miner   miner/miner.go:230      Waiting chain sync, current:563306, target:563308
+	// 2021-03-08T12:14:22.038Z        ^[[34mINFO^[[0m miner   miner/miner.go:230      Waiting chain sync, current:563307, target:563308
+	// 2021-03-08T12:14:22.353Z        ^[[34mINFO^[[0m storageminer    storage/wdpost_sched.go:115     Checking window post at:563308
+	// 2021-03-08T12:14:22.362Z        ^[[31mERROR^[[0m        storageminer    storage/wdpost_run.go:917       estimating gas  {"error": "estimating gas used: message execution failed: exit 16, reason: invalid deadline %!d(MISSING) at epoch %!d(MISSING), expected %!d(MISSING) (RetCode=16)"}
+	// 2021-03-08T12:14:22.367Z        ^[[31mERROR^[[0m        storageminer    storage/wdpost_run.go:193       submit window post failed: pushing message to mpool:
+	//     github.com/filecoin-project/lotus/storage.(*WindowPoStScheduler).submitPost
+	//         /home/helmsman/go/src/github.com/filecoin-project/lotus/storage/wdpost_run.go:884
+	//   - GasEstimateMessageGas error: estimating gas used: message execution failed: exit 16, reason: invalid deadline %!d(MISSING) at epoch %!d(MISSING), expected %!d(MISSING) (RetCode=16)
+	// Check the the deadline is it ready
+
 	// Check if the proofs have been generated for this deadline
 	posts, ok := s.posts.get(pw.di)
 	if !ok {
