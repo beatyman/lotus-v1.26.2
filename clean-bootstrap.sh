@@ -1,9 +1,9 @@
 #!/bin/sh
-sudo systemctl stop lotus-daemon
-killall -9 lotus
-killall -9 lotus-miner
-killall -9 lotus-fountain
-killall -9 lotus-seed
-rm -rf /data/lotus/dev
-rm -rf ~/.lotus
-ps axu|grep lotus
+sudo systemctl stop lotus-fountain &
+sudo systemctl stop lotus-bootstrap-daemon &
+sudo systemctl stop lotus-genesis-miner &
+sudo systemctl stop lotus-genesis-daemon &
+wait
+sudo rm -rf /data/lotus/dev
+sudo rm -rf /root/.lotus
+sudo ps axu|grep lotus
