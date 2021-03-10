@@ -2,13 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
-	"math/big"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -17,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
-	"time"
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
@@ -37,59 +30,12 @@ import (
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
+	nauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("main")
-
-func createTLSCert(certPath, keyPath string) error {
-	max := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, _ := rand.Int(rand.Reader, max)
-	subject := pkix.Name{
-		Organization:       []string{"Fivestar"},
-		OrganizationalUnit: []string{"lotus"},
-		CommonName:         "fivestar-lotus",
-	}
-
-	rootTemplate := x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject:      subject,
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().AddDate(100, 0, 0),
-		KeyUsage:     x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		IPAddresses:  []net.IP{},
-	}
-	pk, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return errors.As(err)
-	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, &rootTemplate, &rootTemplate, &pk.PublicKey, pk)
-	if err != nil {
-		return errors.As(err)
-	}
-
-	certOut, err := os.Create(certPath)
-	if err != nil {
-		return errors.As(err)
-	}
-	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		return errors.As(err)
-	}
-
-	certOut.Close()
-
-	keyOut, err := os.Create(keyPath)
-	if err != nil {
-		return errors.As(err)
-	}
-	if err := pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(pk)}); err != nil {
-		return errors.As(err)
-	}
-	keyOut.Close()
-	return nil
-}
 
 func serveRPC(repo string, a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}, maxRequestSize int64) error {
 	repo, err := homedir.Expand(repo)
@@ -178,7 +124,7 @@ func serveRPC(repo string, a api.FullNode, stop node.StopFunc, addr multiaddr.Mu
 	log.Info("rebuild tls cert automatic")
 	certPath := filepath.Join(repo, "lotus_crt.pem")
 	keyPath := filepath.Join(repo, "lotus_key.pem")
-	if err := createTLSCert(certPath, keyPath); err != nil {
+	if err := nauth.CreateTLSCert(certPath, keyPath); err != nil {
 		return errors.As(err)
 	}
 

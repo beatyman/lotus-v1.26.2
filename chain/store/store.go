@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -25,7 +25,6 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
-	"github.com/filecoin-project/lotus/lib/report"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
 	"github.com/filecoin-project/lotus/buried/utils"
 	"github.com/filecoin-project/lotus/chain/actors/adt"
@@ -33,6 +32,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/lotus/journal"
 	bstore "github.com/filecoin-project/lotus/lib/blockstore"
+	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/metrics"
 
 	"go.opencensus.io/stats"
@@ -1644,29 +1644,38 @@ func (cs *ChainStore) GetTipSetFromKey(tsk types.TipSetKey) (*types.TipSet, erro
 	return cs.LoadTipSet(tsk)
 }
 
-
 func sendLotusMessage(ts *types.TipSet, timestamp uint64) {
-        netIp, err := utils.GetLocalIP()
-        if err != nil {
-                log.Errorf("failed get Local IP : %s", err)
-        }
-        lotusInfo := make(map[string]string) //让dict可编辑
-        lotusInfo["client_ip"] = netIp
-        lotusInfo["tisset_time"] = strconv.FormatUint(timestamp, 10)
-        lotusInfo["height"] = ts.Height().String()
-        lotusJsonBytes, err := json.Marshal(lotusInfo)
-        if err != nil {
-                log.Error(err)
-        } else {
-                reqData := &buriedmodel.BuriedDataCollectParams{
-                        DataType: "lotus_chain",
-                        Data:     lotusJsonBytes,
-                }
-                jsonBytes, err := json.Marshal(reqData)
-                if err != nil {
-                        log.Error(err)
-                } else {
-                        go report.SendReport(jsonBytes)
-                }
-        }
+	netIp, err := utils.GetLocalIP()
+	if err != nil {
+		log.Errorf("failed get Local IP : %s", err)
+	}
+	lotusInfo := make(map[string]string) //让dict可编辑
+	lotusInfo["client_ip"] = netIp
+	lotusInfo["tisset_time"] = strconv.FormatUint(timestamp, 10)
+	lotusInfo["height"] = ts.Height().String()
+	lotusJsonBytes, err := json.Marshal(lotusInfo)
+	if err != nil {
+		log.Error(err)
+	} else {
+		reqData := &buriedmodel.BuriedDataCollectParams{
+			DataType: "lotus_chain",
+			Data:     lotusJsonBytes,
+		}
+		kafkaRestValue := buriedmodel.KafkaRestValue{
+			Value: reqData,
+		}
+
+		var values []buriedmodel.KafkaRestValue
+		values = append(values, kafkaRestValue)
+
+		kafaRestData := &buriedmodel.KafkaRestData{
+			Records: values,
+		}
+		kafaRestDataBytes, err := json.Marshal(kafaRestData)
+		if err != nil {
+			log.Error(err)
+		} else {
+			go report.SendReport(kafaRestDataBytes)
+		}
+	}
 }

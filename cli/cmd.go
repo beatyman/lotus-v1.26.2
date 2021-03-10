@@ -112,18 +112,31 @@ func UseLotusProxy(ctx *cli.Context) error {
 		return xerrors.Errorf("could not expand home dir (%s): %w", repoFlag, err)
 	}
 	proxyFile := filepath.Join(p, "lotus.proxy")
-	return proxy.LoadLotusProxy(ctx.Context, proxyFile)
+	return proxy.UseLotusProxy(ctx.Context, proxyFile)
 }
 
 func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (cliutil.APIInfo, error) {
+	// hlm implement start
 	switch t {
 	case repo.FullNode:
 		proxyAddr := proxy.LotusProxyAddr()
 		if proxyAddr != nil {
 			return *proxyAddr, nil
 		}
-	}
 
+		// using default
+		addr, err := getAPIInfo(ctx, t)
+		if err == nil {
+			proxy.UseLotusDefault(ctx.Context, addr)
+		}
+		return addr, err
+	default:
+		return getAPIInfo(ctx, t)
+	}
+	// hlm implement end
+}
+
+func getAPIInfo(ctx *cli.Context, t repo.RepoType) (cliutil.APIInfo, error) {
 	// Check if there was a flag passed with the listen address of the API
 	// server (only used by the tests)
 	apiFlag := flagForAPI(t)
@@ -350,6 +363,6 @@ var Commands = []*cli.Command{
 }
 
 func WithCategory(cat string, cmd *cli.Command) *cli.Command {
-	cmd.Category = cat
+	cmd.Category = strings.ToUpper(cat)
 	return cmd
 }

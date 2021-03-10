@@ -2,7 +2,6 @@ package impl
 
 import (
 	"context"
-	"os/exec"
 	"time"
 
 	"github.com/filecoin-project/go-address"
@@ -21,16 +20,19 @@ import (
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
 	return sm.Miner.Testing(ctx, fnName, args)
 }
-
-func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context) ([]api.ProxyStatus, error) {
-	return proxy.LotusProxyStatus(ctx), nil
+func (sm *StorageMinerAPI) ProxyAutoSelect(ctx context.Context, on bool) error {
+	return proxy.SetLotusAutoSelect(on)
+}
+func (sm *StorageMinerAPI) ProxyChange(ctx context.Context, idx int) error {
+	return proxy.LotusProxyChange(idx)
+}
+func (sm *StorageMinerAPI) ProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.ProxyStatus, error) {
+	return proxy.LotusProxyStatus(ctx, cond)
 }
 func (sm *StorageMinerAPI) ProxyReload(ctx context.Context) error {
 	return proxy.RealoadLotusProxy(ctx)
 }
-func (sm *StorageMinerAPI) StatusMinerStorage(ctx context.Context) ([]byte, error) {
-	return exec.CommandContext(ctx, "zpool", "status", "-x").CombinedOutput()
-}
+
 func (sm *StorageMinerAPI) WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error {
 	return sm.Miner.WdpostEnablePartitionSeparate(enable)
 }
@@ -205,8 +207,8 @@ func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, info *database
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
 }
-func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, timeout time.Duration) ([]database.StorageStatus, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, timeout)
+func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, origin bool, timeout time.Duration) ([]database.StorageStatus, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, origin, timeout)
 }
 func (sm *StorageMinerAPI) PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PreStorageNode(sectorId, clientIp, kind)

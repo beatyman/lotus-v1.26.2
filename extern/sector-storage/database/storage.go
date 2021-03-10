@@ -145,7 +145,7 @@ func GetStorageCheck(id int64) (StorageStatusSort, error) {
 	var err error
 	if id > 0 {
 		rows, err = mdb.Query(
-			"SELECT tb1.id, tb1.mount_dir, tb1.mount_signal_uri, disable FROM storage_info tb1 WHERE tb1.id=?",
+			"SELECT tb1.id, tb1.kind, tb1.mount_dir, tb1.mount_signal_uri, disable FROM storage_info tb1 WHERE tb1.id=?",
 			id,
 		)
 		if err != nil {
@@ -153,7 +153,7 @@ func GetStorageCheck(id int64) (StorageStatusSort, error) {
 		}
 	} else {
 		rows, err = mdb.Query(
-			"SELECT tb1.id, tb1.mount_dir, tb1.mount_signal_uri, disable FROM storage_info tb1 LIMIT 10000", // TODO: more then 10000
+			"SELECT tb1.id, tb1.kind, tb1.mount_dir, tb1.mount_signal_uri, disable FROM storage_info tb1 LIMIT 10000", // TODO: more then 10000
 		)
 		if err != nil {
 			return nil, errors.As(err)
@@ -166,6 +166,7 @@ func GetStorageCheck(id int64) (StorageStatusSort, error) {
 		stat := StorageStatus{}
 		if err := rows.Scan(
 			&stat.StorageId,
+			&stat.Kind,
 			&stat.MountDir,
 			&stat.MountUri,
 			&stat.Disable,
@@ -176,6 +177,14 @@ func GetStorageCheck(id int64) (StorageStatusSort, error) {
 	}
 	if len(list) == 0 {
 		return nil, errors.ErrNoData.As(id)
+	}
+	return list, nil
+}
+func GetAllStorageInfoAll() ([]StorageInfo, error) {
+	list := []StorageInfo{}
+	db := GetDB()
+	if err := database.QueryStructs(db, &list, "SELECT * FROM storage_info "); err != nil {
+		return nil, errors.As(err, "all")
 	}
 	return list, nil
 }

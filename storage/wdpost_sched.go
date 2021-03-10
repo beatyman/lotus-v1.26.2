@@ -88,7 +88,7 @@ type changeHandlerAPIImpl struct {
 }
 
 func nextRoundTime(ts *types.TipSet) time.Time {
-	return time.Unix(int64(ts.MinTimestamp())+int64(build.BlockDelaySecs), 0)
+	return time.Unix(int64(ts.MinTimestamp())+int64(build.BlockDelaySecs)+int64(build.PropagationDelaySecs), 0)
 }
 
 func (s *WindowPoStScheduler) Run(ctx context.Context) {
@@ -98,6 +98,7 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 	defer s.ch.shutdown()
 	s.ch.start()
 
+	// implement by hlm
 	var lastTsHeight abi.ChainEpoch
 	for {
 		bts, err := s.api.ChainHead(ctx)
@@ -113,9 +114,6 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 
 		log.Infof("Checking window post at:%d", bts.Height())
 		lastTsHeight = bts.Height()
-
-		s.autoWithdraw(bts)
-
 		s.update(ctx, nil, bts)
 
 		// loop to next time.
@@ -129,6 +127,7 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 
 	// close this function and use the timer from mining
 	return
+	// end by hlm
 
 	var notifs <-chan []*api.HeadChange
 	var err error
@@ -206,6 +205,8 @@ func (s *WindowPoStScheduler) update(ctx context.Context, revert, apply *types.T
 		log.Error("no new tipset in window post WindowPoStScheduler.update")
 		return
 	}
+
+	s.autoWithdraw(apply) // by hlm
 
 	err := s.ch.update(ctx, revert, apply)
 	if err != nil {
