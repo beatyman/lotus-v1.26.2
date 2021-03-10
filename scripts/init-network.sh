@@ -106,8 +106,8 @@ lpid=$!
 
 env LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner init --genesis-miner --actor=t01000 --pre-sealed-sectors="${sdt0111}" --pre-sealed-metadata="${sdt0111}/pre-seal-t01000.json" --nosync=true --sector-size="${SECTOR_SIZE}"
 
-sleep 30
 kill $lpid
 wait $lpid
+sleep 30
 
 echo "init done. using deploy-bootstrap.sh to deploy the daemons"
