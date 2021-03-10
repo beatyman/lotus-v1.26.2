@@ -13,9 +13,13 @@ wait
 
 log 'Initializing repo'
 
-mkdir -p $HOME/.lotus
-sudo cp lotus /usr/local/bin
-sudo cp lotus-miner /usr/local/bin
+mkdir -p /data/lotus/dev/.lotus
+ln -s /data/lotus/dev/.lotus $HOME/.lotus
+sudo cp -f lotus /usr/local/bin
+sudo cp -f lotus-miner /usr/local/bin
+sudo cp -f scripts/lotus-daemon.service /etc/systemd/system/lotus-daemon.service
+sudo mkdir -p /var/log/lotus
+sudo systemctl daemon-reload
 
 sudo systemctl start lotus-daemon
 cp scripts/bootstrap.toml $HOME/.lotus/config.toml
