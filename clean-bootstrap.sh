@@ -1,5 +1,5 @@
 #!/bin/sh
-systemctl stop lotus-daemon
+sudo systemctl stop lotus-daemon
 killall -9 lotus
 killall -9 lotus-miner
 killall -9 lotus-fountain
