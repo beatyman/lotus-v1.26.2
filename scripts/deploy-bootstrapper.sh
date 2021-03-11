@@ -62,8 +62,10 @@ git checkout build
 sudo systemctl enable lotus-fountain
 sudo systemctl start lotus-fountain
 
+sudo ps axu|grep "lotus"
+
+echo "fountain log:         tail -f /var/log/lotus/fountain.log"
+echo "bootstrap daemon log: tail -f /var/log/lotus/bootstrap-daemon.log"
 echo "genesis daemon log:   tail -f /var/log/lotus/genesis-daemon.log"
 echo "genesis miner log:    tail -f /var/log/lotus/genesis-miner.log"
-echo "bootstrap daemon log: tail -f /var/log/lotus/bootstrap-daemon.log"
-echo "fountain log:         tail -f /var/log/lotus/fountain.log"
 
