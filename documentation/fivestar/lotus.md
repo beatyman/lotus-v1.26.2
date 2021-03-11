@@ -123,21 +123,25 @@ git checkout testing # 检出最新代码
 ```shell
 cd $HOME/go/src/github.com/filecoin-project/lotus
 ./clean-bootstrap.sh
+sudo mkdir -p /data/lotus
+sudo chown -R $USER:$USER /data/lotus
+
 ps axu|grep lotus # 确认所有相关进程已关闭
 ./init-bootstrap.sh
-tail -f bootstrap-init.log # 直到'nohup ./scripts/run-genesis-miner.sh', ctrl+c 退出, 进一步查询bootstrap-miner.log
-ssh-keygen -t ed25519 # 创建本机ssh密钥信息，已有跳过
-# 修改PermitRootLogin为yes, 参考 https://blog.csdn.net/zilaike/article/details/78922524
-ssh-copy-id root@127.0.0.1
-./deploy-boostrap.sh # 部署水龙头及对外提供的初始节点
-# 遇错时从clean-boostrap重新开始
+tail -f bootstrap-init.log # 直到'init done', ctrl+c 退出
+./deploy-boostrap.sh # 部署守护进程
+# 遇错时从clean-boostrap.sh重新开始
 
 # 重启创世节点
+sudo systemctl restart lotus-genesis-daemon # 重启创世节点链
+sudo systemctl restart lotus-genesis-miner # 重启创世节点矿工
+sudo systemctl restart lotus-bootstrap-daemon # 重启对外启动节点
+sudo systemctl restart lotus-fountain # 重新水龙头
+或
 ps axu|grep lotus
 kill -9 xxxx # 相关进程pid
-nohup ./scripts/run-genesis-lotus.sh >> bootstrap-lotus.log 2>&1 & # 启动创世节点链
-nohup ./scripts/run-genesis-miner.sh >> bootstrap-miner.log 2>&1 & # 启动创世节点矿工
 
+sudo lotus sync status # 查看bootstrap节点的链状态
 ```
 
 ### 搭建存储节点
@@ -176,7 +180,7 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 . env/lotus.sh
 . env/1.sh
 ./init-miner-dev.sh
-./miner.sh init --sector-size=2KiB # 注意修改miner.sh中的识别到的netip，默认只支持10地址段
+./miner.sh init --owner=xxxx --sector-size=2KiB # 注意修改miner.sh中的识别到的netip，默认只支持10地址段
 ```
 
 shell 3, 运行矿工
@@ -192,7 +196,7 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 # 添加存储节点(含sealed与unsealed存储在里边)
 ./init-storage-dev.sh
 
-# 运行刷量
+# 运行刷密封扇区
 ./miner.sh pledge-sector start
 
 # miner的其他指令，参阅
@@ -208,7 +212,7 @@ cd ~/hlm-miner/apps/lotus
 shell 5, 运行worker
 ```
 cd ~/hlm-miner/apps/lotus
-# 运行前注意修改脚本中的netip地址段，默认只支持10段
+# 不同机器部署时运行前注意修改脚本中的netip地址段，默认只支持10段
 ./worker.sh # 或者直接hlmd ctl start lotus-worker-1
 ```
 shell 6，刷扇区

@@ -1,18 +1,15 @@
 [Unit]
-Description=Lotus Daemon
+Description=Lotus Fountain
 After=network-online.target
 Requires=network-online.target
 
 [Service]
-Environment=GOLOG_FILE="/var/log/lotus/daemon.log"
+Environment=GOLOG_FILE="/var/log/lotus/fountain.log"
 Environment=GOLOG_LOG_FMT="json"
-ExecStart=/usr/local/bin/lotus --repo=/data/lotus/dev/.lotus daemon 
+ExecStart=/usr/local/bin/lotus-fountain --repo=/data/lotus/dev/.lotus run --front=0.0.0.0:7777 --amount=10000
 Restart=always
 RestartSec=10
 
-MemoryAccounting=true
-MemoryHigh=8G
-MemoryMax=10G
 LimitNOFILE=8192:10240
 
 [Install]

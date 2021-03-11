@@ -57,7 +57,7 @@ func (s *WindowPoStScheduler) StateWaitMsg(ctx context.Context, sm *types.Signed
 		if err != nil {
 			return nil, errors.As(err)
 		}
-		return s.api.StateWaitMsg(cancelCtx, smsg.Cid(), build.MessageConfidence)
+		return s.api.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence)
 	case res := <-result:
 		return res.lookup, res.err
 	}
