@@ -1,10 +1,10 @@
 [Unit]
-Description=Lotus Daemon
+Description=Lotus Bootstrap Daemon
 After=network-online.target
 Requires=network-online.target
 
 [Service]
-Environment=GOLOG_FILE="/var/log/lotus/daemon.log"
+Environment=GOLOG_FILE="/var/log/lotus/bootstrap-daemon.log"
 Environment=GOLOG_LOG_FMT="json"
 ExecStart=/usr/local/bin/lotus --repo=/data/lotus/dev/.lotus daemon 
 Restart=always

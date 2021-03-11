@@ -106,15 +106,8 @@ lpid=$!
 
 env LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner init --genesis-miner --actor=t01000 --pre-sealed-sectors="${sdt0111}" --pre-sealed-metadata="${sdt0111}/pre-seal-t01000.json" --nosync=true --sector-size="${SECTOR_SIZE}"
 
-sleep 30
 kill $lpid
 wait $lpid
-
-
-nohup ./scripts/run-genesis-lotus.sh >> bootstrap-lotus.log 2>&1 & 
 sleep 30
-nohup ./scripts/run-genesis-miner.sh >> bootstrap-miner.log 2>&1 & 
 
-echo "init done."
-echo "using 'tail -f bootstrap-lotus.log' to see the lotus logs."
-echo "using 'tail -f bootstrap-miner.log' to see the miner logs."
+echo "init done. using deploy-bootstrap.sh to deploy the daemons"
