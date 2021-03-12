@@ -62,7 +62,7 @@ checkingApi:
 		return err
 	}
 
-	diskPool := NewDiskPool(ssize, workerRepo)
+	diskPool := NewDiskPool(ssize, workerCfg, workerRepo)
 	mapstr, err := diskPool.ShowExt()
 	if err == nil {
 		log.Infof("new diskPool instance, worker ssd -> sector map tupple is:\r\n %+v", mapstr)
@@ -254,24 +254,24 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	// allocate worker sealer
 reAllocate:
 	w.workMu.Lock()
-	repo, err := w.diskPool.Allocate(task.SectorName())
+	dpState, err := w.diskPool.Allocate(task.SectorName())
 	if err != nil {
 		w.workMu.Unlock()
 		log.Warn(errors.As(err))
 		time.Sleep(60e9)
 		goto reAllocate
 	}
-	sealer, ok := w.sealers[repo]
+	sealer, ok := w.sealers[dpState.MountPoint]
 	if !ok {
 		sealer, err = ffiwrapper.New(ffiwrapper.RemoteCfg{}, &basicfs.Provider{
-			Root: repo,
+			Root: dpState.MountPoint,
 		})
 		if err != nil {
 			w.workMu.Unlock()
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 	}
-	w.sealers[repo] = sealer
+	w.sealers[dpState.MountPoint] = sealer
 	w.workMu.Unlock()
 
 	mapstr, err := w.diskPool.ShowExt()
