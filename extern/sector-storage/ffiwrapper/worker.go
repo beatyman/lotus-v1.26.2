@@ -865,11 +865,12 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// sleep for controlling the loop
 			time.Sleep(timeout)
 			for i := 0; i < r.cfg.MaxTaskNum; i++ {
-				checkFinalize()
 				if atomic.LoadInt32(&sb.pauseSeal) != 0 {
 					// pause the seal
 					continue
 				}
+
+				checkFinalize()
 
 				for _, check := range checkFunc {
 					check()
