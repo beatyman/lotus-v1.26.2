@@ -282,6 +282,9 @@ repush:
 			log.Warn(errors.As(err))
 			goto repush
 		}
+
+		w.diskPool.UpdateState(task.SectorName(), database.SECTOR_STATE_PUSH)
+
 		// release the worker when pushing happened
 		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "pushing commit", database.SECTOR_STATE_PUSH); err != nil {
 			log.Warn(errors.As(err))
