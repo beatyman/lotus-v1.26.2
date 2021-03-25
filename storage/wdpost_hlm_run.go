@@ -18,7 +18,8 @@ import (
 	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
-//	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
+	//	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
+	"github.com/filecoin-project/specs-actors/v3/actors/runtime/proof"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -27,21 +28,20 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
-
 func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
 	log.Info("================================start generage wdpost========================================")
 	defer func() {
 		log.Info("================================End generage wdpost========================================")
 	}()
 	epochTime := int64(build.BlockDelaySecs)
-	maxDelayEpoch := int64(di.Close-di.CurrentEpoch-10)
-	maxDelayTime:= maxDelayEpoch*epochTime
-	log.Info("max delay time:",maxDelayTime,"max delay epoch:",maxDelayEpoch,"epoch time:",epochTime,"time now:",time.Now().Unix())
-	timech := time.After(time.Duration(maxDelayTime)*time.Second)
+	maxDelayEpoch := int64(di.Close - di.CurrentEpoch - 10)
+	maxDelayTime := maxDelayEpoch * epochTime
+	log.Info("max delay time:", maxDelayTime, "max delay epoch:", maxDelayEpoch, "epoch time:", epochTime, "time now:", time.Now().Unix())
+	timech := time.After(time.Duration(maxDelayTime) * time.Second)
 	ctx, span := trace.StartSpan(ctx, "storage.runPost")
 	defer span.End()
-	log.Info("deadline info:  index=",di.Index," current epoch=",di.CurrentEpoch," Challenge epoch = ",di.Challenge," PeriodStart=",di.PeriodStart," Open epoch=",di.Open," close epoch=",di.Close," ")
-	log.Info("WPoStPeriodDeadlines:",di.WPoStPeriodDeadlines,"WPoStProvingPeriod=",di.WPoStPeriodDeadlines,"WPoStChallengeWindow=",di.WPoStChallengeWindow,"WPoStChallengeLookback=",di.WPoStChallengeLookback,"FaultDeclarationCutoff=",di.FaultDeclarationCutoff)
+	log.Info("deadline info:  index=", di.Index, " current epoch=", di.CurrentEpoch, " Challenge epoch = ", di.Challenge, " PeriodStart=", di.PeriodStart, " Open epoch=", di.Open, " close epoch=", di.Close, " ")
+	log.Info("WPoStPeriodDeadlines:", di.WPoStPeriodDeadlines, "WPoStProvingPeriod=", di.WPoStPeriodDeadlines, "WPoStChallengeWindow=", di.WPoStChallengeWindow, "WPoStChallengeLookback=", di.WPoStChallengeLookback, "FaultDeclarationCutoff=", di.FaultDeclarationCutoff)
 	go func() {
 		// TODO: extract from runPost, run on fault cutoff boundaries
 
@@ -109,7 +109,13 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 		return nil, xerrors.Errorf("failed to marshal address to cbor: %w", err)
 	}
 
-	rand, err := s.api.ChainGetRandomnessFromBeacon(ctx, ts.Key(), crypto.DomainSeparationTag_WindowedPoStChallengeSeed, di.Challenge, buf.Bytes())
+	headTs, err := s.api.ChainHead(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("getting current head: %w", err)
+	}
+
+	// TODO: 重新测试以便确认是否每一个单独的分区证明都需要一个不同的随机数
+	rand, err := s.api.ChainGetRandomnessFromBeacon(ctx, headTs.Key(), crypto.DomainSeparationTag_WindowedPoStChallengeSeed, di.Challenge, buf.Bytes())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get chain randomness from beacon for window post (ts=%d; deadline=%d): %w", ts.Height(), di, err)
 	}
@@ -130,13 +136,13 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 
 	// Generate proofs in batches
 	posts := make([]miner.SubmitWindowedPoStParams, 0, len(partitionBatches))
-	var count int =0
+	var count int = 0
 	postChan := make(chan miner.SubmitWindowedPoStParams)
 	defer close(postChan)
 	for batchIdx_p, batch_p := range partitionBatches {
 		count++
-		go func(batchIdx int,batch []api.Partition) {
-			log.Info("lookup start batchIdx:",batchIdx)
+		go func(batchIdx int, batch []api.Partition) {
+			log.Info("lookup start batchIdx:", batchIdx)
 			batchPartitionStartIdx := 0
 			for _, batch := range partitionBatches[:batchIdx] {
 				batchPartitionStartIdx += len(batch)
@@ -239,7 +245,7 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 					//return nil, err
 				}
 
-				postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, abi.PoStRandomness(rand))
+				postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, append(abi.PoStRandomness{}, rand...))
 				elapsed := time.Since(tsStart)
 
 				log.Infow("computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed)
@@ -249,6 +255,47 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 						log.Error(xerrors.Errorf("received no proofs back from generate window post"))
 						return
 						//return nil, xerrors.Errorf("received no proofs back from generate window post")
+					}
+
+					clSectors := []proof.SectorInfo{}
+					for _, si := range sinfos {
+						clSectors = append(clSectors, proof.SectorInfo{
+							SealProof:    si.ProofType,
+							SectorNumber: si.ID.Number,
+							SealedCID:    si.SealedCID,
+						})
+					}
+
+					headTs, err := s.api.ChainHead(ctx)
+					if err != nil {
+						log.Error(xerrors.Errorf("getting current head: %w", err))
+						return
+					}
+
+					checkRand, err := s.api.ChainGetRandomnessFromBeacon(ctx, headTs.Key(), crypto.DomainSeparationTag_WindowedPoStChallengeSeed, di.Challenge, buf.Bytes())
+					if err != nil {
+						log.Error(xerrors.Errorf("failed to get chain randomness from beacon for window post (ts=%d; deadline=%d): %w", ts.Height(), di, err))
+						return
+					}
+
+					if !bytes.Equal(checkRand, rand) {
+						log.Warnw("windowpost randomness changed", "old", rand, "new", checkRand, "ts-height", ts.Height(), "challenge-height", di.Challenge, "tsk", ts.Key())
+						continue
+					}
+
+					// If we generated an incorrect proof, try again.
+					if correct, err := s.verifier.VerifyWindowPoSt(ctx, proof.WindowPoStVerifyInfo{
+						Randomness:        abi.PoStRandomness(checkRand),
+						Proofs:            postOut,
+						ChallengedSectors: clSectors,
+						Prover:            abi.ActorID(mid),
+					}); err != nil {
+						log.Errorw("window post verification failed", "post", postOut, "error", err)
+						time.Sleep(5 * time.Second)
+						continue
+					} else if !correct {
+						log.Errorw("generated incorrect window post proof", "post", postOut, "error", err)
+						continue
 					}
 
 					// Proof generation successful, stop retrying
@@ -292,22 +339,22 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 			if !somethingToProve {
 				return
 			}
-			log.Info("wdpost proof successfully:",batchPartitionStartIdx)
+			log.Info("wdpost proof successfully:", batchPartitionStartIdx)
 			postChan <- params
 			//posts = append(posts, params)
 		}(batchIdx_p, batch_p)
 	}
-	for{
-		select{
-		case param := <- postChan:
+	for {
+		select {
+		case param := <-postChan:
 			count--
 			posts = append(posts, param)
-			if count==0{
-				return posts,nil
+			if count == 0 {
+				return posts, nil
 			}
-		case <- timech:
-			log.Warn("timeout for wdpost:",di.Index)
-			return posts,nil
+		case <-timech:
+			log.Warn("timeout for wdpost:", di.Index)
+			return posts, nil
 		}
 	}
 	return posts, nil
