@@ -16,7 +16,9 @@ import (
 	statemachine "github.com/filecoin-project/go-statemachine"
 	"github.com/filecoin-project/specs-storage/storage"
 
+	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
 
@@ -372,6 +374,25 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	case Removing:
 		return m.handleRemoving, processed, nil
 	case Removed:
+		// update hlm database statue to failed.
+		if sInfo.State < (database.SECTOR_STATE_FAILED - 1) {
+			sealer, ok := m.sealer.(*sectorstorage.Manager)
+			if ok {
+				ffi, ok := sealer.Prover.(*ffiwrapper.Sealer)
+				if ok {
+					// checking the sector state in hlm miner
+					if _, err := ffi.UpdateSectorState(sInfo.ID, "removed", sInfo.State+500, true, true); err != nil {
+						log.Warn(errors.As(err))
+					}
+				} else {
+					log.Warnf("sealer.Prover not (ffiwrapper.Sealer)")
+				}
+			} else {
+				log.Warnf("m.sealer not (sectorstorage.Manager)")
+			}
+		}
+		// hlm end
+
 		log.Warnf("Remove sector:%s", sInfo.ID)
 		return nil, processed, nil
 

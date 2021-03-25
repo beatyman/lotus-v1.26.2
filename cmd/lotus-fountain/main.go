@@ -20,6 +20,8 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/node/modules/auth"
+
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("main")
@@ -95,9 +97,18 @@ var runCmd = &cli.Command{
 
 		log.Infof("Remote version: %s", v.Version)
 
-		from, err := address.NewFromString(cctx.String("from"))
-		if err != nil {
-			return xerrors.Errorf("parsing source address (provide correct --from flag!): %w", err)
+		from := address.Address{}
+
+		if len(cctx.String("from")) > 0 {
+			from, err = address.NewFromString(cctx.String("from"))
+			if err != nil {
+				return xerrors.Errorf("parsing source address (provide correct --from flag!): %w", err)
+			}
+		} else {
+			from, err = nodeApi.WalletDefaultAddress(ctx)
+			if err != nil {
+				return errors.As(err)
+			}
 		}
 
 		h := &handler{

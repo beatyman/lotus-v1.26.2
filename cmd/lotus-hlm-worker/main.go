@@ -186,7 +186,7 @@ var runCmd = &cli.Command{
 		&cli.UintFlag{
 			Name:  "transfer-buffer",
 			Value: 1,
-			Usage: "buffer for transfer when task done",
+			Usage: "Number of sectors per disk which in transfering",
 		},
 		&cli.UintFlag{
 			Name:  "cache-mode",

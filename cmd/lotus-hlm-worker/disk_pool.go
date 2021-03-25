@@ -13,6 +13,8 @@ import (
 	"syscall"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
 
@@ -29,10 +31,11 @@ type DiskPool interface {
 	//
 	// return
 	// repo -- like /data/lotus-cache/1
-	Allocate(sid string) (string, error)
+	Allocate(sid string) (SectorState, error)
+	UpdateState(sid string, state int) error
 
 	// query sid's cache directory with sector id
-	Query(sid string) (string, error)
+	Query(sid string) (SectorState, error)
 
 	// delete disk data with sector id
 	Delete(sid string) error
@@ -45,21 +48,28 @@ type diskinfo struct {
 	ds  DiskStatus
 }
 
+type SectorState struct {
+	MountPoint string
+	State      int
+}
+
 type diskPoolImpl struct {
 	mutex       sync.Mutex
 	ssize       abi.SectorSize
+	workerCfg   ffiwrapper.WorkerCfg
 	defaultRepo string
 
-	sectors map[string]string // sid:moint_point
+	sectors map[string]SectorState // sid:moint_point
 	hasDisk bool
 }
 
 // defaultRepo -- if disk pool not found, use the old repo for work.
-func NewDiskPool(ssize abi.SectorSize, defaultRepo string) DiskPool {
+func NewDiskPool(ssize abi.SectorSize, workerCfg ffiwrapper.WorkerCfg, defaultRepo string) DiskPool {
 	return &diskPoolImpl{
 		ssize:       ssize,
+		workerCfg:   workerCfg,
 		defaultRepo: defaultRepo,
-		sectors:     map[string]string{},
+		sectors:     map[string]SectorState{},
 	}
 }
 
@@ -211,7 +221,7 @@ func scanDisk() (map[string]map[string]bool, error) {
 	return result, nil
 }
 
-func (dpImpl *diskPoolImpl) query(sid string) (string, error) {
+func (dpImpl *diskPoolImpl) query(sid string) (SectorState, error) {
 	// query from memory cache
 	if v, ok := dpImpl.sectors[sid]; ok == true {
 		return v, nil
@@ -224,7 +234,9 @@ func (dpImpl *diskPoolImpl) query(sid string) (string, error) {
 	} else {
 		for repo, sectors := range diskSectors {
 			for allocatedSid, _ := range sectors {
-				dpImpl.sectors[allocatedSid] = repo
+				dpImpl.sectors[allocatedSid] = SectorState{
+					MountPoint: repo,
+				}
 			}
 		}
 	}
@@ -232,35 +244,38 @@ func (dpImpl *diskPoolImpl) query(sid string) (string, error) {
 	// load from default repo
 	sectors := scanRepo(dpImpl.defaultRepo)
 	for allocatedSid, _ := range sectors {
-		dpImpl.sectors[allocatedSid] = dpImpl.defaultRepo
+		dpImpl.sectors[allocatedSid] = SectorState{
+			MountPoint: dpImpl.defaultRepo,
+		}
 	}
 
 	// query the cache again.
 	result, ok := dpImpl.sectors[sid]
 	if !ok {
-		return "", errors.ErrNoData.As(sid)
+		return SectorState{}, errors.ErrNoData.As(sid)
 	}
 	return result, nil
 }
 
-func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
+func (dpImpl *diskPoolImpl) Allocate(sid string) (SectorState, error) {
 	dpImpl.mutex.Lock()
 	defer dpImpl.mutex.Unlock()
 
-	repo, err := dpImpl.query(sid)
+	// query the memory
+	state, err := dpImpl.query(sid)
 	if err != nil {
 		if !errors.ErrNoData.Equal(err) {
-			return "", errors.As(err)
+			return SectorState{}, errors.As(err)
 		}
 		// not found in disks, allocate new one.
 	} else {
-		return repo, nil
+		return state, nil
 	}
 
 	// allocate from disk
 	diskSectors, err := scanDisk()
 	if err != nil {
-		return "", errors.As(err)
+		return SectorState{}, errors.As(err)
 	}
 	if len(diskSectors) > 0 {
 		dpImpl.hasDisk = true
@@ -280,17 +295,39 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 
 		allocated := len(sectors)
 		// search in memory
-		for sector, memRepo := range dpImpl.sectors {
+		for sector, mState := range dpImpl.sectors {
 			if _, ok := sectors[sector]; ok {
 				// has allocated
 				continue
 			}
-			if repo != memRepo {
+			if repo != mState.MountPoint {
 				// search for the same repo
 				continue
 			}
 			// found in memory but not in disk
 			allocated++
+		}
+
+		// the sector in transfering is excepted.
+		if dpImpl.workerCfg.TransferBuffer > 0 {
+			releasedNum := 0
+			for sid, _ := range sectors {
+				mState, ok := dpImpl.sectors[sid]
+				if !ok {
+					continue
+				}
+
+				if mState.State == database.SECTOR_STATE_PUSH {
+					releasedNum++
+				}
+			}
+			for i := dpImpl.workerCfg.TransferBuffer; i > 0; i-- {
+				if releasedNum <= 0 {
+					break
+				}
+				allocated--
+				releasedNum--
+			}
 		}
 
 		percent := float64(allocated*100) / float64(diskInfo.MaxSector)
@@ -311,14 +348,27 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (string, error) {
 
 	if len(minRepo) == 0 {
 		// no disk for allocation.
-		return "", errors.New("No disk for allocation").As(sid, diskSectors)
+		return SectorState{}, errors.New("No disk for allocation").As(sid, diskSectors)
 	}
 
-	dpImpl.sectors[sid] = minRepo
-	return minRepo, nil
+	posState := SectorState{MountPoint: minRepo}
+	dpImpl.sectors[sid] = posState
+	return posState, nil
 }
 
-func (dpImpl *diskPoolImpl) Query(sid string) (string, error) {
+func (dpImpl *diskPoolImpl) UpdateState(sid string, state int) error {
+	dpImpl.mutex.Lock()
+	defer dpImpl.mutex.Unlock()
+	sector, ok := dpImpl.sectors[sid]
+	if !ok {
+		return nil
+	}
+	sector.State = state
+	dpImpl.sectors[sid] = sector
+	return nil
+}
+
+func (dpImpl *diskPoolImpl) Query(sid string) (SectorState, error) {
 	dpImpl.mutex.Lock()
 	defer dpImpl.mutex.Unlock()
 	return dpImpl.query(sid)
@@ -339,13 +389,13 @@ func (dpImpl *diskPoolImpl) ShowExt() ([]string, error) {
 
 	var group = map[string][]string{}
 	for sid, mnt := range dpImpl.sectors {
-		data, ok := group[mnt]
+		data, ok := group[mnt.MountPoint]
 		if !ok {
 			data = []string{sid}
 		} else {
 			data = append(data, sid)
 		}
-		group[mnt] = data
+		group[mnt.MountPoint] = data
 	}
 
 	r := []string{"\n"}
