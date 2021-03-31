@@ -1,6 +1,7 @@
 package sealing
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -85,7 +86,8 @@ func (m *Sealing) RunPledgeSector() error {
 				}
 				go func() {
 					// daemon check
-					if err := m.PledgeRemoteSector(); err != nil {
+					sectorRef, err := m.PledgeSector(context.TODO())
+					if err != nil {
 						if errors.ErrNoData.Equal(err) {
 							log.Error("No storage to allocate")
 						} else {
@@ -97,7 +99,11 @@ func (m *Sealing) RunPledgeSector() error {
 
 						// fast to do generate one addpiece event.
 						m.addConsumeTask()
+						return
 					}
+
+					// TODO:
+					_ = sectorRef
 				}()
 			}
 		}

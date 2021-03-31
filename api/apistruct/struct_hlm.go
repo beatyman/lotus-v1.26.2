@@ -5,14 +5,13 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 )
 
 type WorkerHlmStruct struct {
 	Internal struct {
-		Version func(context.Context) (build.Version, error) `perm:"read"`
+		Version func(context.Context) (string, error) `perm:"read"`
 
 		SealCommit2         func(context.Context, api.SectorRef, storage.Commit1Out) (storage.Proof, error)                               `perm:"admin"`
 		GenerateWinningPoSt func(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)  `perm:"admin"`
@@ -20,7 +19,7 @@ type WorkerHlmStruct struct {
 	}
 }
 
-func (w *WorkerHlmStruct) Version(ctx context.Context) (build.Version, error) {
+func (w *WorkerHlmStruct) Version(ctx context.Context) (string, error) {
 	return w.Internal.Version(ctx)
 }
 
