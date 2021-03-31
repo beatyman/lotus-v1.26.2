@@ -38,7 +38,8 @@ const UpgradeOrangeHeight = 27
 
 const UpgradeClausHeight = 30
 
-const UpgradeActorsV3Height = 69135 // ~2021-02-23 16:56:00.000+0800
+const UpgradeActorsV3Height = 69135   // ~2021-02-23 16:56:00.000+0800
+const UpgradeNorwegianHeight = 177580 // ~2021-04-02 08:45:00.000+0800
 
 func init() {
 	policy.SetSupportedProofTypes(
