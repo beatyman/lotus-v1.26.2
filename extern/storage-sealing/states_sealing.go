@@ -79,6 +79,9 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 }
 
 func (m *Sealing) padSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+	// use remote worker mode. hack by hlm
+	return m.sealer.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
+
 	if len(sizes) == 0 {
 		return nil, nil
 	}

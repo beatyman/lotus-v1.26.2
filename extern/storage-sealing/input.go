@@ -395,7 +395,9 @@ func (m *Sealing) tryCreateDealSector(ctx context.Context, sp abi.RegisteredSeal
 		return xerrors.Errorf("getting sector number: %w", err)
 	}
 
-	err = m.sealer.NewSector(ctx, m.minerSector(sp, sid))
+	sectorId := m.minerSector(sp, sid)
+	sectorId.AllocateUnsealed = true // implement by hlm
+	err = m.sealer.NewSector(ctx, sectorId)
 	if err != nil {
 		return xerrors.Errorf("initializing sector: %w", err)
 	}

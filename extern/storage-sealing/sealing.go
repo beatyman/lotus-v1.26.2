@@ -25,7 +25,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
@@ -187,8 +186,14 @@ func (m *Sealing) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *Sealing) Remove(ctx context.Context, sid abi.SectorNumber) error {
-	return m.sectors.Send(uint64(sid), SectorRemove{})
+func (m *Sealing) Remove(ctx context.Context, id abi.SectorNumber) error {
+	// release the remote worker
+	sid := storage.SectorName(m.minerSectorID(id))
+	memo := "sectors remove"
+	if _, err := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, 500, true, false); err != nil {
+		return errors.As(err)
+	}
+	return m.sectors.Send(uint64(id), SectorRemove{})
 }
 
 func (m *Sealing) Terminate(ctx context.Context, sid abi.SectorNumber) error {
@@ -215,16 +220,6 @@ func (m *Sealing) currentSealProof(ctx context.Context) (abi.RegisteredSealProof
 	}
 
 	return miner.PreferredSealProofTypeFromWindowPoStType(ver, mi.WindowPoStProofType)
-}
-
-func (m *Sealing) fillSectorFile(sector storage.SectorRef) (storage.SectorRef, error) {
-	sb := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
-	newSector, err := database.FillSectorFile(sector, sb.RepoPath())
-	if err != nil {
-		return sector, errors.As(err)
-	}
-	newSector.AllocateUnsealed = true
-	return newSector, nil
 }
 
 func (m *Sealing) minerSector(spt abi.RegisteredSealProof, num abi.SectorNumber) storage.SectorRef {
