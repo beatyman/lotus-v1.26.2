@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/filecoin-project/lotus/api"
 	lcli "github.com/filecoin-project/lotus/cli"
@@ -89,6 +90,11 @@ var listHLMWorkerCmd = &cli.Command{
 			Usage: "show the service worker",
 			Value: true,
 		},
+		&cli.IntFlag{
+			Name:  "overdue",
+			Usage: "show the overdue tasks, unit in hour",
+			Value: 24,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
@@ -105,21 +111,66 @@ var listHLMWorkerCmd = &cli.Command{
 		showOnline := cctx.Bool("online")
 		showOffline := cctx.Bool("offline")
 		showService := cctx.Bool("service")
-		for _, info := range infos {
-			if info.Disable && !showDisabled {
-				continue
+		overdueTask := cctx.Int("overdue")
+
+		if showDisabled {
+			fmt.Println("============== Disabled worker ===============")
+			for _, info := range infos {
+				if !info.Disable {
+					continue
+				}
+				fmt.Println(info.String())
 			}
-			if info.Online && !showOnline {
-				continue
-			}
-			if !info.Online && !showOffline {
-				continue
-			}
-			if info.Srv && !showService {
-				continue
-			}
-			fmt.Println(info.String())
+			fmt.Println("============== Disabled worker end ===============")
 		}
+
+		if showOffline {
+			fmt.Println("============== Offline worker ===============")
+			for _, info := range infos {
+				if !info.Online {
+					continue
+				}
+				fmt.Println(info.String())
+			}
+			fmt.Println("============== Offline worker end ===============")
+		}
+
+		if showOnline {
+			fmt.Println("============== Online worker ===============")
+			for _, info := range infos {
+				if !info.Online {
+					continue
+				}
+				fmt.Println(info.String())
+			}
+			fmt.Println("============== Online worker end ===============")
+		}
+
+		if showService {
+			fmt.Println("============== Service worker ===============")
+			for _, info := range infos {
+				if !info.Srv {
+					continue
+				}
+				fmt.Println(info.String())
+			}
+			fmt.Println("============== Service worker end ===============")
+		}
+		if overdueTask > 0 {
+			fmt.Println("============== Overdue tasks ===============")
+			now := time.Now()
+			for _, info := range infos {
+				for _, sInfo := range info.SectorOn {
+					sub := now.Sub(sInfo.CreateTime)
+					if sub < (time.Duration(overdueTask) * time.Hour) {
+						continue
+					}
+					fmt.Printf("created_at:%s, sector:%s, state:%d, worker:%s, overdue:%s\n", sInfo.CreateTime.Format(time.RFC3339), sInfo.ID, sInfo.State, info.ID, sub.String())
+				}
+			}
+			fmt.Println("============== Overdue tasks end ===============")
+		}
+
 		return nil
 	},
 }
@@ -181,7 +232,7 @@ var searchHLMWorkerCmd = &cli.Command{
 }
 var gcHLMWorkerCmd = &cli.Command{
 	Name:      "gc",
-	Usage:     "gc the tasks who state is more than 200",
+	Usage:     "gc worker who state is more than 200",
 	ArgsUsage: "workid/all",
 	Action: func(cctx *cli.Context) error {
 		args := cctx.Args()
