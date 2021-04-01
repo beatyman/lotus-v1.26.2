@@ -78,9 +78,20 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 		return false, xerrors.Errorf("getting per-sector deal limit: %w", err)
 	}
 
-	if len(sector.dealIDs()) >= maxDeals {
+	cfg, err := m.getConfig()
+	if err != nil {
+		return false, xerrors.Errorf("getting storage config: %w", err)
+	}
+
+	dealIDsLen := len(sector.dealIDs())
+	if dealIDsLen >= maxDeals {
 		// can't accept more deals
 		log.Infow("starting to seal deal sector", "sector", sector.SectorNumber, "trigger", "maxdeals")
+		return true, ctx.Send(SectorStartPacking{})
+	}
+
+	if cfg.MaxDealsPerSector > 0 && uint64(dealIDsLen) >= cfg.MaxDealsPerSector {
+		log.Infow("starting to seal deal sector", "sector", sector.SectorNumber, "trigger", "max-per-sector")
 		return true, ctx.Send(SectorStartPacking{})
 	}
 
@@ -90,10 +101,6 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 		return true, ctx.Send(SectorStartPacking{})
 	}
 
-	cfg, err := m.getConfig()
-	if err != nil {
-		return false, xerrors.Errorf("getting storage config: %w", err)
-	}
 	if sector.CreationTime != 0 {
 		// todo check deal age, start sealing if any deal has less than X (configurable) to start deadline
 		sealTime := time.Unix(sector.CreationTime, 0).Add(cfg.WaitDealsDelay)
@@ -112,10 +119,6 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 		})
 	}
 
-	if cfg.MaxDealsPerSector > 0 && m.stats.curStaging() >= cfg.MaxDealsPerSector {
-		log.Infow("starting to seal deal sector", "sector", sector.SectorNumber, "trigger", "max-per-sector")
-		return true, ctx.Send(SectorStartPacking{})
-	}
 	return false, nil
 }
 
