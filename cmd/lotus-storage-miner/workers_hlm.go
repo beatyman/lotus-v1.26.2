@@ -78,7 +78,7 @@ var listHLMWorkerCmd = &cli.Command{
 		&cli.BoolFlag{
 			Name:  "offline",
 			Usage: "show the offline worker",
-			Value: false,
+			Value: true,
 		},
 		&cli.BoolFlag{
 			Name:  "disabled",
