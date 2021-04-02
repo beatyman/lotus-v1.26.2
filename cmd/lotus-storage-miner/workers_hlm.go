@@ -124,24 +124,12 @@ var listHLMWorkerCmd = &cli.Command{
 			fmt.Println("============== Disabled worker end ===============")
 		}
 
-		if showOffline {
-			fmt.Println("============== Offline worker ===============")
-			for _, info := range infos {
-				if !info.Online {
-					continue
-				}
-				fmt.Println(info.String())
-			}
-			fmt.Println("============== Offline worker end ===============")
-		}
-
 		if showOnline {
 			fmt.Println("============== Online worker ===============")
 			for _, info := range infos {
-				if !info.Online {
-					continue
+				if info.Online && !info.Disable {
+					fmt.Println(info.String())
 				}
-				fmt.Println(info.String())
 			}
 			fmt.Println("============== Online worker end ===============")
 		}
@@ -149,12 +137,21 @@ var listHLMWorkerCmd = &cli.Command{
 		if showService {
 			fmt.Println("============== Service worker ===============")
 			for _, info := range infos {
-				if !info.Srv {
-					continue
+				if info.Srv && !info.Disable {
+					fmt.Println(info.String())
 				}
-				fmt.Println(info.String())
 			}
 			fmt.Println("============== Service worker end ===============")
+		}
+
+		if showOffline {
+			fmt.Println("============== Offline worker ===============")
+			for _, info := range infos {
+				if !info.Online && !info.Disable {
+					fmt.Println(info.String())
+				}
+			}
+			fmt.Println("============== Offline worker end ===============")
 		}
 		if overdueTask > 0 {
 			fmt.Println("============== Overdue tasks ===============")
