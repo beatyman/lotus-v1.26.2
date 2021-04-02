@@ -56,10 +56,13 @@ log 'Connect to t0111'
 genesisAddr=$(sudo lotus --repo=/data/lotus/dev/.ldt0111 net listen|grep "127.0.0.1")
 sudo lotus --repo=/data/lotus/dev/.lotus net connect $genesisAddr
 
-log 'Get fil from t0111'
-walletAddr=$(sudo lotus wallet new bls)
-sudo lotus --repo=/data/lotus/dev/.ldt0111 send $walletAddr 90000000
-git checkout build
+walletAddr=$(sudo lotus wallet default)
+if [ -z "$walletAddr" ]; then
+    log 'Get fil from t0111'
+    walletAddr=$(sudo lotus wallet new bls)
+    sudo lotus --repo=/data/lotus/dev/.ldt0111 send $walletAddr 90000000
+    git checkout build
+fi
 
 sudo systemctl enable lotus-fountain
 sudo systemctl start lotus-fountain
