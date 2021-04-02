@@ -129,13 +129,13 @@ sudo chown -R $USER:$USER /data/lotus
 ps axu|grep lotus # 确认所有相关进程已关闭
 ./init-bootstrap.sh
 tail -f bootstrap-init.log # 直到'init done', ctrl+c 退出
-./deploy-boostrap.sh # 部署守护进程
+./deploy-boostrap.sh # 部署守护进程, 人工等上一步完成
 # 遇错时从clean-boostrap.sh重新开始
 
 # 重启创世节点
 sudo systemctl restart lotus-genesis-daemon # 重启创世节点链
 sudo systemctl restart lotus-genesis-miner # 重启创世节点矿工
-sudo systemctl restart lotus-bootstrap-daemon # 重启对外启动节点
+sudo systemctl restart lotus-daemon # 重启对外启动节点
 sudo systemctl restart lotus-fountain # 重新水龙头
 或
 ps axu|grep lotus
