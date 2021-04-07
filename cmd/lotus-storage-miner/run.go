@@ -25,6 +25,7 @@ import (
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
+	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
@@ -74,7 +75,7 @@ var runCmd = &cli.Command{
 			}
 		}
 		// use the cluster proxy if it's exist.
-		if err := lcli.UseLotusProxy(cctx); err != nil {
+		if err := cliutil.UseLotusProxy(cctx); err != nil {
 			log.Infof("lotus proxy is invalid:%+s", err.Error())
 		}
 

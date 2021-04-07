@@ -42,7 +42,7 @@ func GetFullNodeServices(ctx *cli.Context) (ServicesAPI, error) {
 	return &ServicesImpl{api: api, closer: c}, nil
 }
 
-//var GetAPIInfo = cliutil.GetAPIInfo
+var GetAPIInfo = cliutil.GetAPIInfo
 var GetRawAPI = cliutil.GetRawAPI
 var GetAPI = cliutil.GetAPI
 
