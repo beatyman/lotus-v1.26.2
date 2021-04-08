@@ -264,6 +264,7 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 			}
 			if storageUnsealedDir.Valid {
 				file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
+				file.IsMarketSector = true
 			}
 		}
 		result[sectorId] = *file
@@ -345,6 +346,7 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 	}
 	if storageUnsealedDir.Valid {
 		file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
+		file.IsMarketSector = true
 	}
 
 	// put to cache
