@@ -34,7 +34,7 @@ func proxyAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
 			return *proxyAddr, nil
 		}
 
-		log.Info("Get proxy api failed, using the default lotus api")
+		// log.Info("Get proxy api failed, using the default lotus api")
 
 		// using default
 		addr, err := getAPIInfo(ctx, t)
