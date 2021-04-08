@@ -1,6 +1,7 @@
 package sealing
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -67,13 +68,22 @@ func (m *Sealing) RunPledgeSector() error {
 				return
 			case <-gcTimer.C:
 				// close gc to manully control
-				//log.Info("GC CurWork")
-				//dropTasks, err := sb.GcWorker(now.Add(-72 * time.Hour))
+				log.Info("GC CurWork")
+				//dropTasks, err := sb.GcTimeoutTask(now.Add(-120 * time.Hour))
 				//if err != nil {
 				//	log.Error(errors.As(err))
 				//} else {
 				//	log.Infof("GC CurWork Done, drop:%+v", dropTasks)
 				//}
+
+				gcTasks, err := sb.GcWorker("")
+				if err != nil {
+					log.Warn(errors.As(err))
+				}
+				for _, task := range gcTasks {
+					log.Infof("gc : %s\n", task)
+				}
+				log.Infof("gc done")
 
 				// just replenish
 				m.addConsumeTask()
@@ -85,7 +95,8 @@ func (m *Sealing) RunPledgeSector() error {
 				}
 				go func() {
 					// daemon check
-					if err := m.PledgeRemoteSector(); err != nil {
+					sectorRef, err := m.PledgeSector(context.TODO())
+					if err != nil {
 						if errors.ErrNoData.Equal(err) {
 							log.Error("No storage to allocate")
 						} else {
@@ -97,7 +108,11 @@ func (m *Sealing) RunPledgeSector() error {
 
 						// fast to do generate one addpiece event.
 						m.addConsumeTask()
+						return
 					}
+
+					// TODO:
+					_ = sectorRef
 				}()
 			}
 		}

@@ -13,6 +13,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/urfave/cli/v2"
+	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 	"golang.org/x/xerrors"
@@ -24,6 +25,7 @@ import (
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
+	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
@@ -73,7 +75,7 @@ var runCmd = &cli.Command{
 			}
 		}
 		// use the cluster proxy if it's exist.
-		if err := lcli.UseLotusProxy(cctx); err != nil {
+		if err := cliutil.UseLotusProxy(cctx); err != nil {
 			log.Infof("lotus proxy is invalid:%+s", err.Error())
 		}
 
@@ -82,14 +84,20 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("getting full node api: %w", err)
 		}
 		defer ncloser()
-		ctx := lcli.DaemonContext(cctx)
 
+		ctx, _ := tag.New(lcli.DaemonContext(cctx),
+			tag.Insert(metrics.Version, build.BuildVersion),
+			tag.Insert(metrics.Commit, build.CurrentCommit),
+			tag.Insert(metrics.NodeType, "miner"),
+		)
 		// Register all metric views
-		if err := view.Register(
-			metrics.DefaultViews...,
+		if err = view.Register(
+			metrics.MinerNodeViews...,
 		); err != nil {
 			log.Fatalf("Cannot register the view: %v", err)
 		}
+		// Set the metric to one so it is published to the exporter
+		stats.Record(ctx, metrics.LotusInfo.M(1))
 
 		v, err := nodeApi.Version(ctx)
 		if err != nil {
@@ -102,8 +110,8 @@ var runCmd = &cli.Command{
 			}
 		}
 
-		if v.APIVersion != build.FullAPIVersion {
-			return xerrors.Errorf("lotus-daemon API version doesn't match: expected: %s", api.Version{APIVersion: build.FullAPIVersion})
+		if v.APIVersion != api.FullAPIVersion {
+			return xerrors.Errorf("lotus-daemon API version doesn't match: expected: %s", api.APIVersion{APIVersion: api.FullAPIVersion})
 		}
 
 		log.Info("Checking full node sync status")
@@ -199,6 +207,7 @@ var runCmd = &cli.Command{
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)
 		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(minerRepoPath).FileHttpServer)
+		mux.Handle("/debug/metrics", metrics.Exporter())
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
 		ah := &auth.Handler{

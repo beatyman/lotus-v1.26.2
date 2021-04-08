@@ -8,7 +8,6 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
@@ -25,8 +24,8 @@ type rpcServer struct {
 	storageCache map[int64]database.StorageInfo
 }
 
-func (w *rpcServer) Version(context.Context) (build.Version, error) {
-	return 0, nil
+func (w *rpcServer) Version(context.Context) (string, error) {
+	return "", nil
 }
 
 func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commit1Out storage.Commit1Out) (storage.Proof, error) {

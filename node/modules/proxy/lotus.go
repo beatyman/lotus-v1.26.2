@@ -15,7 +15,7 @@ import (
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
-	cliutil "github.com/filecoin-project/lotus/cli/util"
+	"github.com/filecoin-project/lotus/cli/util/apiaddr"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
@@ -24,7 +24,7 @@ import (
 
 type LotusNode struct {
 	ctx     context.Context
-	apiInfo cliutil.APIInfo
+	apiInfo apiaddr.APIInfo
 
 	curHeight int64 // the current epoch of the chain
 	usedTimes int   // good times
@@ -96,7 +96,7 @@ var (
 	lotusProxyCfg    string
 	lotusProxyOn     bool
 	lotusAutoSelect  bool
-	lotusProxyAddr   *cliutil.APIInfo
+	lotusProxyAddr   *apiaddr.APIInfo
 	lotusProxyCloser func() error
 	lotusNodes       = []*LotusNode{}
 	bestLotusNode    *LotusNode
@@ -306,7 +306,7 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 		}
 		nodes = append(nodes, &LotusNode{
 			ctx:     ctx,
-			apiInfo: cliutil.ParseApiInfo(strings.TrimSpace(records[i][0])),
+			apiInfo: apiaddr.ParseApiInfo(strings.TrimSpace(records[i][0])),
 		})
 	}
 
@@ -316,7 +316,7 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 	}
 
 	// TODO: support different token.
-	proxyAddr := cliutil.ParseApiInfo(strings.TrimSpace(records[0][0]))
+	proxyAddr := apiaddr.ParseApiInfo(strings.TrimSpace(records[0][0]))
 	token := string(proxyAddr.Token)
 	for i := len(nodes) - 1; i > 0; i-- {
 		if token != string(nodes[i].apiInfo.Token) {
@@ -327,7 +327,7 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 	return reloadNodes(&proxyAddr, nodes)
 }
 
-func reloadNodes(proxyAddr *cliutil.APIInfo, nodes []*LotusNode) error {
+func reloadNodes(proxyAddr *apiaddr.APIInfo, nodes []*LotusNode) error {
 	// clean nodes
 	removeNodes := []*LotusNode{}
 	for _, node := range lotusNodes {

@@ -63,6 +63,9 @@ CLEAN+=build/.update-modules
 deps: $(BUILD_DEPS)
 .PHONY: deps
 
+build-devnets: build lotus-seed lotus-shed lotus-wallet lotus-gateway
+.PHONY: build-devnets
+
 debug: GOFLAGS+=-tags=debug
 debug: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools storage-watch
 
@@ -91,10 +94,10 @@ calibnet: GOFLAGS+=-tags=calibnet
 calibnet: lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
 
 nerpanet: GOFLAGS+=-tags=nerpanet
-nerpanet: lotus lotus-miner lotus-worker lotus-seed
+nerpanet: build-devnets
 
 butterflynet: GOFLAGS+=-tags=butterflynet
-butterflynet: lotus lotus-miner lotus-worker lotus-seed
+butterflynet: build-devnets
 
 lotus: $(BUILD_DEPS)
 	rm -f lotus

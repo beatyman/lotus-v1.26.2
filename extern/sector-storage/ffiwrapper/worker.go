@@ -113,7 +113,9 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 		_, online := _remotes.Load(info.ID)
 		if online {
 			workerOnlines++
-		} else {
+		}
+		_, offline := sb.offlineWorker.Load(info.ID)
+		if offline {
 			workerOfflines++
 		}
 	}
@@ -217,13 +219,28 @@ func (sb *Sealer) WorkerRemoteStats() ([]WorkerRemoteStats, error) {
 			IP:      info.Ip,
 			Disable: info.Disable,
 		}
+
+		// for disable
+		if info.Disable {
+			result = append(result, stat)
+			continue
+		}
+
 		on, ok := _remotes.Load(info.ID)
 		if !ok {
+			_, ok := sb.offlineWorker.Load(info.ID)
+			if !ok {
+				// remove the unknow worker, maybe it has been moved.
+				continue
+			}
+
+			// for offline
 			stat.Online = false
 			result = append(result, stat)
 			continue
 		}
 
+		// for online
 		r := on.(*remote)
 		sectors, err := sb.TaskWorking(r.cfg.ID)
 		if err != nil {
@@ -309,6 +326,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	}); err != nil {
 		return nil, errors.As(err)
 	}
+	sb.offlineWorker.Delete(cfg.ID) // for the no worker task stat.
 
 	wInfo, err := database.GetWorkerInfo(cfg.ID)
 	if err != nil {
@@ -628,6 +646,9 @@ func (sb *Sealer) toRemoteOwner(task workerCall) {
 			"no worker(%s,%s) for toOwner, return task:%s",
 			task.task.WorkerID, task.task.SectorStorage.WorkerInfo.Ip, task.task.Key(),
 		)
+
+		// clear this on worker online.
+		sb.offlineWorker.Store(task.task.WorkerID, task.task.SectorStorage.WorkerInfo)
 		sb.returnTask(task)
 		return
 	}

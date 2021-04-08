@@ -6,7 +6,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
-	cliutil "github.com/filecoin-project/lotus/cli/util"
+	"github.com/filecoin-project/lotus/cli/util/apiaddr"
 	"github.com/gwaylib/errors"
 )
 
@@ -32,7 +32,7 @@ func UseLotusProxy(ctx context.Context, cfgFile string) error {
 	return nil
 }
 
-func UseLotusDefault(ctx context.Context, addr cliutil.APIInfo) error {
+func UseLotusDefault(ctx context.Context, addr apiaddr.APIInfo) error {
 	lotusNodesLock.Lock()
 	defer lotusNodesLock.Unlock()
 	lotusProxyAddr = &addr
@@ -92,7 +92,7 @@ func LotusProxyChange(idx int) error {
 // for lotus api connect
 // if the proxy on, it would be miner's proxy.
 // else it should be the origin api connection.
-func LotusProxyAddr() *cliutil.APIInfo {
+func LotusProxyAddr() *apiaddr.APIInfo {
 	lotusNodesLock.Lock()
 	defer lotusNodesLock.Unlock()
 	return lotusProxyAddr

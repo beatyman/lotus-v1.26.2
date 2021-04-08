@@ -13,14 +13,18 @@ import (
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
+	miner3 "github.com/filecoin-project/specs-actors/v3/actors/builtin/miner"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 
 	lcli "github.com/filecoin-project/lotus/cli"
 	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
@@ -35,6 +39,7 @@ var sectorsCmd = &cli.Command{
 		sectorsRefsCmd,
 		sectorsUpdateCmd,
 		sectorsPledgeCmd,
+		sectorsExtendCmd,
 		sectorsTerminateCmd,
 		sectorsRemoveCmd,
 		sectorsMarkForUpgradeCmd,
@@ -55,7 +60,14 @@ var sectorsPledgeCmd = &cli.Command{
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
 
-		return nodeApi.PledgeSector(ctx)
+		id, err := nodeApi.PledgeSector(ctx)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Created CC sector: ", id.Number)
+
+		return nil
 	},
 }
 
@@ -411,6 +423,229 @@ var sectorsRefsCmd = &cli.Command{
 	},
 }
 
+var sectorsExtendCmd = &cli.Command{
+	Name:      "extend",
+	Usage:     "Extend sector expiration",
+	ArgsUsage: "<sectorNumbers...>",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:     "new-expiration",
+			Usage:    "new expiration epoch",
+			Required: false,
+		},
+		&cli.BoolFlag{
+			Name:     "v1-sectors",
+			Usage:    "renews all v1 sectors up to the maximum possible lifetime",
+			Required: false,
+		},
+		&cli.Int64Flag{
+			Name:     "tolerance",
+			Value:    20160,
+			Usage:    "when extending v1 sectors, don't try to extend sectors by fewer than this number of epochs",
+			Required: false,
+		},
+		&cli.Int64Flag{
+			Name:     "expiration-cutoff",
+			Usage:    "when extending v1 sectors, skip sectors whose current expiration is more than <cutoff> epochs from now (infinity if unspecified)",
+			Required: false,
+		},
+		&cli.StringFlag{},
+	},
+	Action: func(cctx *cli.Context) error {
+
+		api, nCloser, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer nCloser()
+
+		ctx := lcli.ReqContext(cctx)
+
+		maddr, err := getActorAddress(ctx, cctx)
+		if err != nil {
+			return err
+		}
+
+		var params []miner3.ExtendSectorExpirationParams
+
+		if cctx.Bool("v1-sectors") {
+
+			head, err := api.ChainHead(ctx)
+			if err != nil {
+				return err
+			}
+
+			nv, err := api.StateNetworkVersion(ctx, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+
+			extensions := map[miner.SectorLocation]map[abi.ChainEpoch][]uint64{}
+
+			// are given durations within tolerance epochs
+			withinTolerance := func(a, b abi.ChainEpoch) bool {
+				diff := a - b
+				if diff < 0 {
+					diff = b - a
+				}
+
+				return diff <= abi.ChainEpoch(cctx.Int64("tolerance"))
+			}
+
+			sis, err := api.StateMinerActiveSectors(ctx, maddr, types.EmptyTSK)
+			if err != nil {
+				return xerrors.Errorf("getting miner sector infos: %w", err)
+			}
+
+			for _, si := range sis {
+				if si.SealProof >= abi.RegisteredSealProof_StackedDrg2KiBV1_1 {
+					continue
+				}
+
+				if cctx.IsSet("expiration-cutoff") {
+					if si.Expiration > (head.Height() + abi.ChainEpoch(cctx.Int64("expiration-cutoff"))) {
+						continue
+					}
+				}
+
+				ml := policy.GetSectorMaxLifetime(si.SealProof, nv)
+				// if the sector's missing less than "tolerance" of its maximum possible lifetime, don't bother extending it
+				if withinTolerance(si.Expiration-si.Activation, ml) {
+					continue
+				}
+
+				// Set the new expiration to 48 hours less than the theoretical maximum lifetime
+				newExp := ml - (miner3.WPoStProvingPeriod * 2) + si.Activation
+				p, err := api.StateSectorPartition(ctx, maddr, si.SectorNumber, types.EmptyTSK)
+				if err != nil {
+					return xerrors.Errorf("getting sector location for sector %d: %w", si.SectorNumber, err)
+				}
+
+				if p == nil {
+					return xerrors.Errorf("sector %d not found in any partition", si.SectorNumber)
+				}
+
+				es, found := extensions[*p]
+				if !found {
+					ne := make(map[abi.ChainEpoch][]uint64)
+					ne[newExp] = []uint64{uint64(si.SectorNumber)}
+					extensions[*p] = ne
+				} else {
+					added := false
+					for exp := range es {
+						if withinTolerance(exp, newExp) {
+							es[exp] = append(es[exp], uint64(si.SectorNumber))
+							added = true
+							break
+						}
+					}
+
+					if !added {
+						es[newExp] = []uint64{uint64(si.SectorNumber)}
+					}
+				}
+			}
+
+			p := miner3.ExtendSectorExpirationParams{}
+			scount := 0
+
+			for l, exts := range extensions {
+				for newExp, numbers := range exts {
+					scount += len(numbers)
+					if scount > policy.GetAddressedSectorsMax(nv) || len(p.Extensions) == policy.GetDeclarationsMax(nv) {
+						params = append(params, p)
+						p = miner3.ExtendSectorExpirationParams{}
+						scount = len(numbers)
+					}
+
+					p.Extensions = append(p.Extensions, miner3.ExpirationExtension{
+						Deadline:      l.Deadline,
+						Partition:     l.Partition,
+						Sectors:       bitfield.NewFromSet(numbers),
+						NewExpiration: newExp,
+					})
+				}
+			}
+
+			// if we have any sectors, then one last append is needed here
+			if scount != 0 {
+				params = append(params, p)
+			}
+
+		} else {
+			if !cctx.Args().Present() || !cctx.IsSet("new-expiration") {
+				return xerrors.Errorf("must pass at least one sector number and new expiration")
+			}
+			sectors := map[miner.SectorLocation][]uint64{}
+
+			for i, s := range cctx.Args().Slice() {
+				id, err := strconv.ParseUint(s, 10, 64)
+				if err != nil {
+					return xerrors.Errorf("could not parse sector %d: %w", i, err)
+				}
+
+				p, err := api.StateSectorPartition(ctx, maddr, abi.SectorNumber(id), types.EmptyTSK)
+				if err != nil {
+					return xerrors.Errorf("getting sector location for sector %d: %w", id, err)
+				}
+
+				if p == nil {
+					return xerrors.Errorf("sector %d not found in any partition", id)
+				}
+
+				sectors[*p] = append(sectors[*p], id)
+			}
+
+			p := miner3.ExtendSectorExpirationParams{}
+			for l, numbers := range sectors {
+
+				// TODO: Dedup with above loop
+				p.Extensions = append(p.Extensions, miner3.ExpirationExtension{
+					Deadline:      l.Deadline,
+					Partition:     l.Partition,
+					Sectors:       bitfield.NewFromSet(numbers),
+					NewExpiration: abi.ChainEpoch(cctx.Int64("new-expiration")),
+				})
+			}
+
+			params = append(params, p)
+		}
+
+		if len(params) == 0 {
+			fmt.Println("nothing to extend")
+			return nil
+		}
+
+		mi, err := api.StateMinerInfo(ctx, maddr, types.EmptyTSK)
+		if err != nil {
+			return xerrors.Errorf("getting miner info: %w", err)
+		}
+
+		for i := range params {
+			sp, aerr := actors.SerializeParams(&params[i])
+			if aerr != nil {
+				return xerrors.Errorf("serializing params: %w", err)
+			}
+
+			smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+				From:   mi.Worker,
+				To:     maddr,
+				Method: miner.Methods.ExtendSectorExpiration,
+
+				Value:  big.Zero(),
+				Params: sp,
+			}, nil)
+			if err != nil {
+				return xerrors.Errorf("mpool push message: %w", err)
+			}
+
+			fmt.Println(smsg.Cid())
+		}
+
+		return nil
+	},
+}
+
 var sectorsTerminateCmd = &cli.Command{
 	Name:      "terminate",
 	Usage:     "Terminate sector on-chain then remove (WARNING: This means losing power and collateral for the removed sector)",
@@ -644,12 +879,6 @@ var sectorsCapacityCollateralCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 
-		mApi, mCloser, err := lcli.GetStorageMinerAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer mCloser()
-
 		nApi, nCloser, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {
 			return err
@@ -658,23 +887,50 @@ var sectorsCapacityCollateralCmd = &cli.Command{
 
 		ctx := lcli.ReqContext(cctx)
 
-		maddr, err := mApi.ActorAddress(ctx)
+		maddr, err := getActorAddress(ctx, cctx)
+		if err != nil {
+			return err
+		}
+
+		mi, err := nApi.StateMinerInfo(ctx, maddr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		nv, err := nApi.StateNetworkVersion(ctx, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		spt, err := miner.PreferredSealProofTypeFromWindowPoStType(nv, mi.WindowPoStProofType)
 		if err != nil {
 			return err
 		}
 
 		pci := miner.SectorPreCommitInfo{
+			SealProof:  spt,
 			Expiration: abi.ChainEpoch(cctx.Uint64("expiration")),
 		}
 		if pci.Expiration == 0 {
-			pci.Expiration = policy.GetMaxSectorExpirationExtension()
+			h, err := nApi.ChainHead(ctx)
+			if err != nil {
+				return err
+			}
+
+			pci.Expiration = policy.GetMaxSectorExpirationExtension() + h.Height()
 		}
+
 		pc, err := nApi.StateMinerInitialPledgeCollateral(ctx, maddr, pci, types.EmptyTSK)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Estimated collateral: %s\n", types.FIL(pc))
+		pcd, err := nApi.StateMinerPreCommitDepositForPower(ctx, maddr, pci, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Estimated collateral: %s\n", types.FIL(big.Max(pc, pcd)))
 
 		return nil
 	},
