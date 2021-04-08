@@ -71,7 +71,7 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 		sName := sectorName(sector.ID)
 		unsealedStorageId := int64(0)
 		state := -1
-		if sector.AllocateUnsealed {
+		if sector.IsMarketSector {
 			tx, unsealedStorage, err := database.PrepareStorage(sName, "", database.STORAGE_KIND_UNSEALED)
 			if err != nil {
 				return errors.As(err)
@@ -147,10 +147,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 		}
 	}()
 
-	unsealedPath := sb.SectorPath("unsealed", sectorName(sector.ID))
-	if sector.AllocateUnsealed {
-		unsealedPath = sector.UnsealedFile()
-	}
+	unsealedPath := sector.UnsealedFile()
 	if err := os.MkdirAll(filepath.Dir(unsealedPath), 0755); err != nil {
 		return abi.PieceInfo{}, xerrors.Errorf("creating unsealed sector file: %w", err)
 	}
