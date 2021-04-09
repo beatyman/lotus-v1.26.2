@@ -180,3 +180,11 @@ func GetStorageCheck(id int64) (StorageStatusSort, error) {
 	}
 	return list, nil
 }
+func GetAllStorageInfoAll() ([]StorageInfo, error) {
+	list := []StorageInfo{}
+	db := GetDB()
+	if err := database.QueryStructs(db, &list, "SELECT * FROM storage_info "); err != nil {
+		return nil, errors.As(err, "all")
+	}
+	return list, nil
+}
