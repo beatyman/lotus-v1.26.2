@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
-	"github.com/filecoin-project/lotus/buried/rpcclient"
 	"math"
 	"os"
 	"sync"

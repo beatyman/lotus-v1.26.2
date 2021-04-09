@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/filecoin-project/go-state-types/abi"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
-	"github.com/filecoin-project/lotus/buried/rpcclient"
 	"math"
 	"math/rand"
 	"sort"
