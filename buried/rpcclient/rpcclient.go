@@ -6,7 +6,7 @@ import (
 )
 
 //var client =
-var client = NewClient()
+//var client = NewClient()
 
 type DqueRequest struct {
 	Data []byte
