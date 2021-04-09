@@ -674,6 +674,5 @@ func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, wo
 	}
 	//go report.SendReport(kafaRestDataBytes)
 	go rpcclient.Send(kafaRestDataBytes)
-	log.Info(kafaRestDataBytes)
 	return nil
 }

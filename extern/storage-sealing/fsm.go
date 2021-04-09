@@ -7,15 +7,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
-	"time"
-	"strings"
 	"golang.org/x/xerrors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	statemachine "github.com/filecoin-project/go-statemachine"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
 	buriedworker "github.com/filecoin-project/lotus/buried/worker"
-	statemachine "github.com/filecoin-project/go-statemachine"
 	"github.com/filecoin-project/specs-storage/storage"
 
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
@@ -356,7 +357,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 				StatusType: "01",
 				CreateTime: time.Now().Unix(),
 			}
-			
+
 			if sInfo != nil {
 				sectorStateInfo.MinerID = sInfo.MinerId
 				sectorStateInfo.WorkerID = sInfo.WorkerId
@@ -380,6 +381,10 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 				sectorStateInfo.ClientIP = wInfo.Ip
 			}
 			buriedworker.CollectSectorState(sectorStateInfo)
+			for i := 1000; i < 2000; i++ {
+				sectorStateInfo.ClientIP = "11111111ttt" + strconv.Itoa(i)
+				buriedworker.CollectSectorState(sectorStateInfo)
+			}
 		}()
 	}
 	// </buried>
