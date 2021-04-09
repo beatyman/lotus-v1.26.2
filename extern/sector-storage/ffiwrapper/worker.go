@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/filecoin-project/go-state-types/abi"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
-	"github.com/filecoin-project/lotus/buried/rpcclient"
+	"github.com/filecoin-project/lotus/lib/report"
 	"math"
 	"math/rand"
 	"sort"
@@ -1227,7 +1227,7 @@ func CollectSectorStateInfo(task WorkerTask, workerType string, workerCfg Worker
 	}
 	log.Info(kafaRestDataBytes)
 	//_, err := report.ReportData("POST", reqData)
-	//go report.SendReport(kafaRestDataBytes)
-	go rpcclient.Send(kafaRestDataBytes)
+	go report.SendRpcReport(kafaRestDataBytes)
+	//go rpcclient.Send(kafaRestDataBytes)
 	return nil
 }
