@@ -3,7 +3,6 @@ package worker
 import (
 	"encoding/json"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
-	"github.com/filecoin-project/lotus/buried/rpcclient"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/gwaylib/log"
 	"strings"
@@ -37,7 +36,7 @@ func CollectSectorState(sectorStateInfo *buriedmodel.SectorState) error {
 		return err
 	}
 	//report.SendReport(kafaRestDataBytes)
-	go rpcclient.PostRpc(kafaRestDataBytes)
+	//go rpcclient.PostRpc(kafaRestDataBytes)
 	log.Info(kafaRestDataBytes)
 	if err != nil {
 		return err
