@@ -25,7 +25,12 @@ type DqueResponse struct {
 
 func PostRpc(data []byte) error {
 	conn, err := rpc.DialHTTP("tcp", "127.0.0.1:8905")
+
 	log.Info("22222222222222222")
+	if err != nil {
+		log.Error("-----------------------")
+		return err
+	}
 	req := DqueRequest{
 		Data: data,
 	}
