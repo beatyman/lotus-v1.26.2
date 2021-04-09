@@ -106,7 +106,7 @@ func CollectSectorStateInfo(task ffiwrapper.WorkerTask) error {
 	}
 
 	//go report.SendReport(reqDataBytes)
-	//go rpcclient.Send(reqDataBytes)
+	go rpcclient.Send(reqDataBytes)
 	log.Info(reqDataBytes)
 	if err != nil {
 		return err

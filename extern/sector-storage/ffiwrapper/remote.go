@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
+	"github.com/filecoin-project/lotus/buried/rpcclient"
 	"math"
 	"os"
 	"sync"
@@ -672,7 +673,7 @@ func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, wo
 		return err
 	}
 	//go report.SendReport(kafaRestDataBytes)
-	//go rpcclient.Send(kafaRestDataBytes)
+	go rpcclient.Send(kafaRestDataBytes)
 	log.Info(kafaRestDataBytes)
 	return nil
 }
