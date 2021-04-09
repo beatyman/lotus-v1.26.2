@@ -58,7 +58,9 @@ func Send(data []byte) error {
 	err := PostRpc(data)
 	if err != nil {
 		log.Error("err ---------", err)
-		client.Close()
+		if client != nil {
+			client.Close()
+		}
 		log.Info("reconnect rpc server ...>>>")
 		conn, err := rpc.DialHTTP("tcp", "127.0.0.1:8905")
 		if err != nil {
