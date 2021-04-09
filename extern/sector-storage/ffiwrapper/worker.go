@@ -1225,8 +1225,9 @@ func CollectSectorStateInfo(task WorkerTask, workerType string, workerCfg Worker
 		log.Error(err)
 		return err
 	}
+	log.Info(kafaRestDataBytes)
 	//_, err := report.ReportData("POST", reqData)
 	//go report.SendReport(kafaRestDataBytes)
-	go rpcclient.Send(kafaRestDataBytes)
+	//go rpcclient.Send(kafaRestDataBytes)
 	return nil
 }
