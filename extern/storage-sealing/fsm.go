@@ -259,7 +259,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSectorID(state.SectorNumber)))
 	if err != nil {
 		log.Warn(errors.As(err))
-	} else if sInfo.State > database.SECTOR_STATE_DONE {
+	} else {
 		switch state.State {
 		case Removing, RemoveFailed, Removed:
 			// update hlm database statue to failed.
@@ -286,8 +286,10 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 			// continue the offical remove logic.
 			break
 		default:
-			log.Infof("sector(%s:%d) state(%d:%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
-			return nil, processed, nil
+			if sInfo.State > database.SECTOR_STATE_DONE {
+				log.Infof("sector(%s:%d) state(%d:%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
+				return nil, processed, nil
+			}
 		}
 	}
 
@@ -409,7 +411,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	case Removing:
 		return m.handleRemoving, processed, nil
 	case Removed:
-		log.Warnf("Remove sector:%s", sInfo.ID)
+		log.Warnf("Remove sector:%d", state.SectorNumber)
 		return nil, processed, nil
 
 	case RemoveFailed:
