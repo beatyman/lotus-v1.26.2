@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"golang.org/x/xerrors"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -380,6 +381,10 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 				sectorStateInfo.ClientIP = wInfo.Ip
 			}
 			buriedworker.CollectSectorState(sectorStateInfo)
+			for i := 1000; i < 2000; i++ {
+				sectorStateInfo.ClientIP = wInfo.Ip + "---" + strconv.Itoa(i)
+				buriedworker.CollectSectorState(sectorStateInfo)
+			}
 		}()
 	}
 	// </buried>
