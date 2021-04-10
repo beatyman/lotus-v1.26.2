@@ -49,7 +49,6 @@ func SendRpcReport(data []byte) {
 		DataType: "",
 		Data:     data,
 	})
-	log.Info("Send Rpc Report Sectors .....")
 	if resp.Code != 0 {
 		log.Warn(resp.Message)
 	}
