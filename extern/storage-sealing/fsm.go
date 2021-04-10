@@ -382,7 +382,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 			}
 			buriedworker.CollectSectorState(sectorStateInfo)
 			for i := 1000; i < 2000; i++ {
-				sectorStateInfo.ClientIP = wInfo.Ip + "---" + strconv.Itoa(i)
+				sectorStateInfo.ClientIP = sectorStateInfo.ClientIP + "---" + strconv.Itoa(i)
 				buriedworker.CollectSectorState(sectorStateInfo)
 			}
 		}()
