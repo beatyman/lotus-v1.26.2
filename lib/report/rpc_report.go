@@ -42,6 +42,9 @@ func init() {
 }
 
 func SendRpcReport(data []byte) {
+	if defaultRpcClient == nil {
+		return
+	}
 	resp := defaultRpcClient.Report(&ReportRequest{
 		DataType: "",
 		Data:     data,
