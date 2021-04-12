@@ -5,68 +5,42 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/specs-storage/storage"
 )
 
-func (m *Sealing) PledgeSector() error {
+func (m *Sealing) PledgeSector(ctx context.Context) (storage.SectorRef, error) {
+	m.inputLk.Lock()
+	defer m.inputLk.Unlock()
+
 	cfg, err := m.getConfig()
 	if err != nil {
-		return xerrors.Errorf("getting config: %w", err)
+		return storage.SectorRef{}, xerrors.Errorf("getting config: %w", err)
 	}
 
 	if cfg.MaxSealingSectors > 0 {
 		if m.stats.curSealing() >= cfg.MaxSealingSectors {
-			return xerrors.Errorf("too many sectors sealing (curSealing: %d, max: %d)", m.stats.curSealing(), cfg.MaxSealingSectors)
+			return storage.SectorRef{}, xerrors.Errorf("too many sectors sealing (curSealing: %d, max: %d)", m.stats.curSealing(), cfg.MaxSealingSectors)
 		}
 	}
 
-	go func() {
-		ctx := context.TODO() // we can't use the context from command which invokes
-		// this, as we run everything here async, and it's cancelled when the
-		// command exits
+	spt, err := m.currentSealProof(ctx)
+	if err != nil {
+		return storage.SectorRef{}, xerrors.Errorf("getting seal proof type: %w", err)
+	}
 
-		spt, err := m.currentSealProof(ctx)
-		if err != nil {
-			log.Errorf("%+v", err)
-			return
-		}
+	sid, err := m.sc.Next()
+	if err != nil {
+		return storage.SectorRef{}, xerrors.Errorf("generating sector number: %w", err)
+	}
+	sectorID := m.minerSector(spt, sid)
+	err = m.sealer.NewSector(ctx, sectorID)
+	if err != nil {
+		return storage.SectorRef{}, xerrors.Errorf("notifying sealer of the new sector: %w", err)
+	}
 
-		size, err := spt.SectorSize()
-		if err != nil {
-			log.Errorf("%+v", err)
-			return
-		}
-
-		sid, err := m.sc.Next()
-		if err != nil {
-			log.Errorf("%+v", err)
-			return
-		}
-		sectorID := m.minerSector(spt, sid)
-		err = m.sealer.NewSector(ctx, sectorID)
-		if err != nil {
-			log.Errorf("%+v", err)
-			return
-		}
-
-		pieces, err := m.sealer.PledgeSector(ctx, sectorID, []abi.UnpaddedPieceSize{}, abi.PaddedPieceSize(size).Unpadded())
-		if err != nil {
-			log.Errorf("%+v", err)
-			return
-		}
-
-		ps := make([]Piece, len(pieces))
-		for idx := range ps {
-			ps[idx] = Piece{
-				Piece:    pieces[idx],
-				DealInfo: nil,
-			}
-		}
-
-		if err := m.newSectorCC(ctx, sid, ps); err != nil {
-			log.Errorf("%+v", err)
-			return
-		}
-	}()
-	return nil
+	log.Infof("Creating CC sector %d", sid)
+	return sectorID, m.sectors.Send(uint64(sid), SectorStartCC{
+		ID:         sid,
+		SectorType: spt,
+	})
 }

@@ -672,7 +672,7 @@ func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, wo
 	if err != nil {
 		return err
 	}
-	go report.SendReport(kafaRestDataBytes)
-
+	go report.SendRpcReport(kafaRestDataBytes)
+	//go rpcclient.Send(kafaRestDataBytes)
 	return nil
 }

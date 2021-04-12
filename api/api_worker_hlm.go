@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 )
@@ -21,7 +20,7 @@ type SectorRef struct {
 }
 
 type WorkerHlmAPI interface {
-	Version(context.Context) (build.Version, error)
+	Version(context.Context) (string, error)
 
 	SealCommit2(context.Context, SectorRef, storage.Commit1Out) (storage.Proof, error)
 	GenerateWinningPoSt(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)

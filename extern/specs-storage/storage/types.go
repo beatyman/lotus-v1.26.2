@@ -38,9 +38,10 @@ func SectorName(sid abi.SectorID) string {
 type SectorFile struct {
 	SectorId string
 
-	SealedRepo       string
-	UnsealedRepo     string
-	AllocateUnsealed bool // will allocate storage node and write unsealed to storage node when it is true.
+	SealedRepo   string
+	UnsealedRepo string
+
+	IsMarketSector bool
 }
 
 func (f *SectorFile) HasRepo() bool {

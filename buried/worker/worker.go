@@ -36,7 +36,8 @@ func CollectSectorState(sectorStateInfo *buriedmodel.SectorState) error {
 		log.Error(err)
 		return err
 	}
-	report.SendReport(kafaRestDataBytes)
+	report.SendRpcReport(kafaRestDataBytes)
+	//go rpcclient.Send(kafaRestDataBytes)
 	if err != nil {
 		return err
 	}
@@ -104,6 +105,7 @@ func CollectSectorStateInfo(task ffiwrapper.WorkerTask) error {
 	}
 
 	go report.SendReport(reqDataBytes)
+	//go rpcclient.Send(reqDataBytes)
 	if err != nil {
 		return err
 	}
