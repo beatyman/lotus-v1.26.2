@@ -31,7 +31,7 @@ var (
 func init() {
 	once.Do(func() {
 		client := Client{}
-		closer, err := jsonrpc.NewClient(ctx, "ws://localhost:1918/local/report", "ReportServer", &client, nil)
+		closer, err := jsonrpc.NewClient(ctx, "http://localhost:1918/local/report", "ReportServer", &client, nil)
 		if err != nil {
 			log.Error(err)
 			return
@@ -49,6 +49,10 @@ func SendRpcReport(data []byte) {
 		DataType: "",
 		Data:     data,
 	})
+	if resp == nil {
+		log.Warn("http server not enabled ...")
+		return
+	}
 	if resp.Code != 0 {
 		log.Warn(resp.Message)
 	}
