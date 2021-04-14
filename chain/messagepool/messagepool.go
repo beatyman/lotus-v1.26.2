@@ -195,23 +195,6 @@ func CapGasFee(mff dtypes.DefaultMaxFeeFunc, msg *types.Message, sendSepc *api.M
 		maxFee = mf
 	}
 
-	if maxFee.Equals(big.Zero()) {
-		mf, err := mff()
-		if err != nil {
-			log.Errorf("failed to get default max gas fee: %+v", err)
-			mf = big.Zero()
-		}
-
-		maxFee = mf
-	}
-	msgGasFeeCap := msg.GasFeeCap.Int64()
-	if msgGasFeeCap<minGasCap{
-		msg.GasFeeCap.SetInt64(minGasCap)
-	}
-	if msgGasFeeCap>maxGasCap && maxGasCap>minGasCap{
-		msg.GasFeeCap.SetInt64(maxGasCap)
-	}
-
 	gl := types.NewInt(uint64(msg.GasLimit))
 	totalFee := types.BigMul(msg.GasFeeCap, gl)
 
@@ -1230,7 +1213,6 @@ type statBucket struct {
 func (mp *MessagePool) MessagesForBlocks(blks []*types.BlockHeader) ([]*types.SignedMessage, error) {
 	out := make([]*types.SignedMessage, 0)
 
-	recoverSigFailed := []cid.Cid{}
 	for _, b := range blks {
 		bmsgs, smsgs, err := mp.api.MessagesForBlock(b)
 		if err != nil {
@@ -1246,9 +1228,6 @@ func (mp *MessagePool) MessagesForBlocks(blks []*types.BlockHeader) ([]*types.Si
 				log.Debugf("could not recover signature for bls message %s", msg.Cid())
 			}
 		}
-	}
-	if len(recoverSigFailed) > 0 {
-		log.Warnf("could not recover signature for bls message len:%d", len(recoverSigFailed))
 	}
 
 	return out, nil

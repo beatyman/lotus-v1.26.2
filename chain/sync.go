@@ -821,6 +821,11 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock, use
 		defer func() {
 			msgsCheckEnd = build.Clock.Now()
 		}()
+
+		if b.Cid() == build.WhitelistedBlock {
+			return nil
+		}
+
 		if err := syncer.checkBlockMessages(ctx, b, baseTs); err != nil {
 			return xerrors.Errorf("block had invalid messages: %w", err)
 		}

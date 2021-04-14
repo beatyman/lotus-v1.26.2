@@ -14,7 +14,7 @@ import (
 )
 
 type RemoteWallet struct {
-	api.WalletAPI
+	api.Wallet
 }
 
 func SetupRemoteWallet(info string) func(mctx helpers.MetricsCtx, lc fx.Lifecycle) (*RemoteWallet, error) {
@@ -42,7 +42,7 @@ func SetupRemoteWallet(info string) func(mctx helpers.MetricsCtx, lc fx.Lifecycl
 	}
 }
 
-func (w *RemoteWallet) Get() api.WalletAPI {
+func (w *RemoteWallet) Get() api.Wallet {
 	if w == nil {
 		return nil
 	}

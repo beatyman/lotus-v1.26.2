@@ -4,6 +4,9 @@ import (
 	"context"
 	"io"
 
+	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
+
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/paych"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -17,11 +20,10 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	specstorage "github.com/filecoin-project/specs-storage/storage"
 
-	"github.com/ipfs/go-cid"
-
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
+
+var log = logging.Logger("retrievaladapter")
 
 type retrievalProviderNode struct {
 	miner  *storage.Miner
@@ -64,16 +66,20 @@ func (rpn *retrievalProviderNode) UnsealSector(ctx context.Context, sectorID abi
 		ProofType: si.SectorType,
 	}
 
+	// Set up a pipe so that data can be written from the unsealing process
+	// into the reader returned by this function
 	r, w := io.Pipe()
 	go func() {
 		var commD cid.Cid
 		if si.CommD != nil {
 			commD = *si.CommD
 		}
+		// Read the piece into the pipe's writer, unsealing the piece if necessary
 		err := rpn.sealer.ReadPiece(ctx, w, ref, storiface.UnpaddedByteIndex(offset), length, si.TicketValue, commD)
 		if err != nil {
 			log.Error(errors.As(err, ref))
 		}
+		// Close the reader with any error that was returned while reading the piece
 		_ = w.CloseWithError(err)
 	}()
 
