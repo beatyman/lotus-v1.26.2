@@ -9,7 +9,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
-	logging "github.com/ipfs/go-log"
+	logging "github.com/ipfs/go-log/v2"
 	ledgerfil "github.com/whyrusleeping/ledger-filecoin-go"
 	"golang.org/x/xerrors"
 
@@ -37,7 +37,7 @@ type LedgerKeyInfo struct {
 	Path    []uint32
 }
 
-var _ api.WalletAPI = (*LedgerWallet)(nil)
+var _ api.Wallet = (*LedgerWallet)(nil)
 
 func (lw LedgerWallet) WalletSign(ctx context.Context, authData []byte, signer address.Address, toSign []byte, meta api.MsgMeta) (*crypto.Signature, error) {
 	// implement hlm auth
@@ -245,7 +245,7 @@ func (lw LedgerWallet) WalletNew(ctx context.Context, t types.KeyType) (address.
 	return lw.importKey(lki)
 }
 
-func (lw *LedgerWallet) Get() api.WalletAPI {
+func (lw *LedgerWallet) Get() api.Wallet {
 	if lw == nil {
 		return nil
 	}

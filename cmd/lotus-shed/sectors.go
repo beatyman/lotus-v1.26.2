@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
@@ -36,6 +37,10 @@ var terminateSectorCmd = &cli.Command{
 	Usage:     "Forcefully terminate a sector (WARNING: This means losing power and pay a one-time termination penalty(including collateral) for the terminated sector)",
 	ArgsUsage: "sector file, seperate with \\r\\n",
 	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "actor",
+			Usage: "specify the address of miner actor",
+		},
 		&cli.BoolFlag{
 			Name:  "really-do-it",
 			Usage: "pass this flag if you know what you are doing",
@@ -44,6 +49,19 @@ var terminateSectorCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() < 1 {
 			return fmt.Errorf("at least one sector must be specified")
+		}
+
+		var maddr address.Address
+		if act := cctx.String("actor"); act != "" {
+			var err error
+			maddr, err = address.NewFromString(act)
+			if err != nil {
+				return fmt.Errorf("parsing address %s: %w", act, err)
+			}
+		}
+
+		if !cctx.Bool("really-do-it") {
+			return fmt.Errorf("this is a command for advanced users, only use it if you are sure of what you are doing")
 		}
 
 		sectorFile := cctx.Args().First()
@@ -59,17 +77,18 @@ var terminateSectorCmd = &cli.Command{
 		}
 		defer closer()
 
+		ctx := lcli.ReqContext(cctx)
+
 		api, acloser, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
 		}
 		defer acloser()
-
-		ctx := lcli.ReqContext(cctx)
-
-		maddr, err := api.ActorAddress(ctx)
-		if err != nil {
-			return err
+		if maddr.Empty() {
+			maddr, err = api.ActorAddress(ctx)
+			if err != nil {
+				return err
+			}
 		}
 
 		mi, err := nodeApi.StateMinerInfo(ctx, maddr, types.EmptyTSK)
@@ -176,9 +195,24 @@ var terminateSectorPenaltyEstimationCmd = &cli.Command{
 	Name:      "termination-estimate",
 	Usage:     "Estimate the termination penalty",
 	ArgsUsage: "[sectorNum1 sectorNum2 ...]",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "actor",
+			Usage: "specify the address of miner actor",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() < 1 {
 			return fmt.Errorf("at least one sector must be specified")
+		}
+
+		var maddr address.Address
+		if act := cctx.String("actor"); act != "" {
+			var err error
+			maddr, err = address.NewFromString(act)
+			if err != nil {
+				return fmt.Errorf("parsing address %s: %w", act, err)
+			}
 		}
 
 		nodeApi, closer, err := lcli.GetFullNodeAPI(cctx)
@@ -187,17 +221,19 @@ var terminateSectorPenaltyEstimationCmd = &cli.Command{
 		}
 		defer closer()
 
-		api, acloser, err := lcli.GetStorageMinerAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer acloser()
-
 		ctx := lcli.ReqContext(cctx)
 
-		maddr, err := api.ActorAddress(ctx)
-		if err != nil {
-			return err
+		if maddr.Empty() {
+			api, acloser, err := lcli.GetStorageMinerAPI(cctx)
+			if err != nil {
+				return err
+			}
+			defer acloser()
+
+			maddr, err = api.ActorAddress(ctx)
+			if err != nil {
+				return err
+			}
 		}
 
 		mi, err := nodeApi.StateMinerInfo(ctx, maddr, types.EmptyTSK)

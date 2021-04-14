@@ -8,6 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/filecoin-project/lotus/chain/actors/builtin"
+	"github.com/filecoin-project/lotus/chain/gen"
+
+	"github.com/filecoin-project/lotus/build"
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -31,6 +35,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
+	apitypes "github.com/filecoin-project/lotus/api/types"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/markets/storageadapter"
 	"github.com/filecoin-project/lotus/miner"
@@ -61,7 +66,8 @@ type StorageMinerAPI struct {
 	AddrSel       *storage.AddressSelector
 	DealPublisher *storageadapter.DealPublisher
 
-	DS dtypes.MetadataDS
+	Epp gen.WinningPoStProver
+	DS  dtypes.MetadataDS
 
 	ConsiderOnlineStorageDealsConfigFunc        dtypes.ConsiderOnlineStorageDealsConfigFunc
 	SetConsiderOnlineStorageDealsConfigFunc     dtypes.SetConsiderOnlineStorageDealsConfigFunc
@@ -657,7 +663,7 @@ func (sm *StorageMinerAPI) CreateBackup(ctx context.Context, fpath string) error
 	return backup(sm.DS, fpath)
 }
 
-func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, sectors []sto.SectorRef, expensive bool, timeout time.Duration) (map[abi.SectorNumber]string, error) {
+func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []sto.SectorRef, expensive bool) (map[abi.SectorNumber]string, error) {
 	var rg storiface.RGetter
 	if expensive {
 		rg = func(ctx context.Context, id abi.SectorID) (cid.Cid, error) {
@@ -673,6 +679,7 @@ func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, sectors []sto.Sect
 		}
 	}
 
+	timeout := time.Second * 6
 	_, _, bad, err := sm.StorageMgr.CheckProvable(ctx, sectors, rg, timeout)
 	if err != nil {
 		return nil, err
@@ -688,6 +695,14 @@ func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, sectors []sto.Sect
 
 func (sm *StorageMinerAPI) ActorAddressConfig(ctx context.Context) (api.AddressConfig, error) {
 	return sm.AddrSel.AddressConfig, nil
+}
+
+func (sm *StorageMinerAPI) Discover(ctx context.Context) (apitypes.OpenRPCDocument, error) {
+	return build.OpenRPCDiscoverJSON_Miner(), nil
+}
+
+func (sm *StorageMinerAPI) ComputeProof(ctx context.Context, ssi []builtin.SectorInfo, rand abi.PoStRandomness) ([]builtin.PoStProof, error) {
+	return sm.Epp.ComputeProof(ctx, ssi, rand)
 }
 
 var _ api.StorageMiner = &StorageMinerAPI{}

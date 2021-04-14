@@ -349,7 +349,7 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, auth []byte, addr addres
 	return nil
 }
 
-func (w *LocalWallet) Get() api.WalletAPI {
+func (w *LocalWallet) Get() api.Wallet {
 	if w == nil {
 		return nil
 	}
@@ -357,7 +357,7 @@ func (w *LocalWallet) Get() api.WalletAPI {
 	return w
 }
 
-var _ api.WalletAPI = &LocalWallet{}
+var _ api.Wallet = &LocalWallet{}
 
 func swapMainnetForTestnetPrefix(addr string) (string, error) {
 	aChars := []rune(addr)

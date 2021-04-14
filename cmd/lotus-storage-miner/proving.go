@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 	"text/tabwriter"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/gwaylib/errors"
@@ -403,6 +402,11 @@ var provingCheckProvableCmd = &cli.Command{
 			return err
 		}
 
+		info, err := api.StateMinerInfo(ctx, addr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
 		partitions, err := api.StateMinerPartitions(ctx, addr, dlIdx, types.EmptyTSK)
 		if err != nil {
 			return err
@@ -438,7 +442,7 @@ var provingCheckProvableCmd = &cli.Command{
 				})
 			}
 
-			bad, err := sapi.CheckProvable(ctx, tocheck, cctx.Bool("slow"), 60*time.Second)
+			bad, err := sapi.CheckProvable(ctx, info.WindowPoStProofType, tocheck, cctx.Bool("slow"))
 			if err != nil {
 				return err
 			}
