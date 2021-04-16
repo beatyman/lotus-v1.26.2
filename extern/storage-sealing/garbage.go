@@ -28,7 +28,7 @@ func (m *Sealing) PledgeSector(ctx context.Context) (storage.SectorRef, error) {
 		return storage.SectorRef{}, xerrors.Errorf("getting seal proof type: %w", err)
 	}
 
-	sid, err := m.createSector(ctx, cfg, spt)
+	sid, err := m.createSector(ctx, false, cfg, spt)
 	if err != nil {
 		return storage.SectorRef{}, err
 	}
