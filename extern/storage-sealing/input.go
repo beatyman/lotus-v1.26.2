@@ -395,7 +395,7 @@ func (m *Sealing) tryCreateDealSector(ctx context.Context, sp abi.RegisteredSeal
 		return nil
 	}
 
-	sid, err := m.createSector(ctx, cfg, sp)
+	sid, err := m.createSector(ctx, true, cfg, sp)
 	if err != nil {
 		return err
 	}
@@ -408,7 +408,7 @@ func (m *Sealing) tryCreateDealSector(ctx context.Context, sp abi.RegisteredSeal
 }
 
 // call with m.inputLk
-func (m *Sealing) createSector(ctx context.Context, cfg sealiface.Config, sp abi.RegisteredSealProof) (abi.SectorNumber, error) {
+func (m *Sealing) createSector(ctx context.Context, market bool, cfg sealiface.Config, sp abi.RegisteredSealProof) (abi.SectorNumber, error) {
 	// Now actually create a new sector
 
 	sid, err := m.sc.Next()
@@ -417,7 +417,7 @@ func (m *Sealing) createSector(ctx context.Context, cfg sealiface.Config, sp abi
 	}
 
 	sectorId := m.minerSector(sp, sid)
-	sectorId.IsMarketSector = true // implement by hlm
+	sectorId.IsMarketSector = market // implement by hlm
 	err = m.sealer.NewSector(ctx, sectorId)
 	if err != nil {
 		return 0, xerrors.Errorf("initializing sector: %w", err)
