@@ -1176,7 +1176,8 @@ var clientRetrieveCmd = &cli.Command{
 			select {
 			case evt, ok := <-updates:
 				if ok {
-					afmt.Printf("> Recv: %s, Paid %s, %s (%s)\n",
+					afmt.Printf("> Recv(%s): %s, Paid %s, %s (%s)\n",
+						time.Now().Format("2006-01-02T15:04:05.000Z07:00"),
 						types.SizeStr(types.NewInt(evt.BytesReceived)),
 						types.FIL(evt.FundsSpent),
 						retrievalmarket.ClientEvents[evt.Event],
