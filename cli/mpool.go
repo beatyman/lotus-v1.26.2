@@ -233,7 +233,7 @@ var mpoolFix = &cli.Command{
 				continue
 			}
 			if limitMsg > 0 && fixedNum > limitMsg {
-				continue
+				break
 			}
 			fixedNum++
 
