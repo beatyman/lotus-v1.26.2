@@ -7,11 +7,12 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/gwaylib/errors"
 )
 
-func lotusMpoolStat(ctx context.Context, nApi api.FullNode) ([]api.ProxyMpStat, error) {
+func lotusMpoolStat(ctx context.Context, nApi v0api.FullNode) ([]api.ProxyMpStat, error) {
 	filter := map[address.Address]struct{}{}
 	addrss, err := nApi.WalletList(ctx)
 	if err != nil {

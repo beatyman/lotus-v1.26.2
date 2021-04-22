@@ -381,7 +381,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 
 	log.Warnw("declare faults recovered Message CID", "deadline", dlIdx, "cid", sm.Cid())
 
-	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
+	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		return recoveries, sm, xerrors.Errorf("declare faults recovered wait error: %w", err)
 	}
@@ -468,7 +468,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 
 	log.Warnw("declare faults Message CID", "deadline", dlIdx, "cid", sm.Cid())
 
-	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
+	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		return faults, sm, xerrors.Errorf("declare faults wait error: %w", err)
 	}
@@ -915,7 +915,7 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	log.Infof("Submitting window post %d: %s", proof.Deadline, sm.Cid())
 
 	go func() {
-		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
+		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence, api.LookbackNoLimit, true)
 		if err != nil {
 			log.Error(errors.As(err, proof.Deadline))
 			return
