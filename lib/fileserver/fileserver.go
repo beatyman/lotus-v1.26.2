@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -59,67 +58,6 @@ func NewStorageFileServer(repo string) *StorageFileServer {
 		"/file/filecoin-proof-parameters",
 		&fileHandle{handler: http.FileServer(http.Dir(paramsPath))}, // TODO: get from env
 	))
-	mu.PathPrefix("/file/storage/cache").Handler(http.StripPrefix(
-		"/file/storage/cache",
-		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(repo, "cache")))},
-	))
-	mu.PathPrefix("/file/storage/unsealed").Handler(http.StripPrefix(
-		"/file/storage/unsealed",
-		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(repo, "unsealed")))},
-	))
-	mu.PathPrefix("/file/storage/sealed").Handler(http.StripPrefix(
-		"/file/storage/sealed",
-		&fileHandle{handler: http.FileServer(http.Dir(filepath.Join(repo, "sealed")))},
-	))
-
-	mu.PathPrefix("/file/storage/delete").Handler(http.StripPrefix(
-		"/file/storage/delete",
-		&fileHandle{
-			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Add("flags", "done")
-				sid := r.FormValue("sid")
-				sectorType := r.FormValue("type")
-				_, err := parseSectorID(sid)
-				if err != nil {
-					w.WriteHeader(404)
-					w.Write([]byte("sector id no support"))
-				}
-
-				ft, err := ftFromString(sectorType)
-				if err != nil {
-					w.WriteHeader(404)
-					w.Write([]byte("sector type not support"))
-					return
-				}
-				if ft == "all" {
-					//log.Infof("try delete cache:%s", sid)
-					if err := os.RemoveAll(filepath.Join(repo, "cache", sid)); err != nil {
-						w.WriteHeader(500)
-						w.Write([]byte("delete cache failed:" + err.Error()))
-						return
-					}
-					if err := os.RemoveAll(filepath.Join(repo, "sealed", sid)); err != nil {
-						w.WriteHeader(500)
-						w.Write([]byte("delete sealed failed:" + err.Error()))
-						return
-					}
-					if err := os.RemoveAll(filepath.Join(repo, "unsealed", sid)); err != nil {
-						w.WriteHeader(500)
-						w.Write([]byte("delete unsealed failed:" + err.Error()))
-						return
-					}
-				} else {
-					path := filepath.Join(repo, ft, sid)
-					if err := os.RemoveAll(path); err != nil {
-						w.WriteHeader(500)
-						w.Write([]byte("delete cache failed:" + err.Error()))
-						return
-					}
-				}
-			}), // end HandlerFunc
-		}, // end handler
-	))
-
 	return &StorageFileServer{
 		repo:   repo,
 		router: mu,

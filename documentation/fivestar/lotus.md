@@ -42,6 +42,9 @@ export PATH=$GOROOT/bin:$PATH:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr
 
 export FIL_PROOFS_PARENT_CACHE="/data/cache/filecoin-parents"
 export FIL_PROOFS_PARAMETER_CACHE="/data/cache/filecoin-proof-parameters/v28" 
+# 仅限开发环境配置, 开启后使官方默认兼容CPU的算法进行计算。
+# 或者通过hlmd ctl set-env FIL_PROOFS_GPU_MODE auto 设定, 设定后需重启worker程序, force值为须有GPU。
+export FIL_PROOFS_GPU_MODE="auto" # 设定后需要重启系统, force值为须有GPU。
 exit # 退出sudo su -
 ```
 
@@ -113,8 +116,6 @@ cd ~/hlm-miner/
 git checkout testing # 检出最新代码
 . env.sh
 ./install.sh install # hlmd ctl status # 有状态输出为成功
-
-
 ```
 
 ## 创建本地开发网络
@@ -145,19 +146,9 @@ sudo lotus sync status # 查看bootstrap节点的链状态
 ```
 
 ### 搭建存储节点
+重置存储节点删除所有配置文件后重新初始化即可。
 ```shell
-aptitude install nfs-server
-mkdir -p /data/nfs
-mkdir -p /data/zfs
-mkdir -p /data/zfs/cache
-mkdir -p /data/zfs/sealed
-chattr -V +a /data/zfs # 读写权限，不能删除
-chattr -V +a /data/zfs/cache # 读写权限，不能删除
-chattr -V +a /data/zfs/sealed # 读写权限，不能删除
-
-echo "/data/zfs/ *(rw,sync,insecure,no_root_squash)" >>/etc/exports
-systemctl reload nfs-server
-showmount -e # 校验NFS是否已共享出来
+sudo ./lotus-storage # 或者配置hlmd参数启动文件执行hlmd ctl start lotus-storage-0
 ```
 
 ### 生成开发版lotus程序
@@ -262,14 +253,29 @@ lotus daemon --etcd="http://127.0.0.1:2379" # 在apps/lotus/daemon.sh里配置
 ```
 
 配置miner接入到多个链节点
+在miner的使用的链repo(默认在/data/sdb/lotus-user-1/.lotus)下创建lotus.proxy, 格式如下：
 ```
-mkdir -p $repo # 自行填写此miner的链目录变量，默认为/data/sdb/lotus-user-1/.lotus
-cd $repo
+# 第一行为miner自身启动的代理端口，token需与各链的token一致
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.X2uJE1k9iQmK61MBBCTWHrfyGAd05Q7zy2WvW0Q96JM:/ip4/127.0.0.1/tcp/1345/http
+# 以下为集群配置，要求token需要都一样，并指向到多个运行链的地址，miner将自动择优接入
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.X2uJE1k9iQmK61MBBCTWHrfyGAd05Q7zy2WvW0Q96JM:/ip4/127.0.0.1/tcp/11234/http
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.X2uJE1k9iQmK61MBBCTWHrfyGAd05Q7zy2WvW0Q96JM:/ip4/10.1.50.2/tcp/11234/http
+```
+
+lotus.proxy样例生成：
+```shell
+cd /data/sdb/lotus-user-1/.lotus
 echo "# the first line is for proxy addr">lotus.proxy
 echo $(cat token)":/ip4/127.0.0.1/tcp/1345/http">>lotus.proxy
 echo "# bellow is the cluster node.">>lotus.proxy
 echo $(cat token)":"$(cat api)>>lotus.proxy
-# 重启miner
+# 手动复制生成其他节点ip
+```
+
+重新启动后即可自动使用集群, 通过log或者链代理可查看状态
+```shell
+hlmd ctl restart lotus-user-1
+./miner.sh proxy status
 ```
 
 ## 目录规范

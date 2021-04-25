@@ -140,6 +140,9 @@ var runCmd = &cli.Command{
 		// init storage database
 		database.InitDB(minerRepoPath)
 		log.Info("Mount all storage")
+		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
+			return errors.As(err)
+		}
 		// mount nfs storage node
 		if err := database.MountAllStorage(false); err != nil {
 			return errors.As(err)

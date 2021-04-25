@@ -238,7 +238,6 @@ type StorageWpp struct {
 }
 
 func NewWinningPoStProver(api api.FullNode, prover storage.Prover, verifier ffiwrapper.Verifier, miner dtypes.MinerID) (*StorageWpp, error) {
-	log.Info("DEBUG:NewWiningPostProver")
 	ma, err := address.NewIDAddress(uint64(miner))
 	if err != nil {
 		return nil, err

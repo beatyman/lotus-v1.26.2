@@ -1,6 +1,6 @@
 #!/bin/sh
 sudo systemctl stop lotus-fountain &
-sudo systemctl stop lotus-bootstrap-daemon &
+sudo systemctl stop lotus-daemon &
 sudo systemctl stop lotus-genesis-miner &
 sudo systemctl stop lotus-genesis-daemon &
 wait

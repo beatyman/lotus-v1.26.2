@@ -143,19 +143,20 @@ func (l *hlmWorker) Remove(ctx context.Context, sector storage.SectorRef) error 
 	if err != nil {
 		err = multierror.Append(err, xerrors.Errorf("removing sector (db): %w", rerr))
 	} else if sector.HasRepo() {
-		log.Warnf("Remove file:%s", sector.SealedFile())
-		if rerr := os.Remove(sector.SealedFile()); err != nil {
-			err = multierror.Append(err, xerrors.Errorf("removing sector (sealed): %w", rerr))
-		}
-		log.Warnf("Remove file:%s", sector.CachePath())
-		if rerr := os.RemoveAll(sector.CachePath()); err != nil {
-			err = multierror.Append(err, xerrors.Errorf("removing sector (cache): %w", rerr))
-		}
-
-		log.Warnf("Remove file:%s", sector.UnsealedFile())
-		if rerr := os.Remove(sector.UnsealedFile()); err != nil {
-			err = multierror.Append(err, xerrors.Errorf("removing sector (unsealed): %w", rerr))
-		}
+		// TODO: remove seaeld file.
+		//log.Warnf("Remove file:%s", sector.SealedFile())
+		//if rerr := os.Remove(sector.SealedFile()); err != nil {
+		//	err = multierror.Append(err, xerrors.Errorf("removing sector (sealed): %w", rerr))
+		//}
+		//log.Warnf("Remove file:%s", sector.CachePath())
+		//if rerr := os.RemoveAll(sector.CachePath()); err != nil {
+		//	err = multierror.Append(err, xerrors.Errorf("removing sector (cache): %w", rerr))
+		//}
+		//
+		//log.Warnf("Remove file:%s", sector.UnsealedFile())
+		//if rerr := os.Remove(sector.UnsealedFile()); err != nil {
+		//	err = multierror.Append(err, xerrors.Errorf("removing sector (unsealed): %w", rerr))
+		//}
 	}
 
 	return err

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -10,10 +11,30 @@ import (
 )
 
 func chattrLock(path string) error {
-	return exec.Command("chattr", "+a", "-R", path).Run()
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return errors.As(err)
+	}
+	out, err := exec.Command("chattr", "+a", "-R", path).CombinedOutput()
+	if err != nil {
+		return errors.As(err, string(out))
+	}
+	return nil
 }
 func chattrUnlock(path string) error {
-	return exec.Command("chattr", "-a", "-R", path).Run()
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return errors.As(err)
+	}
+	out, err := exec.Command("chattr", "-a", "-R", path).CombinedOutput()
+	if err != nil {
+		return errors.As(err, string(out))
+	}
+	return nil
 }
 
 func protectPath(paths []string) error {

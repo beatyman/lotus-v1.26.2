@@ -42,27 +42,6 @@ type SectorStorage struct {
 	UnsealedStorage StorageInfo
 }
 
-type StorageStatus struct {
-	StorageId int64
-	Kind      int
-	MountDir  string
-	MountUri  string
-	Disable   bool
-	Used      time.Duration
-	Err       string
-}
-type StorageStatusSort []StorageStatus
-
-func (g StorageStatusSort) Len() int {
-	return len(g)
-}
-func (g StorageStatusSort) Swap(i, j int) {
-	g[i], g[j] = g[j], g[i]
-}
-func (g StorageStatusSort) Less(i, j int) bool {
-	return g[i].Used < g[j].Used
-}
-
 func AddSectorInfo(info *SectorInfo) error {
 	mdb := GetDB()
 	if _, err := database.InsertStruct(mdb, info, "sector_info"); err != nil {
@@ -205,19 +184,19 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 
 	mdb := GetDB()
 	// preload storage data
-	storages := map[uint64]sql.NullString{} // id:mount_dir
-	rows, err := mdb.Query("SELECT id, mount_dir FROM storage_info")
+	storages := map[int64]StorageMountPoint{}
+	rows, err := mdb.Query("SELECT id, mount_dir, mount_type FROM storage_info")
 	if err != nil {
 		return nil, errors.As(err, sectors)
 	}
 	for rows.Next() {
-		id := uint64(0)
-		dir := sql.NullString{}
-		if err := rows.Scan(&id, &dir); err != nil {
+		id := int64(0)
+		mountPoint := StorageMountPoint{}
+		if err := rows.Scan(&id, &mountPoint.MountDir, &mountPoint.MountType); err != nil {
 			database.Close(rows)
 			return nil, errors.As(err, sectors)
 		}
-		storages[id] = dir
+		storages[id] = mountPoint
 	}
 	database.Close(rows)
 
@@ -246,8 +225,8 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 			UnsealedRepo: defaultRepo,
 		}
 
-		storageSealed := uint64(0)
-		storageUnsealed := uint64(0)
+		storageSealed := int64(0)
+		storageUnsealed := int64(0)
 		if err := sectorStmt.
 			QueryRow(sectorId).
 			Scan(&storageSealed, &storageUnsealed); err != nil {
@@ -257,13 +236,17 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 			// sector not found in db, return default.
 		} else {
 			// fix the file
-			storageSealedDir, _ := storages[storageSealed]
-			storageUnsealedDir, _ := storages[storageUnsealed]
-			if storageSealedDir.Valid {
-				file.SealedRepo = filepath.Join(storageSealedDir.String, fmt.Sprintf("%d", storageSealed))
+			sealedPoint, ok := storages[storageSealed]
+			if ok {
+				file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%d", storageSealed))
+				file.SealedStorageId = storageSealed
+				file.SealedStorageType = sealedPoint.MountType
 			}
-			if storageUnsealedDir.Valid {
-				file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
+			unsealedPoint, ok := storages[storageUnsealed]
+			if ok {
+				file.UnsealedRepo = filepath.Join(unsealedPoint.MountDir, fmt.Sprintf("%d", storageUnsealed))
+				file.UnsealedStorageId = storageUnsealed
+				file.UnsealedStorageType = unsealedPoint.MountType
 				file.IsMarketSector = true
 			}
 		}
@@ -308,8 +291,8 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 
 	mdb := GetDB()
 
-	storageSealed := uint64(0)
-	storageUnsealed := uint64(0)
+	storageSealed := int64(0)
+	storageUnsealed := int64(0)
 	if err := mdb.
 		QueryRow("SELECT storage_sealed,storage_unsealed FROM sector_info WHERE id=?", sectorId).
 		Scan(&storageSealed, &storageUnsealed); err != nil {
@@ -320,32 +303,36 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 		return file, nil
 	}
 
-	storageSealedDir := sql.NullString{}
-	storageUnsealedDir := sql.NullString{}
-	rows, err := mdb.Query(fmt.Sprintf("SELECT id, mount_dir FROM storage_info WHERE id IN (%d,%d)", storageSealed, storageUnsealed))
+	var sealedPoint *StorageMountPoint
+	var unsealedPoint *StorageMountPoint
+	rows, err := mdb.Query(fmt.Sprintf("SELECT id, mount_dir,mount_type FROM storage_info WHERE id IN (%d,%d)", storageSealed, storageUnsealed))
 	if err != nil {
 		return nil, errors.As(err, sectorId)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		id := uint64(0)
-		dir := sql.NullString{}
-		if err := rows.Scan(&id, &dir); err != nil {
+		id := int64(0)
+		mountPoint := StorageMountPoint{}
+		if err := rows.Scan(&id, &mountPoint.MountDir, &mountPoint.MountType); err != nil {
 			return nil, errors.As(err, sectorId)
 		}
 		if id == storageSealed {
-			storageSealedDir = dir
+			sealedPoint = &mountPoint
 		}
 		if id == storageUnsealed {
-			storageUnsealedDir = dir
+			unsealedPoint = &mountPoint
 		}
 	}
 
-	if storageSealedDir.Valid {
-		file.SealedRepo = filepath.Join(storageSealedDir.String, fmt.Sprintf("%d", storageSealed))
+	if sealedPoint != nil {
+		file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%d", storageSealed))
+		file.SealedStorageId = storageSealed
+		file.SealedStorageType = sealedPoint.MountType
 	}
-	if storageUnsealedDir.Valid {
-		file.UnsealedRepo = filepath.Join(storageUnsealedDir.String, fmt.Sprintf("%d", storageUnsealed))
+	if unsealedPoint != nil {
+		file.UnsealedRepo = filepath.Join(unsealedPoint.MountDir, fmt.Sprintf("%d", storageUnsealed))
+		file.UnsealedStorageId = storageUnsealed
+		file.UnsealedStorageType = unsealedPoint.MountType
 		file.IsMarketSector = true
 	}
 

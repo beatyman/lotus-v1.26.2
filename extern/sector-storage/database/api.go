@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
 )
@@ -103,9 +104,10 @@ func Umount(mountPoint string) (bool, error) {
 }
 
 // if the mountUri is local file, it would make a link.
-func Mount(mountType, mountUri, mountPoint, mountOpts string) error {
-	// close for customer protocal
-	if mountType == "custom" {
+func Mount(ctx context.Context, mountType, mountUri, mountPoint, mountOpts string) error {
+	switch mountType {
+	case MOUNT_TYPE_CUSTOM:
+		// close for customer protocal
 		return nil
 	}
 
@@ -135,6 +137,13 @@ func Mount(mountType, mountUri, mountPoint, mountOpts string) error {
 	}
 
 	switch mountType {
+	case MOUNT_TYPE_HLM:
+		nfsClient := hlmclient.NewFUseClient(mountUri, mountOpts)
+		//nfsClient := hlmclient.NewNFSClient(mountUri, mountOpts)
+		if err := nfsClient.Mount(ctx, mountPoint); err != nil {
+			return errors.As(err, mountPoint)
+		}
+		return nil
 	case "":
 		if err := os.MkdirAll(filepath.Dir(mountPoint), 0755); err != nil {
 			return errors.As(err, mountUri, mountPoint)
@@ -158,8 +167,8 @@ func Mount(mountType, mountUri, mountPoint, mountOpts string) error {
 			}
 		}
 		log.Info("storage mount", args)
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		if out, err := exec.CommandContext(ctx, "mount", args...).CombinedOutput(); err != nil {
+		timeoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		if out, err := exec.CommandContext(timeoutCtx, "mount", args...).CombinedOutput(); err != nil {
 			cancel()
 			return errors.As(err, string(out), args)
 		}
@@ -182,7 +191,7 @@ func MountAllStorage(block bool) error {
 			return errors.As(err)
 		}
 		mountPoint := filepath.Join(mountDir, fmt.Sprintf("%d", id))
-		if err := Mount(mountType, mountUri, mountPoint, mountOpt); err != nil {
+		if err := Mount(context.TODO(), mountType, mountUri, mountPoint, mountOpt); err != nil {
 			if block {
 				return errors.As(err, mountUri, mountPoint)
 			}
