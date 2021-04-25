@@ -49,11 +49,12 @@ require (
 	github.com/filecoin-project/test-vectors/schema v0.0.5
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
+	github.com/go-git/go-billy/v5 v5.2.0
 	github.com/go-kit/kit v0.10.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.2
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
 	github.com/gwaylib/database v0.0.0-20191004162319-8535ba649f9c
@@ -146,6 +147,7 @@ require (
 	github.com/whyrusleeping/ledger-filecoin-go v0.9.1-0.20201010031517-c3dcc1bddce4
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7
 	github.com/whyrusleeping/pubsub v0.0.0-20190708150250-92bcb0691325
+	github.com/willscott/go-nfs v0.0.0-20210422193315-8a05dee1ebbe
 	github.com/xorcare/golden v0.6.1-0.20191112154924-b87f686d7542
 	go.etcd.io/bbolt v1.3.4
 	go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b
