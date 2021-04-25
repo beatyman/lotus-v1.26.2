@@ -9,6 +9,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
+	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
@@ -183,12 +184,16 @@ func (sm *StorageMinerAPI) VerHLMStorage(ctx context.Context) (int64, error) {
 	return database.StorageMaxVer()
 }
 func (sm *StorageMinerAPI) GetHLMStorage(ctx context.Context, id int64) (*database.StorageInfo, error) {
-	return database.GetStorageInfo(id)
+	info, err := database.GetStorageInfo(id)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	return info, nil
 }
 func (sm *StorageMinerAPI) SearchHLMStorage(ctx context.Context, ip string) ([]database.StorageInfo, error) {
 	return database.SearchStorageInfoBySignalIp(ip)
 }
-func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, info *database.StorageInfo) error {
+func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, info *database.StorageAuth) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddStorage(ctx, info)
 }
 func (sm *StorageMinerAPI) DisableHLMStorage(ctx context.Context, id int64, disable bool) error {
@@ -201,14 +206,35 @@ func (sm *StorageMinerAPI) MountHLMStorage(ctx context.Context, id int64) error 
 func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id)
 }
-func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error {
+func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, info *database.StorageAuth) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ReplaceStorage(ctx, info)
 }
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
 }
-func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, origin bool, timeout time.Duration) ([]database.StorageStatus, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, origin, timeout)
+func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, timeout time.Duration) ([]database.StorageStatus, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, timeout)
+}
+func (sm *StorageMinerAPI) NewHLMStorageTmpAuth(ctx context.Context, id int64, sid string) (string, error) {
+	info, err := database.GetStorage(id)
+	if err != nil {
+		return "", errors.As(err)
+	}
+	token, err := hlmclient.NewAuthClient(info.MountAuthUri, info.MountAuth).NewFileToken(ctx, sid)
+	if err != nil {
+		return "", errors.As(err, id, sid)
+	}
+	return string(token), nil
+}
+func (sm *StorageMinerAPI) DelHLMStorageTmpAuth(ctx context.Context, id int64, sid string) error {
+	info, err := database.GetStorage(id)
+	if err != nil {
+		return errors.As(err, id)
+	}
+	if _, err := hlmclient.NewAuthClient(info.MountAuthUri, info.MountAuth).DeleteFileToken(ctx, sid); err != nil {
+		return errors.As(err, id, sid)
+	}
+	return nil
 }
 func (sm *StorageMinerAPI) PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PreStorageNode(sectorId, clientIp, kind)

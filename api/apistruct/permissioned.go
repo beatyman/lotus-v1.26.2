@@ -21,6 +21,12 @@ func PermissionedStorMinerAPI(a api.StorageMiner) api.StorageMiner {
 	var out StorageMinerStruct
 	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
 	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.CommonStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerProxyStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerProvingStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerSectorStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerSectorStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerStorageStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerWorkerStruct.Internal)
 	return &out
 }
 
