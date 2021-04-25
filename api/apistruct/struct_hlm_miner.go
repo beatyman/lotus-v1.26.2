@@ -279,3 +279,9 @@ func (c *HlmMinerWorkerStruct) WorkerPreConnV1(ctx context.Context, skipWid []st
 func (c *HlmMinerWorkerStruct) WorkerMinerConn(ctx context.Context) (int, error) {
 	return c.Internal.WorkerMinerConn(ctx)
 }
+
+var _ api.HlmMinerProxy = &HlmMinerProxyStruct{}
+var _ api.HlmMinerProving = &HlmMinerProvingStruct{}
+var _ api.HlmMinerSector = &HlmMinerSectorStruct{}
+var _ api.HlmMinerStorage = &HlmMinerStorageStruct{}
+var _ api.HlmMinerWorker = &HlmMinerWorkerStruct{}

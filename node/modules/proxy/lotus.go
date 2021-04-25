@@ -194,15 +194,15 @@ func changeLotusNode(idx int) {
 	return
 }
 
-func startLotusProxy(addr string) (func() error, error) {
+func startLotusProxy(addr string) (string, func() error, error) {
 	if len(addr) == 0 {
 		panic("not found addr")
 	}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, errors.As(err, addr)
+		return "", nil, errors.As(err, addr)
 	}
-	log.Infof("start lotus proxy : %s", addr)
+	log.Infof("start lotus proxy : %s", ln.Addr())
 
 	exit := make(chan bool, 1)
 	go func() {
@@ -222,10 +222,12 @@ func startLotusProxy(addr string) (func() error, error) {
 			}
 		}
 	}()
-	return func() error {
-		exit <- true
-		return ln.Close()
-	}, nil
+	arr := strings.Split(ln.Addr().String(), ":")
+	return arr[1],
+		func() error {
+			exit <- true
+			return ln.Close()
+		}, nil
 }
 
 func handleLotus(srcConn net.Conn) {
@@ -382,10 +384,11 @@ func reloadNodes(proxyAddr *apiaddr.APIInfo, nodes []*LotusNode) error {
 	if err != nil {
 		return errors.As(err)
 	}
-	closer, err := startLotusProxy(host)
+	port, closer, err := startLotusProxy(host)
 	if err != nil {
 		return errors.As(err, host)
 	}
+	proxyAddr.Addr = strings.Replace(proxyAddr.Addr, "/0/", "/"+port+"/", 1)
 	lotusProxyCloser = closer
 	lotusProxyAddr = proxyAddr
 	return nil
