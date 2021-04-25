@@ -34,6 +34,11 @@ func MetricedWorkerAPI(a api.WorkerAPI) api.WorkerAPI {
 	proxy(a, &out.Internal)
 	return &out
 }
+func MetricedHlmMinerSchedulerAPI(a api.HlmMinerSchedulerAPI) api.HlmMinerSchedulerAPI {
+	var out apistruct.HlmMinerSchedulerStruct
+	proxy(a, &out.Internal)
+	return &out
+}
 
 func MetricedWalletAPI(a api.WalletAPI) api.WalletAPI {
 	var out apistruct.WalletStruct

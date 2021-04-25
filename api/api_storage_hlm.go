@@ -4,9 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-storage/storage"
@@ -53,12 +50,6 @@ type HlmMinerStorage interface {
 	ReplaceHLMStorage(ctx context.Context, info *database.StorageAuth) error
 	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
 	StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error)
-	NewHLMStorageTmpAuth(ctx context.Context, id int64, sid string) (string, error)
-	DelHLMStorageTmpAuth(ctx context.Context, id int64, sid string) error
-	PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error)
-	CommitStorageNode(ctx context.Context, sectorId string, kind int) error
-	CancelStorageNode(ctx context.Context, sectorId string, kind int) error
-	ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error)
 	GetProvingCheckTimeout(ctx context.Context) (time.Duration, error)
 	SetProvingCheckTimeout(ctx context.Context, timeout time.Duration) error
 	GetFaultCheckTimeout(ctx context.Context) (time.Duration, error)
@@ -66,25 +57,14 @@ type HlmMinerStorage interface {
 }
 
 type HlmMinerWorker interface {
-	// implements by hlm
-	SelectCommit2Service(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)
-	UnlockGPUService(ctx context.Context, workerId, taskKey string) error
 	PauseSeal(ctx context.Context, pause int32) error
-	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)
+
 	WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error)
 	WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error)
-	WorkerQueue(context.Context, ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error)
+
 	WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error)
-	WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error)
-	WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
-	WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error
 	WorkerGcLock(ctx context.Context, workerId string) ([]string, error)
-	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
 	WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error)
 	WorkerSearch(ctx context.Context, ip string) ([]database.WorkerInfo, error)
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
-	WorkerAddConn(ctx context.Context, wid string, num int) error
-	WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error)
-	WorkerPreConnV1(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)
-	WorkerMinerConn(ctx context.Context) (int, error)
 }

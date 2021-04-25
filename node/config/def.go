@@ -38,11 +38,16 @@ type Backup struct {
 type StorageMiner struct {
 	Common
 
+	WorkerAPI  WorkerAddrConfig
 	Dealmaking DealmakingConfig
 	Sealing    SealingConfig
 	Storage    sectorstorage.SealerConfig
 	Fees       MinerFeeConfig
 	Addresses  MinerAddressConfig
+}
+
+type WorkerAddrConfig struct {
+	ListenAddress string
 }
 
 type DealmakingConfig struct {
@@ -236,6 +241,10 @@ func DefaultFullNode() *FullNode {
 func DefaultStorageMiner() *StorageMiner {
 	cfg := &StorageMiner{
 		Common: defCommon(),
+
+		WorkerAPI: WorkerAddrConfig{
+			ListenAddress: "/ip4/127.0.0.1/tcp/2348/http",
+		},
 
 		Sealing: SealingConfig{
 			MaxWaitDealsSectors:       0, // 64G with 32G sectors

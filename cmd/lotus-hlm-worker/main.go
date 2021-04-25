@@ -36,7 +36,7 @@ import (
 var log = logging.Logger("main")
 
 var (
-	nodeApi    api.StorageMiner
+	nodeApi    api.HlmMinerSchedulerAPI
 	nodeCloser jsonrpc.ClientCloser
 	nodeCCtx   *cli.Context
 	nodeSync   sync.Mutex
@@ -74,7 +74,7 @@ func ReleaseNodeApi(shutdown bool) {
 	}
 }
 
-func GetNodeApi() (api.StorageMiner, error) {
+func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
 
@@ -82,7 +82,7 @@ func GetNodeApi() (api.StorageMiner, error) {
 		return nodeApi, nil
 	}
 
-	nApi, closer, err := lcli.GetStorageMinerAPI(nodeCCtx)
+	nApi, closer, err := lcli.GetHlmMinerSchedulerAPI(nodeCCtx)
 	if err != nil {
 		closeNodeApi()
 		return nil, errors.As(err)
@@ -118,7 +118,6 @@ func main() {
 		runCmd,
 		ffiwrapper.P1Cmd,
 		ffiwrapper.P2Cmd,
-		testCmd,
 	}
 
 	app := &cli.App{
@@ -352,8 +351,6 @@ var runCmd = &cli.Command{
 		rpcServer.Register("Filecoin", apistruct.PermissionedWorkerHlmAPI(workerApi))
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(workerRepo).FileHttpServer)
-		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
-
 		ah := &auth.Handler{
 			Verify: AuthVerify,
 			Next:   mux.ServeHTTP,

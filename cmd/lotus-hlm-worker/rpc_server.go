@@ -58,7 +58,7 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 	return w.sb.SealCommit2(ctx, storage.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out)
 }
 
-func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.StorageMiner) error {
+func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSchedulerAPI) error {
 	w.storageLk.Lock()
 	defer w.storageLk.Unlock()
 

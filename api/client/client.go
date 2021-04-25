@@ -96,6 +96,34 @@ func NewWorkerRPC(ctx context.Context, addr string, requestHeader http.Header) (
 	return &res, closer, err
 }
 
+// seperate from miner api, only support for worker connection.
+func NewHlmMinerSchedulerRPC(ctx context.Context, addr string, requestHeader http.Header) (api.HlmMinerSchedulerAPI, jsonrpc.ClientCloser, error) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch u.Scheme {
+	case "ws":
+		u.Scheme = "http"
+	case "wss":
+		u.Scheme = "https"
+	}
+
+	var res apistruct.HlmMinerSchedulerStruct
+	closer, err := jsonrpc.NewMergeClient(ctx, addr, "Filecoin",
+		[]interface{}{
+			&res.Internal,
+		},
+		requestHeader,
+		jsonrpc.WithNoReconnect(),
+		jsonrpc.WithTimeout(120*time.Second),
+	)
+	if err != nil {
+		return nil, nil, errors.As(err, addr)
+	}
+	return &res, closer, err
+
+}
 func NewWorkerHlmRPC(ctx context.Context, addr string, requestHeader http.Header) (api.WorkerHlmAPI, jsonrpc.ClientCloser, error) {
 	u, err := url.Parse(addr)
 	if err != nil {

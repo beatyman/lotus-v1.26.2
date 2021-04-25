@@ -25,8 +25,8 @@ func (r *rpcClient) Close() error {
 	return nil
 }
 
-func ConnectHlmWorker(ctx context.Context, fa api.Common, url string) (*rpcClient, error) {
-	token, err := fa.AuthNew(ctx, []auth.Permission{"admin"})
+func ConnectHlmWorker(ctx context.Context, fa api.HlmMinerSchedulerAPI, url string) (*rpcClient, error) {
+	token, err := fa.AuthNew(ctx, []auth.Permission{"admin"}) // using the miner token for worker rpc server.
 	if err != nil {
 		return nil, errors.New("creating auth token for remote connection").As(err)
 	}

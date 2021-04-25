@@ -637,6 +637,7 @@ func Repo(r repo.Repo) Option {
 
 			Override(new(types.KeyStore), modules.KeyStore),
 
+			Override(new(*dtypes.APIAlg), modules.WorkerAPISecret),
 			Override(new(*dtypes.APIAlg), modules.APISecret),
 
 			ApplyIf(isType(repo.FullNode), ConfigFullNode(c)),
