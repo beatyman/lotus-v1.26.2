@@ -241,7 +241,7 @@ var runCmd = &cli.Command{
 		defer ReleaseNodeApi(true)
 
 		log.Infof("getting ainfo for StorageMiner")
-		ainfo, err := lcli.GetAPIInfo(cctx, repo.StorageMiner)
+		ainfo, err := lcli.GetHlmMinerSchedulerAPIInfo(cctx)
 		if err != nil {
 			return xerrors.Errorf("could not get api info: %w", err)
 		}

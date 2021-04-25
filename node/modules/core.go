@@ -144,7 +144,7 @@ type JwtPayload struct {
 	Allow []auth.Permission
 }
 
-func WorkerAPISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.APIAlg, error) {
+func WorkerAPISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.WorkerAPIAlg, error) {
 	key, err := keystore.Get(JWTSecretWorkerName)
 
 	if errors.Is(err, types.ErrKeyInfoNotFound) {
@@ -181,7 +181,7 @@ func WorkerAPISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.APIAl
 		return nil, xerrors.Errorf("could not get JWT Token: %w", err)
 	}
 
-	return (*dtypes.APIAlg)(jwt.NewHS256(key.PrivateKey)), nil
+	return (*dtypes.WorkerAPIAlg)(jwt.NewHS256(key.PrivateKey)), nil
 }
 
 func APISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.APIAlg, error) {

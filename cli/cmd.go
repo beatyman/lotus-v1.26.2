@@ -55,6 +55,7 @@ var GetGatewayAPI = cliutil.GetGatewayAPI
 var GetStorageMinerAPI = cliutil.GetStorageMinerAPI
 var GetWorkerAPI = cliutil.GetWorkerAPI
 
+var GetHlmMinerSchedulerAPIInfo = cliutil.GetHlmMinerSchedulerAPIInfo
 var GetHlmMinerSchedulerAPI = cliutil.GetHlmMinerSchedulerAPI
 
 var CommonCommands = []*cli.Command{

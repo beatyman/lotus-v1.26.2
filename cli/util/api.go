@@ -20,7 +20,6 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
-	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/gwaylib/errors"
 )
@@ -248,36 +247,40 @@ func GetStorageMinerAPI(ctx *cli.Context, opts ...GetStorageMinerOption) (api.St
 
 	return client.NewStorageMinerRPC(ctx.Context, addr, headers)
 }
-
-func GetHlmMinerSchedulerAPI(ctx *cli.Context) (api.HlmMinerSchedulerAPI, jsonrpc.ClientCloser, error) {
+func GetHlmMinerSchedulerAPIInfo(ctx *cli.Context) (*APIInfo, error) {
 	repoFs, err := getRepoFs(ctx, repo.StorageMiner)
 	if err != nil {
-		return nil, nil, err
-	}
-	defCfg := config.DefaultStorageMiner()
-	cfgI, err := config.FromFile(repoFs.ConfigPath(), defCfg)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	cfg, ok := cfgI.(*config.StorageMiner)
-	if !ok {
-		return nil, nil, errors.New("not *config.StorageMiner")
+	api, err := ioutil.ReadFile(filepath.Join(repoFs.Path(), "worker_api"))
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, errors.As(err, "worker_api")
+		}
+		api, err = ioutil.ReadFile(filepath.Join(repoFs.Path(), "api"))
+		if err != nil {
+			return nil, errors.As(err, "api")
+		}
 	}
+
 	token, err := ioutil.ReadFile(filepath.Join(repoFs.Path(), "worker_token"))
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return nil, nil, errors.As(err, "worker_token")
+			return nil, errors.As(err, "worker_token")
 		}
 		token, err = ioutil.ReadFile(filepath.Join(repoFs.Path(), "token"))
 		if err != nil {
-			return nil, nil, errors.As(err, "token")
+			return nil, errors.As(err, "token")
 		}
 	}
-	apiInfo := APIInfo{
-		Addr:  cfg.WorkerAPI.ListenAddress,
+	return &APIInfo{
+		Addr:  string(api),
 		Token: token,
-	}
+	}, nil
+}
+func GetHlmMinerSchedulerAPI(ctx *cli.Context) (api.HlmMinerSchedulerAPI, jsonrpc.ClientCloser, error) {
+	apiInfo, err := GetHlmMinerSchedulerAPIInfo(ctx)
 	addr, err := apiInfo.DialArgs(repo.HlmMinerScheduler)
 	if err != nil {
 		return nil, nil, err
