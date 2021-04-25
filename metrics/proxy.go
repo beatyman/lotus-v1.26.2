@@ -14,6 +14,11 @@ func MetricedStorMinerAPI(a api.StorageMiner) api.StorageMiner {
 	var out apistruct.StorageMinerStruct
 	proxy(a, &out.Internal)
 	proxy(a, &out.CommonStruct.Internal)
+	proxy(a, &out.HlmMinerProxyStruct.Internal)
+	proxy(a, &out.HlmMinerProvingStruct.Internal)
+	proxy(a, &out.HlmMinerSectorStruct.Internal)
+	proxy(a, &out.HlmMinerStorageStruct.Internal)
+	proxy(a, &out.HlmMinerWorkerStruct.Internal)
 	return &out
 }
 

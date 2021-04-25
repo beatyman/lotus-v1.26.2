@@ -47,6 +47,13 @@ func NewStorageMinerRPC(ctx context.Context, addr string, requestHeader http.Hea
 	closer, err := jsonrpc.NewMergeClient(ctx, addr, "Filecoin",
 		[]interface{}{
 			&res.CommonStruct.Internal,
+
+			&res.HlmMinerProxyStruct.Internal,
+			&res.HlmMinerProvingStruct.Internal,
+			&res.HlmMinerSectorStruct.Internal,
+			&res.HlmMinerStorageStruct.Internal,
+			&res.HlmMinerWorkerStruct.Internal,
+
 			&res.Internal,
 		},
 		requestHeader,

@@ -1,3 +1,10 @@
+//
+// Doc for apistruct
+//
+// 1, desgian lotus/api/api_storage_hlm.go
+// 2, implement the ./permissioned.go
+// 3, import to lotus/api/client/client.go
+// 4, import to lotus/metrics/proxy.go
 package apistruct
 
 import (

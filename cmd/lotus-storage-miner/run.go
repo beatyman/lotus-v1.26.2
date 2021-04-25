@@ -209,6 +209,7 @@ var runCmd = &cli.Command{
 
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)
+		// TODO: move file to public port
 		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(minerRepoPath).FileHttpServer)
 		mux.Handle("/debug/metrics", metrics.Exporter())
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
