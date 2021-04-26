@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -9,7 +10,7 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-func (w *worker) mountRemote(sid, mountType, mountUri, mountDir, mountOpt string) error {
+func (w *worker) mountRemote(ctx context.Context, sid, mountType, mountUri, mountDir, mountOpt string) error {
 	// mount
 	if err := os.MkdirAll(mountDir, 0755); err != nil {
 		return errors.As(err, mountDir)
@@ -18,8 +19,7 @@ func (w *worker) mountRemote(sid, mountType, mountUri, mountDir, mountOpt string
 	w.sealedMounted[sid] = mountDir
 	mountedData, err := json.Marshal(w.sealedMounted)
 	if err != nil {
-		w.pushMu.Unlock()
-		return errors.As(err, w.sealedMountedCfg)
+		log.Warn(errors.As(err, w.sealedMountedCfg))
 	}
 	if err := ioutil.WriteFile(w.sealedMountedCfg, mountedData, 0666); err != nil {
 		w.pushMu.Unlock()
@@ -29,6 +29,7 @@ func (w *worker) mountRemote(sid, mountType, mountUri, mountDir, mountOpt string
 
 	// a fix point, link or mount to the targe file.
 	if err := database.Mount(
+		ctx,
 		mountType,
 		mountUri,
 		mountDir,

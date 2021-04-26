@@ -52,7 +52,7 @@ func (a *APIInfo) DialArgs(repoType repo.RepoType) (string, error) {
 		}
 
 		switch repoType {
-		case repo.FullNode:
+		case repo.FullNode, repo.StorageMiner:
 			return "wss://" + addr + "/rpc/v0", nil
 		default:
 			return "ws://" + addr + "/rpc/v0", nil

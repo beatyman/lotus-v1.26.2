@@ -28,14 +28,18 @@ CREATE TABLE IF NOT EXISTS storage_info (
 	sector_size INTEGER DEFAULT 107374182400, /* 32GB*3~100GB, using for sum total of used, in byte */
 	max_work INTEGER DEFAULT 5, /* limit num of working on precommit and commit. */
 	cur_work INTGER DEFAULT 0, /* num of in working, it contains sector_info.state<2, TODO: reset by timeout*/
-	mount_type TEXT DEFAULT '', /* mount type, empty for no mount */
+
+	mount_type TEXT DEFAULT '', /* mount type, support:nfs,glusterfs,custom,hlm-storage */
 	mount_signal_uri TEXT NOT NULL DEFAULT '', /* mount command, like ip:/data/zfs */
 	mount_transf_uri TEXT NOT NULL DEFAULT '', /* mount command, like ip:/data/zfs */
 	mount_dir TEXT DEFAULT '/data/nfs', /* mount point, will be /data/nfs/id */
 	mount_opt TEXT DEFAULT '', /* mount option, seperate by space. */
+	mount_auth TEXT NOT NULL DEFAULT '', /* self realization with mount_type.*/
+	mount_auth_uri TEXT NOT NULL DEFAULT '', /* server of auth */
 	ver BIGINT DEFAULT 1 /* storage item version(time.UnixNano), when update the attribe, should be update this to reload mount.*/
 );
 CREATE INDEX IF NOT EXISTS sector_info_idx0 ON storage_info(mount_transf_uri);
+CREATE INDEX IF NOT EXISTS sector_info_idx1 ON storage_info(mount_auth_uri);
 `
 
 	// INSERT INTO storage_info(disable,max_size, max_work,mount_signal_uri, mount_transf_uri, mount_dir)values(1,922372036854775807,1000,'/data/zfs','/data/zfs', '/data/nfs'); /* for default storage in local.*/

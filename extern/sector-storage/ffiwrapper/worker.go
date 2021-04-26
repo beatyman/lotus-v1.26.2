@@ -494,6 +494,54 @@ func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force, reset bo
 	return working, nil
 }
 
+func (sb *Sealer) GcTimeoutTask(stopTime time.Time) ([]string, error) {
+	var gc = func(r *remote) ([]string, error) {
+		r.lock.Lock()
+		defer r.lock.Unlock()
+
+		result := []string{}
+		for sid, task := range r.busyOnTasks {
+			sInfo, err := database.GetSectorInfo(sid)
+			if err != nil {
+				if errors.ErrNoData.Equal(err) {
+					continue
+				}
+				return nil, errors.As(err)
+			}
+			if sInfo.State >= database.SECTOR_STATE_PUSH {
+				continue
+			}
+			if sInfo.CreateTime.After(stopTime) {
+				continue
+			}
+			delete(r.busyOnTasks, sid)
+			newStat := sInfo.State + 500
+			memo := fmt.Sprintf("%s,cause by: %d", task.Key(), newStat)
+
+			result = append(result, memo)
+			if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, newStat); err != nil {
+				return nil, errors.As(err)
+			}
+		}
+		return result, nil
+	}
+
+	// for all workers
+	result := []string{}
+	var gErr error
+	_remotes.Range(func(key, val interface{}) bool {
+		ret, err := gc(val.(*remote))
+		if err != nil {
+			gErr = err
+			return false
+		}
+		result = append(result, ret...)
+		return true
+	})
+
+	return result, gErr
+}
+
 // len(workerId) == 0 for gc all workers
 func (sb *Sealer) GcWorker(workerId string) ([]string, error) {
 	var gc = func(r *remote) ([]string, error) {
@@ -509,7 +557,7 @@ func (sb *Sealer) GcWorker(workerId string) ([]string, error) {
 				}
 				return nil, errors.As(err)
 			}
-			if state < 200 {
+			if state < database.SECTOR_STATE_DONE {
 				continue
 			}
 			delete(r.busyOnTasks, sid)
@@ -1058,7 +1106,6 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		state := int(task.Type) + 1
 		r.UpdateTask(task.SectorName(), state) // set state to done
 
-		log.Infof("Delete task waiting :%s", taskKey)
 		_remoteResultLk.Lock()
 		delete(_remoteResult, taskKey)
 		_remoteResultLk.Unlock()

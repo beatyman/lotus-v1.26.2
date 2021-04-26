@@ -67,16 +67,22 @@ build-devnets: build lotus-seed lotus-shed lotus-wallet lotus-gateway
 .PHONY: build-devnets
 
 debug: GOFLAGS+=-tags=debug
-debug: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools storage-watch
+debug: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools lotus-storage
 
 hlm: GOFLAGS+=-tags=hlm
-hlm: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools storage-watch
+hlm: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools lotus-storage
 
-calibration: GOFLAGS+=-tags=calibration
-calibration: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools storage-watch
+calibnet: GOFLAGS+=-tags=calibnet
+calibnet: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools lotus-storage
 
 2k: GOFLAGS+=-tags=2k
-2k: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools storage-watch
+2k: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools lotus-storage
+
+nerpanet: GOFLAGS+=-tags=nerpanet
+nerpanet: build-devnets
+
+butterflynet: GOFLAGS+=-tags=butterflynet
+butterflynet: build-devnets
 
 etcd: $(BUILD_DEPS)
 	rm -f etcd
@@ -89,16 +95,6 @@ etcdctl: $(BUILD_DEPS)
 	go build $(GOFLAGS) -o etcdctl ./cmd/etcdctl
 .PHONY: etcdctl
 BINS+=etcdctl
-
-calibnet: GOFLAGS+=-tags=calibnet
-calibnet: lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools
-
-nerpanet: GOFLAGS+=-tags=nerpanet
-nerpanet: build-devnets
-
-butterflynet: GOFLAGS+=-tags=butterflynet
-butterflynet: build-devnets
-
 lotus: $(BUILD_DEPS)
 	rm -f lotus
 	go build $(GOFLAGS) -o lotus ./cmd/lotus
@@ -142,7 +138,7 @@ lotus-gateway: $(BUILD_DEPS)
 .PHONY: lotus-gateway
 BINS+=lotus-gateway
 
-build: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools storage-watch
+build: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools lotus-storage
 	@[[ $$(type -P "lotus") ]] && echo "Caution: you have \
 an existing lotus binary in your PATH. This may cause problems if you don't run 'sudo make install'" || true
 
@@ -248,11 +244,11 @@ leveldb-tools:
 .PHONY: leveldb-tools
 BINS+=leveldb-tools
 
-storage-watch:
-	rm -f storage-watch
-	go build -o storage-watch ./cmd/storage-watch
-.PHONY: storage-watch
-BINS+=storage-watch
+lotus-storage:
+	rm -f lotus-storage
+	go build -o lotus-storage ./cmd/lotus-storage
+.PHONY: lotus-storage
+BINS+=lotus-storage
 
 lotus-wallet:
 	rm -f lotus-wallet

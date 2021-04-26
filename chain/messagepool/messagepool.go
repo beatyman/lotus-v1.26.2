@@ -205,10 +205,10 @@ func CapGasFee(mff dtypes.DefaultMaxFeeFunc, msg *types.Message, sendSepc *api.M
 		maxFee = mf
 	}
 	msgGasFeeCap := msg.GasFeeCap.Int64()
-	if msgGasFeeCap<minGasCap{
+	if msgGasFeeCap < minGasCap {
 		msg.GasFeeCap.SetInt64(minGasCap)
 	}
-	if msgGasFeeCap>maxGasCap && maxGasCap>minGasCap{
+	if msgGasFeeCap > maxGasCap && maxGasCap > minGasCap {
 		msg.GasFeeCap.SetInt64(maxGasCap)
 	}
 
@@ -557,6 +557,11 @@ func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
 		if err != nil {
 			return cid.Undef, xerrors.Errorf("error publishing message: %w", err)
 		}
+	}
+
+	if m.Message.Method == 0 {
+		// log the wallet send for audit.
+		log.Warnf("Push balance send :+%v", m.Message)
 	}
 
 	return m.Cid(), nil

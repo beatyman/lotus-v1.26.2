@@ -38,10 +38,14 @@ func SectorName(sid abi.SectorID) string {
 type SectorFile struct {
 	SectorId string
 
-	SealedRepo   string
-	UnsealedRepo string
+	SealedRepo        string
+	SealedStorageId   int64  // 0 not filled.
+	SealedStorageType string // empty not filled.
 
-	IsMarketSector bool
+	UnsealedRepo        string
+	UnsealedStorageId   int64  // 0 not filled.
+	UnsealedStorageType string // empty not filled.
+	IsMarketSector      bool
 }
 
 func (f *SectorFile) HasRepo() bool {

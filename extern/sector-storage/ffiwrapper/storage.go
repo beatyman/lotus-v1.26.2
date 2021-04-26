@@ -2,10 +2,9 @@ package ffiwrapper
 
 import (
 	"context"
-	"crypto/tls"
+	"crypto/md5"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
 )
@@ -57,12 +57,36 @@ func (sb *Sealer) MakeLink(task *WorkerTask) error {
 	return nil
 }
 
-func (sb *Sealer) AddStorage(ctx context.Context, sInfo *database.StorageInfo) error {
-	id, err := database.AddStorageInfo(sInfo)
+func (sb *Sealer) AddStorage(ctx context.Context, sInfo *database.StorageAuth) error {
+	switch sInfo.MountType {
+	case database.MOUNT_TYPE_HLM:
+		// please remove $storage_auth_file if the origin auth is failed.
+		data, err := hlmclient.NewAuthClient(sInfo.MountAuthUri, "").ChangeAuth(ctx)
+		if err != nil {
+			if !hlmclient.ErrAuthFailed.Equal(err) {
+				return errors.As(err)
+			}
+			// auth failed, try from db
+			auths, err := database.GetStorageAuthByUri(sInfo.MountAuthUri)
+			if err != nil {
+				return errors.As(err)
+			}
+			if len(auths) == 0 {
+				return errors.New("no auth to visit, maybe need to reset the lotus-storage").As(sInfo.MountAuthUri)
+			}
+			data = []byte(auths[0].MountAuth)
+		}
+		sInfo.MountAuth = string(data)
+		sInfo.MountOpt = fmt.Sprintf("%x", md5.Sum([]byte(sInfo.MountAuth+"read")))
+		// TODO: rollback if failed.
+		// TODO: More rigorous authorization
+	}
+	id, err := database.AddStorage(sInfo)
 	if err != nil {
 		return errors.As(err)
 	}
 	if err := database.Mount(
+		ctx,
 		sInfo.MountType,
 		sInfo.MountSignalUri,
 		filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", id)),
@@ -78,7 +102,7 @@ func (sb *Sealer) AddStorage(ctx context.Context, sInfo *database.StorageInfo) e
 			return errors.As(err)
 		}
 		sInfo.MaxSize = int64(diskStatus.All)
-		if err = database.UpdateStorageInfo(sInfo); err != nil {
+		if err = database.UpdateStorage(sInfo); err != nil {
 			return errors.As(err)
 		}
 	}
@@ -110,14 +134,43 @@ func (sb *Sealer) MountStorage(ctx context.Context, id int64) error {
 		}
 		storageInfos = infos
 	}
+	remounted := map[int64]bool{}
 	for _, info := range storageInfos {
-		if err := database.Mount(
-			info.MountType,
-			info.MountSignalUri,
-			filepath.Join(info.MountDir, fmt.Sprintf("%d", info.ID)),
-			info.MountOpt,
-		); err != nil {
-			return errors.As(err, info)
+		_, ok := remounted[info.ID]
+		if ok {
+			continue
+		}
+
+		switch info.MountType {
+		case database.MOUNT_TYPE_HLM:
+			// please remove $storage_auth_file if the origin auth is failed.
+			affected, err := database.ChangeHlmStorageAuth(ctx, info.MountAuthUri)
+			if err != nil {
+				return errors.As(err)
+			}
+			for _, sInfo := range affected {
+				if err := database.Mount(
+					ctx,
+					sInfo.MountType,
+					sInfo.MountSignalUri,
+					filepath.Join(sInfo.MountDir, fmt.Sprintf("%d", sInfo.ID)),
+					sInfo.MountOpt,
+				); err != nil {
+					return errors.As(err, sInfo)
+				}
+				remounted[sInfo.ID] = true
+			}
+		default:
+			if err := database.Mount(
+				ctx,
+				info.MountType,
+				info.MountSignalUri,
+				filepath.Join(info.MountDir, fmt.Sprintf("%d", info.ID)),
+				info.MountOpt,
+			); err != nil {
+				return errors.As(err, info)
+			}
+			remounted[info.ID] = true
 		}
 	}
 	return nil
@@ -175,26 +228,32 @@ func (sb *Sealer) RelinkStorage(ctx context.Context, storageId int64) error {
 	return nil
 }
 
-func (sb *Sealer) ReplaceStorage(ctx context.Context, info *database.StorageInfo) error {
-	if err := database.Mount(
-		info.MountType, info.MountSignalUri,
-		filepath.Join(info.MountDir, fmt.Sprintf("%d", info.ID)),
-		info.MountOpt); err != nil {
-		return errors.As(err)
+func (sb *Sealer) ReplaceStorage(ctx context.Context, info *database.StorageAuth) error {
+	switch info.MountType {
+	case database.MOUNT_TYPE_HLM:
+		if len(info.MountAuth) == 0 {
+			// keep the old auth.
+			auth, err := database.GetStorageAuth(info.ID)
+			if err != nil {
+				return errors.As(err)
+			}
+			info.MountAuth = auth
+		}
+		info.MountOpt = fmt.Sprintf("%x", md5.Sum([]byte(info.MountAuth+"read")))
 	}
 
 	// update the storage max version when done a replace operation
 	info.Version = time.Now().UnixNano()
-
 	// update information
-	if err := database.UpdateStorageInfo(info); err != nil {
+	if err := database.UpdateStorage(info); err != nil {
 		return errors.As(err)
 	}
-	return nil
+
+	return sb.MountStorage(ctx, info.ID)
 }
 
 func (sb *Sealer) ScaleStorage(ctx context.Context, id int64, size int64, work int64) error {
-	storageInfo, err := database.GetStorageInfo(id)
+	storageInfo, err := database.GetStorage(id)
 	if err != nil {
 		return err
 	}
@@ -216,7 +275,7 @@ func (sb *Sealer) ScaleStorage(ctx context.Context, id int64, size int64, work i
 	}
 
 	// update information
-	if err := database.UpdateStorageInfo(storageInfo); err != nil {
+	if err := database.UpdateStorage(storageInfo); err != nil {
 		return errors.As(err, id, size, work)
 	}
 
@@ -243,49 +302,43 @@ func (sb *Sealer) ChecksumStorage(sumVer int64) ([]database.StorageInfo, error) 
 	return database.ChecksumStorage(sumVer)
 }
 
-func (sb *Sealer) StorageStatus(ctx context.Context, id int64, origin bool, timeout time.Duration) ([]database.StorageStatus, error) {
-	httpsClient := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) {
 	checkFn := func(c *database.StorageStatus) error {
-		mountPath := filepath.Join(c.MountDir, fmt.Sprintf("%d", c.StorageId))
+		switch c.MountType {
+		case database.MOUNT_TYPE_HLM:
+			data, err := hlmclient.NewAuthClient(c.MountAuthUri, "").Check(ctx)
+			if err != nil {
+				return errors.As(err)
+			}
+			if !strings.Contains(string(data), "all pools are healthy") {
+				return errors.New(string(data))
+			}
+			mountPath := filepath.Join(c.MountDir, fmt.Sprintf("%d", c.StorageId))
+			checkPath := filepath.Join(mountPath, "miner-check.dat")
+			output, err := ioutil.ReadFile(checkPath)
+			if err != nil {
+				return errors.As(err)
+			}
+			if string(output) != "success" {
+				return errors.New("output not match").As(string(output))
+			}
+			return nil
 
-		checkPath := filepath.Join(mountPath, "miner-check.dat")
-		if err := ioutil.WriteFile(checkPath, []byte("success"), 0755); err != nil {
-			return errors.As(err, checkPath)
-		}
-		output, err := ioutil.ReadFile(checkPath)
-		if err != nil {
-			return errors.As(err)
-		}
-		if string(output) != "success" {
-			return errors.New("output not match").As(string(output))
-		}
-
-		if !origin || c.Kind != 0 {
+		default:
+			mountPath := filepath.Join(c.MountDir, fmt.Sprintf("%d", c.StorageId))
+			checkPath := filepath.Join(mountPath, "miner-check.dat")
+			if err := ioutil.WriteFile(checkPath, []byte("success"), 0755); err != nil {
+				return errors.As(err, checkPath)
+			}
+			output, err := ioutil.ReadFile(checkPath)
+			if err != nil {
+				return errors.As(err)
+			}
+			if string(output) != "success" {
+				return errors.New("output not match").As(string(output))
+			}
 			return nil
 		}
-
-		// TODO: set the url to database.
-		// checkt the storage status
-		uri := strings.Split(c.MountUri, ":")
-		if len(uri) < 1 {
-			return errors.New("error mount uri format")
-		}
-		resp, err := httpsClient.Get("https://" + uri[0] + ":1330/check")
-		if err != nil {
-			return errors.As(err)
-		}
-		defer resp.Body.Close()
-		data, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return errors.As(err)
-		}
-		if strings.Contains(string(data), "all pools are healthy") {
-			return nil
-		}
-		if len(data) > 0 {
-			return errors.New(string(data))
-		}
-		return errors.New("zpool error").As(resp.StatusCode, string(data))
 	}
 
 	result, err := database.GetStorageCheck(id)

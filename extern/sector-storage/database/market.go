@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -64,7 +63,7 @@ func AddMarketRetrieve(sid string) error {
 	return nil
 }
 
-func GetExpireMarketRetrieve(invalidTime time.Time) ([]MarketRetrieve, error) {
+func GetMarketRetrieves(invalidTime time.Time) ([]MarketRetrieve, error) {
 	db := GetDB()
 	result := []MarketRetrieve{}
 	if err := database.QueryStructs(db, &result, "SELECT * FROM market_retrieve WHERE retrieve_time<? AND active=1", invalidTime); err != nil {
@@ -73,21 +72,23 @@ func GetExpireMarketRetrieve(invalidTime time.Time) ([]MarketRetrieve, error) {
 	return result, nil
 }
 
-func ExpireMarketRetrieve(sid string) error {
+func SetMarketRetrieveExpire(sid string, active bool) error {
 	db := GetDB()
-	if _, err := db.Exec("UPDATE market_retrieve SET active=0 WHERE sid=?", sid); err != nil {
+	if _, err := db.Exec("UPDATE market_retrieve SET active=? WHERE sid=?", active, sid); err != nil {
 		return errors.As(err, sid)
 	}
+	// TODO: release the unsealed storage?
 	return nil
 }
 
-func ExpireAllMarketRetrieve(invalidTime time.Time, minerRepo string) ([]storage.SectorFile, error) {
+func GetMarketRetrieveExpires(invalidTime time.Time) ([]storage.SectorFile, error) {
 	exireMarketRetrieveLock.Lock()
 	defer exireMarketRetrieveLock.Unlock()
 
 	db := GetDB()
 	rows, err := db.Query(`
-SELECT tb1.sid, tb3.id,tb3.mount_dir, tb4.id,tb4.mount_dir
+SELECT
+    tb1.sid, tb3.id,tb3.mount_dir,tb3.mount_type, tb4.id,tb4.mount_dir,tb4.mount_type
 FROM
 	market_retrieve tb1
 	INNER JOIN sector_info tb2 ON tb1.sid=tb2.id
@@ -106,14 +107,18 @@ WHERE
 		sid := ""
 		unsealedStorage := sql.NullInt64{}
 		unsealedDir := sql.NullString{}
+		unsealedKind := sql.NullString{}
 		sealedStorage := sql.NullInt64{}
 		sealedDir := sql.NullString{}
+		sealedKind := sql.NullString{}
 		if err := rows.Scan(
 			&sid,
 			&unsealedStorage,
 			&unsealedDir,
+			&unsealedKind,
 			&sealedStorage,
 			&sealedDir,
+			&sealedKind,
 		); err != nil {
 			return nil, errors.As(err, invalidTime)
 		}
@@ -122,35 +127,16 @@ WHERE
 		}
 		if unsealedDir.Valid {
 			sFile.UnsealedRepo = filepath.Join(unsealedDir.String, strconv.FormatInt(unsealedStorage.Int64, 10))
+			sFile.UnsealedStorageId = unsealedStorage.Int64
+			sFile.UnsealedStorageType = unsealedKind.String
+			sFile.IsMarketSector = true
 		}
-		if unsealedDir.Valid {
+		if sealedDir.Valid {
 			sFile.SealedRepo = filepath.Join(sealedDir.String, strconv.FormatInt(sealedStorage.Int64, 10))
+			sFile.SealedStorageId = sealedStorage.Int64
+			sFile.SealedStorageType = sealedKind.String
 		}
 		result = append(result, sFile)
 	}
-
-	executed := []storage.SectorFile{}
-	for _, sFile := range result {
-		if len(sFile.UnsealedRepo) > 0 {
-			log.Warnf("remove unseal:%s", sFile.UnsealedFile())
-			err = os.RemoveAll(sFile.UnsealedFile())
-			if err != nil {
-				break
-			}
-		}
-		if len(minerRepo) > 0 {
-			file := filepath.Join(minerRepo, "unsealed", sFile.SectorId)
-			log.Warnf("remove unseal:%s", file)
-			err = os.RemoveAll(file)
-			if err != nil {
-				break
-			}
-		}
-		_, err = db.Exec("UPDATE market_retrieve SET updated_at=?, active=0 WHERE sid=?", time.Now(), sFile.SectorId)
-		if err != nil {
-			break
-		}
-		executed = append(executed, sFile)
-	}
-	return executed, err
+	return result, nil
 }
