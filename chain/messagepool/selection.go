@@ -710,7 +710,7 @@ func isMessageMute(m *types.Message, ts *types.TipSet) bool {
 	return false
 }
 
-func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint64]*types.SignedMessage, baseFee types.BigInt, ts *types.TipSet) []*msgChain {
+func (mp *MessagePool) createMessageChains(isPriority bool, actor address.Address, mset map[uint64]*types.SignedMessage, baseFee types.BigInt, ts *types.TipSet) []*msgChain {
 	// collect all messages
 	msgs := make([]*types.SignedMessage, 0, len(mset))
 	for _, m := range mset {
