@@ -3,6 +3,7 @@
 package build
 
 import (
+	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
@@ -23,7 +24,7 @@ const UpgradeSmokeHeight = -1
 const UpgradeIgnitionHeight = -2
 const UpgradeRefuelHeight = -3
 
-const UpgradeActorsV2Height = 10
+var UpgradeActorsV2Height = 10
 
 const UpgradeTapeHeight = -4
 
@@ -34,12 +35,14 @@ const UpgradeKumquatHeight = 15
 const UpgradeCalicoHeight = 20
 const UpgradePersianHeight = 25
 
-const UpgradeOrangeHeight = 27
-
 const UpgradeClausHeight = 30
+
+const UpgradeOrangeHeight = 27
 
 const UpgradeActorsV3Height = 69135   // ~2021-02-23 16:56:00.000+0800
 const UpgradeNorwegianHeight = 177580 // ~2021-04-02 08:45:00.000+0800
+
+const UpgradeActorsV4Height = 99999999999 // TODO: upgrade to v4
 
 func init() {
 	policy.SetSupportedProofTypes(
@@ -48,7 +51,12 @@ func init() {
 		abi.RegisteredSealProof_StackedDrg32GiBV1,
 		abi.RegisteredSealProof_StackedDrg64GiBV1,
 	)
+
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
+	SetAddressNetwork(address.Testnet)
+
+	Devnet = true
+
 	BuildType |= BuildHLM
 }
 
