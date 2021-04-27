@@ -91,6 +91,13 @@ checkingApi:
 	if len(envParam) > 0 {
 		to = envParam
 	}
+
+	// check gpu
+	if workerCfg.ParallelPrecommit2 > 0 || workerCfg.ParallelCommit > 0 || workerCfg.Commit2Srv || workerCfg.WdPoStSrv {
+		ffiwrapper.AssertGPU(ctx)
+	}
+
+	// check params
 	if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit > 0 {
 		if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
 			return err
@@ -247,7 +254,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	// clean cache before working.
-	if err := w.CleanCache(ctx); err != nil {
+	if err := w.GcRepoSectors(ctx); err != nil {
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 

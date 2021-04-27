@@ -3,10 +3,12 @@ package cliutil
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
 	"github.com/filecoin-project/lotus/node/repo"
+	"github.com/gwaylib/errors"
 )
 
 const (
@@ -137,6 +140,17 @@ func getAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
 	}, nil
 }
 
+func getRepoFs(ctx *cli.Context, t repo.RepoType) (*repo.FsRepo, error) {
+	repoFlag := flagForRepo(t)
+
+	p, err := homedir.Expand(ctx.String(repoFlag))
+	if err != nil {
+		return nil, xerrors.Errorf("could not expand home dir (%s): %w", repoFlag, err)
+	}
+
+	return repo.NewFS(p)
+}
+
 func GetRawAPI(ctx *cli.Context, t repo.RepoType) (string, http.Header, error) {
 	ainfo, err := proxyAPIInfo(ctx, t)
 	if err != nil {
@@ -232,6 +246,47 @@ func GetStorageMinerAPI(ctx *cli.Context, opts ...GetStorageMinerOption) (api.St
 	}
 
 	return client.NewStorageMinerRPC(ctx.Context, addr, headers)
+}
+func GetHlmMinerSchedulerAPIInfo(ctx *cli.Context) (*APIInfo, error) {
+	repoFs, err := getRepoFs(ctx, repo.StorageMiner)
+	if err != nil {
+		return nil, err
+	}
+
+	api, err := ioutil.ReadFile(filepath.Join(repoFs.Path(), "worker_api"))
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, errors.As(err, "worker_api")
+		}
+		api, err = ioutil.ReadFile(filepath.Join(repoFs.Path(), "api"))
+		if err != nil {
+			return nil, errors.As(err, "api")
+		}
+	}
+
+	token, err := ioutil.ReadFile(filepath.Join(repoFs.Path(), "worker_token"))
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, errors.As(err, "worker_token")
+		}
+		token, err = ioutil.ReadFile(filepath.Join(repoFs.Path(), "token"))
+		if err != nil {
+			return nil, errors.As(err, "token")
+		}
+	}
+	return &APIInfo{
+		Addr:  string(api),
+		Token: token,
+	}, nil
+}
+func GetHlmMinerSchedulerAPI(ctx *cli.Context) (api.HlmMinerSchedulerAPI, jsonrpc.ClientCloser, error) {
+	apiInfo, err := GetHlmMinerSchedulerAPIInfo(ctx)
+	addr, err := apiInfo.DialArgs(repo.HlmMinerScheduler)
+	if err != nil {
+		return nil, nil, err
+	}
+	headers := apiInfo.AuthHeader()
+	return client.NewHlmMinerSchedulerRPC(ctx.Context, addr, headers)
 }
 
 func GetWorkerAPI(ctx *cli.Context) (api.WorkerAPI, jsonrpc.ClientCloser, error) {

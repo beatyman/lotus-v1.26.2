@@ -42,6 +42,9 @@ const (
 const (
 	JWTSecretName   = "auth-jwt-private" //nolint:gosec
 	KTJwtHmacSecret = "jwt-hmac-secret"  //nolint:gosec
+
+	JWTSecretWorkerName   = "auth-jwt-worker-private" //nolint:gosec
+	KTJwtHmacWorkerSecret = "jwt-hmac-worker-secret"  //nolint:gosec
 )
 
 var (
@@ -139,6 +142,46 @@ func MemoryWatchdog(lr repo.LockedRepo, lc fx.Lifecycle, constraints system.Memo
 
 type JwtPayload struct {
 	Allow []auth.Permission
+}
+
+func WorkerAPISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.WorkerAPIAlg, error) {
+	key, err := keystore.Get(JWTSecretWorkerName)
+
+	if errors.Is(err, types.ErrKeyInfoNotFound) {
+		log.Warn("Generating new worker API secret")
+
+		sk, err := ioutil.ReadAll(io.LimitReader(rand.Reader, 32))
+		if err != nil {
+			return nil, err
+		}
+
+		key = types.KeyInfo{
+			Type:       KTJwtHmacWorkerSecret,
+			PrivateKey: sk,
+		}
+
+		if err := keystore.Put(JWTSecretWorkerName, key); err != nil {
+			return nil, xerrors.Errorf("writing API secret: %w", err)
+		}
+
+		// TODO: make this configurable
+		p := JwtPayload{
+			Allow: apistruct.AllPermissions,
+		}
+
+		cliToken, err := jwt.Sign(&p, jwt.NewHS256(key.PrivateKey))
+		if err != nil {
+			return nil, err
+		}
+
+		if err := ioutil.WriteFile(filepath.Join(lr.Path(), "worker_token"), cliToken, 0600); err != nil {
+			return nil, err
+		}
+	} else if err != nil {
+		return nil, xerrors.Errorf("could not get JWT Token: %w", err)
+	}
+
+	return (*dtypes.WorkerAPIAlg)(jwt.NewHS256(key.PrivateKey)), nil
 }
 
 func APISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.APIAlg, error) {

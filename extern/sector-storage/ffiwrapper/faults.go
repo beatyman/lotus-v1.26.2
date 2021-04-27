@@ -39,7 +39,6 @@ func (g ProvableStatArr) Less(i, j int) bool {
 
 // CheckProvable returns unprovable sectors
 func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storiface.RGetter, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
-
 	var good = []ProvableStat{}
 	var goodLk = sync.Mutex{}
 	var appendGood = func(sid ProvableStat) {
@@ -55,8 +54,6 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 		defer badLk.Unlock()
 		bad = append(bad, sid)
 	}
-	log.Infof("Manager.CheckProvable in, len:%d", len(sectors))
-	defer log.Infof("Manager.CheckProvable out, good:%d,bad:%d", len(good), len(bad))
 
 	var all = ProvableStatArr{}
 	var allLk = sync.Mutex{}
@@ -66,7 +63,19 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 		all = append(all, good)
 	}
 
-	checkBad := func(ctx context.Context, sector storage.SectorRef, rg storiface.RGetter, timeout time.Duration) error {
+	if len(sectors) == 0 {
+		return all, good, bad, nil
+	}
+
+	startTime := time.Now()
+	defer func() {
+		took := time.Now().Sub(startTime)
+		if took/time.Duration(len(sectors)) > 6*time.Second {
+			log.Infof("Manager.CheckProvable took:%s, all:%d, good:%d, bad:%d", took.String(), len(sectors), len(good), len(bad))
+		}
+	}()
+
+	checkBad := func(sector storage.SectorRef, rg storiface.RGetter, timeout time.Duration) error {
 		if !sector.HasRepo() {
 			return errors.New("StorageRepo not found").As(sector)
 		}
@@ -97,38 +106,43 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 		addCachePathsForSectorSize(toCheck, lp.Cache, ssize)
 
 		for p, sz := range toCheck {
-			// checking data
-			checkCtx, checkCancel := context.WithTimeout(ctx, timeout)
-			defer checkCancel()
-			checkDone := make(chan error, 1)
-			go func() {
-				st, err := os.Stat(p)
-				if err != nil {
-					checkDone <- errors.As(err, p)
-					return
-				}
-
-				if sz != 0 {
-					if st.Size() < sz {
-						checkDone <- errors.New("CheckProvable Sector FAULT: sector file is wrong size").As(p, st.Size())
+			err := func() error {
+				// checking data
+				// TODO: beause the origin ctx has been cancaled by unknow reasons.
+				checkCtx, checkCancel := context.WithTimeout(context.TODO(), timeout)
+				defer checkCancel()
+				checkDone := make(chan error, 1)
+				go func() {
+					st, err := os.Stat(p)
+					if err != nil {
+						checkDone <- errors.As(err, p)
 						return
 					}
-				}
-				checkDone <- nil
-				return
-			}()
 
-			select {
-			case <-checkCtx.Done():
-				return errors.New("context timeout").As(p)
-			case <-ctx.Done():
-				return errors.New("context canceled").As(p)
-			case err := <-checkDone:
-				if err != nil {
-					return errors.As(err, p)
+					if sz != 0 {
+						if st.Size() < sz {
+							checkDone <- errors.New("CheckProvable Sector FAULT: sector file is wrong size").As(p, st.Size())
+							return
+						}
+					}
+					checkDone <- nil
+					return
+				}()
+
+				select {
+				case <-checkCtx.Done():
+					return errors.New("check timeout").As(p)
+				case err := <-checkDone:
+					if err != nil {
+						return errors.As(err, p)
+					}
 				}
-				// continue
+				return nil
+			}()
+			if err != nil {
+				return errors.As(err)
 			}
+			// continue
 		}
 		if rg != nil {
 			wpp, err := sector.ProofType.RegisteredWindowPoStProof()
@@ -183,7 +197,7 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 				<-routines
 			}()
 			start := time.Now()
-			err := checkBad(ctx, s, rg, timeout)
+			err := checkBad(s, rg, timeout)
 			used := time.Now().Sub(start)
 
 			pState := ProvableStat{Sector: s, Used: used, Err: err}

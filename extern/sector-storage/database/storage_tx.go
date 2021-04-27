@@ -35,6 +35,7 @@ func PrepareStorage(sectorId, fromIp string, kind int) (*StorageTx, *StorageInfo
 	if err != nil {
 		return nil, nil, errors.As(err, sectorId)
 	}
+
 	tx := &StorageTx{SectorId: sectorId, Kind: kind}
 	var info *StorageInfo
 	switch tx.Kind {
@@ -113,7 +114,6 @@ WHERE
 	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work+1 WHERE id=?", info.ID); err != nil {
 		return nil, nil, errors.As(err)
 	}
-
 	tx.storageId = info.ID
 	allocateMux.Lock()
 	allocatePool[tx.Key()] = info.ID

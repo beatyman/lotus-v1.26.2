@@ -22,6 +22,9 @@ type rpcServer struct {
 	storageLk    sync.Mutex
 	storageVer   int64
 	storageCache map[int64]database.StorageInfo
+
+	c2Lk    sync.Mutex
+	c2Cache map[string]bool
 }
 
 func (w *rpcServer) Version(context.Context) (string, error) {
@@ -32,10 +35,30 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 	log.Infof("SealCommit2 RPC in:%d", sector)
 	defer log.Infof("SealCommit2 RPC out:%d", sector)
 
+	// remove the dumplicate request.
+	w.c2Lk.Lock()
+	if w.c2Cache == nil {
+		w.c2Cache = map[string]bool{}
+	}
+	key := fmt.Sprintf("s-t0%d-%d", sector.Miner, sector.Number)
+	_, ok := w.c2Cache[key]
+	if ok {
+		w.c2Lk.Unlock()
+		return storage.Proof{}, errors.New("sector is sealing").As(key)
+	}
+	w.c2Cache[key] = true
+	w.c2Lk.Unlock()
+
+	defer func() {
+		w.c2Lk.Lock()
+		delete(w.c2Cache, key)
+		w.c2Lk.Unlock()
+	}()
+
 	return w.sb.SealCommit2(ctx, storage.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out)
 }
 
-func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.StorageMiner) error {
+func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSchedulerAPI) error {
 	w.storageLk.Lock()
 	defer w.storageLk.Unlock()
 
@@ -66,6 +89,7 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.StorageMiner)
 
 		// version not match
 		if err := database.Mount(
+			ctx,
 			info.MountType,
 			info.MountSignalUri,
 			filepath.Join(info.MountDir, fmt.Sprintf("%d", info.ID)),
