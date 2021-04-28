@@ -20,7 +20,7 @@ func TestFileClient(t *testing.T) {
 	}
 	defer os.RemoveAll("./test")
 
-	fc := NewFileClient("127.0.0.1:1331", sid, string(newToken))
+	fc := NewHttpFileClient("127.0.0.1:1331", sid, string(newToken))
 	if err := fc.DeleteSector(ctx, sid, "all"); err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +92,12 @@ func TestFileRW(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fc := NewFileClient("127.0.0.1:1331", sid, string(newToken))
+	fc := NewHttpFileClient("127.0.0.1:1331", sid, string(newToken))
 	if err := fc.DeleteSector(ctx, sid, "all"); err != nil {
 		t.Fatal(err)
 	}
 
-	f := OpenFile("127.0.0.1:1332", filepath.Join("sealed", sid), sid, string(newToken))
+	f := OpenHttpFile("127.0.0.1:1332", filepath.Join("sealed", sid), sid, string(newToken))
 	n, err := f.Write([]byte("ok"))
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +107,7 @@ func TestFileRW(t *testing.T) {
 	}
 	f.Close()
 
-	f = OpenFile("127.0.0.1:1332", filepath.Join("sealed", sid), sid, string(newToken))
+	f = OpenHttpFile("127.0.0.1:1332", filepath.Join("sealed", sid), sid, string(newToken))
 	output, err := ioutil.ReadAll(f)
 	if err != nil {
 		t.Fatal(err)
