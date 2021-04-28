@@ -24,7 +24,7 @@ const UpgradeSmokeHeight = -1
 const UpgradeIgnitionHeight = -2
 const UpgradeRefuelHeight = -3
 
-var UpgradeActorsV2Height = 10
+var UpgradeActorsV2Height = abi.ChainEpoch(10)
 
 const UpgradeTapeHeight = -4
 
