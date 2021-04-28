@@ -275,7 +275,7 @@ func GetHlmMinerSchedulerAPIInfo(ctx *cli.Context) (*APIInfo, error) {
 		}
 	}
 	return &APIInfo{
-		Addr:  string(api),
+		Addr:  strings.TrimSpace(string(api)),
 		Token: token,
 	}, nil
 }
