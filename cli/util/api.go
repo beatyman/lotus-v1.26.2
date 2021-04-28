@@ -276,7 +276,7 @@ func GetHlmMinerSchedulerAPIInfo(ctx *cli.Context) (*APIInfo, error) {
 	}
 	return &APIInfo{
 		Addr:  strings.TrimSpace(string(api)),
-		Token: strings.TrimSpace(token),
+		Token: []byte(strings.TrimSpace(string(token))),
 	}, nil
 }
 func GetHlmMinerSchedulerAPI(ctx *cli.Context) (api.HlmMinerSchedulerAPI, jsonrpc.ClientCloser, error) {
