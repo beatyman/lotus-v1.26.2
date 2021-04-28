@@ -243,7 +243,7 @@ func DefaultStorageMiner() *StorageMiner {
 		Common: defCommon(),
 
 		WorkerAPI: WorkerAddrConfig{
-			ListenAddress: "/ip4/127.0.0.1/tcp/2348/http",
+			ListenAddress: "/ip4/127.0.0.1/tcp/2347/http",
 		},
 
 		Sealing: SealingConfig{

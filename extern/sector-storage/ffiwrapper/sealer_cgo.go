@@ -80,7 +80,7 @@ func (sb *Sealer) ExpireAllMarketRetrieve() {
 					log.Error(errors.As(err))
 					return
 				}
-				if err := hlmclient.NewFileClient(stor.MountTransfUri, sid, string(token)).DeleteSector(ctx, sid, "unsealed"); err != nil {
+				if err := hlmclient.NewHttpFileClient(stor.MountTransfUri, sid, string(token)).DeleteSector(ctx, sid, "unsealed"); err != nil {
 					log.Error(errors.As(err))
 					return
 				}

@@ -34,7 +34,11 @@ func UseLotusProxy(ctx *cli.Context) error {
 		if err != nil {
 			return errors.As(err)
 		}
-		output := fmt.Sprintf("# the first line is for proxy addr\n%s:/ip4/127.0.0.1/tcp/0/http\n# bellow is the cluster node.\n%s:%s\n", string(token), string(token), string(api))
+		// is the next line '\n' or '\r\n'
+		output := fmt.Sprintf(`# the first line is for proxy addr
+%s:/ip4/127.0.0.1/tcp/0/http
+# bellow is the cluster node.
+%s:%s`, string(token), string(token), string(api))
 		if err := ioutil.WriteFile(proxyFile, []byte(output), 0600); err != nil {
 			return errors.As(err)
 		}

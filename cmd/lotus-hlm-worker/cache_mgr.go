@@ -121,7 +121,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err != nil {
 			return errors.As(err)
 		}
-		fc := hlmclient.NewFileClient(ss.MountTransfUri, sid, tmpAuth)
+		fc := hlmclient.NewHttpFileClient(ss.MountTransfUri, sid, tmpAuth)
 
 		// send the sealed
 		sealedFromPath := workerSB.SectorPath("sealed", sid)
@@ -201,7 +201,7 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if err != nil {
 			return errors.As(err)
 		}
-		fc := hlmclient.NewFileClient(ss.MountTransfUri, sid, tmpAuth)
+		fc := hlmclient.NewHttpFileClient(ss.MountTransfUri, sid, tmpAuth)
 
 		fileFromPath := workerSB.SectorPath("unsealed", sid)
 		// make truncate because the file changed after resealed.
@@ -265,7 +265,7 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		if err != nil {
 			return errors.As(err)
 		}
-		fc := hlmclient.NewFileClient(ss.MountTransfUri, sid, tmpAuth)
+		fc := hlmclient.NewHttpFileClient(ss.MountTransfUri, sid, tmpAuth)
 
 		toFilePath := workerSB.SectorPath("unsealed", sid)
 		if err := fc.Download(ctx, toFilePath, filepath.Join("unsealed", sid)); err != nil {
@@ -327,7 +327,7 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		if err != nil {
 			return errors.As(err)
 		}
-		fc := hlmclient.NewFileClient(ss.MountTransfUri, sid, tmpAuth)
+		fc := hlmclient.NewHttpFileClient(ss.MountTransfUri, sid, tmpAuth)
 
 		sealedToPath := workerSB.SectorPath("sealed", sid)
 		if err := fc.Download(ctx, sealedToPath, filepath.Join("sealed", sid)); err != nil {

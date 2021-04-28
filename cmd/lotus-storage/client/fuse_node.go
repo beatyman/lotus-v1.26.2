@@ -367,7 +367,7 @@ func (fn *FUseNode) GetAttr(fi *fuse.Attr, file nodefs.File, context *fuse.Conte
 	return fuse.OK
 }
 
-func (fn *FUseNode) newFile(f *File) nodefs.File {
+func (fn *FUseNode) newFile(f *FUseFile) nodefs.File {
 	return &FUseNodeFile{
 		File: f,
 		node: fn,
@@ -398,7 +398,7 @@ func (fn *FUseNode) Lookup(out *fuse.Attr, name string, context *fuse.Context) (
 }
 
 func (fn *FUseNode) Open(flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
-	f := OpenFile(fn.fs.host, fn.relativePath, "", fn.fs.auth)
+	f := OpenFUseFile(fn.fs.host, fn.relativePath, "", fn.fs.auth)
 	return fn.newFile(f), fuse.OK
 }
 func (fn *FUseNode) OpenDir(context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {

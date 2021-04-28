@@ -1,14 +1,13 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -80,17 +79,17 @@ func (fInfo *FileInfo) Sys() interface{} {
 	return nil
 }
 
-type FileClient struct {
+type HttpFileClient struct {
 	Host  string
 	Sid   string
 	Token string
 }
 
-func NewFileClient(host, sid, token string) *FileClient {
-	return &FileClient{Host: host, Sid: sid, Token: token}
+func NewHttpFileClient(host, sid, token string) *HttpFileClient {
+	return &HttpFileClient{Host: host, Sid: sid, Token: token}
 }
 
-func (f *FileClient) Capacity(ctx context.Context) (*syscall.Statfs_t, error) {
+func (f *HttpFileClient) Capacity(ctx context.Context) (*syscall.Statfs_t, error) {
 	params := url.Values{}
 	req, err := http.NewRequestWithContext(ctx, "GET", "http://"+f.Host+"/file/capacity?"+params.Encode(), nil)
 	if err != nil {
@@ -117,7 +116,7 @@ func (f *FileClient) Capacity(ctx context.Context) (*syscall.Statfs_t, error) {
 
 }
 
-func (f *FileClient) Move(ctx context.Context, remotePath, newRemotePath string) error {
+func (f *HttpFileClient) Move(ctx context.Context, remotePath, newRemotePath string) error {
 	params := url.Values{}
 	params.Add("file", remotePath)
 	params.Add("new", newRemotePath)
@@ -140,7 +139,7 @@ func (f *FileClient) Move(ctx context.Context, remotePath, newRemotePath string)
 	}
 	return nil
 }
-func (f *FileClient) Delete(ctx context.Context, remotePath string) error {
+func (f *HttpFileClient) Delete(ctx context.Context, remotePath string) error {
 	params := url.Values{}
 	params.Add("file", remotePath)
 	req, err := http.NewRequestWithContext(ctx, "POST", "http://"+f.Host+"/file/delete?"+params.Encode(), nil)
@@ -163,7 +162,7 @@ func (f *FileClient) Delete(ctx context.Context, remotePath string) error {
 	return nil
 }
 
-func (f *FileClient) Truncate(ctx context.Context, remotePath string, size int64) error {
+func (f *HttpFileClient) Truncate(ctx context.Context, remotePath string, size int64) error {
 	params := url.Values{}
 	params.Add("file", remotePath)
 	params.Add("size", strconv.FormatInt(size, 10))
@@ -187,7 +186,7 @@ func (f *FileClient) Truncate(ctx context.Context, remotePath string, size int64
 	return nil
 }
 
-func (f *FileClient) FileStat(ctx context.Context, remotePath string) (os.FileInfo, error) {
+func (f *HttpFileClient) FileStat(ctx context.Context, remotePath string) (os.FileInfo, error) {
 	params := url.Values{}
 	params.Add("file", remotePath)
 	req, err := http.NewRequest("GET", "http://"+f.Host+"/file/stat?"+params.Encode(), nil)
@@ -222,7 +221,7 @@ func (f *FileClient) FileStat(ctx context.Context, remotePath string) (os.FileIn
 }
 
 // TODO: erasure coding
-func (f *FileClient) upload(ctx context.Context, localPath, remotePath string, append bool) (int64, error) {
+func (f *HttpFileClient) upload(ctx context.Context, localPath, remotePath string, append bool) (int64, error) {
 	pos := int64(0)
 	if append {
 		// Get the file information
@@ -307,7 +306,7 @@ func (f *FileClient) upload(ctx context.Context, localPath, remotePath string, a
 	return localStat.Size() - pos, nil
 }
 
-func (f *FileClient) Upload(ctx context.Context, localPath, remotePath string) error {
+func (f *HttpFileClient) Upload(ctx context.Context, localPath, remotePath string) error {
 	fStat, err := os.Lstat(localPath)
 	if err != nil {
 		return errors.As(err, localPath)
@@ -339,7 +338,7 @@ func (f *FileClient) Upload(ctx context.Context, localPath, remotePath string) e
 	return nil
 }
 
-func (f *FileClient) List(ctx context.Context, remotePath string) ([]utils.ServerFileStat, error) {
+func (f *HttpFileClient) List(ctx context.Context, remotePath string) ([]utils.ServerFileStat, error) {
 	params := url.Values{}
 	params.Add("file", remotePath)
 	req, err := http.NewRequestWithContext(ctx, "GET", "http://"+f.Host+"/file/list?"+params.Encode(), nil)
@@ -369,7 +368,7 @@ func (f *FileClient) List(ctx context.Context, remotePath string) ([]utils.Serve
 	return nil, errors.Parse(string(respBody)).As(resp.StatusCode)
 }
 
-func (f *FileClient) DeleteSector(ctx context.Context, sid, kind string) error {
+func (f *HttpFileClient) DeleteSector(ctx context.Context, sid, kind string) error {
 	if kind == "cache" || kind == "all" {
 		files, err := f.List(ctx, filepath.Join("cache", sid))
 		if err != nil {
@@ -406,7 +405,7 @@ func (f *FileClient) DeleteSector(ctx context.Context, sid, kind string) error {
 }
 
 // TODO: erasure coding
-func (f *FileClient) download(ctx context.Context, localPath, remotePath string) (int64, error) {
+func (f *HttpFileClient) download(ctx context.Context, localPath, remotePath string) (int64, error) {
 	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
 		return 0, errors.As(err)
 	}
@@ -465,7 +464,7 @@ func (f *FileClient) download(ctx context.Context, localPath, remotePath string)
 	return n, nil
 }
 
-func (f *FileClient) Download(ctx context.Context, localPath, remotePath string) error {
+func (f *HttpFileClient) Download(ctx context.Context, localPath, remotePath string) error {
 	sFiles, err := f.List(ctx, remotePath)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -502,178 +501,97 @@ func (f *FileClient) Download(ctx context.Context, localPath, remotePath string)
 // TODO: redesign read and write.
 //
 // implement os.File interface
-type File struct {
-	ctx       context.Context
-	ctxCancel func()
-
-	host       string
+type HttpFile struct {
+	ctx        context.Context
+	client     *HttpFileClient
 	remotePath string
-	sid        string
-	token      string
 
 	lock       sync.Mutex
-	conn       net.Conn
 	seekOffset int64
-
-	fileInfo os.FileInfo
 }
 
-func OpenFile(host, remotePath, sid, token string) *File {
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	return &File{
-		ctx:       ctx,
-		ctxCancel: ctxCancel,
-
-		host:       host,
+func OpenHttpFile(ctx context.Context, host, remotePath, sid, token string) *HttpFile {
+	return &HttpFile{
+		ctx:        ctx,
+		client:     NewHttpFileClient(host, sid, token),
 		remotePath: remotePath,
-		sid:        sid,
-		token:      token,
 	}
 }
 
-func (f *File) Name() string {
+func (f *HttpFile) Name() string {
 	return f.remotePath
 }
 
-func (f *File) close() error {
-	defer func() {
-		f.conn = nil
-		f.fileInfo = nil
-	}()
-
-	if f.conn != nil {
-		return f.conn.Close()
+func (f *HttpFile) readRemote(b []byte, off int64) (int, error) {
+	params := url.Values{}
+	params.Add("file", f.remotePath)
+	req, err := http.NewRequestWithContext(f.ctx, "GET", "http://"+f.client.Host+"/file/download?"+params.Encode(), nil)
+	if err != nil {
+		return 0, errors.As(err)
 	}
+	req.SetBasicAuth(f.client.Sid, f.client.Token)
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", off, off+int64(len(b))))
+	log.Infof("Range:%s", fmt.Sprintf("bytes=%d-%d", off, off+int64(len(b))))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, errors.As(err)
+	}
+	defer resp.Body.Close()
+
+	// file not found
+	switch resp.StatusCode {
+	case 200, 206:
+		// continue
+	case 404:
+		return 0, &os.PathError{"readRemote", f.remotePath, _errNotExist}
+	default:
+		respBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return 0, errors.As(err)
+		}
+		return 0, errors.Parse(string(respBody)).As(resp.StatusCode)
+	}
+	n, err := resp.Body.Read(b)
+	f.seekOffset = off + int64(n)
+	return n, err
+}
+func (f *HttpFile) writeRemote(b []byte, off int64) (int64, error) {
+	r := bytes.NewReader(b)
+	params := url.Values{}
+	params.Add("file", f.remotePath)
+	params.Add("pos", strconv.FormatInt(off, 10))
+	req, err := http.NewRequestWithContext(f.ctx, "POST", "http://"+f.client.Host+"/file/upload?"+params.Encode(), r)
+	if err != nil {
+		return 0, errors.As(err)
+	}
+	req.SetBasicAuth(f.client.Sid, f.client.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, errors.As(err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case 200, 206:
+		// continue
+	case 404:
+		return 0, &os.PathError{"writeRemote", f.remotePath, _errNotExist}
+	default:
+		respBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return 0, errors.As(err)
+		}
+		return 0, errors.Parse(string(respBody)).As(resp.StatusCode)
+	}
+	f.seekOffset = off + int64(len(b))
+	return int64(len(b)), nil
+}
+
+func (f *HttpFile) Close() error {
 	return nil
 }
 
-func (f *File) open() (net.Conn, error) {
-	if f.conn != nil {
-		return f.conn, nil
-	}
-	conn, err := net.Dial("tcp", f.host)
-	if err != nil {
-		return nil, errors.As(err)
-	}
-
-	params := []byte(fmt.Sprintf(`{"Method":"Open","Path":"%s","Sid":"%s","Auth":"%s"}`, f.remotePath, f.sid, f.token))
-	if err := utils.WriteFUseTextReq(conn, params); err != nil {
-		conn.Close()
-		return nil, errors.As(err, f.remotePath)
-	}
-	resp, err := utils.ReadFUseTextResp(conn)
-	if err != nil {
-		conn.Close()
-		return nil, errors.As(err, f.remotePath)
-	}
-	switch resp["Code"] {
-	case "200":
-		// pass
-	case "404":
-		return nil, &os.PathError{"readRemote", f.remotePath, _errNotExist}
-	default:
-		conn.Close()
-		return nil, errors.Parse(resp["Err"].(string))
-	}
-	f.conn = conn
-	return f.conn, nil
-}
-
-func (f *File) readRemote(b []byte, off int64) (int, error) {
-	conn, err := f.open()
-	if err != nil {
-		return 0, err
-	}
-
-	// request read data
-	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_READ, len(b)); err != nil {
-		f.close()
-		return 0, errors.As(err, f.remotePath, off, len(b))
-	}
-	offB := make([]byte, 8)
-	binary.PutVarint(offB, off)
-	if _, err := f.conn.Write(offB); err != nil {
-		f.close()
-		return 0, errors.As(err, f.remotePath, off, len(b))
-	}
-
-	// read
-	control, err := utils.ReadFUseRespHeader(conn)
-	if err != nil {
-		f.close()
-		return 0, errors.As(err, f.remotePath, off, len(b))
-	}
-	// has text resp, it should be some errors.
-	if control == utils.FUSE_RESP_CONTROL_TEXT {
-		resp, err := utils.ReadFUseRespText(conn)
-		if err != nil {
-			f.close()
-			return 0, errors.As(err, f.remotePath, off, len(b))
-		}
-		return 0, errors.Parse(resp["Err"].(string)).As(f.remotePath, off, len(b))
-	}
-
-	read := 0
-	n := 0
-	bufLen := len(b)
-	for {
-		n, err = conn.Read(b[read:])
-		read += n
-		if err != nil {
-			f.close()
-			break
-		}
-		if n > 0 && read < bufLen {
-			continue
-		}
-		break
-	}
-	f.seekOffset = off + int64(read)
-	return read, errors.As(err, f.remotePath, off, len(b))
-}
-
-func (f *File) writeRemote(b []byte, off int64) (int64, error) {
-	conn, err := f.open()
-	if err != nil {
-		return 0, err
-	}
-
-	// prepare write
-	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_WRITE, len(b)); err != nil {
-		f.close()
-		return 0, errors.As(err)
-	}
-	offB := make([]byte, 8)
-	binary.PutVarint(offB, off)
-	if _, err := conn.Write(offB); err != nil {
-		f.close()
-		return 0, errors.As(err)
-	}
-
-	// write data
-	n, err := conn.Write(b)
-	f.seekOffset = off + int64(n)
-	if err != nil {
-		f.close()
-		return int64(n), errors.As(err)
-	}
-
-	return int64(n), nil
-}
-
-func (f *File) Close() error {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-	if f.ctxCancel != nil {
-		f.ctxCancel()
-	}
-	if f.conn != nil {
-		utils.WriteFUseReqHeader(f.conn, utils.FUSE_REQ_CONTROL_FILE_CLOSE, 0)
-	}
-	return f.close()
-}
-
-func (f *File) Seek(offset int64, whence int) (ret int64, err error) {
+func (f *HttpFile) Seek(offset int64, whence int) (ret int64, err error) {
 	if whence != 0 {
 		return 0, errors.New("unsupport whence not zero")
 	}
@@ -684,19 +602,17 @@ func (f *File) Seek(offset int64, whence int) (ret int64, err error) {
 	return f.seekOffset, nil
 }
 
-func (f *File) read(b []byte) (n int, err error) {
+func (f *HttpFile) read(b []byte) (n int, err error) {
 	written, err := f.readRemote(b, f.seekOffset)
 	if err != nil {
-		if !utils.ErrEOF.Equal(err) {
-			return int(written), err
-		}
+		return int(written), err
 	}
 	if written < len(b) {
 		return int(written), io.EOF
 	}
 	return int(written), err
 }
-func (f *File) Read(b []byte) (n int, err error) {
+func (f *HttpFile) Read(b []byte) (n int, err error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
@@ -705,18 +621,17 @@ func (f *File) Read(b []byte) (n int, err error) {
 		if io.EOF != err {
 			return n, err
 		}
-		// ignore io.EOF for Read
-		// TODO: confirm this is special?
 	}
 	return n, nil
 
 }
-func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
+func (f *HttpFile) ReadAt(b []byte, off int64) (n int, err error) {
 	if off < 0 {
 		return 0, &os.PathError{"readat", f.remotePath, errors.New("negative offset")}
 	}
+
+	f.lock.Lock()
+	defer f.lock.Unlock()
 	f.seekOffset = off
 
 	n, err = f.read(b)
@@ -726,88 +641,17 @@ func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
 	return n, nil
 }
 
-func (f *File) Write(b []byte) (n int, err error) {
+func (f *HttpFile) Write(b []byte) (n int, err error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
-	f.fileInfo = nil
 
 	written, err := f.writeRemote(b, f.seekOffset)
 	return int(written), err
 }
 
-func (f *File) Stat() (os.FileInfo, error) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-	if f.fileInfo != nil {
-		return f.fileInfo, nil
-	}
-
-	conn, err := f.open()
-	if err != nil {
-		return nil, err
-	}
-
-	// request read data
-	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_STAT, 0); err != nil {
-		f.close()
-		return nil, errors.As(err, f.remotePath)
-	}
-	resp, err := utils.ReadFUseTextResp(conn)
-	if err != nil {
-		f.close()
-		return nil, errors.As(err, f.remotePath)
-	}
-	if resp["Code"] != "200" {
-		f.close()
-		return nil, errors.Parse(resp["Err"].(string))
-	}
-	stat, ok := resp["Data"].(map[string]interface{})
-	if !ok {
-		f.close()
-		return nil, errors.New("error protocol").As(resp)
-	}
-	mTime, err := time.Parse(time.RFC3339Nano, stat["FileModTime"].(string))
-	if err != nil {
-		f.close()
-		return nil, errors.As(err)
-	}
-	f.fileInfo = &utils.ServerFileStat{
-		FileName:    fmt.Sprint(stat["FileName"]),
-		IsDirFile:   stat["IsDirFile"].(bool),
-		FileSize:    int64(stat["FileSize"].(float64)),
-		FileModTime: mTime,
-	}
-	return f.fileInfo, nil
+func (f *HttpFile) Stat() (os.FileInfo, error) {
+	return f.client.FileStat(f.ctx, f.remotePath)
 }
-func (f *File) Truncate(size int64) error {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-	f.fileInfo = nil
-
-	conn, err := f.open()
-	if err != nil {
-		return err
-	}
-
-	// request read data
-	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_TRUNC, 0); err != nil {
-		f.close()
-		return errors.As(err)
-	}
-	sizeB := make([]byte, 8)
-	binary.PutVarint(sizeB, size)
-	if _, err := conn.Write(sizeB); err != nil {
-		f.close()
-		return errors.As(err)
-	}
-	resp, err := utils.ReadFUseTextResp(conn)
-	if err != nil {
-		f.close()
-		return errors.As(err)
-	}
-	if resp["Code"] != "200" {
-		f.close()
-		return errors.Parse(resp["Err"].(string))
-	}
-	return nil
+func (f *HttpFile) Truncate(size int64) error {
+	return f.client.Truncate(f.ctx, f.remotePath, size)
 }
