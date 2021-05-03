@@ -2,7 +2,6 @@ package client
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -41,48 +40,24 @@ type FUseNodeFs struct {
 	host string
 	auth string
 
-	connLk sync.Mutex
-	conn   net.Conn
-
 	root *FUseNode
 }
 
-func (fs *FUseNodeFs) close() error {
-	defer func() {
-		fs.conn = nil
-	}()
-	if fs.conn != nil {
-		return fs.conn.Close()
-	}
-	return nil
-}
-func (fs *FUseNodeFs) open() (net.Conn, error) {
-	if fs.conn != nil {
-		return fs.conn, nil
-	}
-	conn, err := net.Dial("tcp", fs.host)
-	if err != nil {
-		return nil, errors.As(err)
-	}
-	fs.conn = conn
-	return fs.conn, nil
-}
 func (fs FUseNodeFs) FileList(relativePath string) ([]os.FileInfo, error) {
-	fs.connLk.Lock()
-	defer fs.connLk.Unlock()
-
-	conn, err := fs.open()
+	conn, err := GetFUseConn(fs.host)
 	if err != nil {
 		return nil, errors.As(err)
 	}
+	defer ReturnFUseConn(fs.host, conn)
+
 	params := []byte(fmt.Sprintf(`{"Method":"List","Path":"%s"}`, relativePath))
 	if err := utils.WriteFUseTextReq(conn, params); err != nil {
-		fs.close()
+		CloseFUseConn(fs.host, conn)
 		return nil, errors.As(err)
 	}
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
-		fs.close()
+		CloseFUseConn(fs.host, conn)
 		return nil, errors.As(err)
 	}
 	switch resp["Code"] {
@@ -91,24 +66,24 @@ func (fs FUseNodeFs) FileList(relativePath string) ([]os.FileInfo, error) {
 	case "404":
 		return nil, &os.PathError{"FUseNodeFs.Stat", relativePath, _errNotExist}
 	default:
-		fs.close()
+		CloseFUseConn(fs.host, conn)
 		return nil, errors.Parse(resp["Err"].(string))
 	}
 	files, ok := resp["Data"].([]interface{})
 	if !ok {
-		fs.close()
+		CloseFUseConn(fs.host, conn)
 		return nil, errors.New("error protocol").As(resp)
 	}
 	result := []os.FileInfo{}
 	for _, file := range files {
 		stat, ok := file.(map[string]interface{})
 		if !ok {
-			fs.close()
+			CloseFUseConn(fs.host, conn)
 			return nil, errors.New("error protocol").As(resp)
 		}
 		mTime, err := time.Parse(time.RFC3339Nano, stat["FileModTime"].(string))
 		if err != nil {
-			fs.close()
+			CloseFUseConn(fs.host, conn)
 			return nil, errors.As(err)
 		}
 		result = append(result, &utils.ServerFileStat{
@@ -121,21 +96,19 @@ func (fs FUseNodeFs) FileList(relativePath string) ([]os.FileInfo, error) {
 	return result, nil
 }
 func (fs FUseNodeFs) FileStat(relativePath string) (os.FileInfo, error) {
-	fs.connLk.Lock()
-	defer fs.connLk.Unlock()
-
-	conn, err := fs.open()
+	conn, err := GetFUseConn(fs.host)
 	if err != nil {
 		return nil, errors.As(err)
 	}
+	defer ReturnFUseConn(fs.host, conn)
 	params := []byte(fmt.Sprintf(`{"Method":"Stat","Path":"%s"}`, relativePath))
 	if err := utils.WriteFUseTextReq(conn, params); err != nil {
-		fs.close()
+		CloseFUseConn(fs.host, conn)
 		return nil, errors.As(err)
 	}
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
-		fs.close()
+		CloseFUseConn(fs.host, conn)
 		return nil, errors.As(err)
 	}
 	switch resp["Code"] {
@@ -144,17 +117,17 @@ func (fs FUseNodeFs) FileStat(relativePath string) (os.FileInfo, error) {
 	case "404":
 		return nil, &os.PathError{"FUseNodeFs.Stat", relativePath, _errNotExist}
 	default:
-		fs.close()
+		CloseFUseConn(fs.host, conn)
 		return nil, errors.Parse(resp["Err"].(string))
 	}
 	stat, ok := resp["Data"].(map[string]interface{})
 	if !ok {
-		fs.close()
+		CloseFUseConn(fs.host, conn)
 		return nil, errors.New("error protocol").As(resp)
 	}
 	mTime, err := time.Parse(time.RFC3339Nano, stat["FileModTime"].(string))
 	if err != nil {
-		fs.close()
+		CloseFUseConn(fs.host, conn)
 		return nil, errors.As(err)
 	}
 	return &utils.ServerFileStat{
@@ -165,21 +138,23 @@ func (fs FUseNodeFs) FileStat(relativePath string) (os.FileInfo, error) {
 	}, nil
 }
 func (fs FUseNodeFs) StatFs() *fuse.StatfsOut {
-	fs.connLk.Lock()
-	defer fs.connLk.Unlock()
-	conn, err := fs.open()
+	conn, err := GetFUseConn(fs.host)
 	if err != nil {
 		log.Error(errors.As(err))
 		return &fuse.StatfsOut{}
 	}
+	defer ReturnFUseConn(fs.host, conn)
+
 	params := []byte(fmt.Sprintf(`{"Method":"Cap"}`))
 	if err := utils.WriteFUseTextReq(conn, params); err != nil {
 		log.Error(errors.As(err))
+		CloseFUseConn(fs.host, conn)
 		return &fuse.StatfsOut{}
 	}
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
 		log.Error(errors.As(err))
+		CloseFUseConn(fs.host, conn)
 		return &fuse.StatfsOut{}
 	}
 	if resp["Code"] != "200" {
@@ -214,6 +189,8 @@ func (fs *FUseNodeFs) OnMount(*nodefs.FileSystemConnector) {
 }
 
 func (fs *FUseNodeFs) OnUnmount() {
+	log.Infof("close the conntion pool: %s", fs.host)
+	CloseAllFUseConn(fs.host)
 }
 
 func (fs *FUseNodeFs) newNode(relativePath string) *FUseNode {

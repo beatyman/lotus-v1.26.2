@@ -203,13 +203,11 @@ func fuseHandleCommon(conn net.Conn) {
 					return // open the file failed, close the file thread connection.
 				}
 			}
-			utils.WriteFUseSucResp(conn, 200, nil) // open success
+			utils.WriteFUseSucResp(conn, 200, nil) // tell the client the open is success, and waitting the next command.
 			if err := handleFUseFile(conn, file); err != nil {
 				// open the file failed, close the file thread connection.
 				switch {
-				case utils.ErrEOF.Equal(err):
-					// ignore the connection closed.
-				case utils.ErrFUseClosed.Equal(err):
+				case utils.ErrEOF.Equal(err), utils.ErrFUseClosed.Equal(err):
 					log.Info(errors.As(err))
 				default:
 					log.Warn(errors.As(err))
@@ -217,14 +215,18 @@ func fuseHandleCommon(conn net.Conn) {
 				}
 				return
 			}
-			// deal the file done, close the thread connection.
-			return
+			// deal the file done, keep the conntion continue for other operator
+			continue
 		}
 	}
 }
 
 func handleFUseFile(conn net.Conn, file *os.File) error {
 	defer file.Close()
+	fileStat, err := file.Stat()
+	if err != nil {
+		return errors.As(err)
+	}
 	for {
 		control, bufLen, err := utils.ReadFUseReqHeader(conn)
 		if err != nil {
@@ -276,6 +278,11 @@ func handleFUseFile(conn net.Conn, file *os.File) error {
 				}
 				return errors.As(err, file, off, bufLen)
 			}
+			fileSize := fileStat.Size()
+			if (off + int64(bufLen)) > fileSize {
+				return utils.ErrFUseParams.As("off + buffLen > file.Size")
+
+			}
 			if _, err := conn.Write([]byte{utils.FUSE_RESP_CONTROL_FILE_TRANSFER}); err != nil {
 				if utils.ErrEOF.Equal(err) {
 					return utils.ErrFUseClosed.As(file, off, bufLen)
@@ -284,11 +291,17 @@ func handleFUseFile(conn net.Conn, file *os.File) error {
 			}
 			if bufLen == 0 {
 				if _, err := io.Copy(conn, file); err != nil {
-					return errors.As(err, file, off, bufLen)
+					if io.EOF != err {
+						return errors.As(err, file, off, bufLen)
+					}
+					// reach end, nothing to do.
 				}
 			} else {
 				if _, err := io.CopyN(conn, file, int64(bufLen)); err != nil {
-					return errors.As(err, file, off, bufLen)
+					if io.EOF != err {
+						return errors.As(err, file, off, bufLen)
+					}
+					// reach end, nothing to do.
 				}
 			}
 		case utils.FUSE_REQ_CONTROL_FILE_TRUNC:

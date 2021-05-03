@@ -136,61 +136,62 @@ func WriteFUseTextReq(conn net.Conn, data []byte) error {
 	return nil
 }
 
-func ReadFUseRespHeader(conn net.Conn) (byte, error) {
+func ReadFUseRespHeader(conn net.Conn) (byte, int32, error) {
 	controlB := make([]byte, 1)
 	if _, err := conn.Read(controlB); err != nil {
 		if !ErrEOF.Equal(err) {
-			return 0, errors.As(err)
+			return 0, 0, errors.As(err)
 		}
 		// EOF is not expected.
-		return 0, ErrFUseClosed.As(err)
+		return 0, 0, ErrFUseClosed.As(err)
 	}
-	return controlB[0], nil
+	if controlB[0] == FUSE_RESP_CONTROL_FILE_TRANSFER {
+		return controlB[0], 0, nil
+	}
+
+	buffLenB := make([]byte, 4)
+	n, err := conn.Read(buffLenB)
+	if err != nil {
+		if !ErrEOF.Equal(err) {
+			return 0, 0, errors.As(err)
+		}
+		// EOF is not expected.
+		return 0, 0, ErrFUseClosed.As(err)
+	}
+	if n != len(buffLenB) {
+		return 0, 0, ErrFUseProto.As("error protocol length")
+	}
+	buffLen, _ := binary.Varint(buffLenB)
+	return controlB[0], int32(buffLen), nil
 }
 
 // read the resp header and the body
 func ReadFUseTextResp(conn net.Conn) (map[string]interface{}, error) {
-	control, err := ReadFUseRespHeader(conn)
+	control, buffLen, err := ReadFUseRespHeader(conn)
 	if err != nil {
 		return nil, errors.As(err)
 	}
 	if control != FUSE_RESP_CONTROL_TEXT {
 		return nil, errors.As(err)
 	}
-	return ReadFUseRespText(conn)
+	return ReadFUseRespText(conn, buffLen)
 }
 
 // read the resp body
-func ReadFUseRespText(conn net.Conn) (map[string]interface{}, error) {
+func ReadFUseRespText(conn net.Conn, buffLen int32) (map[string]interface{}, error) {
 	// byte for control
 	// byte 0, protocol type. type 0, control protocol; type 1, transfer protocol.
 	//
-	// type 0, the control protocol
-	// byte[8] data length, zero for ignore.
+	// type 0, the control protocol, type 1 transfer protocol
+	// byte[4] data length, zero for ignore.
 	// byte[n], data body
-	//
-	// type 1, transfer data
-	//
-	buffLenB := make([]byte, 4)
-	n, err := conn.Read(buffLenB)
-	if err != nil {
-		if !ErrEOF.Equal(err) {
-			return nil, errors.As(err)
-		}
-		// EOF is not expected.
-		return nil, ErrFUseClosed.As(err)
-	}
-	if n != len(buffLenB) {
-		return nil, ErrFUseProto.As("error protocol length")
-	}
-	buffLen, _ := binary.Varint(buffLenB)
 	if buffLen == 0 {
 		return map[string]interface{}{}, nil
 	}
 	buffB := make([]byte, buffLen)
 	read := int64(0)
 	for {
-		n, err = conn.Read(buffB[read:])
+		n, err := conn.Read(buffB[read:])
 		read += int64(n)
 		if err != nil {
 			if !ErrEOF.Equal(err) {
@@ -199,7 +200,7 @@ func ReadFUseRespText(conn net.Conn) (map[string]interface{}, error) {
 			// EOF is not expected.
 			return nil, ErrFUseClosed.As(err)
 		}
-		if read < buffLen {
+		if read < int64(buffLen) {
 			// need fill full of the buffer.
 			continue
 		}
