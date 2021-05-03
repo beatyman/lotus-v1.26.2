@@ -36,6 +36,8 @@ func (p *FUsePool) new() error {
 	}
 	p.owner[fconn] = true
 	p.size += 1
+
+	//log.Infof("create new fuse connection:%s", p.host)
 	p.queue <- fconn
 	return nil
 }
@@ -45,6 +47,7 @@ func (p *FUsePool) Close(conn *FUseConn) error {
 
 	p.size -= 1
 	delete(p.owner, conn)
+	//log.Infof("close fuse connection:%s,left:%d", p.host, p.size)
 	return conn.Close()
 }
 
@@ -56,6 +59,8 @@ func (p *FUsePool) CloseAll() {
 	}
 	p.size = 0
 	close(p.queue)
+
+	//log.Infof("close all fuse connection:%s", p.host)
 }
 
 func (p *FUsePool) Borrow() (*FUseConn, error) {
@@ -101,6 +106,7 @@ func GetFUseConn(host string) (*FUseConn, error) {
 			queue: make(chan *FUseConn, FUSE_CONN_POOL_SIZE_MAX),
 			owner: map[*FUseConn]bool{},
 		}
+		FUseConnPools[host] = pool
 	}
 	FUseConnPoolLk.Unlock()
 

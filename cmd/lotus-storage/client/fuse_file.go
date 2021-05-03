@@ -222,7 +222,7 @@ func (f *FUseFile) readRemote(b []byte, off, fileSize int64) (int, error) {
 	}
 
 	// request read data
-	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_READ, len(b)); err != nil {
+	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_READ, int(buffLen)); err != nil {
 		CloseFUseConn(f.host, conn)
 		return 0, errors.As(err, f.remotePath, off, len(b))
 	}
@@ -246,7 +246,7 @@ func (f *FUseFile) readRemote(b []byte, off, fileSize int64) (int, error) {
 			CloseFUseConn(f.host, conn)
 			return 0, errors.As(err, f.remotePath, off, len(b))
 		}
-		return 0, errors.Parse(resp["Err"].(string)).As(f.remotePath, off, len(b))
+		return 0, errors.Parse(resp["Err"].(string)).As(f.remotePath, off, len(b), buffLen)
 	}
 
 	read := int64(0)
