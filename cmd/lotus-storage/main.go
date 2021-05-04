@@ -48,8 +48,8 @@ func main() {
 	commands := []*cli.Command{
 		daemonCmd,
 		mountCmd,
-		//downloadCmd,
-		//uploadCmd,
+		downloadCmd,
+		uploadCmd,
 		//authCmd,
 	}
 	app := &cli.App{
