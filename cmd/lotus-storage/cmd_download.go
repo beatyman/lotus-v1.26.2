@@ -43,7 +43,7 @@ var downloadCmd = &cli.Command{
 				if err != nil {
 					panic(err)
 				}
-				fc := client.NewHttpFileClient(_httpApiFlag, sid, string(newToken))
+				fc := client.NewHttpClient(_httpApiFlag, sid, string(newToken))
 				if err := fc.Download(ctx, remotePath, localPath); err != nil {
 					panic(err)
 				}

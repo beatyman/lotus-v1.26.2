@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	FUSE_CONN_POOL_SIZE_MAX = 12
+	FUSE_CONN_POOL_SIZE_MAX = 24
 )
 
 type FUseConn struct {

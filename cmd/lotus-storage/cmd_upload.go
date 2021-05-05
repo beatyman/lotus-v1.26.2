@@ -43,7 +43,7 @@ var uploadCmd = &cli.Command{
 				if err != nil {
 					panic(err)
 				}
-				fc := client.NewHttpFileClient(_httpApiFlag, sid, string(newToken))
+				fc := client.NewHttpClient(_httpApiFlag, sid, string(newToken))
 				if err := fc.Upload(ctx, localPath, remotePath); err != nil {
 					panic(err)
 				}
