@@ -235,10 +235,6 @@ func fuseHandleCommon(conn net.Conn) {
 
 func handleFUseFile(conn net.Conn, file *os.File) error {
 	defer file.Close()
-	fileStat, err := file.Stat()
-	if err != nil {
-		return errors.As(err)
-	}
 	for {
 		control, bufLen, err := utils.ReadFUseReqHeader(conn)
 		if err != nil {
@@ -255,6 +251,9 @@ func handleFUseFile(conn net.Conn, file *os.File) error {
 			return utils.ErrFUseProto.As(params)
 
 		case utils.FUSE_REQ_CONTROL_FILE_WRITE:
+			if bufLen == 0 {
+				utils.WriteFUseErrResp(conn, 403, utils.ErrFUseParams.As("read buffer length can not be zero"))
+			}
 			offB := make([]byte, 8) // off
 			if _, err := conn.Read(offB); err != nil {
 				if utils.ErrEOF.Equal(err) {
@@ -266,16 +265,13 @@ func handleFUseFile(conn net.Conn, file *os.File) error {
 			if _, err := file.Seek(off, 0); err != nil {
 				return errors.As(err)
 			}
-			if bufLen == 0 {
-				if _, err := io.Copy(file, conn); err != nil {
-					return errors.As(err)
-				}
-			} else {
-				if _, err := io.CopyN(file, conn, int64(bufLen)); err != nil {
-					return errors.As(err)
-				}
+			if _, err := io.CopyN(file, conn, int64(bufLen)); err != nil {
+				return errors.As(err)
 			}
 		case utils.FUSE_REQ_CONTROL_FILE_READ:
+			if bufLen == 0 {
+				utils.WriteFUseErrResp(conn, 403, utils.ErrFUseParams.As("read buffer length can not be zero"))
+			}
 			offB := make([]byte, 8) // off
 			if _, err := conn.Read(offB); err != nil {
 				if utils.ErrEOF.Equal(err) {
@@ -290,31 +286,25 @@ func handleFUseFile(conn net.Conn, file *os.File) error {
 				}
 				return errors.As(err, file, off, bufLen)
 			}
+
+			fileStat, err := file.Stat()
+			if err != nil {
+				return errors.As(err)
+			}
 			fileSize := fileStat.Size()
 			if (off + int64(bufLen)) > fileSize {
-				return utils.ErrFUseParams.As("off + buffLen > file.Size")
+				return utils.ErrFUseParams.As("off + buffLen more than file.Size")
 
 			}
-			if _, err := conn.Write([]byte{utils.FUSE_RESP_CONTROL_FILE_TRANSFER}); err != nil {
-				if utils.ErrEOF.Equal(err) {
-					return utils.ErrFUseClosed.As(file, off, bufLen)
-				}
-				return errors.As(err, file, off, bufLen)
+
+			if err := utils.WriteFUseRespHeader(conn, utils.FUSE_RESP_CONTROL_FILE_TRANSFER, bufLen); err != nil {
+				return errors.As(err)
 			}
-			if bufLen == 0 {
-				if _, err := io.Copy(conn, file); err != nil {
-					if io.EOF != err {
-						return errors.As(err, file, off, bufLen)
-					}
-					// reach end, nothing to do.
+			if _, err := io.CopyN(conn, file, int64(bufLen)); err != nil {
+				if io.EOF != err {
+					return errors.As(err, file, off, bufLen)
 				}
-			} else {
-				if _, err := io.CopyN(conn, file, int64(bufLen)); err != nil {
-					if io.EOF != err {
-						return errors.As(err, file, off, bufLen)
-					}
-					// reach end, nothing to do.
-				}
+				// reach end, nothing to do.
 			}
 		case utils.FUSE_REQ_CONTROL_FILE_TRUNC:
 			sizeB := make([]byte, 8)
@@ -329,6 +319,7 @@ func handleFUseFile(conn net.Conn, file *os.File) error {
 				return errors.As(err)
 			}
 			utils.WriteFUseSucResp(conn, 200, nil)
+
 		case utils.FUSE_REQ_CONTROL_FILE_STAT:
 			fStat, err := file.Stat()
 			if err != nil {

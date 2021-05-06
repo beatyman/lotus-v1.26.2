@@ -9,7 +9,6 @@ import (
 
 	"github.com/filecoin-project/lotus/cmd/lotus-storage/utils"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/hanwen/go-fuse/v2/fuse/nodefs"
 )

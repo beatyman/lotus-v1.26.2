@@ -12,7 +12,6 @@ import (
 
 	"github.com/filecoin-project/lotus/cmd/lotus-storage/utils"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/hanwen/go-fuse/v2/fuse/nodefs"
 )
@@ -201,11 +200,14 @@ func (f *FUseFile) open() (*FUseConn, error) {
 					return
 
 				case <-f.authTicker.C:
+					f.lock.Lock()
+
 					if time.Now().Sub(f.authTime) > 10*time.Minute && f.conn != nil {
 						// no data visit for 10 minutes, close the connection
-						log.Warn("fuse file(%s) closed by timeout", f.remotePath)
-						CloseFUseConn(f.host, f.conn)
+						log.Warnf("fuse file(%s) closed by timeout", f.remotePath)
+						f.closeErrConn()
 					}
+					f.lock.Unlock()
 				}
 			}
 		}()
@@ -219,12 +221,12 @@ func (f *FUseFile) open() (*FUseConn, error) {
 
 	params := []byte(fmt.Sprintf(`{"Method":"Open","Path":"%s","Sid":"%s","Auth":"%s","Flag":"%d"}`, f.remotePath, f.sid, f.token, f.flag))
 	if err := utils.WriteFUseTextReq(conn, params); err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return nil, errors.As(err, f.remotePath)
 	}
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return nil, errors.As(err, f.remotePath)
 	}
 	switch resp["Code"] {
@@ -234,7 +236,7 @@ func (f *FUseFile) open() (*FUseConn, error) {
 		ReturnFUseConn(f.host, conn)
 		return nil, &os.PathError{"readRemote", f.remotePath, _errNotExist}
 	default:
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return nil, errors.Parse(resp["Err"].(string))
 	}
 	f.conn = conn
@@ -243,11 +245,16 @@ func (f *FUseFile) open() (*FUseConn, error) {
 
 func (f *FUseFile) readRemote(b []byte, off, fileSize int64) (int, error) {
 	if off > fileSize {
-		return 0, errors.New("offset out of size").As(off, fileSize)
+		return 0, errors.New("offset out of size").As(f.remotePath, len(b), off, fileSize)
+	}
+	// no space for filling
+	if len(b) == 0 {
+		return 0, errors.New("no buffer for reading").As(f.remotePath, len(b), off, fileSize)
 	}
 	if off == fileSize {
 		return 0, io.EOF
 	}
+
 	buffLen := int64(len(b))
 	endOff := off + buffLen
 	if endOff > fileSize {
@@ -261,27 +268,27 @@ func (f *FUseFile) readRemote(b []byte, off, fileSize int64) (int, error) {
 
 	// request read data
 	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_READ, int(buffLen)); err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return 0, errors.As(err, f.remotePath, off, len(b))
 	}
 	offB := make([]byte, 8)
 	binary.PutVarint(offB, off)
 	if _, err := f.conn.Write(offB); err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return 0, errors.As(err, f.remotePath, off, len(b))
 	}
 
 	// read
 	control, dataLen, err := utils.ReadFUseRespHeader(conn)
 	if err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return 0, errors.As(err, f.remotePath, off, len(b))
 	}
-	// has text resp, it should be some errors.
+	// has the text resp, it should be some errors.
 	if control == utils.FUSE_RESP_CONTROL_TEXT {
 		resp, err := utils.ReadFUseRespText(conn, dataLen)
 		if err != nil {
-			CloseFUseConn(f.host, conn)
+			f.closeErrConn()
 			return 0, errors.As(err, f.remotePath, off, len(b))
 		}
 		return 0, errors.Parse(resp["Err"].(string)).As(f.remotePath, off, len(b), buffLen)
@@ -293,10 +300,10 @@ func (f *FUseFile) readRemote(b []byte, off, fileSize int64) (int, error) {
 		n, err = conn.Read(b[read:])
 		read += int64(n)
 		if err != nil {
-			CloseFUseConn(f.host, conn)
+			f.closeErrConn()
 			break
 		}
-		if n > 0 && read < buffLen {
+		if n > 0 && read < int64(dataLen) {
 			continue
 		}
 		break
@@ -317,13 +324,13 @@ func (f *FUseFile) writeRemote(b []byte, off int64) (int64, error) {
 
 	// prepare write
 	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_WRITE, len(b)); err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return 0, errors.As(err)
 	}
 	offB := make([]byte, 8)
 	binary.PutVarint(offB, off)
 	if _, err := conn.Write(offB); err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return 0, errors.As(err)
 	}
 
@@ -331,25 +338,32 @@ func (f *FUseFile) writeRemote(b []byte, off int64) (int64, error) {
 	n, err := conn.Write(b)
 	f.seekOffset = off + int64(n)
 	if err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return int64(n), errors.As(err)
 	}
 
 	return int64(n), nil
 }
+func (f *FUseFile) closeErrConn() {
+	if f.conn != nil {
+		CloseFUseConn(f.host, f.conn)
+	}
+	f.conn = nil
+}
 
 func (f *FUseFile) Close() error {
 	f.lock.Lock()
 	defer func() {
-		f.conn = nil
 		f.lock.Unlock()
 	}()
 	if f.ctxCancel != nil {
 		f.ctxCancel()
 	}
 	if f.conn != nil {
-		utils.WriteFUseReqHeader(f.conn, utils.FUSE_REQ_CONTROL_FILE_CLOSE, 0)
-		ReturnFUseConn(f.host, f.conn)
+		conn := f.conn
+		utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_CLOSE, 0)
+		ReturnFUseConn(f.host, conn)
+		f.conn = nil
 	}
 
 	f.authTickerClosed <- true
@@ -379,26 +393,26 @@ func (f *FUseFile) stat() (os.FileInfo, error) {
 
 	// request read data
 	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_STAT, 0); err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return nil, errors.As(err, f.remotePath)
 	}
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return nil, errors.As(err, f.remotePath)
 	}
 	if resp["Code"] != "200" {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return nil, errors.Parse(resp["Err"].(string))
 	}
 	stat, ok := resp["Data"].(map[string]interface{})
 	if !ok {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return nil, errors.New("error protocol").As(resp)
 	}
 	mTime, err := time.Parse(time.RFC3339Nano, stat["FileModTime"].(string))
 	if err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return nil, errors.As(err)
 	}
 	f.fileInfo = &utils.ServerFileStat{
@@ -431,12 +445,8 @@ func (f *FUseFile) Read(b []byte) (n int, err error) {
 	defer f.lock.Unlock()
 
 	n, err = f.read(b)
-	if err != nil {
-		if io.EOF != err {
-			return n, err
-		}
-		// ignore io.EOF for Read
-		// TODO: confirm this is special?
+	if n < len(b) {
+		return n, err
 	}
 	return n, nil
 
@@ -457,6 +467,11 @@ func (f *FUseFile) ReadAt(b []byte, off int64) (n int, err error) {
 }
 
 func (f *FUseFile) Write(b []byte) (n int, err error) {
+	// no data to write.
+	if len(b) == 0 {
+		return 0, nil
+	}
+
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	f.fileInfo = nil
@@ -482,22 +497,22 @@ func (f *FUseFile) Truncate(size int64) error {
 
 	// request read data
 	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_TRUNC, 0); err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return errors.As(err)
 	}
 	sizeB := make([]byte, 8)
 	binary.PutVarint(sizeB, size)
 	if _, err := conn.Write(sizeB); err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return errors.As(err)
 	}
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return errors.As(err)
 	}
 	if resp["Code"] != "200" {
-		CloseFUseConn(f.host, conn)
+		f.closeErrConn()
 		return errors.Parse(resp["Err"].(string))
 	}
 	return nil

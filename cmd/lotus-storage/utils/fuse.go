@@ -18,28 +18,22 @@ var (
 )
 
 const (
-	FUSE_REQ_CONTROL_TEXT       = byte(0)
-	FUSE_REQ_CONTROL_FILE_CLOSE = byte(1)
-	FUSE_REQ_CONTROL_FILE_WRITE = byte(2)
-	FUSE_REQ_CONTROL_FILE_TRUNC = byte(3)
-	FUSE_REQ_CONTROL_FILE_STAT  = byte(4)
-	FUSE_REQ_CONTROL_FILE_READ  = byte(5)
+	FUSE_REQ_CONTROL_TEXT       = byte(1)
+	FUSE_REQ_CONTROL_FILE_CLOSE = byte(2)
+	FUSE_REQ_CONTROL_FILE_WRITE = byte(3)
+	FUSE_REQ_CONTROL_FILE_TRUNC = byte(4)
+	FUSE_REQ_CONTROL_FILE_STAT  = byte(5)
+	FUSE_REQ_CONTROL_FILE_READ  = byte(6)
 	FUSE_REQ_CONTROL_FILE_CAP   = byte(10)
 
-	FUSE_RESP_CONTROL_TEXT          = byte(0)
-	FUSE_RESP_CONTROL_FILE_TRANSFER = byte(1)
+	// ignore 0
+	FUSE_RESP_CONTROL_TEXT          = byte(1)
+	FUSE_RESP_CONTROL_FILE_TRANSFER = byte(2)
 )
 
 func ReadFUseReqHeader(conn net.Conn) (byte, int, error) {
-	// byte 0 for signal protocal, value means:
-	// value 0, control mode;
-	// value 1, close file mode
-	// value 2, write file mode
-	// value 3, truncate file mode
-	// value 4, filestat file mode
-	// value 5, read file mode
-	//
-	// byte[8] data length, zero for ignore.
+	// byte [0] for control protocal:
+	// byte[1:5] data length.
 	// byte[n], data body
 	controlB := make([]byte, 1)
 	n, err := conn.Read(controlB)
@@ -145,10 +139,6 @@ func ReadFUseRespHeader(conn net.Conn) (byte, int32, error) {
 		// EOF is not expected.
 		return 0, 0, ErrFUseClosed.As(err)
 	}
-	if controlB[0] == FUSE_RESP_CONTROL_FILE_TRANSFER {
-		return controlB[0], 0, nil
-	}
-
 	buffLenB := make([]byte, 4)
 	n, err := conn.Read(buffLenB)
 	if err != nil {
@@ -172,21 +162,18 @@ func ReadFUseTextResp(conn net.Conn) (map[string]interface{}, error) {
 		return nil, errors.As(err)
 	}
 	if control != FUSE_RESP_CONTROL_TEXT {
-		return nil, errors.As(err)
+		return nil, ErrFUseProto.As("need FUSE_RESP_CONTROL_TEXT", control, buffLen)
 	}
 	return ReadFUseRespText(conn, buffLen)
 }
 
 // read the resp body
 func ReadFUseRespText(conn net.Conn, buffLen int32) (map[string]interface{}, error) {
-	// byte for control
-	// byte 0, protocol type. type 0, control protocol; type 1, transfer protocol.
-	//
-	// type 0, the control protocol, type 1 transfer protocol
-	// byte[4] data length, zero for ignore.
+	// byte[0], protocol type. type 0, control protocol; type 1, transfer protocol.
+	// byte[1:5] data length, zero for ignore.
 	// byte[n], data body
 	if buffLen == 0 {
-		return map[string]interface{}{}, nil
+		return nil, errors.New("no data response").As(buffLen)
 	}
 	buffB := make([]byte, buffLen)
 	read := int64(0)
@@ -210,12 +197,37 @@ func ReadFUseRespText(conn net.Conn, buffLen int32) (map[string]interface{}, err
 	if err := json.Unmarshal(buffB, &proto); err != nil {
 		return nil, ErrFUseParams.As("error protocol format")
 	}
+	// checksum the protocol
+	if _, ok := proto["Code"]; !ok {
+		return nil, ErrFUseParams.As(buffLen, string(buffB))
+	}
 	return proto, nil
 }
 
+func WriteFUseRespHeader(conn net.Conn, control byte, buffLen int) error {
+	// write the protocol control
+	if _, err := conn.Write([]byte{control}); err != nil {
+		if !ErrEOF.Equal(err) {
+			return errors.As(err)
+		}
+		return ErrFUseClosed.As(err)
+	}
+	// write data len
+	buffLenB := make([]byte, 4)
+	binary.PutVarint(buffLenB, int64(buffLen))
+	if _, err := conn.Write(buffLenB); err != nil {
+		if !ErrEOF.Equal(err) {
+			return errors.As(err)
+		}
+		return ErrFUseClosed.As(err)
+	}
+	return nil
+}
 func WriteFUseTextResp(conn net.Conn, code int, data interface{}, err error) {
+	codeStr := strconv.Itoa(code)
 	p := map[string]interface{}{
-		"Code": strconv.Itoa(code),
+		"Code": codeStr,
+		"Err":  codeStr,
 	}
 	if data != nil {
 		p["Data"] = data
@@ -224,17 +236,7 @@ func WriteFUseTextResp(conn net.Conn, code int, data interface{}, err error) {
 		p["Err"] = err.Error()
 	}
 	output, _ := json.Marshal(p)
-
-	// write control code
-	if _, err := conn.Write([]byte{FUSE_RESP_CONTROL_TEXT}); err != nil {
-		log.Warn(errors.As(err))
-		return
-	}
-
-	// write data len
-	buffLen := make([]byte, 4)
-	binary.PutVarint(buffLen, int64(len(output)))
-	if _, err := conn.Write(buffLen); err != nil {
+	if err := WriteFUseRespHeader(conn, FUSE_RESP_CONTROL_TEXT, len(output)); err != nil {
 		log.Warn(errors.As(err))
 		return
 	}

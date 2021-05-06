@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
 
 const (
@@ -40,7 +39,7 @@ func (p *FUsePool) new(force bool) error {
 	p.owner[fconn] = true
 	p.size += 1
 
-	log.Infof("create new fuse connection:%s,connections:%d", p.host, p.size)
+	log.Infof("create new fuse connection:%s, force:%t, pool size:%d", p.host, force, p.size)
 	p.queue <- fconn
 	return nil
 }
@@ -48,7 +47,7 @@ func (p *FUsePool) new(force bool) error {
 func (p *FUsePool) close(conn *FUseConn) error {
 	p.size -= 1
 	delete(p.owner, conn)
-	log.Infof("close fuse connection:%s, connections:%d", p.host, p.size)
+	log.Infof("close fuse connection:%s, force:%t, pool size:%d", p.host, conn.forceAllocate, p.size)
 	return conn.Close()
 }
 func (p *FUsePool) Close(conn *FUseConn) error {
@@ -91,7 +90,8 @@ func (p *FUsePool) Return(conn *FUseConn) {
 		p.lk.Unlock()
 		return
 	}
-	if conn.forceAllocate {
+	// keep the pool size
+	if p.size > FUSE_CONN_POOL_SIZE_MAX && conn.forceAllocate {
 		p.close(conn)
 		p.lk.Unlock()
 		return

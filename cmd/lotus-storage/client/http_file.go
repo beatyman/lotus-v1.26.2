@@ -20,7 +20,6 @@ import (
 	"github.com/filecoin-project/lotus/cmd/lotus-storage/utils"
 	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
 
 var (
