@@ -44,7 +44,7 @@ type FUseNodeFs struct {
 }
 
 func (fs FUseNodeFs) FileList(relativePath string) ([]os.FileInfo, error) {
-	conn, err := GetFUseConn(fs.host)
+	conn, err := GetFUseConn(fs.host, false)
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -96,7 +96,7 @@ func (fs FUseNodeFs) FileList(relativePath string) ([]os.FileInfo, error) {
 	return result, nil
 }
 func (fs FUseNodeFs) FileStat(relativePath string) (os.FileInfo, error) {
-	conn, err := GetFUseConn(fs.host)
+	conn, err := GetFUseConn(fs.host, false)
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -138,7 +138,7 @@ func (fs FUseNodeFs) FileStat(relativePath string) (os.FileInfo, error) {
 	}, nil
 }
 func (fs FUseNodeFs) StatFs() *fuse.StatfsOut {
-	conn, err := GetFUseConn(fs.host)
+	conn, err := GetFUseConn(fs.host, false)
 	if err != nil {
 		log.Error(errors.As(err))
 		return &fuse.StatfsOut{}
@@ -375,7 +375,7 @@ func (fn *FUseNode) Lookup(out *fuse.Attr, name string, context *fuse.Context) (
 }
 
 func (fn *FUseNode) Open(flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
-	f := OpenFUseFile(fn.fs.host, fn.relativePath, "", fn.fs.auth)
+	f := OpenFUseFile(fn.fs.host, fn.relativePath, "", fn.fs.auth, int(flags))
 	return fn.newFile(f), fuse.OK
 }
 func (fn *FUseNode) OpenDir(context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {

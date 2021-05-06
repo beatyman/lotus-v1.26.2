@@ -12,6 +12,7 @@ import (
 
 	"github.com/filecoin-project/lotus/cmd/lotus-storage/utils"
 	"github.com/gwaylib/errors"
+	"github.com/gwaylib/log"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/hanwen/go-fuse/v2/fuse/nodefs"
 )
@@ -145,13 +146,23 @@ type FUseFile struct {
 	token      string
 
 	lock       sync.Mutex
-	conn       *FUseConn
 	seekOffset int64
 
+	conn *FUseConn
+	flag int // file flag, os.O_RDWR|os.O_CREATE
+
 	fileInfo os.FileInfo
+
+	authTicker       *time.Ticker
+	authTime         time.Time
+	authTickerClosed chan bool
 }
 
-func OpenFUseFile(host, remotePath, sid, token string) *FUseFile {
+func OpenROFUseFile(host, remotePath, sid, token string) *FUseFile {
+	return OpenFUseFile(host, remotePath, sid, token, os.O_RDONLY)
+}
+
+func OpenFUseFile(host, remotePath, sid, token string, flag int) *FUseFile {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	return &FUseFile{
 		ctx:       ctx,
@@ -161,25 +172,52 @@ func OpenFUseFile(host, remotePath, sid, token string) *FUseFile {
 		remotePath: remotePath,
 		sid:        sid,
 		token:      token,
+
+		flag:             flag,
+		authTime:         time.Now(),
+		authTickerClosed: make(chan bool, 1),
 	}
 }
 
 func (f *FUseFile) Name() string {
 	return f.remotePath
 }
-
 func (f *FUseFile) open() (*FUseConn, error) {
+	f.authTime = time.Now()
+
 	if f.conn != nil {
 		return f.conn, nil
 	}
 
+	// ticker for deadlock.
+	if f.authTicker == nil {
+		f.authTicker = time.NewTicker(10 * time.Minute)
+		go func() {
+			for {
+				select {
+				case <-f.authTickerClosed:
+					f.authTicker.Stop()
+					f.authTicker = nil
+					return
+
+				case <-f.authTicker.C:
+					if time.Now().Sub(f.authTime) > 10*time.Minute && f.conn != nil {
+						// no data visit for 10 minutes, close the connection
+						log.Warn("fuse file(%s) closed by timeout", f.remotePath)
+						CloseFUseConn(f.host, f.conn)
+					}
+				}
+			}
+		}()
+	}
+
 	// get from pool, and return when the file closed
-	conn, err := GetFUseConn(f.host)
+	conn, err := GetFUseConn(f.host, (f.flag&os.O_RDWR) == os.O_RDWR)
 	if err != nil {
 		return nil, errors.As(err)
 	}
 
-	params := []byte(fmt.Sprintf(`{"Method":"Open","Path":"%s","Sid":"%s","Auth":"%s"}`, f.remotePath, f.sid, f.token))
+	params := []byte(fmt.Sprintf(`{"Method":"Open","Path":"%s","Sid":"%s","Auth":"%s","Flag":"%d"}`, f.remotePath, f.sid, f.token, f.flag))
 	if err := utils.WriteFUseTextReq(conn, params); err != nil {
 		CloseFUseConn(f.host, conn)
 		return nil, errors.As(err, f.remotePath)
@@ -304,6 +342,7 @@ func (f *FUseFile) Close() error {
 	f.lock.Lock()
 	defer func() {
 		f.conn = nil
+		f.authTicker = nil
 		f.lock.Unlock()
 	}()
 	if f.ctxCancel != nil {
@@ -313,6 +352,8 @@ func (f *FUseFile) Close() error {
 		utils.WriteFUseReqHeader(f.conn, utils.FUSE_REQ_CONTROL_FILE_CLOSE, 0)
 		ReturnFUseConn(f.host, f.conn)
 	}
+
+	f.authTickerClosed <- true
 	return nil
 }
 

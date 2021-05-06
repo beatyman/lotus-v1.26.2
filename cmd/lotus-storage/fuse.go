@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -184,6 +185,11 @@ func fuseHandleCommon(conn net.Conn) {
 				canWrite = true
 			}
 			if canWrite {
+				flag, err := strconv.ParseInt(p["Flag"], 10, 32)
+				if err != nil {
+					utils.WriteFUseErrResp(conn, 403, utils.ErrFUseParams.As("invalid path"))
+					return // open the file failed, close the file thread connection.
+				}
 				log.Infof("Auth write %s from %s", path, conn.RemoteAddr())
 				to := filepath.Join(_repoFlag, path)
 				dir := filepath.Dir(to)
@@ -191,15 +197,21 @@ func fuseHandleCommon(conn net.Conn) {
 					utils.WriteFUseErrResp(conn, 500, errors.As(err))
 					return // open the file failed, close the file thread connection.
 				}
-				file, err = os.OpenFile(to, os.O_RDWR|os.O_CREATE, 0644)
+				file, err = os.OpenFile(to, int(flag), 0644)
 				if err != nil {
-					utils.WriteFUseErrResp(conn, 500, errors.As(err))
+					if !os.IsNotExist(err) {
+						utils.WriteFUseErrResp(conn, 500, errors.As(err))
+					}
+					utils.WriteFUseErrResp(conn, 404, errors.As(err))
 					return // open the file failed, close the file thread connection.
 				}
 			} else {
 				file, err = os.Open(filepath.Join(_repoFlag, path))
 				if err != nil {
-					utils.WriteFUseErrResp(conn, 500, errors.As(err))
+					if !os.IsNotExist(err) {
+						utils.WriteFUseErrResp(conn, 500, errors.As(err))
+					}
+					utils.WriteFUseErrResp(conn, 404, errors.As(err))
 					return // open the file failed, close the file thread connection.
 				}
 			}

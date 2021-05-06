@@ -9,11 +9,13 @@ import (
 )
 
 const (
-	FUSE_CONN_POOL_SIZE_MAX = 24
+	FUSE_CONN_POOL_SIZE_MAX = 12
 )
 
 type FUseConn struct {
 	net.Conn
+
+	forceAllocate bool
 }
 
 type FUsePool struct {
@@ -26,13 +28,14 @@ type FUsePool struct {
 	lk   sync.Mutex
 }
 
-func (p *FUsePool) new() error {
+func (p *FUsePool) new(force bool) error {
 	conn, err := net.Dial("tcp", p.host)
 	if err != nil {
 		return errors.As(err)
 	}
 	fconn := &FUseConn{
-		Conn: conn,
+		Conn:          conn,
+		forceAllocate: force,
 	}
 	p.owner[fconn] = true
 	p.size += 1
@@ -41,14 +44,17 @@ func (p *FUsePool) new() error {
 	p.queue <- fconn
 	return nil
 }
-func (p *FUsePool) Close(conn *FUseConn) error {
-	p.lk.Lock()
-	defer p.lk.Unlock()
 
+func (p *FUsePool) close(conn *FUseConn) error {
 	p.size -= 1
 	delete(p.owner, conn)
 	log.Infof("close fuse connection:%s, connections:%d", p.host, p.size)
 	return conn.Close()
+}
+func (p *FUsePool) Close(conn *FUseConn) error {
+	p.lk.Lock()
+	defer p.lk.Unlock()
+	return p.close(conn)
 }
 
 func (p *FUsePool) CloseAll() {
@@ -63,10 +69,10 @@ func (p *FUsePool) CloseAll() {
 	log.Infof("close all fuse connection:%s", p.host)
 }
 
-func (p *FUsePool) Borrow() (*FUseConn, error) {
+func (p *FUsePool) Borrow(force bool) (*FUseConn, error) {
 	p.lk.Lock()
-	if len(p.queue) == 0 && p.size < FUSE_CONN_POOL_SIZE_MAX {
-		if err := p.new(); err != nil {
+	if len(p.queue) == 0 && (p.size < FUSE_CONN_POOL_SIZE_MAX || force) {
+		if err := p.new(force); err != nil {
 			p.lk.Unlock()
 			return nil, errors.As(err)
 		}
@@ -85,6 +91,11 @@ func (p *FUsePool) Return(conn *FUseConn) {
 		p.lk.Unlock()
 		return
 	}
+	if conn.forceAllocate {
+		p.close(conn)
+		p.lk.Unlock()
+		return
+	}
 	p.lk.Unlock()
 
 	p.queue <- conn
@@ -95,7 +106,7 @@ var (
 	FUseConnPools  = map[string]*FUsePool{}
 )
 
-func GetFUseConn(host string) (*FUseConn, error) {
+func GetFUseConn(host string, forceAllocate bool) (*FUseConn, error) {
 	var pool *FUsePool
 
 	FUseConnPoolLk.Lock()
@@ -110,7 +121,7 @@ func GetFUseConn(host string) (*FUseConn, error) {
 	}
 	FUseConnPoolLk.Unlock()
 
-	return pool.Borrow()
+	return pool.Borrow(forceAllocate)
 }
 func ReturnFUseConn(host string, conn *FUseConn) {
 	var pool *FUsePool
