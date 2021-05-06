@@ -342,7 +342,6 @@ func (f *FUseFile) Close() error {
 	f.lock.Lock()
 	defer func() {
 		f.conn = nil
-		f.authTicker = nil
 		f.lock.Unlock()
 	}()
 	if f.ctxCancel != nil {
