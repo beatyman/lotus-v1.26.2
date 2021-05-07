@@ -44,4 +44,5 @@ type HlmMinerSchedulerAPI interface {
 	PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error)
 	CommitStorageNode(ctx context.Context, sectorId string, kind int) error
 	CancelStorageNode(ctx context.Context, sectorId string, kind int) error
+	HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error)
 }
