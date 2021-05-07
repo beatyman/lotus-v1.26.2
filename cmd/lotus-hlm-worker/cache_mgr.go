@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
@@ -418,4 +419,41 @@ repush:
 		}
 	}
 	return nil
+}
+func (w *worker) removeDataLayer(ctx context.Context, cacheDir string) {
+	files := make([]string, 0)
+	file, err := os.Stat(cacheDir)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	if !file.IsDir() {
+		return
+	}
+	fileInfo, err := ioutil.ReadDir(cacheDir)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	if len(fileInfo) == 0 {
+		return
+	}
+	for _, v := range fileInfo {
+		if v.IsDir() {
+			log.Warn("dir ::  ==> ", cacheDir+v.Name())
+		} else {
+			if strings.Contains(v.Name(), "data-layer") {
+				filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
+				files = append(files, filename)
+			}
+		}
+	}
+	for _, filename := range files {
+		err := os.Remove(filename)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+	}
+	log.Infof("remove files: %v ", files)
 }

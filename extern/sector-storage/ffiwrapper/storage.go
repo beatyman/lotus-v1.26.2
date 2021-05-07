@@ -301,7 +301,9 @@ func (sb *Sealer) CancelStorageNode(sectorId string, kind int) error {
 func (sb *Sealer) ChecksumStorage(sumVer int64) ([]database.StorageInfo, error) {
 	return database.ChecksumStorage(sumVer)
 }
-
+func (sb *Sealer) HlmSectorGetState(sid string) (*database.SectorInfo, error) {
+	return database.GetSectorInfo(sid)
+}
 func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) {
 	checkFn := func(c *database.StorageStatus) error {
 		switch c.MountType {

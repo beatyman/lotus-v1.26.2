@@ -245,6 +245,22 @@ func (r *remote) fullTask() bool {
 	defer r.lock.Unlock()
 	return len(r.busyOnTasks) >= r.cfg.MaxTaskNum
 }
+func (r *remote) fakeFullTask() bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	count := 0
+	for sid := range r.busyOnTasks {
+		task, ok := r.busyOnTasks[sid]
+		if !ok {
+			continue
+		}
+		//只计算P1,P2任务
+		if task.Type < WorkerPreCommit2Done {
+			count++
+		}
+	}
+	return count >= r.cfg.MaxTaskNum
+}
 
 // for control the memory
 func (r *remote) LimitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
@@ -270,9 +286,13 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	busyWinningPoSt := 0
 	busyWindowPoSt := 0
 	sumWorkingTask := 0
+	realWorking := 0
 	for _, val := range r.busyOnTasks {
 		if val.Type%10 == 0 {
 			sumWorkingTask++
+		}
+		if val.Type <= WorkerPreCommit2 {
+			realWorking++
 		}
 		switch val.Type {
 		case WorkerPledge:
@@ -291,10 +311,7 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 			busyWindowPoSt++
 		}
 	}
-	// in full working
-	if sumWorkingTask >= r.cfg.MaxTaskNum {
-		return true
-	}
+	log.Infof("workerIP: %v; real<=21: %v/%v ; AddPiece: %v/%v ; P1: %v/%v ; P2: %v/%v ;Commit: %v/%v", r.cfg.IP, realWorking, r.cfg.MaxTaskNum, busyPledgeNum, r.cfg.ParallelPledge, busyPrecommit1Num, r.cfg.ParallelPrecommit1, busyPrecommit2Num, r.cfg.ParallelPrecommit2, busyCommitNum, r.cfg.ParallelCommit)
 	if isSrvCalled {
 		// mutex to any other task.
 		return sumWorkingTask > 0
@@ -303,7 +320,10 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	switch typ {
 	// mutex cpu for addpiece and precommit1
 	case WorkerPledge:
-		return busyPledgeNum >= r.cfg.ParallelPledge || len(r.busyOnTasks) >= r.cfg.MaxTaskNum || busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1
+		if realWorking >= r.cfg.MaxTaskNum {
+			return true
+		}
+		return busyPledgeNum >= r.cfg.ParallelPledge || realWorking >= r.cfg.MaxTaskNum || busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1
 	case WorkerPreCommit1, WorkerUnseal: // unseal is shared with the parallel-precommit1
 		return busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1 || (busyPledgeNum > 0)
 
@@ -372,7 +392,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		}
 		if wTask.State <= WorkerFinalize {
 			// maxTaskNum has changed to less, so only load a part
-			if wTask.State < WorkerFinalize && len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
+			if wTask.State < WorkerFinalize && r.fakeFullTask() {
 				break
 			}
 			r.lock.Lock()
@@ -393,7 +413,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 			r.lock.Unlock()
 		}
 	}
-	return history.IsFullWork(r.cfg.MaxTaskNum, r.cfg.TransferBuffer), nil
+	return r.fakeFullTask(), nil
 }
 
 type SealRes struct {

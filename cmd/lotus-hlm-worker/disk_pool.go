@@ -23,6 +23,8 @@ const (
 	SECTOR_CACHE_DIR = "cache"
 )
 
+var localSectors = NewSafeMap(100)
+
 type DiskPool interface {
 	// return all the repos
 	Repos() []string
@@ -41,6 +43,8 @@ type DiskPool interface {
 	Delete(sid string) error
 
 	ShowExt() ([]string, error)
+
+	NewAllocate(sid string) (SectorState, error)
 }
 
 type diskinfo struct {
@@ -59,8 +63,10 @@ type diskPoolImpl struct {
 	workerCfg   ffiwrapper.WorkerCfg
 	defaultRepo string
 
-	sectors map[string]SectorState // sid:moint_point
-	hasDisk bool
+	sectors      map[string]SectorState // sid:moint_point
+	hasDisk      bool
+	cacheSectors map[string]int
+	cacheMutex   sync.Mutex
 }
 
 // defaultRepo -- if disk pool not found, use the old repo for work.
@@ -355,7 +361,151 @@ func (dpImpl *diskPoolImpl) Allocate(sid string) (SectorState, error) {
 	dpImpl.sectors[sid] = posState
 	return posState, nil
 }
+func assignSectorCap(ssize uint64) uint64 {
+	switch ssize {
+	case 64 * GB:
+		return 1000 * GB
+	case 32 * GB:
+		return 500 * GB
+	case 512 * MB:
+		return 8000 * MB
+	case 8 * MB:
+		return 125 * MB
+	case 2 * KB:
+		return 4
+	default:
+		return 0
+	}
+}
+func assignSectorFreeCap(ssize uint64) uint64 {
+	switch ssize {
+	case 64 * GB:
+		return 100 * GB
+	case 32 * GB:
+		return 50 * GB
+	case 512 * MB:
+		return 800 * MB
+	case 8 * MB:
+		return 20 * MB
+	case 2 * KB:
+		return 4
+	default:
+		return 0
+	}
+}
+func (dpImpl *diskPoolImpl) NewAllocate(sid string) (SectorState, error) {
+	dpImpl.mutex.Lock()
+	defer dpImpl.mutex.Unlock()
+	state, err := dpImpl.query(sid)
+	if err != nil {
+		if !errors.ErrNoData.Equal(err) {
+			return SectorState{}, errors.As(err)
+		}
+	} else {
+		return state, nil
+	}
+	diskSectors, err := scanDisk()
+	if err != nil {
+		return SectorState{}, errors.As(err)
+	}
+	if len(diskSectors) > 0 {
+		dpImpl.hasDisk = true
+	}
+	maxRepo := ""
+	var maxAllocated uint64
+	for repo, sectors := range diskSectors {
+		var realUse uint64
+		diskInfo, err := DiskUsage(repo, uint64(dpImpl.ssize))
+		if err != nil {
+			log.Error(errors.As(err))
+			continue
+		}
+		if diskInfo.MaxSector == 0 {
+			continue
+		}
+		for sector, _ := range sectors {
+			val := localSectors.ReadMap(sector)
+			cap := assignSectorCap(uint64(dpImpl.ssize))
+			freeCap := assignSectorFreeCap(uint64(dpImpl.ssize))
+			if val < 31 {
+				realUse += cap
+			} else {
+				realUse += freeCap
+			}
+		}
+		// search in memory
+		for sector, mState := range dpImpl.sectors {
+			if _, ok := sectors[sector]; ok {
+				continue
+			}
+			if repo != mState.MountPoint {
+				continue
+			}
+			val := localSectors.ReadMap(sector)
+			cap := assignSectorCap(uint64(dpImpl.ssize))
+			freeCap := assignSectorFreeCap(uint64(dpImpl.ssize))
+			if val < 31 {
+				realUse += cap
+			} else {
+				realUse += freeCap
+			}
+		}
+		realFree := diskInfo.All - realUse
+		if realFree <= 0 {
+			continue
+		}
+		canAllocated := sectorCap(realFree, uint64(dpImpl.ssize))
+		log.Infof("repo: %v ,all :%v, use: %v free: %v ,alloc: %v", repo, diskInfo.All, realUse, realFree, canAllocated)
+		if maxAllocated < canAllocated {
+			maxAllocated = canAllocated
+			maxRepo = repo
+		}
+	}
+	log.Info("maxRepo: ", maxRepo, " maxAllocated: ", maxAllocated)
+	if len(maxRepo) == 0 && !dpImpl.hasDisk {
+		maxRepo = dpImpl.defaultRepo
+	}
+	if len(maxRepo) == 0 {
+		return SectorState{}, errors.New("No disk for allocation").As(sid, diskSectors)
+	}
+	localSectors.WriteMap(sid, ffiwrapper.WorkerPledgeDone)
+	posState := SectorState{MountPoint: maxRepo}
+	dpImpl.sectors[sid] = posState
+	return posState, nil
+}
 
+type SafeMap struct {
+	sync.RWMutex
+	Map map[string]int
+}
+
+func NewSafeMap(size int) *SafeMap {
+	sm := new(SafeMap)
+	sm.Map = make(map[string]int, size)
+	return sm
+}
+
+func (sm *SafeMap) ReadMap(key string) int {
+	sm.RLock()
+	value := sm.Map[key]
+	sm.RUnlock()
+	return value
+}
+
+func (sm *SafeMap) WriteMap(key string, value int) {
+	sm.Lock()
+	sm.Map[key] = value
+	sm.Unlock()
+}
+func (sm *SafeMap) Keys() []string {
+	sm.RLock()
+	value := make([]string, 0)
+	for k, _ := range sm.Map {
+		value = append(value, k)
+	}
+	sm.RUnlock()
+	return value
+}
 func (dpImpl *diskPoolImpl) UpdateState(sid string, state int) error {
 	dpImpl.mutex.Lock()
 	defer dpImpl.mutex.Unlock()
