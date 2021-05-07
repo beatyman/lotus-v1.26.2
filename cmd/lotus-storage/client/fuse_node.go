@@ -43,7 +43,7 @@ type FUseNodeFs struct {
 }
 
 func (fs FUseNodeFs) FileList(relativePath string) ([]os.FileInfo, error) {
-	conn, err := GetFUseConn(fs.host, false)
+	conn, err := GetFUseConn(fs.host, true)
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -95,7 +95,7 @@ func (fs FUseNodeFs) FileList(relativePath string) ([]os.FileInfo, error) {
 	return result, nil
 }
 func (fs FUseNodeFs) FileStat(relativePath string) (os.FileInfo, error) {
-	conn, err := GetFUseConn(fs.host, false)
+	conn, err := GetFUseConn(fs.host, true)
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -137,7 +137,7 @@ func (fs FUseNodeFs) FileStat(relativePath string) (os.FileInfo, error) {
 	}, nil
 }
 func (fs FUseNodeFs) StatFs() *fuse.StatfsOut {
-	conn, err := GetFUseConn(fs.host, false)
+	conn, err := GetFUseConn(fs.host, true)
 	if err != nil {
 		log.Error(errors.As(err))
 		return &fuse.StatfsOut{}
