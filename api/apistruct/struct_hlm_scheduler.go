@@ -53,6 +53,7 @@ type HlmMinerSchedulerStruct struct {
 		PreStorageNode       func(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) `perm:"write"`
 		CommitStorageNode    func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
 		CancelStorageNode    func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
+		HlmSectorGetState    func(ctx context.Context, sid string) (*database.SectorInfo, error)                           `perm:"read"`
 	}
 }
 
@@ -131,6 +132,9 @@ func (c *HlmMinerSchedulerStruct) CommitStorageNode(ctx context.Context, sectorI
 
 func (c *HlmMinerSchedulerStruct) CancelStorageNode(ctx context.Context, sectorId string, kind int) error {
 	return c.Internal.CancelStorageNode(ctx, sectorId, kind)
+}
+func (c *HlmMinerSchedulerStruct) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
+	return c.Internal.HlmSectorGetState(ctx, sid)
 }
 
 var _ api.HlmMinerSchedulerAPI = &HlmMinerSchedulerStruct{}
