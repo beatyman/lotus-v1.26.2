@@ -10,7 +10,10 @@ import (
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+	logging "github.com/ipfs/go-log/v2"
 )
+
+var log = logging.Logger("ffiwrapper/basicfs")
 
 type sectorFile struct {
 	abi.SectorID
@@ -73,6 +76,20 @@ func (b *Provider) AcquireSector(ctx context.Context, id storage.SectorRef, exis
 		}
 
 		path := filepath.Join(b.Root, fileType.String(), storiface.SectorName(id.ID))
+		if fileType.String() == "unsealed" {
+			//判unsealed目录是否有unsealed文件，如果有，则指向他，如果没有，则指向cc文件
+			isExist, err := PathExists(path)
+			if err == nil {
+				//不存在则使用cc文件
+				if !isExist {
+					path = filepath.Join(b.Root, "sector_cc")
+				}
+			}
+			if err != nil {
+				log.Info("=========FS PathExists err ====", err)
+			}
+			log.Info("=========FS.go unseal path sector id ====,isExist:", id.ID, path, isExist)
+		}
 
 		prevDone := done
 		done = func() {
@@ -91,4 +108,15 @@ func (b *Provider) AcquireSector(ctx context.Context, id storage.SectorRef, exis
 	}
 
 	return out, done, nil
+}
+
+func PathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }
