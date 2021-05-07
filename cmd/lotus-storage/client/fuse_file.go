@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/lotus/cmd/lotus-storage/utils"
+	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/hanwen/go-fuse/v2/fuse/nodefs"
@@ -149,10 +150,7 @@ type FUseFile struct {
 	flag int // file flag, os.O_RDWR|os.O_CREATE
 
 	fileInfo os.FileInfo
-
-	authTicker       *time.Ticker
-	authTime         time.Time
-	authTickerClosed chan bool
+	fileId   uuid.UUID
 }
 
 func OpenROFUseFile(host, remotePath, sid, token string) *FUseFile {
@@ -170,9 +168,7 @@ func OpenFUseFile(host, remotePath, sid, token string, flag int) *FUseFile {
 		sid:        sid,
 		token:      token,
 
-		flag:             flag,
-		authTime:         time.Now(),
-		authTickerClosed: make(chan bool, 1),
+		flag: flag,
 	}
 }
 
@@ -180,35 +176,8 @@ func (f *FUseFile) Name() string {
 	return f.remotePath
 }
 func (f *FUseFile) open() (*FUseConn, error) {
-	f.authTime = time.Now()
-
 	if f.conn != nil {
 		return f.conn, nil
-	}
-
-	// ticker for deadlock.
-	if f.authTicker == nil {
-		f.authTicker = time.NewTicker(10 * time.Minute)
-		go func() {
-			for {
-				select {
-				case <-f.authTickerClosed:
-					f.authTicker.Stop()
-					f.authTicker = nil
-					return
-
-				case <-f.authTicker.C:
-					f.lock.Lock()
-
-					if time.Now().Sub(f.authTime) > 10*time.Minute && f.conn != nil {
-						// no data visit for 10 minutes, close the connection
-						log.Warnf("fuse file(%s) closed by timeout", f.remotePath)
-						f.closeErrConn()
-					}
-					f.lock.Unlock()
-				}
-			}
-		}()
 	}
 
 	// get from pool, and return when the file closed
@@ -230,6 +199,13 @@ func (f *FUseFile) open() (*FUseConn, error) {
 	switch resp["Code"] {
 	case "200":
 		// pass
+		data := resp["Data"].(map[string]interface{})
+		fileId, err := uuid.Parse(data["Id"].(string))
+		if err != nil {
+			ReturnFUseConn(f.host, conn)
+			return nil, errors.New("error response format").As(resp)
+		}
+		f.fileId = fileId
 	case "404":
 		ReturnFUseConn(f.host, conn)
 		return nil, &os.PathError{"readRemote", f.remotePath, _errNotExist}
@@ -263,12 +239,21 @@ func (f *FUseFile) readRemote(b []byte, off, fileSize int64) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer ReturnFUseConn(f.host, conn)
 
 	// request read data
 	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_READ, int(buffLen)); err != nil {
 		f.closeErrConn()
 		return 0, errors.As(err, f.remotePath, off, len(b))
 	}
+
+	// write file id
+	if _, err := conn.Write(f.fileId[:]); err != nil {
+		f.closeErrConn()
+		return 0, errors.As(err, f.remotePath, off, len(b))
+	}
+
+	// write offset
 	offB := make([]byte, 8)
 	binary.PutVarint(offB, off)
 	if _, err := f.conn.Write(offB); err != nil {
@@ -319,12 +304,21 @@ func (f *FUseFile) writeRemote(b []byte, off int64) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer ReturnFUseConn(f.host, conn)
 
 	// prepare write
 	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_WRITE, len(b)); err != nil {
 		f.closeErrConn()
 		return 0, errors.As(err)
 	}
+
+	// write file id
+	if _, err := conn.Write(f.fileId[:]); err != nil {
+		f.closeErrConn()
+		return 0, errors.As(err, f.remotePath, off, len(b))
+	}
+
+	// write offset
 	offB := make([]byte, 8)
 	binary.PutVarint(offB, off)
 	if _, err := conn.Write(offB); err != nil {
@@ -364,7 +358,6 @@ func (f *FUseFile) Close() error {
 		f.conn = nil
 	}
 
-	f.authTickerClosed <- true
 	return nil
 }
 
@@ -388,12 +381,19 @@ func (f *FUseFile) stat() (os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer ReturnFUseConn(f.host, conn)
 
 	// request read data
 	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_STAT, 0); err != nil {
 		f.closeErrConn()
 		return nil, errors.As(err, f.remotePath)
 	}
+	// write file id
+	if _, err := conn.Write(f.fileId[:]); err != nil {
+		f.closeErrConn()
+		return nil, errors.As(err, f.remotePath)
+	}
+
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
 		f.closeErrConn()
@@ -492,22 +492,30 @@ func (f *FUseFile) Truncate(size int64) error {
 	if err != nil {
 		return err
 	}
+	defer ReturnFUseConn(f.host, conn)
 
 	// request read data
 	if err := utils.WriteFUseReqHeader(conn, utils.FUSE_REQ_CONTROL_FILE_TRUNC, 0); err != nil {
 		f.closeErrConn()
-		return errors.As(err)
+		return errors.As(err, f.remotePath)
 	}
+	// write file id
+	if _, err := conn.Write(f.fileId[:]); err != nil {
+		f.closeErrConn()
+		return errors.As(err, f.remotePath)
+	}
+
+	// write truncate size
 	sizeB := make([]byte, 8)
 	binary.PutVarint(sizeB, size)
 	if _, err := conn.Write(sizeB); err != nil {
 		f.closeErrConn()
-		return errors.As(err)
+		return errors.As(err, f.remotePath)
 	}
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
 		f.closeErrConn()
-		return errors.As(err)
+		return errors.As(err, f.remotePath)
 	}
 	if resp["Code"] != "200" {
 		f.closeErrConn()

@@ -31,7 +31,7 @@ const (
 	FUSE_RESP_CONTROL_FILE_TRANSFER = byte(2)
 )
 
-func ReadFUseReqHeader(conn net.Conn) (byte, int, error) {
+func ReadFUseReqHeader(conn net.Conn) (byte, uint32, error) {
 	// byte [0] for control protocal:
 	// byte[1:5] data length.
 	// byte[n], data body
@@ -54,8 +54,8 @@ func ReadFUseReqHeader(conn net.Conn) (byte, int, error) {
 	if n != len(buffLenB) {
 		return 0, 0, ErrFUseParams.As("error protocol length")
 	}
-	buffLen, _ := binary.Varint(buffLenB)
-	return controlB[0], int(buffLen), nil
+	buffLen, _ := binary.Uvarint(buffLenB)
+	return controlB[0], uint32(buffLen), nil
 }
 
 func WriteFUseReqHeader(conn net.Conn, control byte, buffLen int) error {
@@ -78,12 +78,12 @@ func WriteFUseReqHeader(conn net.Conn, control byte, buffLen int) error {
 	return nil
 }
 
-func ReadFUseReqText(conn net.Conn, buffLen int) (map[string]string, error) {
+func ReadFUseReqText(conn net.Conn, buffLen uint32) (map[string]string, error) {
 	dataB := make([]byte, buffLen)
-	read := 0
+	read := uint32(0)
 	for {
 		n, err := conn.Read(dataB[read:])
-		read += n
+		read += uint32(n)
 		if err != nil {
 			if !ErrEOF.Equal(err) {
 				return nil, errors.As(err)
@@ -204,7 +204,7 @@ func ReadFUseRespText(conn net.Conn, buffLen int32) (map[string]interface{}, err
 	return proto, nil
 }
 
-func WriteFUseRespHeader(conn net.Conn, control byte, buffLen int) error {
+func WriteFUseRespHeader(conn net.Conn, control byte, buffLen uint32) error {
 	// write the protocol control
 	if _, err := conn.Write([]byte{control}); err != nil {
 		if !ErrEOF.Equal(err) {
@@ -214,7 +214,7 @@ func WriteFUseRespHeader(conn net.Conn, control byte, buffLen int) error {
 	}
 	// write data len
 	buffLenB := make([]byte, 4)
-	binary.PutVarint(buffLenB, int64(buffLen))
+	binary.PutUvarint(buffLenB, uint64(buffLen))
 	if _, err := conn.Write(buffLenB); err != nil {
 		if !ErrEOF.Equal(err) {
 			return errors.As(err)
@@ -236,7 +236,7 @@ func WriteFUseTextResp(conn net.Conn, code int, data interface{}, err error) {
 		p["Err"] = err.Error()
 	}
 	output, _ := json.Marshal(p)
-	if err := WriteFUseRespHeader(conn, FUSE_RESP_CONTROL_TEXT, len(output)); err != nil {
+	if err := WriteFUseRespHeader(conn, FUSE_RESP_CONTROL_TEXT, uint32(len(output))); err != nil {
 		log.Warn(errors.As(err))
 		return
 	}

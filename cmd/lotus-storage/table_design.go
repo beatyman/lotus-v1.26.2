@@ -1,8 +1,8 @@
 package main
 
 const (
-	tb_nfs_session_sql = `
-CREATE TABLE IF NOT EXISTS nfs_session (
+	tb_file_session_sql = `
+CREATE TABLE IF NOT EXISTS file_session (
 	id TEXT NOT NULL PRIMARY KEY,
 	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),

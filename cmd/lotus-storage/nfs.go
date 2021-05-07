@@ -206,14 +206,14 @@ func (h *NFSAuthHandler) ToHandle(f billy.Filesystem, path []string) []byte {
 	// save key to db
 	h.visitLk.Lock()
 	defer h.visitLk.Unlock()
-	if _, _, err := GetPath(fmt.Sprintf("%x", sessionKey[:])); err != nil {
+	if _, _, err := GetSessionFile(fmt.Sprintf("%x", sessionKey[:])); err != nil {
 		if !errors.ErrNoData.Equal(err) {
 			log.Error(errors.As(err))
 			return sessionKey[:]
 		}
 
 		// data not found
-		if err := AddPath(fmt.Sprintf("%x", sessionKey[:]), auth, sPath); err != nil {
+		if err := AddSessionFile(fmt.Sprintf("%x", sessionKey[:]), auth, sPath); err != nil {
 			log.Error(errors.As(err))
 			return sessionKey[:]
 		}
@@ -246,7 +246,7 @@ func (h *NFSAuthHandler) FromHandle(fh []byte) (billy.Filesystem, []string, erro
 	return nil, []string{}, &nfs.NFSStatusError{NFSStatus: nfs.NFSStatusStale}
 
 	sessionKey := fmt.Sprintf("%x", fh)
-	auth, paths, err := GetPath(sessionKey)
+	auth, paths, err := GetSessionFile(sessionKey)
 	if err != nil {
 		log.Warnf("GetPath failed:%+v,err:%s", sessionKey, err.Error())
 		return nil, []string{}, &nfs.NFSStatusError{NFSStatus: nfs.NFSStatusStale}

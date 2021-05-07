@@ -39,7 +39,7 @@ func InitDB(repo string) error {
 	mdb = db
 
 	// Init tables
-	if _, err := db.Exec(tb_nfs_session_sql); err != nil {
+	if _, err := db.Exec(tb_file_session_sql); err != nil {
 		return errors.As(err)
 	}
 	return nil

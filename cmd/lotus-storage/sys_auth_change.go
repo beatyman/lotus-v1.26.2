@@ -28,7 +28,7 @@ func changeAuthHandler(w http.ResponseWriter, r *http.Request) error {
 
 	log.Infof("changed auth success from:%s", r.RemoteAddr)
 
-	if err := CleanPath(); err != nil {
+	if err := CleanAllSessionFile(); err != nil {
 		log.Error(errors.As(err))
 	}
 
