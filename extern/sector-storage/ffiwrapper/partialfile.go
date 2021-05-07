@@ -1,8 +1,9 @@
 package ffiwrapper
 
 import (
-	"context"
+	"crypto/md5"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -72,14 +73,8 @@ func createUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.
 		if err != nil {
 			return nil, errors.As(err)
 		}
-		ctx := context.TODO()
 		sid := sector.SectorId
-		auth := hlmclient.NewAuthClient(stor.MountAuthUri, stor.MountAuth)
-		token, err := auth.NewFileToken(ctx, sid)
-		if err != nil {
-			return nil, errors.As(err)
-		}
-		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, string(token), os.O_RDWR|os.O_CREATE)
+		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, fmt.Sprintf("%x", md5.Sum([]byte(stor.MountAuth+"write"))), os.O_RDWR|os.O_CREATE)
 	default:
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return nil, xerrors.Errorf("creating file '%s': %w", path, err)
@@ -130,14 +125,8 @@ func openUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.Se
 		if err != nil {
 			return nil, errors.As(err)
 		}
-		ctx := context.TODO()
 		sid := sector.SectorId
-		auth := hlmclient.NewAuthClient(stor.MountAuthUri, stor.MountAuth)
-		token, err := auth.NewFileToken(ctx, sid)
-		if err != nil {
-			return nil, errors.As(err)
-		}
-		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, string(token), os.O_RDWR)
+		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, fmt.Sprintf("%x", md5.Sum([]byte(stor.MountAuth+"write"))), os.O_RDWR)
 
 		// need the file has exist.
 		if _, err := f.Stat(); err != nil {
