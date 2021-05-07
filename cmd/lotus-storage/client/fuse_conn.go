@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	FUSE_CONN_POOL_SIZE_MAX = 12
+	FUSE_CONN_POOL_SIZE_MAX = 120
 )
 
 type FUseConn struct {
@@ -27,10 +27,10 @@ type FUsePool struct {
 	lk   sync.Mutex
 }
 
-func (p *FUsePool) new(force bool) error {
+func (p *FUsePool) new(force bool) (*FUseConn, error) {
 	conn, err := net.Dial("tcp", p.host)
 	if err != nil {
-		return errors.As(err)
+		return nil, errors.As(err)
 	}
 	fconn := &FUseConn{
 		Conn:          conn,
@@ -40,8 +40,7 @@ func (p *FUsePool) new(force bool) error {
 	p.size += 1
 
 	log.Infof("create new fuse connection:%s, force:%t, pool size:%d", p.host, force, p.size)
-	p.queue <- fconn
-	return nil
+	return fconn, nil
 }
 
 func (p *FUsePool) close(conn *FUseConn) error {
@@ -70,13 +69,23 @@ func (p *FUsePool) CloseAll() {
 
 func (p *FUsePool) Borrow(force bool) (*FUseConn, error) {
 	p.lk.Lock()
-	if len(p.queue) == 0 && (p.size < FUSE_CONN_POOL_SIZE_MAX || force) {
-		if err := p.new(force); err != nil {
+	if len(p.queue) == 0 {
+		conn, err := p.new(force)
+		if err != nil {
 			p.lk.Unlock()
 			return nil, errors.As(err)
 		}
+		p.lk.Unlock()
+
+		if force {
+			return conn, nil
+		}
+
+		p.queue <- conn
+	} else {
+		// waiting others return to the pool.
+		p.lk.Unlock()
 	}
-	p.lk.Unlock()
 
 	conn := <-p.queue
 	if conn == nil {
@@ -91,7 +100,7 @@ func (p *FUsePool) Return(conn *FUseConn) {
 		return
 	}
 	// keep the pool size
-	if p.size > FUSE_CONN_POOL_SIZE_MAX && conn.forceAllocate {
+	if len(p.queue) == FUSE_CONN_POOL_SIZE_MAX {
 		p.close(conn)
 		p.lk.Unlock()
 		return

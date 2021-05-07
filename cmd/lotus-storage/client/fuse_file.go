@@ -132,8 +132,6 @@ func (f *FUseNodeFile) Allocate(off uint64, size uint64, mode uint32) (code fuse
 	return fuse.EPERM
 }
 
-// TODO: redesign read and write.
-//
 // implement os.File interface
 type FUseFile struct {
 	ctx       context.Context
