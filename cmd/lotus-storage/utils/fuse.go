@@ -68,7 +68,7 @@ func WriteFUseReqHeader(conn net.Conn, control byte, buffLen int) error {
 	}
 	// write data len
 	buffLenB := make([]byte, 4)
-	binary.PutVarint(buffLenB, int64(buffLen))
+	binary.PutUvarint(buffLenB, uint64(buffLen))
 	if _, err := conn.Write(buffLenB); err != nil {
 		if !ErrEOF.Equal(err) {
 			return errors.As(err)
@@ -98,6 +98,7 @@ func ReadFUseReqText(conn net.Conn, buffLen uint32) (map[string]string, error) {
 		}
 		break
 	}
+	log.Info(string(dataB))
 	proto := map[string]string{}
 	if err := json.Unmarshal(dataB, &proto); err != nil {
 		return nil, ErrFUseParams.As("error protocol format")
@@ -151,7 +152,7 @@ func ReadFUseRespHeader(conn net.Conn) (byte, int32, error) {
 	if n != len(buffLenB) {
 		return 0, 0, ErrFUseProto.As("error protocol length")
 	}
-	buffLen, _ := binary.Varint(buffLenB)
+	buffLen, _ := binary.Uvarint(buffLenB)
 	return controlB[0], int32(buffLen), nil
 }
 

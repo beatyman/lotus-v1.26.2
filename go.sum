@@ -479,6 +479,8 @@ github.com/gwaylib/log v0.0.0-20210507010257-5567636f6e64 h1:UDQJQZWluImrLMcwzXs
 github.com/gwaylib/log v0.0.0-20210507010257-5567636f6e64/go.mod h1:FwuJtWmicMfzgmySG/QzJZL5J5qiMULuWgvT4qXZTgI=
 github.com/gwaylib/log v0.0.0-20210507011710-d1b5061822ea h1:gVSSnu55EO5Gzv0/ZccJXB4h+Gk0rlo9QWGE5hW/GRw=
 github.com/gwaylib/log v0.0.0-20210507011710-d1b5061822ea/go.mod h1:FwuJtWmicMfzgmySG/QzJZL5J5qiMULuWgvT4qXZTgI=
+github.com/gwaylib/log v0.0.0-20210507100943-24bc495476d8 h1:1w5Quq/ftrA/hbNy3guw0nHwptGcHjpRZAmNdE1bNTo=
+github.com/gwaylib/log v0.0.0-20210507100943-24bc495476d8/go.mod h1:FwuJtWmicMfzgmySG/QzJZL5J5qiMULuWgvT4qXZTgI=
 github.com/gxed/go-shellwords v1.0.3/go.mod h1:N7paucT91ByIjmVJHhvoarjoQnmsi3Jd3vH7VqgtMxQ=
 github.com/gxed/hashland/keccakpg v0.0.1/go.mod h1:kRzw3HkwxFU1mpmPP8v1WyQzwdGfmKFJ6tItnhQ67kU=
 github.com/gxed/hashland/murmur3 v0.0.1/go.mod h1:KjXop02n4/ckmZSnY2+HKcLud/tcmvhST0bie/0lS48=
