@@ -801,7 +801,7 @@ func (sb *Sealer) remoteWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 
 	checkPledge := func() {
 		// search checking is the remote busying
-		if r.fullTask() || r.disable {
+		if r.fakeFullTask() || r.disable {
 			//log.Infow("DEBUG:", "fullTask", len(r.busyOnTasks), "maxTask", r.maxTaskNum)
 			return
 		}
@@ -979,7 +979,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 
 	switch task.task.Type {
 	case WorkerPledge:
-		if r.fullTask() {
+		if r.fakeFullTask() {
 			time.Sleep(30e9)
 			log.Warnf("return task:%s", r.cfg.ID, task.task.Key())
 			sb.returnTask(task)
@@ -993,7 +993,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			return
 		}
 
-		if task.task.Type != WorkerFinalize && r.fullTask() && !r.busyOn(task.task.SectorName()) {
+		if task.task.Type != WorkerFinalize && r.fakeFullTask() && !r.busyOn(task.task.SectorName()) {
 			log.Infof("Worker(%s,%s) is full working:%d, return:%s", r.cfg.ID, r.cfg.IP, len(r.busyOnTasks), task.task.Key())
 			// remote worker is locking for the task, and should not accept a new task.
 			go sb.toRemoteFree(task)

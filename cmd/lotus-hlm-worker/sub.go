@@ -109,7 +109,30 @@ checkingApi:
 		return errors.As(err)
 	}
 	log.Infof("Worker(%s) started, Miner:%s, Srv:%s", workerCfg.ID, minerEndpoint, workerCfg.IP)
-
+	diskSectors, err := scanDisk()
+	if err != nil {
+		log.Error("NewAllocate ", err)
+	}
+	for _, sectors := range diskSectors {
+		for sid, _ := range sectors {
+			info, err := api.HlmSectorGetState(ctx, sid)
+			if err != nil {
+				log.Error("NewAllocate ", err)
+				continue
+			}
+			//已经做完C2
+			if info.State >= ffiwrapper.WorkerCommitDone {
+				localSectors.WriteMap(sid, info.State)
+			} else if info.State <= ffiwrapper.WorkerPreCommit2Done {
+				//还做完P2 算500G
+				localSectors.WriteMap(sid, info.State)
+			} else {
+				localSectors.WriteMap(sid, info.State)
+				//还在做C1,或者C2,如果本地map没有标记C1,没做完算500G,已经做完算50G
+			}
+		}
+	}
+	log.Infof("scanDisk : %v", diskSectors)
 loop:
 	for {
 		// log.Infof("Waiting for new task")
@@ -261,7 +284,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	// allocate worker sealer
 reAllocate:
 	w.workMu.Lock()
-	dpState, err := w.diskPool.Allocate(task.SectorName())
+	dpState, err := w.diskPool.NewAllocate(task.SectorName())
 	if err != nil {
 		w.workMu.Unlock()
 		log.Warn(errors.As(err))
@@ -402,7 +425,8 @@ reAllocate:
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-
+		w.removeDataLayer(ctx, sector.CachePath())
+		localSectors.WriteMap(task.SectorName(), 31)
 		// if local gpu no set, using remotes .
 		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
 			for {
