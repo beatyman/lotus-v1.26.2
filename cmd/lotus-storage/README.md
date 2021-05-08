@@ -1,5 +1,19 @@
 # 文档说明
 
+# 目录
+- [前言](#前言)
+- [鉴权系统](#鉴权系统)
+    - [BasicAuth](#BasicAuth)
+    - [TokenAuth](#TokenAuth)
+    - [PosixAuth](#PosixAuth)
+- [协议设计](#协议设计)
+    - [BasicAuth协议接口](#BasicAuth协议接口)
+    - [TokenAuth协议接口](#TokenAuth协议接口)
+    - [PosixAuth协议接口](#PosixAuth协议接口)
+- [测试指令](#测试指令)
+
+
+## 前言
 因使用nfs访问方式存在局域网存储访问隐患，故重写了存储鉴权结构以增强存储访问的安全性。
 
 存储安全分物理存储安全及软件存储安全两大部份。
@@ -140,4 +154,35 @@ byte[21:n] -- 二进制数据区
 byte[0]   -- 信令控制任
 byte[1:5] -- 数据区长度
 byte[5:n] -- 二进制数据区
+```
+
+#### PosixAuth 应用层接口设计
+应用分为库应用与fuse挂载应用
+
+库应用为构建FUseFile实例进行应用，详见client/fuse_file_test.go
+
+fuse挂载应用, 挂载为fuse后，通过标准文件进行读取，当前只支持只读。
+```
+import "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
+
+func main() {
+	authData := GetAuthRO()
+	fuc := client.NewFUseClient(_posixFsApiFlag, authData)
+	if err := fuc.Mount(cctx.Context, mountPoint); err != nil {
+        panic(err)
+	}
+	end := make(chan os.Signal, 2)
+	signal.Notify(end, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGINT)
+	<-end
+}
+```
+
+
+## 测试指令
+将auth.dat复制到lotus-storage同一目录下，或自行通过lotus-storage --storage-root指定
+```
+lotus-storage daemon # 运行存储服务程序
+lotus-storage mount [mountpoint] # 通过fuse挂载到本地目录
+lotus-storage download [remote path] [local path] 下载文件到本地
+lotus-storage upload [local path] [remote path] 上传本地文件到服务器
 ```

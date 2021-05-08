@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -32,6 +33,7 @@ var uploadCmd = &cli.Command{
 		localPath := args.Get(0)
 		remotePath := args.Get(1)
 
+		end := make(chan os.Signal, 2)
 		switch cctx.String("mode") {
 		case "http":
 			go func() {
@@ -43,17 +45,20 @@ var uploadCmd = &cli.Command{
 				if err != nil {
 					panic(err)
 				}
+				log.Infof("start upload: %s->%s", localPath, remotePath)
+				startTime := time.Now()
 				fc := client.NewHttpClient(_httpApiFlag, sid, string(newToken))
 				if err := fc.Upload(ctx, localPath, remotePath); err != nil {
 					panic(err)
 				}
+				log.Infof("end upload: %s->%s, took:%s", localPath, remotePath, time.Now().Sub(startTime))
+				end <- os.Kill
 			}()
 		default:
 			return fmt.Errorf("unknow mode '%s'", cctx.String("mode"))
 
 		}
 		// TODO: show the process
-		end := make(chan os.Signal, 2)
 		signal.Notify(end, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGINT)
 		<-end
 		return nil
