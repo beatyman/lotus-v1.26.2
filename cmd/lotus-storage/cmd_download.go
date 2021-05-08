@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -18,8 +19,13 @@ var downloadCmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "mode",
-			Usage: "downlad mode, support mode: 'http', 'tcp'. http mode support directory download, and tcp just for one file.",
+			Usage: "downlad mode, support mode: 'http', 'tcp'. http mode support directory and resume download, tcp only support one file for debug fuse function.",
 			Value: "http",
+		},
+		&cli.IntFlag{
+			Name:  "read-size",
+			Usage: "buffer size for read",
+			Value: 1024 * 1024,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -33,6 +39,7 @@ var downloadCmd = &cli.Command{
 		remotePath := args.Get(0)
 		localPath := args.Get(1)
 
+		end := make(chan os.Signal, 2)
 		switch cctx.String("mode") {
 		case "http":
 			go func() {
@@ -45,44 +52,57 @@ var downloadCmd = &cli.Command{
 					panic(err)
 				}
 				log.Infof("start download: %s->%s", remotePath, localPath)
+				startTime := time.Now()
 				fc := client.NewHttpClient(_httpApiFlag, sid, string(newToken))
-				if err := fc.Download(ctx, remotePath, localPath); err != nil {
+				if err := fc.Download(ctx, localPath, remotePath); err != nil {
 					panic(err)
 				}
-				log.Infof("end download: %s->%s", remotePath, localPath)
+				log.Infof("end download: %s->%s, took:%s", remotePath, localPath, time.Now().Sub(startTime))
+				end <- os.Kill
 			}()
 		case "tcp":
 			go func() {
 				f := client.OpenROFUseFile(_posixFsApiFlag, remotePath, remotePath, GetAuthRO())
 				defer f.Close()
 
-				localF, err := os.OpenFile(localPath, os.O_RDWR|os.O_CREATE, 0755)
+				localF, err := os.OpenFile(localPath, os.O_RDWR|os.O_CREATE, 0644)
 				if err != nil {
 					panic(err)
 				}
 				defer localF.Close()
+
+				fStat, err := f.Stat()
+				if err != nil {
+					panic(err)
+				}
+
 				log.Infof("start download: %s->%s", remotePath, localPath)
-				buf := make([]byte, 32*1024)
+				startTime := time.Now()
+				buf := make([]byte, cctx.Int("read-size"))
+				size := fStat.Size()
 				for {
 					n, err := f.Read(buf)
 					if err != nil {
 						if err != io.EOF {
 							panic(err)
 						}
-						break
 					}
-					if _, err := f.Write(buf[:n]); err != nil {
+					if _, err := localF.Write(buf[:n]); err != nil {
 						panic(err)
 					}
+					size -= int64(n)
+					if size <= 0 {
+						break
+					}
 				}
-				log.Infof("end download: %s->%s", remotePath, localPath)
+				log.Infof("end download: %s->%s, took:%s", remotePath, localPath, time.Now().Sub(startTime))
+				end <- os.Kill
 			}()
 		default:
 			return fmt.Errorf("unknow mode '%s'", cctx.String("mode"))
 
 		}
 		// TODO: show the process
-		end := make(chan os.Signal, 2)
 		signal.Notify(end, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGINT)
 		<-end
 		return nil
