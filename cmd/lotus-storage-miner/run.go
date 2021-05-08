@@ -25,6 +25,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/buried"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/lib/report"
@@ -66,6 +67,16 @@ var runCmd = &cli.Command{
 			Name:  "manage-fdlimit",
 			Usage: "manage open file limit",
 			Value: true,
+		},
+		&cli.StringFlag{
+			Name:  "timer",
+			Usage: "Timer time try. The time is minutes. The default is 30 minutes",
+			Value: "30",
+		},
+		&cli.StringFlag{
+			Name:  "storage-collect-interval",
+			Usage: "Timer time try. The time is minutes. The default is 30 minutes",
+			Value: "30",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -270,6 +281,16 @@ var runCmd = &cli.Command{
 		if err := nauth.CreateTLSCert(certPath, keyPath); err != nil {
 			return errors.As(err)
 		}
+                // <buried>
+                // Collect miner info
+		timer := cctx.Int64("timer")
+         	go func() {
+            		buried.RunCollectMinerInfo(cctx,timer)
+         	}()
+		interval:=cctx.Int64("storage-collect-interval")        // </buried>
+         	go func() {
+         		buried.RunCollectStorageNodeStatus(cctx,interval)
+		}()
 		return srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
 	},
 }

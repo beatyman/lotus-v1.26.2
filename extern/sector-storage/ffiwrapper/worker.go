@@ -2,15 +2,18 @@ package ffiwrapper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/go-state-types/abi"
+	buriedmodel "github.com/filecoin-project/lotus/buried/model"
+	"github.com/filecoin-project/lotus/lib/report"
 	"math"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/filecoin-project/go-state-types/abi"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
@@ -1106,6 +1109,10 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		state := int(task.Type) + 1
 		r.UpdateTask(task.SectorName(), state) // set state to done
 
+		go func() {
+			CollectSectorStateInfo(task, "02", r.cfg)
+		}()
+		log.Infof("Delete task waiting :%s", taskKey)
 		_remoteResultLk.Lock()
 		delete(_remoteResult, taskKey)
 		_remoteResultLk.Unlock()
@@ -1113,6 +1120,9 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 
 	// send the task to daemon work.
 	log.Infof("DEBUG: send task %s to %s (locked:%s)", task.Key(), r.cfg.ID, task.WorkerID)
+	go func() {
+		CollectSectorStateInfo(task, "01", r.cfg)
+	}()
 	select {
 	case <-ctx.Done():
 		log.Infof("user canceled:%s", taskKey)
@@ -1174,4 +1184,98 @@ func (sb *Sealer) TaskWorkingById(sid []string) (database.WorkingSectors, error)
 // just implement the interface
 func (sb *Sealer) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID) ([]abi.SectorID, error) {
 	panic("Should not call at here")
+}
+
+// CollectSectorState ::q
+func CollectSectorStateInfo(task WorkerTask, workerType string, workerCfg WorkerCfg) error {
+	// WorkerAddPiece       WorkerTaskType = 0
+	// WorkerAddPieceDone                  = 1
+	// WorkerPreCommit1                    = 10
+	// WorkerPreCommit1Done                = 11
+	// WorkerPreCommit2                    = 20
+	// WorkerPreCommit2Done                = 21
+	// WorkerCommit1                       = 30
+	// WorkerCommit1Done                   = 31
+	// WorkerCommit2                       = 40
+	// WorkerCommit2Done                   = 41
+	// WorkerFinalize                      = 50
+
+	// workerCfg.ID, minerEndpoint, workerCfg.IP
+	sectorStateInfo := &buriedmodel.SectorState{
+		MinerID:  task.SectorStorage.SectorInfo.MinerId,
+		WorkerID: workerCfg.ID,
+		ClientIP: workerCfg.IP,
+		//		SectorSize: task.SectorStorage.StorageInfo.SectorSize,
+		// SectorID: storage.SectorName(m.minerSectorID(state.SectorNumber)),
+		SectorID: task.SectorStorage.SectorInfo.ID,
+	}
+	taskKey := task.Key()
+	// s-t01003-0_30
+	keyParts := strings.Split(taskKey, "_")
+	customState := keyParts[len(keyParts)-1 : len(keyParts)][0]
+	if workerType == "01" {
+		switch customState {
+		case "0":
+			sectorStateInfo.State = "AddPieceStart"
+		case "10":
+			sectorStateInfo.State = "PreCommit1Start"
+		case "20":
+			sectorStateInfo.State = "PreCommit2Start"
+		case "40":
+			sectorStateInfo.State = "Commit2WaitStart"
+		case "50":
+			sectorStateInfo.State = "FinalizeSectorStart"
+		default:
+			sectorStateInfo.State = "UnknownState"
+			sectorStateInfo.Msg = "Unknown task state"
+		}
+	} else {
+		switch customState {
+		case "0":
+			sectorStateInfo.State = "AddPieceDone"
+		case "10":
+			sectorStateInfo.State = "PreCommit1Done"
+		case "20":
+			sectorStateInfo.State = "PreCommit2Done"
+		case "40":
+			sectorStateInfo.State = "Commit2Done"
+		case "50":
+			sectorStateInfo.State = "FinalizeSectorDone"
+		default:
+			sectorStateInfo.State = "UnknownState"
+			sectorStateInfo.Msg = "Unknown task state"
+		}
+	}
+
+	sectorStateInfo.StatusType = "02"
+	sectorStateInfo.CreateTime = time.Now().Unix()
+	sectorsDataBytes, err := json.Marshal(sectorStateInfo)
+
+	if err != nil {
+		return err
+	}
+	reqData := &buriedmodel.BuriedDataCollectParams{
+		DataType: "sector_state",
+		Data:     sectorsDataBytes,
+	}
+	kafkaRestValue := buriedmodel.KafkaRestValue{
+		Value: reqData,
+	}
+
+	var values []buriedmodel.KafkaRestValue
+	values = append(values, kafkaRestValue)
+
+	kafaRestData := &buriedmodel.KafkaRestData{
+		Records: values,
+	}
+	kafaRestDataBytes, err := json.Marshal(kafaRestData)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	log.Info(kafaRestDataBytes)
+	//_, err := report.ReportData("POST", reqData)
+	go report.SendRpcReport(kafaRestDataBytes)
+	//go rpcclient.Send(kafaRestDataBytes)
+	return nil
 }
