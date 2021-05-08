@@ -20,7 +20,6 @@ import (
 	"github.com/filecoin-project/lotus/cmd/lotus-storage/utils"
 	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
 
 var (
@@ -79,17 +78,17 @@ func (fInfo *FileInfo) Sys() interface{} {
 	return nil
 }
 
-type HttpFileClient struct {
+type HttpClient struct {
 	Host  string
 	Sid   string
 	Token string
 }
 
-func NewHttpFileClient(host, sid, token string) *HttpFileClient {
-	return &HttpFileClient{Host: host, Sid: sid, Token: token}
+func NewHttpClient(host, sid, token string) *HttpClient {
+	return &HttpClient{Host: host, Sid: sid, Token: token}
 }
 
-func (f *HttpFileClient) Capacity(ctx context.Context) (*syscall.Statfs_t, error) {
+func (f *HttpClient) Capacity(ctx context.Context) (*syscall.Statfs_t, error) {
 	params := url.Values{}
 	req, err := http.NewRequestWithContext(ctx, "GET", "http://"+f.Host+"/file/capacity?"+params.Encode(), nil)
 	if err != nil {
@@ -116,7 +115,7 @@ func (f *HttpFileClient) Capacity(ctx context.Context) (*syscall.Statfs_t, error
 
 }
 
-func (f *HttpFileClient) Move(ctx context.Context, remotePath, newRemotePath string) error {
+func (f *HttpClient) Move(ctx context.Context, remotePath, newRemotePath string) error {
 	params := url.Values{}
 	params.Add("file", remotePath)
 	params.Add("new", newRemotePath)
@@ -139,7 +138,7 @@ func (f *HttpFileClient) Move(ctx context.Context, remotePath, newRemotePath str
 	}
 	return nil
 }
-func (f *HttpFileClient) Delete(ctx context.Context, remotePath string) error {
+func (f *HttpClient) Delete(ctx context.Context, remotePath string) error {
 	params := url.Values{}
 	params.Add("file", remotePath)
 	req, err := http.NewRequestWithContext(ctx, "POST", "http://"+f.Host+"/file/delete?"+params.Encode(), nil)
@@ -162,7 +161,7 @@ func (f *HttpFileClient) Delete(ctx context.Context, remotePath string) error {
 	return nil
 }
 
-func (f *HttpFileClient) Truncate(ctx context.Context, remotePath string, size int64) error {
+func (f *HttpClient) Truncate(ctx context.Context, remotePath string, size int64) error {
 	params := url.Values{}
 	params.Add("file", remotePath)
 	params.Add("size", strconv.FormatInt(size, 10))
@@ -186,7 +185,7 @@ func (f *HttpFileClient) Truncate(ctx context.Context, remotePath string, size i
 	return nil
 }
 
-func (f *HttpFileClient) FileStat(ctx context.Context, remotePath string) (os.FileInfo, error) {
+func (f *HttpClient) FileStat(ctx context.Context, remotePath string) (os.FileInfo, error) {
 	params := url.Values{}
 	params.Add("file", remotePath)
 	req, err := http.NewRequest("GET", "http://"+f.Host+"/file/stat?"+params.Encode(), nil)
@@ -221,7 +220,7 @@ func (f *HttpFileClient) FileStat(ctx context.Context, remotePath string) (os.Fi
 }
 
 // TODO: erasure coding
-func (f *HttpFileClient) upload(ctx context.Context, localPath, remotePath string, append bool) (int64, error) {
+func (f *HttpClient) upload(ctx context.Context, localPath, remotePath string, append bool) (int64, error) {
 	pos := int64(0)
 	if append {
 		// Get the file information
@@ -306,7 +305,7 @@ func (f *HttpFileClient) upload(ctx context.Context, localPath, remotePath strin
 	return localStat.Size() - pos, nil
 }
 
-func (f *HttpFileClient) Upload(ctx context.Context, localPath, remotePath string) error {
+func (f *HttpClient) Upload(ctx context.Context, localPath, remotePath string) error {
 	fStat, err := os.Lstat(localPath)
 	if err != nil {
 		return errors.As(err, localPath)
@@ -338,7 +337,7 @@ func (f *HttpFileClient) Upload(ctx context.Context, localPath, remotePath strin
 	return nil
 }
 
-func (f *HttpFileClient) List(ctx context.Context, remotePath string) ([]utils.ServerFileStat, error) {
+func (f *HttpClient) List(ctx context.Context, remotePath string) ([]utils.ServerFileStat, error) {
 	params := url.Values{}
 	params.Add("file", remotePath)
 	req, err := http.NewRequestWithContext(ctx, "GET", "http://"+f.Host+"/file/list?"+params.Encode(), nil)
@@ -368,7 +367,7 @@ func (f *HttpFileClient) List(ctx context.Context, remotePath string) ([]utils.S
 	return nil, errors.Parse(string(respBody)).As(resp.StatusCode)
 }
 
-func (f *HttpFileClient) DeleteSector(ctx context.Context, sid, kind string) error {
+func (f *HttpClient) DeleteSector(ctx context.Context, sid, kind string) error {
 	if kind == "cache" || kind == "all" {
 		files, err := f.List(ctx, filepath.Join("cache", sid))
 		if err != nil {
@@ -405,7 +404,7 @@ func (f *HttpFileClient) DeleteSector(ctx context.Context, sid, kind string) err
 }
 
 // TODO: erasure coding
-func (f *HttpFileClient) download(ctx context.Context, localPath, remotePath string) (int64, error) {
+func (f *HttpClient) download(ctx context.Context, localPath, remotePath string) (int64, error) {
 	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
 		return 0, errors.As(err)
 	}
@@ -464,7 +463,7 @@ func (f *HttpFileClient) download(ctx context.Context, localPath, remotePath str
 	return n, nil
 }
 
-func (f *HttpFileClient) Download(ctx context.Context, localPath, remotePath string) error {
+func (f *HttpClient) Download(ctx context.Context, localPath, remotePath string) error {
 	sFiles, err := f.List(ctx, remotePath)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -503,7 +502,7 @@ func (f *HttpFileClient) Download(ctx context.Context, localPath, remotePath str
 // implement os.File interface
 type HttpFile struct {
 	ctx        context.Context
-	client     *HttpFileClient
+	client     *HttpClient
 	remotePath string
 
 	lock       sync.Mutex
@@ -513,7 +512,7 @@ type HttpFile struct {
 func OpenHttpFile(ctx context.Context, host, remotePath, sid, token string) *HttpFile {
 	return &HttpFile{
 		ctx:        ctx,
-		client:     NewHttpFileClient(host, sid, token),
+		client:     NewHttpClient(host, sid, token),
 		remotePath: remotePath,
 	}
 }

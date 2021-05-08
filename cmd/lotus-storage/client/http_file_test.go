@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -10,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestFileClient(t *testing.T) {
+func TestHttpClient(t *testing.T) {
 	ctx := context.TODO()
 	auth := NewAuthClient("127.0.0.1:1330", "d41d8cd98f00b204e9800998ecf8427e")
 	sid := "s-t01003-10000000000"
@@ -20,7 +19,7 @@ func TestFileClient(t *testing.T) {
 	}
 	defer os.RemoveAll("./test")
 
-	fc := NewHttpFileClient("127.0.0.1:1331", sid, string(newToken))
+	fc := NewHttpClient("127.0.0.1:1331", sid, string(newToken))
 	if err := fc.DeleteSector(ctx, sid, "all"); err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +82,7 @@ func TestFileClient(t *testing.T) {
 	}
 }
 
-func TestFileRW(t *testing.T) {
+func TestHttpFileRW(t *testing.T) {
 	ctx := context.TODO()
 	auth := NewAuthClient("127.0.0.1:1330", "d41d8cd98f00b204e9800998ecf8427e")
 	sid := "s-t01003-10000000000"
@@ -92,12 +91,12 @@ func TestFileRW(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fc := NewHttpFileClient("127.0.0.1:1331", sid, string(newToken))
+	fc := NewHttpClient("127.0.0.1:1331", sid, string(newToken))
 	if err := fc.DeleteSector(ctx, sid, "all"); err != nil {
 		t.Fatal(err)
 	}
 
-	f := OpenHttpFile("127.0.0.1:1332", filepath.Join("sealed", sid), sid, string(newToken))
+	f := OpenHttpFile(ctx, "127.0.0.1:1331", filepath.Join("sealed", sid), sid, string(newToken))
 	n, err := f.Write([]byte("ok"))
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +106,7 @@ func TestFileRW(t *testing.T) {
 	}
 	f.Close()
 
-	f = OpenHttpFile("127.0.0.1:1332", filepath.Join("sealed", sid), sid, string(newToken))
+	f = OpenHttpFile(ctx, "127.0.0.1:1331", filepath.Join("sealed", sid), sid, string(newToken))
 	output, err := ioutil.ReadAll(f)
 	if err != nil {
 		t.Fatal(err)
@@ -117,71 +116,12 @@ func TestFileRW(t *testing.T) {
 	}
 }
 
-func TestFileTrailer(t *testing.T) {
+func TestHttpFileStat(t *testing.T) {
 	ctx := context.TODO()
-	auth := NewAuthClient("127.0.0.1:1330", "d41d8cd98f00b204e9800998ecf8427e")
-	sid := "s-t01003-10000000000"
-	newToken, err := auth.NewFileToken(ctx, sid)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	fc := NewFileClient("127.0.0.1:1331", sid, string(newToken))
-	if err := fc.DeleteSector(ctx, sid, "all"); err != nil {
-		t.Fatal(err)
-	}
-
-	f := OpenFile("127.0.0.1:1332", filepath.Join("sealed", sid), sid, string(newToken))
-	// simulate writeTrailer
-	if _, err := f.Seek(0, 0); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.Write([]byte("testing")); err != nil {
-		t.Fatal(err)
-	}
-	if err := binary.Write(f, binary.LittleEndian, uint32(7)); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Truncate(8 + 4); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	f = OpenFile("127.0.0.1:1332", filepath.Join("sealed", sid), sid, string(newToken))
-	st, err := f.Stat()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if st.Size() != 8+4 {
-		t.Fatalf("%d is not in expected", st.Size())
-	}
-	var tlen [4]byte
-	n, err := f.ReadAt(tlen[:], st.Size()-int64(len(tlen)))
-	if err != nil {
-		t.Fatalf("n:%d, err:%s", n, err)
-	}
-	f.Close()
-}
-
-func TestFileStat(t *testing.T) {
-	ctx := context.TODO()
-	fc := NewFileClient("127.0.0.1:1331", "sys", "fdd832c558cab235daaf39b8e59ce41b")
+	fc := NewHttpClient("127.0.0.1:1331", "sys", "fdd832c558cab235daaf39b8e59ce41b")
 	stat, err := fc.FileStat(ctx, "miner-check.dat")
 	if err != nil {
 		t.Fatal(err)
 	}
 	fmt.Println(stat.Size())
-}
-
-func TestFileRange(t *testing.T) {
-	f := OpenFile("10.41.2.33:1341", "cache/s-t01010-353/sc-02-data-tree-r-last-6.dat", "sys", "caa4ddec7780052bd29001b7119199d6")
-	defer f.Close()
-	buf := make([]byte, 4096)
-	n, err := f.ReadAt(buf, 9586976)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println(n)
 }

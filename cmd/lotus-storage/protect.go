@@ -7,7 +7,6 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
 
 func chattrLock(path string) error {
@@ -66,7 +65,7 @@ func protectPath(paths []string) error {
 				if event.Op&fsnotify.Create != fsnotify.Create {
 					continue
 				}
-				log.Println("create file:", event.Name)
+				log.Info("create file:", event.Name)
 				// TODO: protect
 				if err := chattrLock(event.Name); err != nil {
 					done <- errors.As(err)

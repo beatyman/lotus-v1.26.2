@@ -179,6 +179,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 
 		offset += padLength.Unpadded()
 
+		log.Infow("Add pads piece", "deal", deal.deal.DealID, "sector", sector.SectorNumber)
 		for _, p := range pads {
 			ppi, err := m.sealer.AddPiece(sectorstorage.WithPriority(ctx.Context(), DealSectorPriority),
 				m.minerSector(sector.SectorType, sector.SectorNumber),
@@ -197,6 +198,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 			})
 		}
 
+		log.Infow("Add deal data piece", "deal", deal.deal.DealID, "sector", sector.SectorNumber)
 		ppi, err := m.sealer.AddPiece(sectorstorage.WithPriority(ctx.Context(), DealSectorPriority),
 			m.minerSector(sector.SectorType, sector.SectorNumber),
 			pieceSizes,

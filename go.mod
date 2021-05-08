@@ -60,7 +60,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/gwaylib/database v0.0.0-20191004162319-8535ba649f9c
 	github.com/gwaylib/errors v0.0.0-20190905023356-162e59439c92
-	github.com/gwaylib/log v0.0.0-20190829041528-b6c28711ef53
+	github.com/gwaylib/log v0.0.0-20210507100943-24bc495476d8
 	github.com/hako/durafmt v0.0.0-20200710122514-c0fb7b4da026
 	github.com/hannahhoward/go-pubsub v0.0.0-20200423002714-8d62886cc36e
 	github.com/hanwen/go-fuse v1.0.0
@@ -175,7 +175,7 @@ replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 replace github.com/filecoin-project/specs-storage => ./extern/specs-storage
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20210425182242-094c01210af9
+replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20210503121739-d96073ede4a5
 
 //replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
 replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-20201125193152-8a03d2e9614b

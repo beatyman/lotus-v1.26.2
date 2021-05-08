@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-
-	"github.com/gwaylib/log"
 )
 
 func validHttpFilePath(file string) bool {

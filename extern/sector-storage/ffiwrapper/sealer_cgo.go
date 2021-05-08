@@ -80,7 +80,7 @@ func (sb *Sealer) ExpireAllMarketRetrieve() {
 					log.Error(errors.As(err))
 					return
 				}
-				if err := hlmclient.NewHttpFileClient(stor.MountTransfUri, sid, string(token)).DeleteSector(ctx, sid, "unsealed"); err != nil {
+				if err := hlmclient.NewHttpClient(stor.MountTransfUri, sid, string(token)).DeleteSector(ctx, sid, "unsealed"); err != nil {
 					log.Error(errors.As(err))
 					return
 				}
@@ -198,10 +198,10 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 		}
 	}()
 
-	unsealedPath := sector.UnsealedFile()
-	if err := os.MkdirAll(filepath.Dir(unsealedPath), 0755); err != nil {
-		return abi.PieceInfo{}, xerrors.Errorf("creating unsealed sector file: %w", err)
-	}
+	//unsealedPath := sector.UnsealedFile()
+	//if err := os.MkdirAll(filepath.Dir(unsealedPath), 0755); err != nil {
+	//	return abi.PieceInfo{}, xerrors.Errorf("creating unsealed sector file: %w", err)
+	//}
 	if len(existingPieceSizes) == 0 {
 		stagedFile, err = createUnsealedPartialFile(maxPieceSize, sector)
 		if err != nil {

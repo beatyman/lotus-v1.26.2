@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -48,8 +47,8 @@ func main() {
 	commands := []*cli.Command{
 		daemonCmd,
 		mountCmd,
-		//downloadCmd,
-		//uploadCmd,
+		downloadCmd,
+		uploadCmd,
 		//authCmd,
 	}
 	app := &cli.App{
