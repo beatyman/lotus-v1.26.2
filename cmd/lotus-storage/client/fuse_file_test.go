@@ -14,7 +14,7 @@ import (
 func TestFileTrailer(t *testing.T) {
 	ctx := context.TODO()
 	//authData := "d41d8cd98f00b204e9800998ecf8427e"
-	authData := "6d69dfc18d94cbba883b8ee0c6217656"
+	authData := "134c58b106f07ed0be86fc5cb860f266"
 	auth := NewAuthClient("127.0.0.1:1330", authData)
 	sid := "s-t01003-10000000000"
 	newToken, err := auth.NewFileToken(ctx, sid)

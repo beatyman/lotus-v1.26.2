@@ -188,7 +188,7 @@ func (fs *FUseNodeFs) OnMount(*nodefs.FileSystemConnector) {
 }
 
 func (fs *FUseNodeFs) OnUnmount() {
-	log.Infof("close the conntion pool: %s", fs.host)
+	log.Infof("umount the conntion pool: %s", fs.host)
 	CloseAllFUseConn(fs.host)
 }
 

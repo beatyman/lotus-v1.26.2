@@ -58,26 +58,6 @@ func ReadFUseReqHeader(conn net.Conn) (byte, uint32, error) {
 	return controlB[0], uint32(buffLen), nil
 }
 
-func WriteFUseReqHeader(conn net.Conn, control byte, buffLen int) error {
-	// write the protocol control
-	if _, err := conn.Write([]byte{control}); err != nil {
-		if !ErrEOF.Equal(err) {
-			return errors.As(err)
-		}
-		return ErrFUseClosed.As(err)
-	}
-	// write data len
-	buffLenB := make([]byte, 4)
-	binary.PutUvarint(buffLenB, uint64(buffLen))
-	if _, err := conn.Write(buffLenB); err != nil {
-		if !ErrEOF.Equal(err) {
-			return errors.As(err)
-		}
-		return ErrFUseClosed.As(err)
-	}
-	return nil
-}
-
 func ReadFUseReqText(conn net.Conn, buffLen uint32) (map[string]string, error) {
 	dataB := make([]byte, buffLen)
 	read := uint32(0)
@@ -98,7 +78,6 @@ func ReadFUseReqText(conn net.Conn, buffLen uint32) (map[string]string, error) {
 		}
 		break
 	}
-	log.Info(string(dataB))
 	proto := map[string]string{}
 	if err := json.Unmarshal(dataB, &proto); err != nil {
 		return nil, ErrFUseParams.As("error protocol format")
@@ -117,8 +96,37 @@ func ReadFUseTextReq(conn net.Conn) (map[string]string, error) {
 	return ReadFUseReqText(conn, buffLen)
 }
 
+func WriteFUseReqHeader(conn net.Conn, control byte, buffLen uint32) error {
+	// write the protocol control
+	if _, err := conn.Write([]byte{control}); err != nil {
+		if !ErrEOF.Equal(err) {
+			return errors.As(err)
+		}
+		return ErrFUseClosed.As(err)
+	}
+	// write data len
+	buffLenB := make([]byte, 4)
+	binary.PutUvarint(buffLenB, uint64(buffLen))
+	if _, err := conn.Write(buffLenB); err != nil {
+		if !ErrEOF.Equal(err) {
+			return errors.As(err)
+		}
+		return ErrFUseClosed.As(err)
+	}
+	return nil
+}
+func WriteFUseReqFileHeader(conn net.Conn, control byte, buffLen uint32, fileId [16]byte) error {
+	if err := WriteFUseReqHeader(conn, control, buffLen); err != nil {
+		return errors.As(err)
+	}
+
+	if _, err := conn.Write(fileId[:]); err != nil {
+		return errors.As(err)
+	}
+	return nil
+}
 func WriteFUseTextReq(conn net.Conn, data []byte) error {
-	if err := WriteFUseReqHeader(conn, FUSE_REQ_CONTROL_TEXT, len(data)); err != nil {
+	if err := WriteFUseReqHeader(conn, FUSE_REQ_CONTROL_TEXT, uint32(len(data))); err != nil {
 		return errors.As(err)
 	}
 	if _, err := conn.Write(data); err != nil {

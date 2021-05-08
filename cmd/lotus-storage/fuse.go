@@ -66,10 +66,13 @@ func getConnFile(id string) (*connFile, error) {
 	// Try restore from session db because maybe it has been gc.
 	path, auth, err := GetSessionFile(id)
 	if err != nil {
+		if errors.ErrNoData.Equal(err) {
+			return nil, errors.New("file was closed").As(id)
+		}
 		return nil, errors.As(err)
 	}
-	read := fmt.Sprintf("%x", md5.Sum([]byte(_md5auth+"read")))
-	write := fmt.Sprintf("%x", md5.Sum([]byte(_md5auth+"write")))
+	read := GetAuthRO()
+	write := GetAuthRW()
 	canWrite := false
 	switch auth {
 	case read:
@@ -83,7 +86,7 @@ func getConnFile(id string) (*connFile, error) {
 	var file *os.File
 	if canWrite {
 		to := filepath.Join(_repoFlag, path)
-		file, err = os.OpenFile(to, os.O_RDWR, 0644)
+		file, err = os.OpenFile(to, os.O_RDWR, 0644) // TODO: does it need the origin file flag?
 		if err != nil {
 			return nil, errors.As(err)
 		}
@@ -100,7 +103,7 @@ func getConnFile(id string) (*connFile, error) {
 		remotePath: path,
 		auth:       auth,
 	}
-	putConnFile(id, cf)
+	openFiles[id] = cf
 	return cf, nil
 }
 
