@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -417,6 +418,25 @@ reAllocate:
 		res.PreCommit2Out = out
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+		var commR=out.Sealed.String()
+		var redoTimes int64
+		var errCommR string
+		switch w.ssize {
+		case 64 * GB:
+			errCommR="bagboea4b5abcbybig6p4wwrozr7zdzj62afkq3kwjfb4ywla5hly7ir6wcivrg3p"
+		case 32 * GB:
+			errCommR="bagboea4b5abcaefyn3i26gpj4odjnnceqc6uju4jfuzf5cw7zq3t3uw6welsdwyd"
+		}
+		for  strings.EqualFold(commR,errCommR) && redoTimes<2 {
+			redoTimes++
+			log.Infof("WARN###: Redo P2 : times %v ",redoTimes)
+			out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
+			res.PreCommit2Out = out
+			if err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			commR=out.Sealed.String()
 		}
 	case ffiwrapper.WorkerCommit:
 		pieceInfo := task.Pieces
