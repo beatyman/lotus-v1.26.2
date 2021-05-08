@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	FUSE_CONN_POOL_SIZE_MAX = 12
+	FUSE_CONN_POOL_SIZE_MAX = 15
 )
 
 type FUseConn struct {
@@ -39,14 +39,14 @@ func (p *FUsePool) new(force bool) (*FUseConn, error) {
 	p.owner[fconn] = true
 	p.size += 1
 
-	log.Infof("create new fuse connection:%s, force:%t, pool size:%d", p.host, force, p.size)
+	log.Debugf("create new fuse connection:%s, force:%t, pool size:%d", p.host, force, p.size)
 	return fconn, nil
 }
 
 func (p *FUsePool) close(conn *FUseConn) error {
 	p.size -= 1
 	delete(p.owner, conn)
-	log.Infof("close fuse connection:%s, force:%t, pool size:%d", p.host, conn.forceAllocate, p.size)
+	log.Debugf("close fuse connection:%s, force:%t, pool size:%d", p.host, conn.forceAllocate, p.size)
 	return conn.Close()
 }
 func (p *FUsePool) Close(conn *FUseConn) error {
@@ -69,7 +69,7 @@ func (p *FUsePool) CloseAll() {
 
 func (p *FUsePool) Borrow(force bool) (*FUseConn, error) {
 	p.lk.Lock()
-	if len(p.queue) == 0 {
+	if len(p.queue) == 0 && (force || p.size < FUSE_CONN_POOL_SIZE_MAX) {
 		conn, err := p.new(force)
 		if err != nil {
 			p.lk.Unlock()
