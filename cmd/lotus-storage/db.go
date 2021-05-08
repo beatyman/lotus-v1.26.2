@@ -9,7 +9,6 @@ import (
 
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
 
 func init() {

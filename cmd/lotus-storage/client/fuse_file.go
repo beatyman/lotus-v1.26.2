@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -102,9 +101,6 @@ func (f *FUseNodeFile) Flush() fuse.Status {
 // the call. Any cleanup that requires specific synchronization or
 // could fail with I/O errors should happen in Flush instead.
 func (f *FUseNodeFile) Release() {
-	f.fileLk.Lock()
-	defer f.fileLk.Unlock()
-	fuse.ToStatus(f.File.Close())
 }
 func (f *FUseNodeFile) Fsync(flags int) (code fuse.Status) {
 	return fuse.EPERM
@@ -138,9 +134,6 @@ func (f *FUseNodeFile) Allocate(off uint64, size uint64, mode uint32) (code fuse
 
 // implement os.File interface
 type FUseFile struct {
-	ctx       context.Context
-	ctxCancel func()
-
 	host       string
 	remotePath string
 	sid        string
@@ -161,11 +154,7 @@ func OpenROFUseFile(host, remotePath, sid, token string) *FUseFile {
 }
 
 func OpenFUseFile(host, remotePath, sid, token string, flag int) *FUseFile {
-	ctx, ctxCancel := context.WithCancel(context.Background())
 	return &FUseFile{
-		ctx:       ctx,
-		ctxCancel: ctxCancel,
-
 		host:       host,
 		remotePath: remotePath,
 		sid:        sid,
@@ -178,7 +167,7 @@ func OpenFUseFile(host, remotePath, sid, token string, flag int) *FUseFile {
 func (f *FUseFile) Name() string {
 	return f.remotePath
 }
-func (f *FUseFile) open() (*FUseConn, error) {
+func (f *FUseFile) connect() (*FUseConn, error) {
 	// get from pool, and return when the file closed
 	conn, err := GetFUseConn(f.host, (f.flag&os.O_RDWR) == os.O_RDWR)
 	if err != nil {
@@ -217,11 +206,12 @@ func (f *FUseFile) open() (*FUseConn, error) {
 		return nil, errors.Parse(resp["Err"].(string))
 	}
 	f.opened = true
+	log.Debugf("Open %s, fileId:%s", f.remotePath, f.fileId)
 	return conn, nil
 }
 
 func (f *FUseFile) readRemote(b []byte, off, fileSize int64) (int, error) {
-	//log.Infof("Read %s, offset:%d, len:%d", f.remotePath, off, len(b))
+	log.Debugf("Read %s, offset:%d, len:%d", f.remotePath, off, len(b))
 	if off > fileSize {
 		return 0, errors.New("offset out of size").As(f.remotePath, len(b), off, fileSize)
 	}
@@ -239,7 +229,7 @@ func (f *FUseFile) readRemote(b []byte, off, fileSize int64) (int, error) {
 		buffLen = fileSize - off
 	}
 
-	conn, err := f.open()
+	conn, err := f.connect()
 	if err != nil {
 		return 0, err
 	}
@@ -298,8 +288,8 @@ func (f *FUseFile) readRemote(b []byte, off, fileSize int64) (int, error) {
 }
 
 func (f *FUseFile) writeRemote(b []byte, off int64) (int64, error) {
-	//log.Infof("Write %s, offset:%d, len:%d", f.remotePath, off, len(b))
-	conn, err := f.open()
+	log.Debugf("Write %s, offset:%d, len:%d", f.remotePath, off, len(b))
+	conn, err := f.connect()
 	if err != nil {
 		return 0, err
 	}
@@ -337,21 +327,17 @@ func (f *FUseFile) Close() error {
 	if !f.opened {
 		return nil
 	}
-	f.opened = false
 
-	if f.ctxCancel != nil {
-		f.ctxCancel()
-	}
-
-	conn, err := f.open()
+	conn, err := f.connect()
 	if err != nil {
 		return err
 	}
 	defer ReturnFUseConn(f.host, conn)
 
-	//log.Infof("Close %s", f.remotePath)
+	log.Debugf("Close %s", f.remotePath)
 	utils.WriteFUseReqFileHeader(conn, utils.FUSE_REQ_CONTROL_FILE_CLOSE, 0, f.fileId)
 
+	f.opened = false
 	return nil
 }
 
@@ -371,7 +357,7 @@ func (f *FUseFile) stat() (os.FileInfo, error) {
 		return f.fileInfo, nil
 	}
 
-	conn, err := f.open()
+	conn, err := f.connect()
 	if err != nil {
 		return nil, err
 	}
@@ -468,18 +454,18 @@ func (f *FUseFile) Write(b []byte) (n int, err error) {
 }
 
 func (f *FUseFile) Stat() (os.FileInfo, error) {
-	//log.Infof("Stat %s", f.remotePath)
+	log.Debugf("Stat %s", f.remotePath)
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	return f.stat()
 }
 func (f *FUseFile) Truncate(size int64) error {
-	//log.Infof("Truncate %s, size:%d", f.remotePath, size)
+	log.Debugf("Truncate %s, size:%d", f.remotePath, size)
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	f.fileInfo = nil
 
-	conn, err := f.open()
+	conn, err := f.connect()
 	if err != nil {
 		return err
 	}

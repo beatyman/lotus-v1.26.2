@@ -8,7 +8,6 @@ import (
 
 	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 	"github.com/urfave/cli/v2"
 )
 

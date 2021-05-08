@@ -16,7 +16,6 @@ import (
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/willscott/go-nfs"
 )

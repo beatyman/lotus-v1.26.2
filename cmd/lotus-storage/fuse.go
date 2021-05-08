@@ -17,7 +17,6 @@ import (
 	"github.com/filecoin-project/lotus/cmd/lotus-storage/utils"
 	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
 
 type connFile struct {
@@ -35,6 +34,7 @@ var (
 )
 
 func closeConnFile(id string) error {
+	log.Debugf("closeConnFile:%s", id)
 	openFilesLk.Lock()
 	defer openFilesLk.Unlock()
 	f, ok := openFiles[id]
@@ -51,6 +51,7 @@ func closeConnFile(id string) error {
 	return nil
 }
 func putConnFile(id string, f *connFile) {
+	log.Debugf("putConnFile:%s,%s", id, f.remotePath)
 	openFilesLk.Lock()
 	defer openFilesLk.Unlock()
 	openFiles[id] = f
@@ -120,8 +121,8 @@ func gcConnFile() {
 		cf.file.Close()
 		cf.lk.Unlock()
 
+		log.Infof("gcConnFile:%s", id)
 		delete(openFiles, id)
-
 		// save stack to db
 		if err := AddSessionFile(id, cf.remotePath, cf.auth); err != nil {
 			log.Error(errors.As(err, id, cf.remotePath, cf.auth))
@@ -397,17 +398,25 @@ func handleFUseFile(conn net.Conn, control uint8, bufLen uint32) error {
 	}
 	id := oriId.String()
 
-	cf, err := getConnFile(id)
-	if err != nil {
-		return err
+	// not need read the session cache
+	switch control {
+	case utils.FUSE_REQ_CONTROL_FILE_CLOSE:
+		if err := closeConnFile(id); err != nil {
+			return errors.As(err, control, bufLen)
+		}
+		return nil
 	}
 
+	// deal file handle.
+	cf, err := getConnFile(id)
+	if err != nil {
+		return errors.As(err, control, bufLen)
+	}
 	// update last active time.
 	cf.lk.Lock()
 	cf.lastActive = time.Now()
 	cf.lk.Unlock()
 	file := cf.file
-
 	switch control {
 	case utils.FUSE_REQ_CONTROL_FILE_WRITE:
 		if bufLen == 0 {
@@ -498,9 +507,6 @@ func handleFUseFile(conn net.Conn, control uint8, bufLen uint32) error {
 			FileModTime: fStat.ModTime(),
 		})
 		return nil
-
-	case utils.FUSE_REQ_CONTROL_FILE_CLOSE:
-		return closeConnFile(id)
 	}
 	return utils.ErrFUseProto.As("unknow control code", control)
 }
