@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,7 +18,7 @@ var downloadCmd = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "mode",
-			Usage: "downlad mode, support mode: 'http', 'TODO:tcp'",
+			Usage: "downlad mode, support mode: 'http', 'tcp'. http mode support directory download, and tcp just for one file.",
 			Value: "http",
 		},
 	},
@@ -43,10 +44,38 @@ var downloadCmd = &cli.Command{
 				if err != nil {
 					panic(err)
 				}
+				log.Infof("start download: %s->%s", remotePath, localPath)
 				fc := client.NewHttpClient(_httpApiFlag, sid, string(newToken))
 				if err := fc.Download(ctx, remotePath, localPath); err != nil {
 					panic(err)
 				}
+				log.Infof("end download: %s->%s", remotePath, localPath)
+			}()
+		case "tcp":
+			go func() {
+				f := client.OpenROFUseFile(_posixFsApiFlag, remotePath, remotePath, GetAuthRO())
+				defer f.Close()
+
+				localF, err := os.OpenFile(localPath, os.O_RDWR|os.O_CREATE, 0755)
+				if err != nil {
+					panic(err)
+				}
+				defer localF.Close()
+				log.Infof("start download: %s->%s", remotePath, localPath)
+				buf := make([]byte, 32*1024)
+				for {
+					n, err := f.Read(buf)
+					if err != nil {
+						if err != io.EOF {
+							panic(err)
+						}
+						break
+					}
+					if _, err := f.Write(buf[:n]); err != nil {
+						panic(err)
+					}
+				}
+				log.Infof("end download: %s->%s", remotePath, localPath)
 			}()
 		default:
 			return fmt.Errorf("unknow mode '%s'", cctx.String("mode"))
