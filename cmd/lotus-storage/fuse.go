@@ -42,10 +42,10 @@ func closeConnFile(id string) error {
 		return nil
 	}
 	delete(openFiles, id)
-	if err := f.file.Close(); err != nil {
+	if err := DeleteSessionFile(id); err != nil {
 		return errors.As(err, f.remotePath)
 	}
-	if err := DeleteSessionFile(id); err != nil {
+	if err := f.file.Close(); err != nil {
 		return errors.As(err, f.remotePath)
 	}
 	return nil
@@ -117,10 +117,10 @@ func gcConnFile() {
 			cf.lk.Unlock()
 			continue
 		}
+		cf.file.Close()
 		cf.lk.Unlock()
 
 		delete(openFiles, id)
-		cf.file.Close()
 
 		// save stack to db
 		if err := AddSessionFile(id, cf.remotePath, cf.auth); err != nil {
