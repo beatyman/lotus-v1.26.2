@@ -2,14 +2,23 @@ package client
 
 import (
 	"net"
+	"os"
+	"strconv"
 	"sync"
 
 	"github.com/gwaylib/errors"
 )
 
-const (
+var (
 	FUSE_CONN_POOL_SIZE_MAX = 15
 )
+
+func init() {
+	size, _ := strconv.Atoi(os.Getenv("LOTUS_FUSE_POOL_SIZE"))
+	if size > 0 {
+		FUSE_CONN_POOL_SIZE_MAX = size
+	}
+}
 
 type FUseConn struct {
 	net.Conn

@@ -10,7 +10,9 @@
     - [BasicAuth协议接口](#BasicAuth协议接口)
     - [TokenAuth协议接口](#TokenAuth协议接口)
     - [PosixAuth协议接口](#PosixAuth协议接口)
-- [测试指令](#测试指令)
+- [调用用例](#调用用例)
+    - [环境变量](#环境变量)
+    - [测试指令](#测试指令)
 
 
 ## 前言
@@ -178,11 +180,19 @@ func main() {
 ```
 
 
-## 测试指令
+## 调用用例
+
+### 环境变量
+```
+LOTUS_FUSE_DEBUG=1 # 开启FUSE调试日志，适用于服务端与客户端
+LOTUS_FUSE_POOL_SIZE=15 # 设定客户端可以连接服务端的连接池大小, 此值越大，支持并发连接越多，但当存在大量存储服务器时，需要注意客户端端口上限的问题。
+```
+
+### 测试指令
 将auth.dat复制到lotus-storage同一目录下，或自行通过lotus-storage --storage-root指定
 ```
-lotus-storage daemon # 运行存储服务程序
-lotus-storage mount [mountpoint] # 通过fuse挂载到本地目录
+LOTUS_FUSE_DEBUG=1 lotus-storage daemon # 运行存储服务程序
+LOTUS_FUSE_DEBUG=1 LOTUS_FUSE_POOL_SIZE=15 lotus-storage mount [mountpoint] # 通过fuse挂载到本地目录
 lotus-storage download [remote path] [local path] 下载文件到本地
 lotus-storage upload [local path] [remote path] 上传本地文件到服务器
 ```
