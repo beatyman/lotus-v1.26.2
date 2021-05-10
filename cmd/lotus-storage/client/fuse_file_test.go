@@ -2,9 +2,7 @@ package client
 
 import (
 	"context"
-	"crypto/md5"
 	"encoding/binary"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -14,7 +12,7 @@ import (
 func TestFileTrailer(t *testing.T) {
 	ctx := context.TODO()
 	//authData := "d41d8cd98f00b204e9800998ecf8427e"
-	authData := "134c58b106f07ed0be86fc5cb860f266"
+	authData := "0338d588fa8a8fd027f01d6d0f84ad5f"
 	auth := NewAuthClient("127.0.0.1:1330", authData)
 	sid := "s-t01003-10000000000"
 	newToken, err := auth.NewFileToken(ctx, sid)
@@ -27,7 +25,7 @@ func TestFileTrailer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f := OpenFUseFile("127.0.0.1:1332", filepath.Join("sealed", sid), sid, fmt.Sprintf("%x", md5.Sum([]byte(authData+"write"))), os.O_RDWR|os.O_CREATE)
+	f := OpenFUseFile("127.0.0.1:1332", filepath.Join("sealed", sid), sid, string(newToken), os.O_RDWR|os.O_CREATE)
 	// simulate writeTrailer
 	if _, err := f.Seek(0, 0); err != nil {
 		t.Fatal(err)

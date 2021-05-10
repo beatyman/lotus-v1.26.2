@@ -340,7 +340,7 @@ func handleFUseText(conn net.Conn, bufLen uint32) error {
 				utils.WriteFUseErrResp(conn, 403, utils.ErrFUseParams.As("invalid path"))
 				return nil // open the file failed, close the file thread connection.
 			}
-			log.Infof("Auth write %s from %s, id", path, conn.RemoteAddr(), id)
+			log.Infof("Auth write %s from %s, id:%s", path, conn.RemoteAddr(), id)
 			to := filepath.Join(_repoFlag, path)
 			dir := filepath.Dir(to)
 			if err := os.MkdirAll(dir, 0755); err != nil {
