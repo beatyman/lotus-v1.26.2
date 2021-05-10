@@ -197,7 +197,7 @@ func (c *ClientNodeAdapter) ValidatePublishedDeal(ctx context.Context, deal stor
 	}
 
 	// TODO: timeout
-	ret, err := c.StateWaitMsg(ctx, *deal.PublishMessage, build.MessageConfidence)
+	ret, err := c.StateWaitMsg(ctx, *deal.PublishMessage, build.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		return 0, xerrors.Errorf("waiting for deal publish message: %w", err)
 	}
@@ -213,7 +213,13 @@ func (c *ClientNodeAdapter) ValidatePublishedDeal(ctx context.Context, deal stor
 	return res.IDs[dealIdx], nil
 }
 
-const clientOverestimation = 2
+var clientOverestimation = struct {
+	numerator   int64
+	denominator int64
+}{
+	numerator:   12,
+	denominator: 10,
+}
 
 func (c *ClientNodeAdapter) DealProviderCollateralBounds(ctx context.Context, size abi.PaddedPieceSize, isVerified bool) (abi.TokenAmount, abi.TokenAmount, error) {
 	bounds, err := c.StateDealProviderCollateralBounds(ctx, size, isVerified, types.EmptyTSK)
@@ -221,7 +227,9 @@ func (c *ClientNodeAdapter) DealProviderCollateralBounds(ctx context.Context, si
 		return abi.TokenAmount{}, abi.TokenAmount{}, err
 	}
 
-	return big.Mul(bounds.Min, big.NewInt(clientOverestimation)), bounds.Max, nil
+	min := big.Mul(bounds.Min, big.NewInt(clientOverestimation.numerator))
+	min = big.Div(min, big.NewInt(clientOverestimation.denominator))
+	return min, bounds.Max, nil
 }
 
 // TODO: Remove dealID parameter, change publishCid to be cid.Cid (instead of pointer)
@@ -364,7 +372,7 @@ func (c *ClientNodeAdapter) GetChainHead(ctx context.Context) (shared.TipSetToke
 }
 
 func (c *ClientNodeAdapter) WaitForMessage(ctx context.Context, mcid cid.Cid, cb func(code exitcode.ExitCode, bytes []byte, finalCid cid.Cid, err error) error) error {
-	receipt, err := c.StateWaitMsg(ctx, mcid, build.MessageConfidence)
+	receipt, err := c.StateWaitMsg(ctx, mcid, build.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		return cb(0, nil, cid.Undef, err)
 	}

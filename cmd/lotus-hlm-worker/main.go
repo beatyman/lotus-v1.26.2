@@ -21,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
@@ -349,7 +348,7 @@ var runCmd = &cli.Command{
 
 		mux := mux.NewRouter()
 		rpcServer := jsonrpc.NewServer()
-		rpcServer.Register("Filecoin", apistruct.PermissionedWorkerHlmAPI(workerApi))
+		rpcServer.Register("Filecoin", api.PermissionedWorkerHlmAPI(workerApi))
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(workerRepo).FileHttpServer)
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof

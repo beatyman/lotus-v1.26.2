@@ -44,10 +44,15 @@ func (s *WindowPoStScheduler) StateWaitMsg(ctx context.Context, sm *types.Signed
 	result := make(chan *WaitResult, 1)
 	defer close(result)
 
+	head, err := s.api.ChainHead(ctx)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 	go func() {
-		lp, err := s.api.StateWaitMsg(cancelCtx, sm.Cid(), build.MessageConfidence)
+		lp, err := s.api.StateWaitMsg(cancelCtx, sm.Cid(), build.MessageConfidence, head.Height()+30, true)
 		result <- &WaitResult{lp, err}
 	}()
 	select {
@@ -57,7 +62,8 @@ func (s *WindowPoStScheduler) StateWaitMsg(ctx context.Context, sm *types.Signed
 		if err != nil {
 			return nil, errors.As(err)
 		}
-		return s.api.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence)
+
+		return s.api.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence, head.Height()+60, true)
 	case res := <-result:
 		return res.lookup, res.err
 	}

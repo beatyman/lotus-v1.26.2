@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
+	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/cli/util/apiaddr"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/gwaylib/database"
@@ -31,7 +32,7 @@ type LotusNode struct {
 
 	lock sync.Mutex
 
-	nodeApi    api.FullNode
+	nodeApi    v0api.FullNode
 	nodeCloser jsonrpc.ClientCloser
 
 	proxyConn net.Conn
@@ -59,7 +60,7 @@ func (l *LotusNode) IsAlive() bool {
 	return l.nodeApi != nil && l.proxyConn != nil
 }
 
-func (l *LotusNode) GetConn() (api.FullNode, net.Conn, error) {
+func (l *LotusNode) getConn() (v0api.FullNode, net.Conn, error) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
@@ -76,12 +77,13 @@ func (l *LotusNode) GetConn() (api.FullNode, net.Conn, error) {
 	}
 
 	if l.nodeApi == nil {
-		addr, err := l.apiInfo.DialArgs(repo.FullNode)
+		// only support for v0 to check the chain is it alive.
+		addr, err := l.apiInfo.DialArgs("v0", repo.FullNode)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("could not get DialArgs: %w", err)
 		}
 		headers := l.apiInfo.AuthHeader()
-		nApi, closer, err := client.NewFullNodeRPC(l.ctx, addr, headers)
+		nApi, closer, err := client.NewFullNodeRPCV0(l.ctx, addr, headers)
 		if err != nil {
 			return nil, nil, errors.As(err, addr)
 		}
@@ -117,7 +119,7 @@ func checkLotusEpoch() {
 				done <- true
 			}()
 			alive := c.IsAlive()
-			nApi, _, err := c.GetConn()
+			nApi, _, err := c.getConn()
 			if err != nil {
 				c.Close()
 				log.Warnf("lotus node down:%s", errors.As(err).Error())
@@ -237,7 +239,7 @@ func handleLotus(srcConn net.Conn) {
 		return
 	}
 
-	_, targetConn, err := bestLotusNode.GetConn()
+	_, targetConn, err := bestLotusNode.getConn()
 	if err != nil {
 		log.Warn(errors.As(err))
 		database.Close(srcConn)
@@ -382,23 +384,23 @@ func reloadNodes(proxyAddr *apiaddr.APIInfo, nodes []*LotusNode) error {
 	return nil
 }
 
-func lotusProxying() string {
+func lotusProxying() apiaddr.APIInfo {
 	if lotusProxyOn {
 		if bestLotusNode == nil {
-			return ""
+			return apiaddr.APIInfo{}
 		}
-		return bestLotusNode.apiInfo.Addr
+		return bestLotusNode.apiInfo
 	}
 
 	if lotusProxyAddr == nil {
-		return ""
+		return apiaddr.APIInfo{}
 	}
-	return lotusProxyAddr.Addr
+	return *lotusProxyAddr
 }
 
 func lotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.ProxyStatus, error) {
 	// for chain
-	proxyingAddr := lotusProxying()
+	proxyingAddr := lotusProxying().Addr
 	nodes := []api.ProxyNode{}
 	for _, c := range lotusNodes {
 		isAlive := c.IsAlive()
