@@ -26,14 +26,31 @@ import (
 
 //go:generate go run github.com/golang/mock/mockgen -destination=v0mocks/mock_full.go -package=v0mocks . FullNode
 
+//                       MODIFYING THE API INTERFACE
+//
+// NOTE: This is the V0 (Stable) API - when adding methods to this interface,
+// you'll need to make sure they are also present on the V1 (Unstable) API
+//
+// This API is implemented in `v1_wrapper.go` as a compatibility layer backed
+// by the V1 api
+//
+// When adding / changing methods in this file:
+// * Do the change here
+// * Adjust implementation in `node/impl/`
+// * Run `make gen` - this will:
+//  * Generate proxy structs
+//  * Generate mocks
+//  * Generate markdown docs
+//  * Generate openrpc blobs
+
 // FullNode API is a low-level interface to the Filecoin network full node
 type FullNode interface {
 	Common
 
-	// by hlm
-	SyncProgress(context.Context) (api.SyncProgress, error)
+	// implement by hlm
 	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
-	// by hlm end
+	SyncProgress(context.Context) (api.SyncProgress, error)
+	// implement by hlm end
 
 	// MethodGroup: Chain
 	// The Chain method group contains methods for interacting with the
@@ -217,7 +234,7 @@ type FullNode interface {
 	//
 	// When maxFee is set to 0, MpoolPushMessage will guess appropriate fee
 	// based on current chain conditions
-	MpoolPushMessage(ctx context.Context, auth []byte, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) //perm:sign
+	MpoolPushMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) //perm:sign
 
 	// MpoolBatchPush batch pushes a signed message to mempool.
 	MpoolBatchPush(context.Context, []*types.SignedMessage) ([]cid.Cid, error) //perm:write
@@ -226,7 +243,7 @@ type FullNode interface {
 	MpoolBatchPushUntrusted(context.Context, []*types.SignedMessage) ([]cid.Cid, error) //perm:write
 
 	// MpoolBatchPushMessage batch pushes a unsigned message to mempool.
-	MpoolBatchPushMessage(context.Context, []byte, []*types.Message, *api.MessageSendSpec) ([]*types.SignedMessage, error) //perm:sign
+	MpoolBatchPushMessage(context.Context, []*types.Message, *api.MessageSendSpec) ([]*types.SignedMessage, error) //perm:sign
 
 	// MpoolGetNonce gets next nonce for the specified sender.
 	// Note that this method may not be atomic. Use MpoolPushMessage instead.
@@ -261,9 +278,9 @@ type FullNode interface {
 	// WalletBalance returns the balance of the given address at the current head of the chain.
 	WalletBalance(context.Context, address.Address) (types.BigInt, error) //perm:read
 	// WalletSign signs the given bytes using the given address.
-	WalletSign(context.Context, []byte, address.Address, []byte) (*crypto.Signature, error) //perm:sign
+	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error) //perm:sign
 	// WalletSignMessage signs the given message using the given address.
-	WalletSignMessage(context.Context, []byte, address.Address, *types.Message) (*types.SignedMessage, error) //perm:sign
+	WalletSignMessage(context.Context, address.Address, *types.Message) (*types.SignedMessage, error) //perm:sign
 	// WalletVerify takes an address, a signature, and some bytes, and indicates whether the signature is valid.
 	// The address does not have to be in the wallet.
 	WalletVerify(context.Context, address.Address, []byte, *crypto.Signature) (bool, error) //perm:read
@@ -272,11 +289,11 @@ type FullNode interface {
 	// WalletSetDefault marks the given address as as the default one.
 	WalletSetDefault(context.Context, address.Address) error //perm:write
 	// WalletExport returns the private key of an address in the wallet.
-	WalletExport(context.Context, []byte, address.Address) (*types.KeyInfo, error) //perm:admin
+	WalletExport(context.Context, address.Address) (*types.KeyInfo, error) //perm:admin
 	// WalletImport receives a KeyInfo, which includes a private key, and imports it into the wallet.
 	WalletImport(context.Context, *types.KeyInfo) (address.Address, error) //perm:admin
 	// WalletDelete deletes an address from the wallet.
-	WalletDelete(context.Context, []byte, address.Address) error //perm:admin
+	WalletDelete(context.Context, address.Address) error //perm:admin
 	// WalletValidateAddress validates whether a given string can be decoded as a well-formed address
 	WalletValidateAddress(context.Context, string) (address.Address, error) //perm:read
 
@@ -600,11 +617,11 @@ type FullNode interface {
 	// MsigPropose proposes a multisig message
 	// It takes the following params: <multisig address>, <recipient address>, <value to transfer>,
 	// <sender address of the propose msg>, <method to call in the proposed message>, <params to include in the proposed message>
-	MsigPropose(context.Context, []byte, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error) //perm:sign
+	MsigPropose(context.Context, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error) //perm:sign
 
 	// MsigApprove approves a previously-proposed multisig message by transaction ID
 	// It takes the following params: <multisig address>, <proposed transaction ID> <signer address>
-	MsigApprove(context.Context, []byte, address.Address, uint64, address.Address) (cid.Cid, error) //perm:sign
+	MsigApprove(context.Context, address.Address, uint64, address.Address) (cid.Cid, error) //perm:sign
 
 	// MsigApproveTxnHash approves a previously-proposed multisig message, specified
 	// using both transaction ID and a hash of the parameters used in the
@@ -612,43 +629,43 @@ type FullNode interface {
 	// exactly the transaction you think you are.
 	// It takes the following params: <multisig address>, <proposed message ID>, <proposer address>, <recipient address>, <value to transfer>,
 	// <sender address of the approve msg>, <method to call in the proposed message>, <params to include in the proposed message>
-	MsigApproveTxnHash(context.Context, []byte, address.Address, uint64, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error) //perm:sign
+	MsigApproveTxnHash(context.Context, address.Address, uint64, address.Address, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error) //perm:sign
 
 	// MsigCancel cancels a previously-proposed multisig message
 	// It takes the following params: <multisig address>, <proposed transaction ID>, <recipient address>, <value to transfer>,
 	// <sender address of the cancel msg>, <method to call in the proposed message>, <params to include in the proposed message>
-	MsigCancel(context.Context, []byte, address.Address, uint64, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error) //perm:sign
+	MsigCancel(context.Context, address.Address, uint64, address.Address, types.BigInt, address.Address, uint64, []byte) (cid.Cid, error) //perm:sign
 	// MsigAddPropose proposes adding a signer in the multisig
 	// It takes the following params: <multisig address>, <sender address of the propose msg>,
 	// <new signer>, <whether the number of required signers should be increased>
-	MsigAddPropose(context.Context, []byte, address.Address, address.Address, address.Address, bool) (cid.Cid, error) //perm:sign
+	MsigAddPropose(context.Context, address.Address, address.Address, address.Address, bool) (cid.Cid, error) //perm:sign
 	// MsigAddApprove approves a previously proposed AddSigner message
 	// It takes the following params: <multisig address>, <sender address of the approve msg>, <proposed message ID>,
 	// <proposer address>, <new signer>, <whether the number of required signers should be increased>
-	MsigAddApprove(context.Context, []byte, address.Address, address.Address, uint64, address.Address, address.Address, bool) (cid.Cid, error) //perm:sign
+	MsigAddApprove(context.Context, address.Address, address.Address, uint64, address.Address, address.Address, bool) (cid.Cid, error) //perm:sign
 	// MsigAddCancel cancels a previously proposed AddSigner message
 	// It takes the following params: <multisig address>, <sender address of the cancel msg>, <proposed message ID>,
 	// <new signer>, <whether the number of required signers should be increased>
-	MsigAddCancel(context.Context, []byte, address.Address, address.Address, uint64, address.Address, bool) (cid.Cid, error) //perm:sign
+	MsigAddCancel(context.Context, address.Address, address.Address, uint64, address.Address, bool) (cid.Cid, error) //perm:sign
 	// MsigSwapPropose proposes swapping 2 signers in the multisig
 	// It takes the following params: <multisig address>, <sender address of the propose msg>,
 	// <old signer>, <new signer>
-	MsigSwapPropose(context.Context, []byte, address.Address, address.Address, address.Address, address.Address) (cid.Cid, error) //perm:sign
+	MsigSwapPropose(context.Context, address.Address, address.Address, address.Address, address.Address) (cid.Cid, error) //perm:sign
 	// MsigSwapApprove approves a previously proposed SwapSigner
 	// It takes the following params: <multisig address>, <sender address of the approve msg>, <proposed message ID>,
 	// <proposer address>, <old signer>, <new signer>
-	MsigSwapApprove(context.Context, []byte, address.Address, address.Address, uint64, address.Address, address.Address, address.Address) (cid.Cid, error) //perm:sign
+	MsigSwapApprove(context.Context, address.Address, address.Address, uint64, address.Address, address.Address, address.Address) (cid.Cid, error) //perm:sign
 	// MsigSwapCancel cancels a previously proposed SwapSigner message
 	// It takes the following params: <multisig address>, <sender address of the cancel msg>, <proposed message ID>,
 	// <old signer>, <new signer>
-	MsigSwapCancel(context.Context, []byte, address.Address, address.Address, uint64, address.Address, address.Address) (cid.Cid, error) //perm:sign
+	MsigSwapCancel(context.Context, address.Address, address.Address, uint64, address.Address, address.Address) (cid.Cid, error) //perm:sign
 
 	// MsigRemoveSigner proposes the removal of a signer from the multisig.
 	// It accepts the multisig to make the change on, the proposer address to
 	// send the message from, the address to be removed, and a boolean
 	// indicating whether or not the signing threshold should be lowered by one
 	// along with the address removal.
-	MsigRemoveSigner(ctx context.Context, auth []byte, msig address.Address, proposer address.Address, toRemove address.Address, decrease bool) (cid.Cid, error) //perm:sign
+	MsigRemoveSigner(ctx context.Context, msig address.Address, proposer address.Address, toRemove address.Address, decrease bool) (cid.Cid, error) //perm:sign
 
 	// MarketAddBalance adds funds to the market actor
 	MarketAddBalance(ctx context.Context, wallet, addr address.Address, amt types.BigInt) (cid.Cid, error) //perm:sign

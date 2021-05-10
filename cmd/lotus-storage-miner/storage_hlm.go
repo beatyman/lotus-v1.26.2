@@ -146,6 +146,16 @@ var addHLMStorageCmd = &cli.Command{
 			Usage: "mount opt, format should be \"-o ...\"",
 			Value: "",
 		},
+		&cli.StringFlag{
+			Name:  "mount-auth",
+			Usage: "mount auth, format should be a token",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "mount-auth-uri",
+			Usage: "mount auth uri, format should be \"ip:port\"",
+			Value: "",
+		},
 		&cli.Int64Flag{
 			Name:  "max-size",
 			Usage: "storage max size, in byte",
@@ -179,13 +189,30 @@ var addHLMStorageCmd = &cli.Command{
 		mountType := cctx.String("mount-type")
 		mountOpt := cctx.String("mount-opt")
 		mountSignalUri := cctx.String("mount-signal-uri")
-		if len(mountSignalUri) == 0 {
-			return errors.New("need mount-signal-uri")
-		}
 		mountTransfUri := cctx.String("mount-transf-uri")
-		if len(mountTransfUri) == 0 {
-			mountTransfUri = mountSignalUri
+
+		mountAuthUri := cctx.String("mount-auth-uri")
+		mountAuth := cctx.String("mount-auth")
+		switch mountType {
+		case database.MOUNT_TYPE_HLM:
+			if len(mountSignalUri) == 0 {
+				return errors.New("need mount-signal-uri")
+			}
+			if len(mountTransfUri) == 0 {
+				return errors.New("need mount-transf-uri")
+			}
+			if len(mountAuthUri) == 0 {
+				return errors.New("need mount-auth-uri")
+			}
+		default:
+			if len(mountSignalUri) == 0 {
+				return errors.New("need mount-signal-uri")
+			}
+			if len(mountTransfUri) == 0 {
+				mountTransfUri = mountSignalUri
+			}
 		}
+
 		mountDir := cctx.String("mount-dir")
 		if len(mountDir) == 0 {
 			return errors.New("need mount-dir")
@@ -205,18 +232,22 @@ var addHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		return nodeApi.AddHLMStorage(ctx, &database.StorageInfo{
-			Kind:           kind,
-			MountType:      mountType,
-			MountSignalUri: mountSignalUri,
-			MountTransfUri: mountTransfUri,
-			MountDir:       mountDir,
-			MountOpt:       mountOpt,
-			MaxSize:        maxSize,
-			KeepSize:       keepSize,
-			SectorSize:     sectorSize,
-			MaxWork:        maxWork,
-			Version:        time.Now().UnixNano(),
+		return nodeApi.AddHLMStorage(ctx, &database.StorageAuth{
+			StorageInfo: database.StorageInfo{
+				Kind:           kind,
+				MountType:      mountType,
+				MountSignalUri: mountSignalUri,
+				MountTransfUri: mountTransfUri,
+				MountDir:       mountDir,
+				MountOpt:       mountOpt,
+				MountAuthUri:   mountAuthUri,
+				MaxSize:        maxSize,
+				KeepSize:       keepSize,
+				SectorSize:     sectorSize,
+				MaxWork:        maxWork,
+				Version:        time.Now().UnixNano(),
+			},
+			MountAuth: mountAuth,
 		})
 	},
 }
@@ -330,18 +361,23 @@ var replaceHLMStorageCmd = &cli.Command{
 			Usage: "id of storage",
 		},
 		&cli.StringFlag{
+			Name:  "mount-type",
+			Usage: "mount type, like nfs, empty to keep the origin value",
+			Value: "",
+		},
+		&cli.StringFlag{
 			Name:  "mount-signal-uri",
-			Usage: "uri for mount signal channel, net uri or local uri who can mount",
+			Usage: "uri for mount signal uri, net uri or local uri who can mount",
 			Value: "",
 		},
 		&cli.StringFlag{
 			Name:  "mount-transf-uri",
-			Usage: "uri for mount signal channel, net uri or local uri who can mount, empty should same as mount-signal-uri",
+			Usage: "uri for mount transfer uri, net uri or local uri who can mount, empty should same as mount-signal-uri",
 			Value: "",
 		},
 		&cli.StringFlag{
-			Name:  "mount-type",
-			Usage: "mount type, like nfs, empty to keep the origin value",
+			Name:  "mount-auth-uri",
+			Usage: "uri for mount auth uri, net uri or local uri who can mount, empty should keep the old one",
 			Value: "",
 		},
 		&cli.StringFlag{
@@ -349,19 +385,16 @@ var replaceHLMStorageCmd = &cli.Command{
 			Usage: "mount opt, format should be \"-o ...\", empty to keep the origin value",
 			Value: "",
 		},
+		&cli.StringFlag{
+			Name:  "mount-auth",
+			Usage: "mount auth, format should be \"-o ...\", empty to keep the origin value",
+			Value: "",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		storageId := cctx.Int64("storage-id")
 		if storageId <= 0 {
 			return errors.New("need input storage-id>0")
-		}
-		mountSignalUri := cctx.String("mount-signal-uri")
-		if len(mountSignalUri) == 0 {
-			return errors.New("need mount-signal-uri")
-		}
-		mountTransfUri := cctx.String("mount-transf-uri")
-		if len(mountTransfUri) == 0 {
-			mountTransfUri = mountSignalUri
 		}
 
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
@@ -382,9 +415,35 @@ var replaceHLMStorageCmd = &cli.Command{
 		if len(mountOpt) > 0 {
 			info.MountOpt = mountOpt
 		}
-		info.MountSignalUri = mountSignalUri
-		info.MountTransfUri = mountTransfUri
-		return nodeApi.ReplaceHLMStorage(ctx, info)
+		mountAuth := cctx.String("mount-auth")
+		mountSignalUri := cctx.String("mount-signal-uri")
+		mountTransfUri := cctx.String("mount-transf-uri")
+		mountAuthUri := cctx.String("mount-auth-uri")
+		switch mountType {
+		case database.MOUNT_TYPE_HLM:
+			if len(mountSignalUri) == 0 {
+				return errors.New("need mount-signal-uri")
+			}
+			if len(mountTransfUri) == 0 {
+				return errors.New("need mount-transf-uri")
+			}
+			if len(mountAuthUri) == 0 {
+				return errors.New("need mount-auth-uri")
+			}
+			info.MountSignalUri = mountSignalUri
+			info.MountTransfUri = mountTransfUri
+			info.MountAuthUri = mountAuthUri
+		default:
+			if len(mountSignalUri) == 0 {
+				return errors.New("need mount-signal-uri")
+			}
+			if len(mountTransfUri) == 0 {
+				mountTransfUri = mountSignalUri
+			}
+			info.MountSignalUri = mountSignalUri
+			info.MountTransfUri = mountTransfUri
+		}
+		return nodeApi.ReplaceHLMStorage(ctx, &database.StorageAuth{StorageInfo: *info, MountAuth: mountAuth})
 	},
 }
 
@@ -449,11 +508,6 @@ var statusHLMStorageCmd = &cli.Command{
 			Usage: "output the normal sector message",
 			Value: false,
 		},
-		&cli.BoolFlag{
-			Name:  "origin",
-			Usage: "get the storage status when true",
-			Value: false,
-		},
 		&cli.Int64Flag{
 			Name:  "storage-id",
 			Usage: "storage ID",
@@ -480,7 +534,7 @@ var statusHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		stats, err := nodeApi.StatusHLMStorage(ctx, storageId, cctx.Bool("origin"), time.Duration(timeout)*time.Second)
+		stats, err := nodeApi.StatusHLMStorage(ctx, storageId, time.Duration(timeout)*time.Second)
 		if err != nil {
 			return err
 		}

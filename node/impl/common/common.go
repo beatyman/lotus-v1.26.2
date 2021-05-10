@@ -26,7 +26,6 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	apitypes "github.com/filecoin-project/lotus/api/types"
 	"github.com/filecoin-project/lotus/build"
-	mauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/lp2p"
 )
@@ -35,6 +34,8 @@ var session = uuid.New()
 
 type CommonAPI struct {
 	fx.In
+
+	WorkerAPISecret *dtypes.WorkerAPIAlg
 
 	APISecret    *dtypes.APIAlg
 	RawHost      lp2p.RawHost
@@ -50,13 +51,6 @@ type jwtPayload struct {
 	Allow []auth.Permission
 }
 
-func (n *CommonAPI) ReloadHlmAuth(ctx context.Context) error {
-	return mauth.LoadHlmAuth()
-}
-
-func (n *CommonAPI) IsHlmAuthOn(ctx context.Context) (bool, error) {
-	return mauth.IsHlmAuthOn(), nil
-}
 func (a *CommonAPI) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 	var payload jwtPayload
 	if _, err := jwt.Verify([]byte(token), (*jwt.HMACSHA)(a.APISecret), &payload); err != nil {
@@ -140,21 +134,12 @@ func (a *CommonAPI) NetPeerInfo(_ context.Context, p peer.ID) (*api.ExtendedPeer
 	return info, nil
 }
 
-func (a *CommonAPI) NetConnect(ctx context.Context, p peer.AddrInfo, protect bool) error {
+func (a *CommonAPI) NetConnect(ctx context.Context, p peer.AddrInfo) error {
 	if swrm, ok := a.Host.Network().(*swarm.Swarm); ok {
 		swrm.Backoff().Clear(p.ID)
 	}
 
-	if err := a.Host.Connect(ctx, p); err != nil {
-		return err
-	}
-	mgr := a.Host.ConnManager()
-	if protect {
-		mgr.Protect(p.ID, "manually")
-	} else {
-		mgr.Unprotect(p.ID, "manually")
-	}
-	return nil
+	return a.Host.Connect(ctx, p)
 }
 
 func (a *CommonAPI) NetAddrsListen(context.Context) (peer.AddrInfo, error) {

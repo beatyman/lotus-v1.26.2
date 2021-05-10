@@ -7,6 +7,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/filecoin-project/lotus/api/v1api"
@@ -38,7 +39,7 @@ import (
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/lib/fileserver"
+	nauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/gwaylib/errors"
 )
 
@@ -147,6 +148,9 @@ var runCmd = &cli.Command{
 		// init storage database
 		database.InitDB(minerRepoPath)
 		log.Info("Mount all storage")
+		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
+			return errors.As(err)
+		}
 		// mount nfs storage node
 		if err := database.MountAllStorage(false); err != nil {
 			return errors.As(err)
@@ -195,7 +199,7 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("getting full node libp2p address: %w", err)
 		}
 
-		if err := minerapi.NetConnect(ctx, remoteAddrs, true); err != nil {
+		if err := minerapi.NetConnect(ctx, remoteAddrs); err != nil {
 			return xerrors.Errorf("connecting to full node (libp2p): %w", err)
 		}
 
@@ -213,7 +217,6 @@ var runCmd = &cli.Command{
 
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)
-		mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(minerRepoPath).FileHttpServer)
 		mux.Handle("/debug/metrics", metrics.Exporter())
 		mux.PathPrefix("/").Handler(http.DefaultServeMux) // pprof
 
@@ -230,6 +233,12 @@ var runCmd = &cli.Command{
 			},
 		}
 
+		// open this rpc for worker.
+		scSrv, err := listenSchedulerApi(cctx, r, minerapi.(*impl.StorageMinerAPI))
+		if err != nil {
+			return errors.As(err)
+		}
+
 		sigChan := make(chan os.Signal, 2)
 		go func() {
 			select {
@@ -243,16 +252,31 @@ var runCmd = &cli.Command{
 			if err := stop(context.TODO()); err != nil {
 				log.Errorf("graceful shutting down failed: %s", err)
 			}
+			if err := scSrv.Shutdown(ctx); err != nil {
+				log.Errorf("shutting down scheduler server failed: %s", err)
+			}
 			if err := srv.Shutdown(context.TODO()); err != nil {
 				log.Errorf("shutting down RPC server failed: %s", err)
 			}
 			log.Warn("Graceful shutdown successful")
+		}()
+		go func() {
+			if err := scSrv.Serve(); err != nil {
+				log.Fatal(err)
+			}
 		}()
 		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
 		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
 			report.SetReportUrl(reportUrl)
 		}
-		return srv.Serve(manet.NetListener(lst))
+
+		log.Info("rebuild tls cert automatic")
+		certPath := filepath.Join(minerRepoPath, "miner_crt.pem")
+		keyPath := filepath.Join(minerRepoPath, "miner_key.pem")
+		if err := nauth.CreateTLSCert(certPath, keyPath); err != nil {
+			return errors.As(err)
+		}
+		return srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
 	},
 }

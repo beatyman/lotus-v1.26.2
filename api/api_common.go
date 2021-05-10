@@ -15,21 +15,28 @@ import (
 	apitypes "github.com/filecoin-project/lotus/api/types"
 )
 
+//                       MODIFYING THE API INTERFACE
+//
+// When adding / changing methods in this file:
+// * Do the change here
+// * Adjust implementation in `node/impl/`
+// * Run `make gen` - this will:
+//  * Generate proxy structs
+//  * Generate mocks
+//  * Generate markdown docs
+//  * Generate openrpc blobs
+
 type Common interface {
 	// MethodGroup: Auth
 
 	AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) //perm:read
 	AuthNew(ctx context.Context, perms []auth.Permission) ([]byte, error)    //perm:admin
 
-	// Reload the auth key
-	ReloadHlmAuth(context.Context) error
-	IsHlmAuthOn(context.Context) (bool, error)
-
 	// MethodGroup: Net
 
 	NetConnectedness(context.Context, peer.ID) (network.Connectedness, error) //perm:read
 	NetPeers(context.Context) ([]peer.AddrInfo, error)                        //perm:read
-	NetConnect(context.Context, peer.AddrInfo, bool) error                    //perm:write
+	NetConnect(context.Context, peer.AddrInfo) error                          //perm:write
 	NetAddrsListen(context.Context) (peer.AddrInfo, error)                    //perm:read
 	NetDisconnect(context.Context, peer.ID) error                             //perm:write
 	NetFindPeer(context.Context, peer.ID) (peer.AddrInfo, error)              //perm:read

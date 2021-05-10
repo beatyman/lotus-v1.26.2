@@ -19,7 +19,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var sectorsCmd = &cli.Command{
@@ -154,7 +153,7 @@ var terminateSectorCmd = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := nodeApi.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+		smsg, err := nodeApi.MpoolPushMessage(ctx, &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: miner.Methods.TerminateSectors,
@@ -286,7 +285,7 @@ var terminateSectorPenaltyEstimationCmd = &cli.Command{
 
 		//TODO: 4667 add an option to give a more precise estimation with pending termination penalty excluded
 
-		invocResult, err := nodeApi.StateCall(ctx, msg, types.TipSetKey{})
+		invocResult, err := nodeApi.StateCall(ctx, msg, types.EmptyTSK)
 		if err != nil {
 			return xerrors.Errorf("fail to state call: %w", err)
 		}

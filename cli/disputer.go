@@ -24,7 +24,6 @@ import (
 
 	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/chain/store"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/urfave/cli/v2"
 )
 
@@ -123,7 +122,7 @@ var disputerMsgCmd = &cli.Command{
 				return err
 			}
 
-			sm, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), dmsg, mss)
+			sm, err := api.MpoolPushMessage(ctx, dmsg, mss)
 			if err != nil {
 				return err
 			}
@@ -268,7 +267,7 @@ var disputerStartCmd = &cli.Command{
 			// TODO: Parallelizeable / can be integrated into the previous deadline-iterating for loop
 			for _, dpmsg := range dpmsgs {
 				disputeLog.Infow("disputing a PoSt", "miner", dpmsg.To)
-				m, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), dpmsg, mss)
+				m, err := api.MpoolPushMessage(ctx, dpmsg, mss)
 				if err != nil {
 					disputeLog.Errorw("failed to dispute post message", "err", err.Error(), "miner", dpmsg.To)
 				} else {

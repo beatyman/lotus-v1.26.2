@@ -13,6 +13,7 @@ import (
 
 	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
 
+	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/gen/slashfilter"
 
 	"github.com/filecoin-project/go-address"
@@ -247,7 +248,7 @@ func (m *Miner) mine(ctx context.Context) {
 			base := prebase
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			now := time.Now()
-			delay := (time.Duration(build.PropagationDelaySecs*3) * time.Second) - now.Sub(nextRound)
+			delay := (time.Duration(build.PropagationDelaySecs*5/2) * time.Second) - now.Sub(nextRound)
 			log.Infof("Waiting PropagationDelay time: %s", delay)
 			if delay > 0 && now.Sub(nextRound) > 0 {
 				time.Sleep(delay + (time.Second / 2)) // offset 500ms
@@ -448,9 +449,25 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
-		log.Info("No mbi")
+		log.Warnf("mineOne: unexpectedly nil MiningBaseInfo for round %d, off tipset %d/%s", round, base.TipSet.Height(), base.TipSet.Key().String())
 		return nil, nil
 	}
+
+	// always write out a log from this point out
+	var winner *types.ElectionProof
+	defer func() {
+		log.Infow(
+			"completed mineOne",
+			"forRound", int64(round),
+			"baseEpoch", int64(base.TipSet.Height()),
+			"lookbackEpochs", int64(policy.ChainFinality), // hardcoded as it is unlikely to change again: https://github.com/filecoin-project/lotus/blob/v1.8.0/chain/actors/policy/policy.go#L180-L186
+			"networkPowerAtLookback", mbi.NetworkPower.String(),
+			"minerPowerAtLookback", mbi.MinerPower.String(),
+			"isEligible", mbi.EligibleForMining,
+			"isWinner", (winner != nil),
+		)
+	}()
+
 	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
 		log.Info("No EligibleForMining")
@@ -487,7 +504,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("scratching ticket failed: %w", err)
 	}
 
-	winner, err := gen.IsRoundWinner(ctx, base.TipSet, round, m.address, rbase, mbi, m.api)
+	winner, err = gen.IsRoundWinner(ctx, base.TipSet, round, m.address, rbase, mbi, m.api)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to check if we win next round: %w", err)
 	}

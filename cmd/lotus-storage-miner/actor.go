@@ -27,7 +27,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var actorCmd = &cli.Command{
@@ -118,7 +117,7 @@ var actorSetAddrsCmd = &cli.Command{
 
 		gasLimit := cctx.Int64("gas-limit")
 
-		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
 			To:       maddr,
 			From:     minfo.Worker,
 			Value:    types.NewInt(0),
@@ -183,7 +182,7 @@ var actorSetPeeridCmd = &cli.Command{
 
 		gasLimit := cctx.Int64("gas-limit")
 
-		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
 			To:       maddr,
 			From:     minfo.Worker,
 			Value:    types.NewInt(0),
@@ -285,7 +284,7 @@ var actorWithdrawCmd = &cli.Command{
 			if err != nil {
 				return err
 			}
-			sm, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), sAddr, msg)
+			sm, err := api.WalletSignMessage(ctx, sAddr, msg)
 			if err != nil {
 				return err
 			}
@@ -296,7 +295,7 @@ var actorWithdrawCmd = &cli.Command{
 			}
 			smsg = sm
 		} else {
-			sm, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+			sm, err := api.MpoolPushMessage(ctx, msg, nil)
 			if err != nil {
 				return err
 			}
@@ -391,7 +390,7 @@ var actorRepayDebtCmd = &cli.Command{
 			return xerrors.Errorf("sender isn't a controller of miner: %s", fromId)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
 			To:     maddr,
 			From:   fromId,
 			Value:  amount,
@@ -667,7 +666,7 @@ var actorControlSet = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: miner.Methods.ChangeWorkerAddress,
@@ -759,7 +758,7 @@ var actorSetOwnerCmd = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
 			From:   fromAddrId,
 			To:     maddr,
 			Method: miner.Methods.ChangeOwnerAddress,
@@ -865,7 +864,7 @@ var actorProposeChangeWorker = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: miner.Methods.ChangeWorkerAddress,
@@ -972,7 +971,7 @@ var actorConfirmChangeWorker = &cli.Command{
 			return nil
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+		smsg, err := api.MpoolPushMessage(ctx, &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: miner.Methods.ConfirmUpdateWorkerKey,

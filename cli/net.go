@@ -19,9 +19,10 @@ import (
 	"github.com/filecoin-project/go-address"
 
 	atypes "github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/addrutil"
+
+	"github.com/filecoin-project/lotus/build"
 )
 
 var NetCmd = &cli.Command{
@@ -182,11 +183,6 @@ var NetConnect = &cli.Command{
 	ArgsUsage: "[peerMultiaddr|minerActorAddress]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
-			Name:  "protect",
-			Value: false,
-			Usage: "protect the libp2p connection",
-		},
-		&cli.BoolFlag{
 			Name:  "bootstrap",
 			Value: false,
 			Usage: "Also connect bootstrap",
@@ -251,7 +247,6 @@ var NetConnect = &cli.Command{
 			allPis = append(allPis, pis...)
 		}
 
-		protect := cctx.Bool("protect")
 		done := make(chan string, len(allPis))
 		for _, p := range allPis {
 			go func(pi peer.AddrInfo) {
@@ -260,7 +255,7 @@ var NetConnect = &cli.Command{
 					done <- result
 				}()
 				result += fmt.Sprintf("connect %s: ", pi.ID.Pretty())
-				err := api.NetConnect(ctx, pi, protect)
+				err := api.NetConnect(ctx, pi)
 				if err != nil {
 					result += fmt.Sprintf("failure:%s", err.Error())
 					return

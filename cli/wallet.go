@@ -19,7 +19,6 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var walletCmd = &cli.Command{
@@ -275,7 +274,7 @@ var walletExport = &cli.Command{
 			return err
 		}
 
-		ki, err := api.WalletExport(ctx, auth.GetHlmAuth(), addr)
+		ki, err := api.WalletExport(ctx, addr)
 		if err != nil {
 			return err
 		}
@@ -415,7 +414,7 @@ var walletSign = &cli.Command{
 			return err
 		}
 
-		sig, err := api.WalletSign(ctx, auth.GetHlmAuth(), addr, msg)
+		sig, err := api.WalletSign(ctx, addr, msg)
 
 		if err != nil {
 			return err
@@ -501,7 +500,7 @@ var walletDelete = &cli.Command{
 			return err
 		}
 
-		return api.WalletDelete(ctx, auth.GetHlmAuth(), addr)
+		return api.WalletDelete(ctx, addr)
 	},
 }
 

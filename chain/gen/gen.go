@@ -3,6 +3,7 @@ package gen
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -42,7 +43,6 @@ import (
 	"github.com/filecoin-project/lotus/genesis"
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/lib/sigs"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/repo"
 )
 
@@ -364,8 +364,8 @@ func (cg *ChainGen) nextBlockProof(ctx context.Context, pts *types.TipSet, m add
 		return nil, nil, nil, xerrors.Errorf("get miner worker: %w", err)
 	}
 
-	sf := func(ctx context.Context, auth []byte, a address.Address, i []byte) (*crypto.Signature, error) {
-		return cg.w.WalletSign(ctx, auth, a, i, api.MsgMeta{
+	sf := func(ctx context.Context, a address.Address, i []byte) (*crypto.Signature, error) {
+		return cg.w.WalletSign(ctx, a, i, api.MsgMeta{
 			Type: api.MTUnknown,
 		})
 	}
@@ -529,7 +529,7 @@ func getRandomMessages(cg *ChainGen) ([]*types.SignedMessage, error) {
 			GasPremium: types.NewInt(0),
 		}
 
-		sig, err := cg.w.WalletSign(context.TODO(), auth.GetHlmAuth(), cg.banker, msg.Cid().Bytes(), api.MsgMeta{
+		sig, err := cg.w.WalletSign(context.TODO(), cg.banker, msg.Cid().Bytes(), api.MsgMeta{
 			Type: api.MTUnknown, // testing
 		})
 		if err != nil {
@@ -558,7 +558,7 @@ type MiningCheckAPI interface {
 
 	MinerGetBaseInfo(context.Context, address.Address, abi.ChainEpoch, types.TipSetKey) (*api.MiningBaseInfo, error)
 
-	WalletSign(context.Context, []byte, address.Address, []byte) (*crypto.Signature, error)
+	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
 }
 
 type mca struct {
@@ -590,8 +590,8 @@ func (mca mca) MinerGetBaseInfo(ctx context.Context, maddr address.Address, epoc
 	return stmgr.MinerGetBaseInfo(ctx, mca.sm, mca.bcn, tsk, epoch, maddr, mca.pv)
 }
 
-func (mca mca) WalletSign(ctx context.Context, auth []byte, a address.Address, v []byte) (*crypto.Signature, error) {
-	return mca.w.WalletSign(ctx, auth, a, v, api.MsgMeta{
+func (mca mca) WalletSign(ctx context.Context, a address.Address, v []byte) (*crypto.Signature, error) {
+	return mca.w.WalletSign(ctx, a, v, api.MsgMeta{
 		Type: api.MTUnknown,
 	})
 }
@@ -610,6 +610,8 @@ func (wpp *wppProvider) GenerateCandidates(ctx context.Context, _ abi.PoStRandom
 func (wpp *wppProvider) ComputeProof(context.Context, []proof2.SectorInfo, abi.PoStRandomness) ([]proof2.PoStProof, error) {
 	return ValidWpostForTesting, nil
 }
+
+var b64 = base64.URLEncoding.WithPadding(base64.NoPadding)
 
 func IsRoundWinner(ctx context.Context, ts *types.TipSet, round abi.ChainEpoch,
 	miner address.Address, brand types.BeaconEntry, mbi *api.MiningBaseInfo, a MiningCheckAPI) (*types.ElectionProof, error) {
@@ -632,6 +634,15 @@ func IsRoundWinner(ctx context.Context, ts *types.TipSet, round abi.ChainEpoch,
 	ep := &types.ElectionProof{VRFProof: vrfout}
 	j := ep.ComputeWinCount(mbi.MinerPower, mbi.NetworkPower)
 	ep.WinCount = j
+
+	log.Infow("completed winAttemptVRF",
+		"beaconRound", brand.Round,
+		"beaconDataB64", b64.EncodeToString(brand.Data),
+		"electionRandB64", b64.EncodeToString(electionRand),
+		"vrfB64", b64.EncodeToString(vrfout),
+		"winCount", j,
+	)
+
 	if j < 1 {
 		return nil, nil
 	}
@@ -639,7 +650,7 @@ func IsRoundWinner(ctx context.Context, ts *types.TipSet, round abi.ChainEpoch,
 	return ep, nil
 }
 
-type SignFunc func(context.Context, []byte, address.Address, []byte) (*crypto.Signature, error)
+type SignFunc func(context.Context, address.Address, []byte) (*crypto.Signature, error)
 
 func VerifyVRF(ctx context.Context, worker address.Address, vrfBase, vrfproof []byte) error {
 	_, span := trace.StartSpan(ctx, "VerifyVRF")
@@ -658,7 +669,7 @@ func VerifyVRF(ctx context.Context, worker address.Address, vrfBase, vrfproof []
 }
 
 func ComputeVRF(ctx context.Context, sign SignFunc, worker address.Address, sigInput []byte) ([]byte, error) {
-	sig, err := sign(ctx, auth.GetHlmAuth(), worker, sigInput)
+	sig, err := sign(ctx, worker, sigInput)
 	if err != nil {
 		return nil, err
 	}

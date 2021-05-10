@@ -1,19 +1,24 @@
 package ffiwrapper
 
 import (
+	"context"
 	"encoding/binary"
 	"io"
 	"os"
-	"syscall"
+	"path/filepath"
 
-	"github.com/detailyang/go-fallocate"
 	"golang.org/x/xerrors"
 
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/gwaylib/errors"
 
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+
+	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
+	"github.com/filecoin-project/specs-storage/storage"
 )
 
 const veryLargeRle = 1 << 20
@@ -31,10 +36,10 @@ type partialFile struct {
 	path      string
 	allocated rlepluslazy.RLE
 
-	file *os.File
+	file fsutil.PartialFile
 }
 
-func writeTrailer(maxPieceSize int64, w *os.File, r rlepluslazy.RunIterator) error {
+func writeTrailer(maxPieceSize int64, w fsutil.PartialFile, r rlepluslazy.RunIterator) error {
 	trailer, err := rlepluslazy.EncodeRuns(r, nil)
 	if err != nil {
 		return xerrors.Errorf("encoding trailer: %w", err)
@@ -57,23 +62,48 @@ func writeTrailer(maxPieceSize int64, w *os.File, r rlepluslazy.RunIterator) err
 	return w.Truncate(maxPieceSize + int64(rb) + 4)
 }
 
-func createPartialFile(maxPieceSize abi.PaddedPieceSize, path string) (*partialFile, error) {
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644) // nolint
-	if err != nil {
-		return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+func createUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.SectorRef) (*partialFile, error) {
+	path := sector.UnsealedFile()
+	var f fsutil.PartialFile
+	switch sector.UnsealedStorageType {
+	case database.MOUNT_TYPE_HLM:
+		// loading special storage implement
+		stor, err := database.GetStorage(sector.UnsealedStorageId)
+		if err != nil {
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
+		}
+		sid := sector.SectorId
+		auth := hlmclient.NewAuthClient(stor.MountAuthUri, stor.MountAuth)
+		ctx := context.TODO()
+		token, err := auth.NewFileToken(ctx, sid)
+		if err != nil {
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
+		}
+		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, string(token), os.O_RDWR|os.O_CREATE)
+	default:
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return nil, xerrors.Errorf("creating file '%s': %w", path, err)
+		}
+		file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644) // nolint
+		if err != nil {
+			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+		}
+		f = file
 	}
 
-	err = func() error {
-		err := fallocate.Fallocate(f, 0, int64(maxPieceSize))
-		if errno, ok := err.(syscall.Errno); ok {
-			if errno == syscall.EOPNOTSUPP || errno == syscall.ENOSYS {
-				log.Warnf("could not allocated space, ignoring: %v", errno)
-				err = nil // log and ignore
-			}
-		}
-		if err != nil {
-			return xerrors.Errorf("fallocate '%s': %w", path, err)
-		}
+	err := func() error {
+		//err := fallocate.Fallocate(f, 0, int64(maxPieceSize))
+		//if errno, ok := err.(syscall.Errno); ok {
+		//	if errno == syscall.EOPNOTSUPP || errno == syscall.ENOSYS {
+		//		log.Warnf("could not allocated space, ignoring: %v", errno)
+		//		err = nil // log and ignore
+		//	}
+		//}
+		//if err != nil {
+		//	return xerrors.Errorf("fallocate '%s': %w", path, err)
+		//}
 
 		if err := writeTrailer(int64(maxPieceSize), f, &rlepluslazy.RunSliceIterator{}); err != nil {
 			return xerrors.Errorf("writing trailer: %w", err)
@@ -89,17 +119,44 @@ func createPartialFile(maxPieceSize abi.PaddedPieceSize, path string) (*partialF
 		return nil, xerrors.Errorf("close empty partial file: %w", err)
 	}
 
-	return openPartialFile(maxPieceSize, path)
+	return openUnsealedPartialFile(maxPieceSize, sector)
 }
 
-func openPartialFile(maxPieceSize abi.PaddedPieceSize, path string) (*partialFile, error) {
-	f, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint
-	if err != nil {
-		return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+func openUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.SectorRef) (*partialFile, error) {
+	path := sector.UnsealedFile()
+	var f fsutil.PartialFile
+	switch sector.UnsealedStorageType {
+	case database.MOUNT_TYPE_HLM:
+		// loading special storage implement
+		stor, err := database.GetStorage(sector.UnsealedStorageId)
+		if err != nil {
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
+		}
+		sid := sector.SectorId
+		auth := hlmclient.NewAuthClient(stor.MountAuthUri, stor.MountAuth)
+		ctx := context.TODO()
+		token, err := auth.NewFileToken(ctx, sid)
+		if err != nil {
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
+		}
+		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, string(token), os.O_RDWR)
+		// need the file has exist.
+		if _, err := f.Stat(); err != nil {
+			log.Warn(errors.As(err))
+			return nil, xerrors.Errorf("openning partial file '%s': %w", path, errors.As(err).Code())
+		}
+	default:
+		osfile, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint
+		if err != nil {
+			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+		}
+		f = osfile
 	}
 
 	var rle rlepluslazy.RLE
-	err = func() error {
+	err := func() error {
 		st, err := f.Stat()
 		if err != nil {
 			return xerrors.Errorf("stat '%s': %w", path, err)
@@ -246,7 +303,7 @@ func (pf *partialFile) Free(offset storiface.PaddedByteIndex, size abi.PaddedPie
 	return nil
 }
 
-func (pf *partialFile) Reader(offset storiface.PaddedByteIndex, size abi.PaddedPieceSize) (*os.File, error) {
+func (pf *partialFile) Reader(offset storiface.PaddedByteIndex, size abi.PaddedPieceSize) (fsutil.PartialFile, error) {
 	if _, err := pf.file.Seek(int64(offset), io.SeekStart); err != nil {
 		return nil, xerrors.Errorf("seek piece start: %w", err)
 	}

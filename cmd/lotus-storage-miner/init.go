@@ -52,7 +52,6 @@ import (
 	"github.com/filecoin-project/lotus/journal"
 	storageminer "github.com/filecoin-project/lotus/miner"
 	"github.com/filecoin-project/lotus/node/modules"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/filecoin-project/lotus/storage"
@@ -599,7 +598,7 @@ func configureStorageMiner(ctx context.Context, api v1api.FullNode, addr address
 		GasPremium: gasPrice,
 	}
 
-	smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	smsg, err := api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return err
 	}
@@ -647,7 +646,7 @@ func createStorageMiner(ctx context.Context, api v1api.FullNode, peerid peer.ID,
 	// make sure the worker account exists on chain
 	_, err = api.StateLookupID(ctx, worker, types.EmptyTSK)
 	if err != nil {
-		signed, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+		signed, err := api.MpoolPushMessage(ctx, &types.Message{
 			From:  owner,
 			To:    worker,
 			Value: types.NewInt(0),
@@ -709,7 +708,7 @@ func createStorageMiner(ctx context.Context, api v1api.FullNode, peerid peer.ID,
 		GasPremium: gasPrice,
 	}
 
-	signed, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), createStorageMinerMsg, nil)
+	signed, err := api.MpoolPushMessage(ctx, createStorageMinerMsg, nil)
 	if err != nil {
 		return address.Undef, xerrors.Errorf("pushing createMiner message: %w", err)
 	}

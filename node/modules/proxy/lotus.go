@@ -196,12 +196,15 @@ func changeLotusNode(idx int) {
 	return
 }
 
-func startLotusProxy(addr string) (func() error, error) {
+func startLotusProxy(addr string) (string, func() error, error) {
+	if len(addr) == 0 {
+		return "", nil, errors.New("not found addr")
+	}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, errors.As(err, addr)
+		return "", nil, errors.As(err, addr)
 	}
-	log.Infof("start lotus proxy : %s", addr)
+	log.Infof("start lotus proxy : %s", ln.Addr())
 
 	exit := make(chan bool, 1)
 	go func() {
@@ -221,10 +224,12 @@ func startLotusProxy(addr string) (func() error, error) {
 			}
 		}
 	}()
-	return func() error {
-		exit <- true
-		return ln.Close()
-	}, nil
+	arr := strings.Split(ln.Addr().String(), ":")
+	return arr[1],
+		func() error {
+			exit <- true
+			return ln.Close()
+		}, nil
 }
 
 func handleLotus(srcConn net.Conn) {
@@ -290,25 +295,31 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 	r := csv.NewReader(bytes.NewReader(cfgData))
 	r.Comment = '#'
 
-	records, err := r.ReadAll()
+	oriRecords, err := r.ReadAll()
 	if err != nil {
 		return errors.As(err, cfgFile)
 	}
 
+	records := []string{}
+	for _, line := range oriRecords {
+		info := strings.TrimSpace(line[0])
+		if len(info) == 0 {
+			continue
+		}
+		records = append(records, info)
+	}
+
 	if len(records) < 2 {
-		return errors.New("no data or error format").As(len(records), cfgFile)
+		return errors.New("no data or error format").As(len(oriRecords), cfgFile)
 	}
 	log.Infof("load lotus proxy:%s, len:%d", cfgFile, len(records))
 
 	nodes := []*LotusNode{}
 	// the first line is for the proxy addr
 	for i := 1; i < len(records); i++ {
-		if len(records[i]) != 1 {
-			return errors.New("no data or error format").As(records[i])
-		}
 		nodes = append(nodes, &LotusNode{
 			ctx:     ctx,
-			apiInfo: apiaddr.ParseApiInfo(strings.TrimSpace(records[i][0])),
+			apiInfo: apiaddr.ParseApiInfo(records[i]),
 		})
 	}
 
@@ -318,7 +329,7 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 	}
 
 	// TODO: support different token.
-	proxyAddr := apiaddr.ParseApiInfo(strings.TrimSpace(records[0][0]))
+	proxyAddr := apiaddr.ParseApiInfo(strings.TrimSpace(records[0]))
 	token := string(proxyAddr.Token)
 	for i := len(nodes) - 1; i > 0; i-- {
 		if token != string(nodes[i].apiInfo.Token) {
@@ -373,12 +384,13 @@ func reloadNodes(proxyAddr *apiaddr.APIInfo, nodes []*LotusNode) error {
 	// start a new proxy
 	host, err := proxyAddr.Host()
 	if err != nil {
-		return errors.As(err)
+		return errors.As(err, proxyAddr.Addr)
 	}
-	closer, err := startLotusProxy(host)
+	port, closer, err := startLotusProxy(host)
 	if err != nil {
-		return errors.As(err, host)
+		return errors.As(err, proxyAddr.Addr)
 	}
+	proxyAddr.Addr = strings.Replace(proxyAddr.Addr, "/0/", "/"+port+"/", 1)
 	lotusProxyCloser = closer
 	lotusProxyAddr = proxyAddr
 	return nil

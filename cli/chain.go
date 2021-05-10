@@ -37,7 +37,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	types "github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var ChainCmd = &cli.Command{
@@ -724,12 +723,6 @@ var ChainGetCmd = &cli.Command{
 				return err
 			}
 
-			if ts == nil {
-				ts, err = api.ChainHead(ctx)
-				if err != nil {
-					return err
-				}
-			}
 			p = "/ipfs/" + ts.ParentState().String() + p
 			if cctx.Bool("verbose") {
 				fmt.Println(p)
@@ -1218,7 +1211,7 @@ var SlashConsensusFault = &cli.Command{
 			Params: enc,
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+		smsg, err := api.MpoolPushMessage(ctx, msg, nil)
 		if err != nil {
 			return err
 		}

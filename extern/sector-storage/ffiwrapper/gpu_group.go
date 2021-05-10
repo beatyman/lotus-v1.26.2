@@ -3,9 +3,11 @@ package ffiwrapper
 import (
 	"context"
 	"encoding/xml"
+	"os"
 	"os/exec"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/gwaylib/errors"
 )
@@ -99,4 +101,25 @@ func returnGpu(key string) {
 	}
 
 	gpuKeys[key] = false
+}
+
+// TODO: limit call frequency
+func hasGPU(ctx context.Context) bool {
+	gpuLock.Lock()
+	defer gpuLock.Unlock()
+	gpus, err := GroupGpu(ctx)
+	if err != nil {
+		return false
+	}
+	return len(gpus) > 0
+}
+
+func AssertGPU(ctx context.Context) {
+	// assert gpu for release mode
+	// only the develop mode don't need gpu
+	if os.Getenv("BELLMAN_NO_GPU") != "1" && os.Getenv("FIL_PROOFS_GPU_MODE") == "force" && !hasGPU(ctx) {
+		log.Fatalf("os exit by gpu not found(BELLMAN_NO_GPU=%s, FIL_PROOFS_GPU_MODE=%s)", os.Getenv("BELLMAN_NO_GPU"), os.Getenv("FIL_PROOFS_GPU_MODE"))
+		time.Sleep(3e9)
+		os.Exit(-1)
+	}
 }

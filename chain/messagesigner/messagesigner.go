@@ -47,7 +47,7 @@ func NewMessageSigner(wallet api.Wallet, mpool MpoolNonceAPI, ds dtypes.Metadata
 
 // SignMessage increments the nonce for the message From address, and signs
 // the message
-func (ms *MessageSigner) SignMessage(ctx context.Context, auth []byte, msg *types.Message, cb func(*types.SignedMessage) error) (*types.SignedMessage, error) {
+func (ms *MessageSigner) SignMessage(ctx context.Context, msg *types.Message, cb func(*types.SignedMessage) error) (*types.SignedMessage, error) {
 	ms.lk.Lock()
 	defer ms.lk.Unlock()
 
@@ -77,7 +77,7 @@ func (ms *MessageSigner) SignMessage(ctx context.Context, auth []byte, msg *type
 		return nil, xerrors.Errorf("serializing message: %w", err)
 	}
 
-	sig, err := ms.wallet.WalletSign(ctx, auth, msg.From, mb.Cid().Bytes(), api.MsgMeta{
+	sig, err := ms.wallet.WalletSign(ctx, msg.From, mb.Cid().Bytes(), api.MsgMeta{
 		Type:  api.MTChainMsg,
 		Extra: mb.RawData(),
 	})

@@ -12,7 +12,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/market"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/impl/full"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 type MarketAPI struct {
@@ -28,7 +27,7 @@ func (a *MarketAPI) MarketAddBalance(ctx context.Context, wallet, addr address.A
 		return cid.Undef, err
 	}
 
-	smsg, aerr := a.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+	smsg, aerr := a.MpoolPushMessage(ctx, &types.Message{
 		To:     marketactor.Address,
 		From:   wallet,
 		Value:  amt,

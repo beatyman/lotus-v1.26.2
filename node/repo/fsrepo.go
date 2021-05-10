@@ -51,13 +51,14 @@ const (
 	StorageMiner
 	Worker
 	Wallet
+	HlmMinerScheduler
 )
 
 func defConfForType(t RepoType) interface{} {
 	switch t {
 	case FullNode:
 		return config.DefaultFullNode()
-	case StorageMiner:
+	case StorageMiner, HlmMinerScheduler:
 		return config.DefaultStorageMiner()
 	case Worker:
 		return &struct{}{}
@@ -91,6 +92,14 @@ func NewFS(path string) (*FsRepo, error) {
 		path:       path,
 		configPath: filepath.Join(path, fsConfig),
 	}, nil
+}
+
+func (fsr *FsRepo) Path() string {
+	return fsr.path
+}
+
+func (fsr *FsRepo) ConfigPath() string {
+	return fsr.configPath
 }
 
 func (fsr *FsRepo) SetConfigPath(cfgPath string) {

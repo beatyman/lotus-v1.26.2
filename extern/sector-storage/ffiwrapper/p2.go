@@ -44,6 +44,8 @@ func readUnixConn(conn net.Conn) ([]byte, error) {
 }
 
 func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.SectorCids, error) {
+	AssertGPU(ctx)
+
 	args, err := json.Marshal(task)
 	if err != nil {
 		return storage.SectorCids{}, errors.As(err)
@@ -75,7 +77,8 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 		return storage.SectorCids{}, errors.As(err, string(args))
 	}
 	defer func() {
-		cmd.Process.Kill()
+		time.Sleep(3e9)    // wait 3 seconds for exit.
+		cmd.Process.Kill() // TODO: restfull exit.
 		if err := cmd.Wait(); err != nil {
 			log.Error(err)
 		}

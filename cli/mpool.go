@@ -24,18 +24,17 @@ import (
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/config"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var MpoolCmd = &cli.Command{
 	Name:  "mpool",
 	Usage: "Manage message pool",
 	Subcommands: []*cli.Command{
-		// by hlm
+		// implement by hlm
 		mpoolGetCfg,
 		mpoolSetCfg,
 		mpoolFix,
-		// by hlm end
+		// implement by hlm end
 
 		MpoolPending,
 		MpoolClear,
@@ -260,7 +259,7 @@ var mpoolFix = &cli.Command{
 			newMsg.GasLimit = newMsg.GasLimit*rateLimit/10000 + 1
 			gasUsed = types.BigAdd(gasUsed, types.BigMul(newMsg.GasFeeCap, types.NewInt(uint64(newMsg.GasLimit))))
 			if do {
-				smsg, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), newMsg.From, &newMsg)
+				smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
 				if err != nil {
 					return fmt.Errorf("failed to sign message: %w", err)
 				}
@@ -746,7 +745,7 @@ var MpoolReplaceCmd = &cli.Command{
 			return nil
 		}
 
-		smsg, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), msg.From, &msg)
+		smsg, err := api.WalletSignMessage(ctx, msg.From, &msg)
 		if err != nil {
 			return fmt.Errorf("failed to sign message: %w", err)
 		}

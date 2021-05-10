@@ -100,7 +100,7 @@ type storageMinerApi interface {
 	StateNetworkVersion(context.Context, types.TipSetKey) (network.Version, error)
 	StateLookupID(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 
-	MpoolPushMessage(context.Context, []byte, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
+	MpoolPushMessage(context.Context, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
 
 	GasEstimateMessageGas(context.Context, *types.Message, *api.MessageSendSpec, types.TipSetKey) (*types.Message, error)
 	GasEstimateFeeCap(context.Context, *types.Message, int64, types.TipSetKey) (types.BigInt, error)
@@ -118,14 +118,14 @@ type storageMinerApi interface {
 	ChainHasObj(context.Context, cid.Cid) (bool, error)
 	ChainGetTipSet(ctx context.Context, key types.TipSetKey) (*types.TipSet, error)
 
-	WalletSign(context.Context, []byte, address.Address, []byte) (*crypto.Signature, error)
+	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
 	WalletBalance(context.Context, address.Address) (types.BigInt, error)
 	WalletHas(context.Context, address.Address) (bool, error)
 
 	// implememt by hlm
 	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)
 	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
-	WalletSignMessage(context.Context, []byte, address.Address, *types.Message) (*types.SignedMessage, error)
+	WalletSignMessage(context.Context, address.Address, *types.Message) (*types.SignedMessage, error)
 	MpoolPush(context.Context, *types.SignedMessage) (cid.Cid, error)
 }
 

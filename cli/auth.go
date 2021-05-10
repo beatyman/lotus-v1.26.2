@@ -17,8 +17,6 @@ var AuthCmd = &cli.Command{
 	Name:  "auth",
 	Usage: "Manage RPC permissions",
 	Subcommands: []*cli.Command{
-		authReloadHlmAuth,
-
 		AuthCreateAdminToken,
 		AuthApiInfoToken,
 	},
@@ -131,42 +129,6 @@ var AuthApiInfoToken = &cli.Command{
 		// TODO: Log in audit log when it is implemented
 
 		fmt.Printf("%s=%s:%s\n", cliutil.EnvForRepo(t), string(token), ainfo.Addr)
-		return nil
-	},
-}
-
-var authReloadHlmAuth = &cli.Command{
-	Name:  "reload-hlm-auth",
-	Usage: "Reload hlm auth key",
-	Action: func(cctx *cli.Context) error {
-		napi, closer, err := GetAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-
-		ctx := ReqContext(cctx)
-		return napi.ReloadHlmAuth(ctx)
-	},
-}
-
-var authHlmAuthOn = &cli.Command{
-	Name:  "hlm-auth-on",
-	Usage: "show the hlm-auth is it open.",
-	Action: func(cctx *cli.Context) error {
-		napi, closer, err := GetAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-
-		ctx := ReqContext(cctx)
-		on, err := napi.IsHlmAuthOn(ctx)
-		if err != nil {
-			fmt.Println(err.Error())
-		} else {
-			fmt.Println(on)
-		}
 		return nil
 	},
 }

@@ -61,6 +61,6 @@ fi
 if [ -f ./leveldb-tools ]; then
     cp -vrf leveldb-tools $install_path
 fi
-if [ -f ./storage-watch ]; then
-    cp -vrf storage-watch $install_path
+if [ -f ./lotus-storage ]; then
+    cp -vrf lotus-storage $install_path
 fi

@@ -36,7 +36,6 @@ import (
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 func (s *WindowPoStScheduler) failPost(err error, ts *types.TipSet, deadline *dline.Info) {
@@ -229,13 +228,10 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		log.Warn("not found default repo")
 	}
 
-	log.Infof("DEBUG:state miner sectors begin")
-	stateMinerStart := time.Now()
 	sectorInfos, err := s.api.StateMinerSectors(ctx, s.actor, &check, tsk)
 	if err != nil {
 		return bitfield.BitField{}, err
 	}
-	log.Infof("DEBUG:state miner sectors done: %d, took: %s", len(sectorInfos), time.Now().Sub(stateMinerStart))
 
 	sFileNames := []string{}
 	for _, info := range sectorInfos {
@@ -249,7 +245,6 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	if err != nil {
 		return bitfield.BitField{}, errors.As(err)
 	}
-	log.Infof("DEBUG:load sectors file done:%d", len(sFiles))
 
 	sectors := make(map[abi.SectorNumber]struct{})
 	var tocheck []storage.SectorRef
@@ -277,7 +272,6 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		})
 	}
 
-	log.Infof("checkProvable:%d", len(tocheck))
 	all, _, _, err := s.faultTracker.CheckProvable(ctx, tocheck, nil, timeout)
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
@@ -291,7 +285,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		}
 	}
 
-	log.Warnw("Checked sectors", "check", checkNum, "checked", len(tocheck), "good", len(sectors))
+	log.Infow("Checked sectors", "check", checkNum, "checked", len(tocheck), "good", len(sectors))
 
 	sbf := bitfield.New()
 	for s := range sectors {
@@ -374,7 +368,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 		return recoveries, nil, err
 	}
 
-	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)})
+	sm, err := s.api.MpoolPushMessage(ctx, msg, &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)})
 	if err != nil {
 		return recoveries, sm, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
@@ -461,7 +455,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 		return faults, nil, err
 	}
 
-	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, spec)
+	sm, err := s.api.MpoolPushMessage(ctx, msg, spec)
 	if err != nil {
 		return faults, sm, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
@@ -570,7 +564,6 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 	if err != nil {
 		return nil, xerrors.Errorf("getting partitions: %w", err)
 	}
-	log.Infof("DEBUG doPost StateMinerPartitions, index:%d, partions len:%d", di.Index, len(partitions))
 
 	// Split partitions into batches, so as not to exceed the number of sectors
 	// allowed in a single message
@@ -612,12 +605,10 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 					return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
 				}
 
-				log.Infof("DEBUG: checkSectors of partIdx: %d", partIdx)
 				good, err := s.checkSectors(ctx, toProve, ts.Key(), build.GetProvingCheckTimeout())
 				if err != nil {
 					return nil, xerrors.Errorf("checking sectors to skip: %w", err)
 				}
-				log.Infof("DEBUG: checkSectors of partIdx %d done", partIdx)
 
 				good, err = bitfield.SubtractBitField(good, postSkipped)
 				if err != nil {
@@ -676,7 +667,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, append(abi.PoStRandomness{}, rand...))
 			elapsed := time.Since(tsStart)
 
-			log.Infow("computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed)
+			log.Infow("computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand)
 
 			if err == nil {
 				// If we proved nothing, something is very wrong.
@@ -906,7 +897,7 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	}
 
 	// TODO: consider maybe caring about the output
-	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, spec)
+	sm, err := s.api.MpoolPushMessage(ctx, msg, spec)
 
 	if err != nil {
 		return nil, xerrors.Errorf("pushing message to mpool: %w", err)
@@ -950,7 +941,7 @@ func (s *WindowPoStScheduler) setSender(ctx context.Context, msg *types.Message,
 	// estimate
 	minGasFeeMsg := *msg
 
-	minGasFeeMsg.GasPremium, err = s.api.GasEstimateGasPremium(ctx, 5, msg.From, msg.GasLimit, types.TipSetKey{})
+	minGasFeeMsg.GasPremium, err = s.api.GasEstimateGasPremium(ctx, 5, msg.From, msg.GasLimit, types.EmptyTSK)
 	if err != nil {
 		log.Errorf("failed to estimate minimum gas premium: %+v", err)
 		minGasFeeMsg.GasPremium = msg.GasPremium

@@ -542,6 +542,11 @@ func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
 		}
 	}
 
+	if m.Message.Method == 0 {
+		// log the wallet send for audit.
+		log.Warnf("Push balance send :+%v", m.Message)
+	}
+
 	return m.Cid(), nil
 }
 

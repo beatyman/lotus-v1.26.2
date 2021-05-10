@@ -11,7 +11,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
@@ -112,14 +111,6 @@ func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeo
 	return all[0].Used, nil
 }
 
-func (sm *StorageMinerAPI) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).SelectCommit2Service(ctx, sector)
-}
-
-func (sm *StorageMinerAPI) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockGPUService(ctx, workerId, taskKey)
-}
-
 func (sm *StorageMinerAPI) WorkerAddress(ctx context.Context, act address.Address, task types.TipSetKey) (address.Address, error) {
 	mInfo, err := sm.Full.StateMinerInfo(ctx, act, task)
 	if err != nil {
@@ -137,27 +128,14 @@ func (sm *StorageMinerAPI) WorkerStatus(ctx context.Context) (ffiwrapper.WorkerS
 func (sm *StorageMinerAPI) WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).WorkerRemoteStats()
 }
-func (sm *StorageMinerAPI) WorkerQueue(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddWorker(ctx, cfg)
-}
+
 func (sm *StorageMinerAPI) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorking(workerId)
-}
-func (sm *StorageMinerAPI) WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorkingById(sid)
-}
-func (sm *StorageMinerAPI) WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).LockWorker(ctx, workerId, taskKey, memo, sectorState)
-}
-func (sm *StorageMinerAPI) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockWorker(ctx, workerId, taskKey, memo, sectorState)
 }
 func (sm *StorageMinerAPI) WorkerGcLock(ctx context.Context, workerId string) ([]string, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).GcWorker(workerId)
 }
-func (sm *StorageMinerAPI) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskDone(ctx, res)
-}
+
 func (sm *StorageMinerAPI) WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error) {
 	return database.GetWorkerInfo(wid)
 }
@@ -167,28 +145,21 @@ func (sm *StorageMinerAPI) WorkerSearch(ctx context.Context, ip string) ([]datab
 func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disable bool) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableWorker(ctx, wid, disable)
 }
-func (sm *StorageMinerAPI) WorkerAddConn(ctx context.Context, wid string, num int) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddWorkerConn(wid, num)
-}
-func (sm *StorageMinerAPI) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PrepareWorkerConn()
-}
-func (sm *StorageMinerAPI) WorkerPreConnV1(ctx context.Context, skipWid []string) (*database.WorkerInfo, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PrepareWorkerConnV1(skipWid)
-}
-func (sm *StorageMinerAPI) WorkerMinerConn(ctx context.Context) (int, error) {
-	return fileserver.Conns(), nil
-}
+
 func (sm *StorageMinerAPI) VerHLMStorage(ctx context.Context) (int64, error) {
 	return database.StorageMaxVer()
 }
 func (sm *StorageMinerAPI) GetHLMStorage(ctx context.Context, id int64) (*database.StorageInfo, error) {
-	return database.GetStorageInfo(id)
+	info, err := database.GetStorageInfo(id)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	return info, nil
 }
 func (sm *StorageMinerAPI) SearchHLMStorage(ctx context.Context, ip string) ([]database.StorageInfo, error) {
 	return database.SearchStorageInfoBySignalIp(ip)
 }
-func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, info *database.StorageInfo) error {
+func (sm *StorageMinerAPI) AddHLMStorage(ctx context.Context, info *database.StorageAuth) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddStorage(ctx, info)
 }
 func (sm *StorageMinerAPI) DisableHLMStorage(ctx context.Context, id int64, disable bool) error {
@@ -201,26 +172,14 @@ func (sm *StorageMinerAPI) MountHLMStorage(ctx context.Context, id int64) error 
 func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id)
 }
-func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, info *database.StorageInfo) error {
+func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, info *database.StorageAuth) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ReplaceStorage(ctx, info)
 }
 func (sm *StorageMinerAPI) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ScaleStorage(ctx, id, size, work)
 }
-func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, origin bool, timeout time.Duration) ([]database.StorageStatus, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, origin, timeout)
-}
-func (sm *StorageMinerAPI) PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PreStorageNode(sectorId, clientIp, kind)
-}
-func (sm *StorageMinerAPI) CommitStorageNode(ctx context.Context, sectorId string, kind int) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CommitStorageNode(sectorId, kind)
-}
-func (sm *StorageMinerAPI) CancelStorageNode(ctx context.Context, sectorId string, kind int) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CancelStorageNode(sectorId, kind)
-}
-func (sm *StorageMinerAPI) ChecksumStorage(ctx context.Context, ver int64) ([]database.StorageInfo, error) {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ChecksumStorage(ver)
+func (sm *StorageMinerAPI) StatusHLMStorage(ctx context.Context, storageId int64, timeout time.Duration) ([]database.StorageStatus, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).StorageStatus(ctx, storageId, timeout)
 }
 func (c *StorageMinerAPI) GetProvingCheckTimeout(ctx context.Context) (time.Duration, error) {
 	return build.GetProvingCheckTimeout(), nil

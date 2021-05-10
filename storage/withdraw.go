@@ -17,7 +17,6 @@ import (
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/node/config"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/gwaylib/errors"
 
 	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
@@ -27,8 +26,8 @@ import (
 //# auto withdraw configuration
 //IntervalEpoch=6
 //SendToAddr=""
-//WithdrawAmount="500"
-//KeepOwnerAmount="5000"
+//WithdrawAmount="100"
+//KeepOwnerAmount="5"
 type WithdrawConfig struct {
 	IntervalEpoch   int64
 	SendToAddr      string
@@ -100,7 +99,7 @@ func (s *WindowPoStScheduler) fixMpool(ctx context.Context, sm *types.SignedMess
 
 	// gas-limit
 	newMsg.GasLimit = newMsg.GasLimit*rateLimit/10000 + 1
-	smsg, err := s.api.WalletSignMessage(ctx, auth.GetHlmAuth(), newMsg.From, &newMsg)
+	smsg, err := s.api.WalletSignMessage(ctx, newMsg.From, &newMsg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign message: %w", err)
 	}
@@ -227,7 +226,7 @@ func (s *WindowPoStScheduler) doWithdraw(cfg *WithdrawConfig) error {
 		Method: miner.Methods.WithdrawBalance,
 		Params: params,
 	}
-	sm, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	sm, err := api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return errors.As(err, *cfg)
 	}
@@ -236,6 +235,11 @@ func (s *WindowPoStScheduler) doWithdraw(cfg *WithdrawConfig) error {
 	}
 
 	log.Infof("Auto withdraw miner:%s, available:%s, amount:%s, cid:%s", maddr, available, amount, sm.Cid())
+
+	// Trying send the withdraw result after withdraw.
+	if err := s.withdrawSend(ctx, mi.Owner, toAddr, amount, keepAmount); err != nil {
+		return errors.As(err, *cfg)
+	}
 	return nil
 }
 
@@ -256,7 +260,7 @@ func (s *WindowPoStScheduler) withdrawSend(ctx context.Context, fromAddr, toAddr
 		Value:  amount,
 		Params: []byte{},
 	}
-	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	sm, err := s.api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return errors.As(err)
 	}

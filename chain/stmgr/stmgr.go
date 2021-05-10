@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/ipfs/go-cid"
 	cbor "github.com/ipfs/go-ipld-cbor"
@@ -284,33 +283,6 @@ func (sm *StateManager) ExecutionTrace(ctx context.Context, ts *types.TipSet) (c
 type ExecCallback func(cid.Cid, *types.Message, *vm.ApplyRet) error
 
 func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEpoch, pstate cid.Cid, bms []store.BlockMessages, epoch abi.ChainEpoch, r vm.Rand, cb ExecCallback, baseFee abi.TokenAmount, ts *types.TipSet) (cid.Cid, cid.Cid, error) {
-	applyBlocksStart := build.Clock.Now()
-	var (
-		handleStateForksStart = time.Time{}
-		processedMsgsStart    = time.Time{}
-		runCronStart          = time.Time{}
-		flushStart            = time.Time{}
-
-		messageLen = 0
-	)
-	defer func() {
-		applyBlocksEnd := build.Clock.Now()
-		took := applyBlocksEnd.Sub(applyBlocksStart)
-		if took > 1e9 {
-			log.Infow("ApplyBlocks",
-				"took", took,
-				"height", epoch,
-				"newVM", handleStateForksStart.Sub(applyBlocksStart),
-				"handleStateForks", processedMsgsStart.Sub(handleStateForksStart),
-				"processedMsgs", runCronStart.Sub(processedMsgsStart),
-				"bmsLen", len(bms),
-				"messageLen", messageLen,
-				"runCron", flushStart.Sub(runCronStart),
-				"flush", applyBlocksEnd.Sub(flushStart),
-			)
-		}
-	}()
-
 	done := metrics.Timer(ctx, metrics.VMApplyBlocksTotal)
 	defer done()
 
@@ -368,7 +340,6 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		return nil
 	}
 
-	handleStateForksStart = build.Clock.Now()
 	for i := parentEpoch; i < epoch; i++ {
 		if i > parentEpoch {
 			// run cron for null rounds if any
@@ -400,8 +371,6 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		pstate = newState
 	}
 
-	processedMsgsStart = build.Clock.Now()
-
 	partDone()
 	partDone = metrics.Timer(ctx, metrics.VMApplyMessages)
 
@@ -411,9 +380,7 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		penalty := types.NewInt(0)
 		gasReward := big.Zero()
 
-		messageLen += (len(b.BlsMessages) + len(b.SecpkMessages))
 		for _, cm := range append(b.BlsMessages, b.SecpkMessages...) {
-			processStart := build.Clock.Now()
 			m := cm.VMMessage()
 			if _, found := processedMsgs[m.Cid()]; found {
 				continue
@@ -422,7 +389,6 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 			if err != nil {
 				return cid.Undef, cid.Undef, err
 			}
-			applyMessageCbStart := build.Clock.Now()
 
 			receipts = append(receipts, &r.MessageReceipt)
 			gasReward = big.Add(gasReward, r.GasCosts.MinerTip)
@@ -432,16 +398,6 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 				if err := cb(cm.Cid(), m, r); err != nil {
 					return cid.Undef, cid.Undef, err
 				}
-			}
-			processEnd := build.Clock.Now()
-			took := processEnd.Sub(processStart)
-			if took > (5 * 1e8) {
-				log.Infow("processMsg",
-					"took", took,
-					"height", epoch,
-					"applyMessage", applyMessageCbStart.Sub(processStart),
-					"applyMessageCb", processEnd.Sub(applyMessageCbStart),
-				)
 			}
 			processedMsgs[m.Cid()] = struct{}{}
 		}
@@ -482,8 +438,6 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		}
 	}
 
-	runCronStart = build.Clock.Now()
-
 	partDone()
 	partDone = metrics.Timer(ctx, metrics.VMApplyCron)
 
@@ -505,7 +459,6 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 		return cid.Undef, cid.Undef, xerrors.Errorf("failed to build receipts amt: %w", err)
 	}
 
-	flushStart = build.Clock.Now()
 	st, err := vmi.Flush(ctx)
 	if err != nil {
 		return cid.Undef, cid.Undef, xerrors.Errorf("vm flush failed: %w", err)
@@ -884,15 +837,6 @@ func (sm *StateManager) tipsetExecutedMessage(ts *types.TipSet, msg cid.Cid, vmm
 					return pr, m.Cid(), nil
 				}
 
-				// TODO: continue waitting Magik6k fix it.
-				log.Warn(xerrors.Errorf("found message with equal nonce as the one we are looking for (F:%s n %d, TS: %s n%d)", msg, vmm.Nonce, m.Cid(), m.VMMessage().Nonce))
-
-				//pr, err := sm.cs.GetParentReceipt(ts.Blocks()[0], i)
-				//if err != nil {
-				//	return nil, cid.Undef, err
-				//}
-				//return pr, m.Cid(), nil
-
 				// this should be that message
 				return nil, cid.Undef, xerrors.Errorf("found message with equal nonce as the one we are looking for (F:%s n %d, TS: %s n%d)",
 					msg, vmm.Nonce, m.Cid(), m.VMMessage().Nonce)
@@ -910,10 +854,7 @@ func (sm *StateManager) ListAllActors(ctx context.Context, ts *types.TipSet) ([]
 	if ts == nil {
 		ts = sm.cs.GetHeaviestTipSet()
 	}
-	st, _, err := sm.TipSetState(ctx, ts)
-	if err != nil {
-		return nil, err
-	}
+	st := ts.ParentState()
 
 	stateTree, err := sm.StateTree(st)
 	if err != nil {
