@@ -35,7 +35,10 @@ func DeleteSessionFile(key string) error {
 
 func CleanAllSessionFile() error {
 	db := GetDB()
-	if _, err := db.Exec("DELETE FROM file_session"); err != nil {
+	if _, err := db.Exec("DROP TABLE file_session"); err != nil {
+		return errors.As(err)
+	}
+	if _, err := db.Exec(tb_file_session_sql); err != nil {
 		return errors.As(err)
 	}
 	return nil
