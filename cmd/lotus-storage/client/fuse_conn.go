@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	FUSE_CONN_POOL_SIZE_MAX = 15
+	FUSE_CONN_POOL_SIZE_MAX = 30
 )
 
 func init() {
