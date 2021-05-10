@@ -14,7 +14,6 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse/nodefs"
 
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
 
 type FUseClient struct {

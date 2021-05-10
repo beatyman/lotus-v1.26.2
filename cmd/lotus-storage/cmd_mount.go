@@ -15,13 +15,7 @@ import (
 var mountCmd = &cli.Command{
 	Name:  "mount",
 	Usage: "[mountpoint]",
-	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name:  "rw",
-			Usage: "Open the read-write mode",
-			Value: false,
-		},
-	},
+	Flags: []cli.Flag{},
 	Action: func(cctx *cli.Context) error {
 		if !cctx.Args().Present() {
 			return fmt.Errorf("mountpoint not found")
@@ -29,10 +23,6 @@ var mountCmd = &cli.Command{
 		mountPoint := cctx.Args().First()
 
 		authData := GetAuthRO()
-		if cctx.Bool("rw") {
-			authData = GetAuthRW()
-		}
-
 		fuc := client.NewFUseClient(_posixFsApiFlag, authData)
 		if err := fuc.Mount(cctx.Context, mountPoint); err != nil {
 			return errors.As(err)

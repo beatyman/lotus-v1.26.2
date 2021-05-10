@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
 
 func init() {

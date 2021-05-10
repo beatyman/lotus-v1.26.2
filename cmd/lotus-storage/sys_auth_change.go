@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
 
 func init() {
@@ -28,7 +27,7 @@ func changeAuthHandler(w http.ResponseWriter, r *http.Request) error {
 
 	log.Infof("changed auth success from:%s", r.RemoteAddr)
 
-	if err := CleanPath(); err != nil {
+	if err := CleanAllSessionFile(); err != nil {
 		log.Error(errors.As(err))
 	}
 

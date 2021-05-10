@@ -6,29 +6,39 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-func GetPath(key string) (string, string, error) {
+func GetSessionFile(key string) (string, string, string, error) {
 	db := GetDB()
-	var auth, path string
-	if err := db.QueryRow("SELECT auth, path FROM nfs_session WHERE id=?", key).Scan(&auth, &path); err != nil {
+	var user, auth, path string
+	if err := db.QueryRow("SELECT user, auth, path FROM file_session WHERE id=?", key).Scan(&user, &auth, &path); err != nil {
 		if sql.ErrNoRows == err {
-			return "", "", errors.ErrNoData.As(key)
+			return "", "", "", errors.ErrNoData.As(key)
 		}
-		return "", "", errors.As(err)
+		return "", "", "", errors.As(err)
 	}
-	return auth, path, nil
+	return user, auth, path, nil
 }
 
-func AddPath(key string, auth, path string) error {
+func AddSessionFile(key string, user, auth, path string) error {
 	db := GetDB()
-	if _, err := db.Exec("INSERT INTO nfs_session(id,auth,path)VALUES(?,?,?)", key, auth, path); err != nil {
+	if _, err := db.Exec("INSERT INTO file_session(id,user,auth,path)VALUES(?,?,?,?)", key, user, auth, path); err != nil {
 		return errors.As(err, key, path)
 	}
 	return nil
 }
-
-func CleanPath() error {
+func DeleteSessionFile(key string) error {
 	db := GetDB()
-	if _, err := db.Exec("DELETE FROM nfs_session"); err != nil {
+	if _, err := db.Exec("DELETE FROM file_session WHERE id=?", key); err != nil {
+		return errors.As(err, key)
+	}
+	return nil
+}
+
+func CleanAllSessionFile() error {
+	db := GetDB()
+	if _, err := db.Exec("DROP TABLE file_session"); err != nil {
+		return errors.As(err)
+	}
+	if _, err := db.Exec(tb_file_session_sql); err != nil {
 		return errors.As(err)
 	}
 	return nil
