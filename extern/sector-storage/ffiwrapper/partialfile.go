@@ -1,9 +1,8 @@
 package ffiwrapper
 
 import (
-	"crypto/md5"
+	"context"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -71,10 +70,18 @@ func createUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.
 		// loading special storage implement
 		stor, err := database.GetStorage(sector.UnsealedStorageId)
 		if err != nil {
-			return nil, errors.As(err)
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
 		}
 		sid := sector.SectorId
-		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, fmt.Sprintf("%x", md5.Sum([]byte(stor.MountAuth+"write"))), os.O_RDWR|os.O_CREATE)
+		auth := hlmclient.NewAuthClient(stor.MountAuthUri, stor.MountAuth)
+		ctx := context.TODO()
+		token, err := auth.NewFileToken(ctx, sid)
+		if err != nil {
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
+		}
+		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, string(token), os.O_RDWR|os.O_CREATE)
 	default:
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return nil, xerrors.Errorf("creating file '%s': %w", path, err)
@@ -123,14 +130,22 @@ func openUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.Se
 		// loading special storage implement
 		stor, err := database.GetStorage(sector.UnsealedStorageId)
 		if err != nil {
-			return nil, errors.As(err)
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
 		}
 		sid := sector.SectorId
-		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, fmt.Sprintf("%x", md5.Sum([]byte(stor.MountAuth+"write"))), os.O_RDWR)
-
+		auth := hlmclient.NewAuthClient(stor.MountAuthUri, stor.MountAuth)
+		ctx := context.TODO()
+		token, err := auth.NewFileToken(ctx, sid)
+		if err != nil {
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
+		}
+		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, string(token), os.O_RDWR)
 		// need the file has exist.
 		if _, err := f.Stat(); err != nil {
-			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+			log.Warn(errors.As(err))
+			return nil, xerrors.Errorf("openning partial file '%s': %w", path, errors.As(err).Code())
 		}
 	default:
 		osfile, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint

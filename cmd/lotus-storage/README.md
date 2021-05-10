@@ -10,7 +10,9 @@
     - [BasicAuth协议接口](#BasicAuth协议接口)
     - [TokenAuth协议接口](#TokenAuth协议接口)
     - [PosixAuth协议接口](#PosixAuth协议接口)
-- [测试指令](#测试指令)
+- [调用用例](#调用用例)
+    - [环境变量](#环境变量)
+    - [测试指令](#测试指令)
 
 
 ## 前言
@@ -45,6 +47,7 @@ miner需要被视为可信的物理节点，当miner节点不可信时，应及�
 ```
 此为Filecoin的每一个扇区访问安全而设计，即不同扇区每一次会话会有不同的TokenAuth，以确保每一个扇区的操作使用的是唯一密钥。
 当需要操作存储节点上的某个扇区(上传、下载、读取、删除)时，需通过miner获取该扇区的会话授权token，使用完后自行释放，不释放时默认一定时后会自行释放。
+此设计专为大文件传输而设计，小文件请使用PoxixAuth接口。
 ```
 
 ### PosixAuth
@@ -52,6 +55,7 @@ miner需要被视为可信的物理节点，当miner节点不可信时，应及�
 因filecoin本身是基于Posix的文件系统设计，涉及范围较广，不易修改源码，故基于go-fuse开源库改造了文件的访问方式，但文件访问难以控制每一个扇区的权限。
 授权后默认为只读功能，打开写功能时，应只能授权给miner节点全用，关闭其他不可信节点的改写存储节点的能力。
 PosixAuth的授权码基于BasicAuth生成，因此当PosixAuth不可信时，应及时变更BasicAuth，默认情况下重启miner即可，不需人工介入。
+小文件读取会带来大量的上下文切换从而产生系统开销。此设计专为高并发小读取而设计，适用于多并发的小文件读取。
 ```
 
 ## 协议设计
@@ -178,11 +182,21 @@ func main() {
 ```
 
 
-## 测试指令
+## 调用用例
+
+### 环境变量
+```
+LOTUS_FUSE_DEBUG=1 # 开启FUSE调试日志，适用于服务端与客户端
+# 设定客户端可以连接服务端的连接池大小, 此值越大，支持并发连接越多，但当存在大量存储服务器时，需要注意客户端端口上限的问题。
+# POOL_SIZE=30，实际连接数约为60左右，即miner默认的可用端口数(约30000个)可支持500台左右的存储节点。
+LOTUS_FUSE_POOL_SIZE=30 
+```
+
+### 测试指令
 将auth.dat复制到lotus-storage同一目录下，或自行通过lotus-storage --storage-root指定
 ```
-lotus-storage daemon # 运行存储服务程序
-lotus-storage mount [mountpoint] # 通过fuse挂载到本地目录
+LOTUS_FUSE_DEBUG=1 lotus-storage daemon # 运行存储服务程序
+LOTUS_FUSE_DEBUG=1 LOTUS_FUSE_POOL_SIZE=15 lotus-storage mount [mountpoint] # 通过fuse挂载到本地目录
 lotus-storage download [remote path] [local path] 下载文件到本地
 lotus-storage upload [local path] [remote path] 上传本地文件到服务器
 ```
