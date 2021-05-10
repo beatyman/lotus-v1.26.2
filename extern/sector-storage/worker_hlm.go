@@ -144,40 +144,41 @@ func (l *hlmWorker) Remove(ctx context.Context, sector storage.SectorRef) error 
 	if err != nil {
 		err = multierror.Append(err, xerrors.Errorf("removing sector (db): %w", rerr))
 	} else if sector.HasRepo() {
-		switch sector.SealedStorageType {
-		case database.MOUNT_TYPE_HLM:
-			// Remove seaeld file.
-			stor, rerr := database.GetStorage(sector.SealedStorageId)
-			if rerr != nil {
-				err = multierror.Append(err, xerrors.Errorf("removing sector (storage): %w", rerr))
-				return errors.As(rerr)
-			}
-			sid := sector.SectorId
-			auth := hlmclient.NewAuthClient(stor.MountAuthUri, stor.MountAuth)
-			ctx := context.TODO()
-			token, rerr := auth.NewFileToken(ctx, sid)
-			if rerr != nil {
-				err = multierror.Append(err, xerrors.Errorf("removing sector (auth): %w", rerr))
-				return errors.As(rerr)
-			}
-			fc := hlmclient.NewHttpClient(stor.MountTransfUri, sid, string(token))
-			if err := fc.DeleteSector(ctx, sid, "all"); err != nil {
-				err = multierror.Append(err, xerrors.Errorf("removing sector (sealed): %w", rerr))
-				return errors.As(rerr)
-			}
-			// TODO: scale the storage used_size
-			// pass
-
-		default:
-			log.Warnf("Remove file:%s", sector.SealedFile())
-			if rerr := os.Remove(sector.SealedFile()); err != nil {
-				err = multierror.Append(err, xerrors.Errorf("removing sector (sealed): %w", rerr))
-			}
-			log.Warnf("Remove file:%s", sector.CachePath())
-			if rerr := os.RemoveAll(sector.CachePath()); err != nil {
-				err = multierror.Append(err, xerrors.Errorf("removing sector (cache): %w", rerr))
-			}
-		}
+		// SPEC:Automatic deletion of the sealed files is not safe and requires manual confirmation.
+		//switch sector.SealedStorageType {
+		//case database.MOUNT_TYPE_HLM:
+		//	// Remove seaeld file.
+		//	stor, rerr := database.GetStorage(sector.SealedStorageId)
+		//	if rerr != nil {
+		//		err = multierror.Append(err, xerrors.Errorf("removing sector (storage): %w", rerr))
+		//		return errors.As(rerr)
+		//	}
+		//	sid := sector.SectorId
+		//	auth := hlmclient.NewAuthClient(stor.MountAuthUri, stor.MountAuth)
+		//	ctx := context.TODO()
+		//	token, rerr := auth.NewFileToken(ctx, sid)
+		//	if rerr != nil {
+		//		err = multierror.Append(err, xerrors.Errorf("removing sector (auth): %w", rerr))
+		//		return errors.As(rerr)
+		//	}
+		//	fc := hlmclient.NewHttpClient(stor.MountTransfUri, sid, string(token))
+		//	if err := fc.DeleteSector(ctx, sid, "all"); err != nil {
+		//		err = multierror.Append(err, xerrors.Errorf("removing sector (sealed): %w", rerr))
+		//		return errors.As(rerr)
+		//	}
+		//	// TODO: scale the storage used_size
+		//	// pass
+		//
+		//default:
+		//	log.Warnf("Remove file:%s", sector.SealedFile())
+		//	if rerr := os.Remove(sector.SealedFile()); err != nil {
+		//		err = multierror.Append(err, xerrors.Errorf("removing sector (sealed): %w", rerr))
+		//	}
+		//	log.Warnf("Remove file:%s", sector.CachePath())
+		//	if rerr := os.RemoveAll(sector.CachePath()); err != nil {
+		//		err = multierror.Append(err, xerrors.Errorf("removing sector (cache): %w", rerr))
+		//	}
+		//}
 
 		switch sector.UnsealedStorageType {
 		case database.MOUNT_TYPE_HLM:
