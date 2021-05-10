@@ -320,7 +320,7 @@ func handleFUseText(conn net.Conn, bufLen uint32) error {
 			utils.WriteFUseErrResp(conn, 403, utils.ErrFUseParams.As("invalid path"))
 			return nil // open the file failed, close the file thread connection.
 		}
-		user, _ := p["User"]
+		user, _ := p["Sid"]
 		auth, _ := p["Auth"]
 		read := GetAuthRO()
 		canWrite := false
