@@ -232,7 +232,7 @@ var mpoolFix = &cli.Command{
 				continue
 			}
 			if limitMsg > 0 && fixedNum > limitMsg {
-				continue
+				break
 			}
 			fixedNum++
 
@@ -276,6 +276,7 @@ var mpoolFix = &cli.Command{
 		return nil
 	},
 }
+
 var MpoolPending = &cli.Command{
 	Name:  "pending",
 	Usage: "Get pending messages",

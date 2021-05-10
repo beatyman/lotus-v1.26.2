@@ -1218,7 +1218,6 @@ type statBucket struct {
 func (mp *MessagePool) MessagesForBlocks(blks []*types.BlockHeader) ([]*types.SignedMessage, error) {
 	out := make([]*types.SignedMessage, 0)
 
-	recoverSigFailed := []cid.Cid{}
 	for _, b := range blks {
 		bmsgs, smsgs, err := mp.api.MessagesForBlock(b)
 		if err != nil {
@@ -1234,9 +1233,6 @@ func (mp *MessagePool) MessagesForBlocks(blks []*types.BlockHeader) ([]*types.Si
 				log.Debugf("could not recover signature for bls message %s", msg.Cid())
 			}
 		}
-	}
-	if len(recoverSigFailed) > 0 {
-		log.Warnf("could not recover signature for bls message len:%d", len(recoverSigFailed))
 	}
 
 	return out, nil
