@@ -70,14 +70,16 @@ func createUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.
 		// loading special storage implement
 		stor, err := database.GetStorage(sector.UnsealedStorageId)
 		if err != nil {
-			return nil, errors.As(err)
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
 		}
 		sid := sector.SectorId
 		auth := hlmclient.NewAuthClient(stor.MountAuthUri, stor.MountAuth)
 		ctx := context.TODO()
 		token, err := auth.NewFileToken(ctx, sid)
 		if err != nil {
-			return nil, errors.As(err)
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
 		}
 		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, string(token), os.O_RDWR|os.O_CREATE)
 	default:
@@ -128,19 +130,22 @@ func openUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.Se
 		// loading special storage implement
 		stor, err := database.GetStorage(sector.UnsealedStorageId)
 		if err != nil {
-			return nil, errors.As(err)
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
 		}
 		sid := sector.SectorId
 		auth := hlmclient.NewAuthClient(stor.MountAuthUri, stor.MountAuth)
 		ctx := context.TODO()
 		token, err := auth.NewFileToken(ctx, sid)
 		if err != nil {
-			return nil, errors.As(err)
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
 		}
 		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, string(token), os.O_RDWR)
 		// need the file has exist.
 		if _, err := f.Stat(); err != nil {
-			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+			log.Warn(errors.As(err))
+			return nil, xerrors.Errorf("openning partial file '%s': %w", path, errors.As(err).Code())
 		}
 	default:
 		osfile, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint
