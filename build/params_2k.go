@@ -12,8 +12,8 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 )
 
-const BootstrappersFile = ""
-const GenesisFile = ""
+const BootstrappersFile = "devnet.pi"
+const GenesisFile = "devnet.car"
 
 var UpgradeBreezeHeight = abi.ChainEpoch(-1)
 
@@ -82,7 +82,8 @@ func init() {
 	BuildType |= Build2k
 }
 
-const BlockDelaySecs = uint64(4)
+// Seconds
+const BlockDelaySecs = uint64(10)
 
 const PropagationDelaySecs = uint64(1)
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/exitcode"
@@ -71,10 +72,12 @@ func (m *Sealing) handleSealPrecommit2Failed(ctx statemachine.Context, sector Se
 }
 
 func (m *Sealing) handlePreCommitFailed(ctx statemachine.Context, sector SectorInfo) error {
+errApiLoop:
 	tok, height, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
 		log.Errorf("handlePreCommitFailed: api error, not proceeding: %+v", err)
-		return nil
+		time.Sleep(10e9)
+		goto errApiLoop
 	}
 
 	if sector.PreCommitMessage != nil {
@@ -182,10 +185,12 @@ func (m *Sealing) handleComputeProofFailed(ctx statemachine.Context, sector Sect
 }
 
 func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo) error {
+errApiLoop:
 	tok, height, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
 		log.Errorf("handleCommitting: api error, not proceeding: %+v", err)
-		return nil
+		time.Sleep(10e9)
+		goto errApiLoop
 	}
 
 	if sector.CommitMessage != nil {
@@ -243,6 +248,7 @@ func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo
 		}
 	}
 
+	log.Infof("checkCommit:%s,%+v", storage.SectorName(m.minerSectorID(sector.SectorNumber)), sector.Proof)
 	if err := m.checkCommit(ctx.Context(), sector, sector.Proof, tok); err != nil {
 		switch err.(type) {
 		case *ErrApi:
@@ -347,9 +353,12 @@ func (m *Sealing) handleDealsExpired(ctx statemachine.Context, sector SectorInfo
 }
 
 func (m *Sealing) handleRecoverDealIDs(ctx statemachine.Context, sector SectorInfo) error {
+errApiLoop:
 	tok, height, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
-		return xerrors.Errorf("getting chain head: %w", err)
+		log.Error(xerrors.Errorf("getting chain head: %w", err))
+		time.Sleep(10e9)
+		goto errApiLoop
 	}
 
 	var toFix []int

@@ -1,7 +1,10 @@
+/etcd
+/etcdctl
 /lotus
 /lotus-miner
 /lotus-worker
 /lotus-seed
+/lotus-shed
 /lotus-health
 /lotus-chainwatch
 /lotus-shed
@@ -12,6 +15,8 @@
 /lotus-bench
 /lotus-gateway
 /lotus-pcr
+/leveldb-tools
+/lotus-storage
 /lotus-wallet
 /lotus-keygen
 /docgen-md
@@ -33,6 +38,7 @@ build/paramfetch.sh
 /blocks.dot
 /blocks.svg
 /chainwatch.db
+/lotus-chain-watch*
 /bundle
 /darwin
 /linux
@@ -42,4 +48,8 @@ build/paramfetch.sh
 bin/ipget
 bin/tmp/*
 .idea
+/nohup.out
+/*.log
+.DS_Store
+*/.DS_Store
 scratchpad

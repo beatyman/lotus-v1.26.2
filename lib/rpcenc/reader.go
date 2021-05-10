@@ -20,7 +20,7 @@ import (
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-state-types/abi"
-	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 )
 
 var log = logging.Logger("rpcenc")
@@ -44,7 +44,7 @@ func ReaderParamEncoder(addr string) jsonrpc.Option {
 	return jsonrpc.WithParamEncoder(new(io.Reader), func(value reflect.Value) (reflect.Value, error) {
 		r := value.Interface().(io.Reader)
 
-		if r, ok := r.(*sealing.NullReader); ok {
+		if r, ok := r.(*ffiwrapper.NullReader); ok {
 			return reflect.ValueOf(ReaderStream{Type: Null, Info: fmt.Sprint(r.N)}), nil
 		}
 
@@ -156,7 +156,7 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 				return reflect.Value{}, xerrors.Errorf("parsing null byte count: %w", err)
 			}
 
-			return reflect.ValueOf(sealing.NewNullReader(abi.UnpaddedPieceSize(n))), nil
+			return reflect.ValueOf(ffiwrapper.NewNullReader(abi.UnpaddedPieceSize(n))), nil
 		}
 
 		u, err := uuid.Parse(rs.Info)

@@ -35,6 +35,8 @@ var session = uuid.New()
 type CommonAPI struct {
 	fx.In
 
+	WorkerAPISecret *dtypes.WorkerAPIAlg
+
 	APISecret    *dtypes.APIAlg
 	RawHost      lp2p.RawHost
 	Host         host.Host

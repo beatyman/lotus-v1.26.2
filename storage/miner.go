@@ -2,8 +2,9 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"time"
+
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/go-state-types/network"
 
@@ -21,8 +22,8 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/v1api"
@@ -37,11 +38,16 @@ import (
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("storageminer")
 
 type Miner struct {
+	// implement by hlm
+	fps *WindowPoStScheduler // SPEC: only for testing
+
 	api     storageMinerApi
 	feeCfg  config.MinerFeeConfig
 	h       host.Host
@@ -100,6 +106,7 @@ type storageMinerApi interface {
 	GasEstimateFeeCap(context.Context, *types.Message, int64, types.TipSetKey) (types.BigInt, error)
 	GasEstimateGasPremium(_ context.Context, nblocksincl uint64, sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error)
 
+	SyncProgress(context.Context) (api.SyncProgress, error)
 	ChainHead(context.Context) (*types.TipSet, error)
 	ChainNotify(context.Context) (<-chan []*api.HeadChange, error)
 	ChainGetRandomnessFromTickets(ctx context.Context, tsk types.TipSetKey, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error)
@@ -114,10 +121,18 @@ type storageMinerApi interface {
 	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
 	WalletBalance(context.Context, address.Address) (types.BigInt, error)
 	WalletHas(context.Context, address.Address) (bool, error)
+
+	// implememt by hlm
+	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)
+	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
+	WalletSignMessage(context.Context, address.Address, *types.Message) (*types.SignedMessage, error)
+	MpoolPush(context.Context, *types.SignedMessage) (cid.Cid, error)
 }
 
-func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, journal journal.Journal, as *AddressSelector) (*Miner, error) {
+func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, journal journal.Journal, as *AddressSelector, fps *WindowPoStScheduler) (*Miner, error) {
 	m := &Miner{
+		fps: fps,
+
 		api:     api,
 		feeCfg:  feeCfg,
 		h:       h,
@@ -183,6 +198,13 @@ func (m *Miner) handleSealingNotifications(before, after sealing.SectorInfo) {
 func (m *Miner) Stop(ctx context.Context) error {
 	return m.sealing.Stop(ctx)
 }
+func (m *Miner) Sealer() *sectorstorage.Manager {
+	return m.sealer.(*sectorstorage.Manager)
+}
+func (m *Miner) Maddr() string {
+	log.Info("addr:", m.maddr.String())
+	return string(m.maddr.String())
+}
 
 func (m *Miner) runPreflightChecks(ctx context.Context) error {
 	mi, err := m.api.StateMinerInfo(ctx, m.maddr, types.EmptyTSK)
@@ -223,7 +245,7 @@ func NewWinningPoStProver(api v1api.FullNode, prover storage.Prover, verifier ff
 
 	mi, err := api.StateMinerInfo(context.TODO(), ma, types.EmptyTSK)
 	if err != nil {
-		return nil, xerrors.Errorf("getting sector size: %w", err)
+		return nil, errors.As(err, "getting sector size", ma)
 	}
 
 	if build.InsecurePoStValidation {
@@ -249,14 +271,55 @@ func (wpp *StorageWpp) GenerateCandidates(ctx context.Context, randomness abi.Po
 }
 
 func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInfo, rand abi.PoStRandomness) ([]builtin.PoStProof, error) {
-	if build.InsecurePoStValidation {
-		return []builtin.PoStProof{{ProofBytes: []byte("valid proof")}}, nil
-	}
+	//if build.InsecurePoStValidation {
+	//	return []builtin.PoStProof{{ProofBytes: []byte("valid proof")}}, nil
+	//}
 
 	log.Infof("Computing WinningPoSt ;%+v; %v", ssi, rand)
 
 	start := build.Clock.Now()
-	proof, err := wpp.prover.GenerateWinningPoSt(ctx, wpp.miner, ssi, rand)
+	repo := ""
+	sm, ok := wpp.prover.(*sectorstorage.Manager)
+	if ok {
+		sb, ok := sm.Prover.(*ffiwrapper.Sealer)
+		if ok {
+			repo = sb.RepoPath()
+		}
+	}
+	if len(repo) == 0 {
+		log.Warn("not found default repo")
+	}
+	rSectors := []storage.SectorRef{}
+	pSectors := []storage.ProofSectorInfo{}
+	for _, s := range ssi {
+		id := abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}
+		sFile, err := database.GetSectorFile(storage.SectorName(id), repo)
+		if err != nil {
+			return nil, err
+		}
+		rSector := storage.SectorRef{
+			ID:         id,
+			ProofType:  s.SealProof,
+			SectorFile: *sFile,
+		}
+		rSectors = append(rSectors, rSector)
+		pSectors = append(pSectors, storage.ProofSectorInfo{
+			SectorRef: rSector,
+			SealedCID: s.SealedCID,
+		})
+	}
+	// TODO: confirm here need to check the files
+	// check files
+	_, _, bad, err := ffiwrapper.CheckProvable(ctx, rSectors, nil, 6*time.Second)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	if len(bad) > 0 {
+		return nil, xerrors.Errorf("pubSectorToPriv skipped sectors: %+v", bad)
+	}
+	log.Infof("GenerateWinningPoSt checking %s", time.Since(start))
+
+	proof, err := wpp.prover.GenerateWinningPoSt(ctx, wpp.miner, pSectors, rand)
 	if err != nil {
 		return nil, err
 	}

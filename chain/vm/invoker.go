@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/filecoin-project/go-state-types/network"
 
@@ -82,8 +83,26 @@ func (ar *ActorRegistry) Invoke(codeCid cid.Cid, rt vmr.Runtime, method abi.Meth
 	if method >= abi.MethodNum(len(act.methods)) || act.methods[method] == nil {
 		return nil, aerrors.Newf(exitcode.SysErrInvalidMethod, "no method %d on actor", method)
 	}
-	return act.methods[method](rt, params)
 
+	fn := act.methods[method]
+	fnType := reflect.TypeOf(fn)
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		took := end.Sub(start)
+		if took > 1e9 {
+			log.Infow("Invoke",
+				"took", took,
+				"fnName", fnType.Name(),
+				"fnPkgPath", fnType.PkgPath(),
+				"fnString", fnType.String(),
+				"method", method,
+				"cid", codeCid,
+				"actor", builtin.ActorNameByCode(codeCid),
+			)
+		}
+	}()
+	return fn(rt, params)
 }
 
 func (ar *ActorRegistry) Register(pred ActorPredicate, actors ...rtt.VMActor) {

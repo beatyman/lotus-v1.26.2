@@ -7,6 +7,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/filecoin-project/lotus/api/v1api"
@@ -28,12 +29,18 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
+	cliutil "github.com/filecoin-project/lotus/cli/util"
+	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
+
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	nauth "github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/gwaylib/errors"
 )
 
 var runCmd = &cli.Command{
@@ -43,6 +50,11 @@ var runCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "miner-api",
 			Usage: "2345",
+		},
+		&cli.StringFlag{
+			Name:  "report-url",
+			Value: "",
+			Usage: "report url for state",
 		},
 		&cli.BoolFlag{
 			Name:  "enable-gpu-proving",
@@ -65,6 +77,10 @@ var runCmd = &cli.Command{
 			if err != nil {
 				return err
 			}
+		}
+		// use the cluster proxy if it's exist.
+		if err := cliutil.UseLotusProxy(cctx); err != nil {
+			log.Infof("lotus proxy is invalid:%+s", err.Error())
 		}
 
 		ctx, _ := tag.New(lcli.DaemonContext(cctx),
@@ -127,6 +143,31 @@ var runCmd = &cli.Command{
 		if !ok {
 			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-miner init' to set it up", minerRepoPath)
 		}
+
+		// implement by hlm
+		// init storage database
+		database.InitDB(minerRepoPath)
+		log.Info("Mount all storage")
+		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
+			return errors.As(err)
+		}
+		// mount nfs storage node
+		if err := database.MountAllStorage(false); err != nil {
+			return errors.As(err)
+		}
+		log.Info("Clean storage worker")
+		// clean storage cur_work cause by no worker on starting.
+		if err := database.ClearStorageWork(); err != nil {
+			return errors.As(err)
+		}
+		log.Info("Check sealed")
+		// TODO: Move to window post
+		// checking sealed for proof
+		//if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
+		//	return errors.As(err)
+		//}
+		// implement by hlm end.
+		log.Info("Check done")
 
 		shutdownChan := make(chan struct{})
 
@@ -192,6 +233,12 @@ var runCmd = &cli.Command{
 			},
 		}
 
+		// open this rpc for worker.
+		scSrv, err := listenSchedulerApi(cctx, r, minerapi.(*impl.StorageMinerAPI))
+		if err != nil {
+			return errors.As(err)
+		}
+
 		sigChan := make(chan os.Signal, 2)
 		go func() {
 			select {
@@ -205,13 +252,31 @@ var runCmd = &cli.Command{
 			if err := stop(context.TODO()); err != nil {
 				log.Errorf("graceful shutting down failed: %s", err)
 			}
+			if err := scSrv.Shutdown(ctx); err != nil {
+				log.Errorf("shutting down scheduler server failed: %s", err)
+			}
 			if err := srv.Shutdown(context.TODO()); err != nil {
 				log.Errorf("shutting down RPC server failed: %s", err)
 			}
 			log.Warn("Graceful shutdown successful")
 		}()
+		go func() {
+			if err := scSrv.Serve(); err != nil {
+				log.Fatal(err)
+			}
+		}()
 		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
-		return srv.Serve(manet.NetListener(lst))
+		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
+			report.SetReportUrl(reportUrl)
+		}
+
+		log.Info("rebuild tls cert automatic")
+		certPath := filepath.Join(minerRepoPath, "miner_crt.pem")
+		keyPath := filepath.Join(minerRepoPath, "miner_key.pem")
+		if err := nauth.CreateTLSCert(certPath, keyPath); err != nil {
+			return errors.As(err)
+		}
+		return srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
 	},
 }

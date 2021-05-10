@@ -19,6 +19,9 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/node/modules/auth"
+
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("main")
@@ -94,9 +97,18 @@ var runCmd = &cli.Command{
 
 		log.Infof("Remote version: %s", v.Version)
 
-		from, err := address.NewFromString(cctx.String("from"))
-		if err != nil {
-			return xerrors.Errorf("parsing source address (provide correct --from flag!): %w", err)
+		from := address.Address{}
+
+		if len(cctx.String("from")) > 0 {
+			from, err = address.NewFromString(cctx.String("from"))
+			if err != nil {
+				return xerrors.Errorf("parsing source address (provide correct --from flag!): %w", err)
+			}
+		} else {
+			from, err = nodeApi.WalletDefaultAddress(ctx)
+			if err != nil {
+				return errors.As(err)
+			}
 		}
 
 		h := &handler{
@@ -153,11 +165,11 @@ type handler struct {
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "only POST is allowed", http.StatusBadRequest)
-		return
-	}
-
+	//if r.Method != http.MethodPost {
+	//	http.Error(w, "only POST is allowed", http.StatusBadRequest)
+	//	return
+	//}
+	//
 	reqIP := r.Header.Get("X-Real-IP")
 	if reqIP == "" {
 		h, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -167,16 +179,16 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reqIP = h
 	}
 
-	capResp, err := VerifyToken(r.FormValue("g-recaptcha-response"), reqIP)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
-	}
-	if !capResp.Success || capResp.Score < h.recapThreshold {
-		log.Infow("spam", "capResp", capResp)
-		http.Error(w, "spam protection", http.StatusUnprocessableEntity)
-		return
-	}
+	//capResp, err := VerifyToken(r.FormValue("g-recaptcha-response"), reqIP)
+	//if err != nil {
+	//	http.Error(w, err.Error(), http.StatusBadGateway)
+	//	return
+	//}
+	//if !capResp.Success || capResp.Score < h.recapThreshold {
+	//	log.Infow("spam", "capResp", capResp)
+	//	http.Error(w, "spam protection", http.StatusUnprocessableEntity)
+	//	return
+	//}
 
 	to, err := address.NewFromString(r.FormValue("address"))
 	if err != nil {
@@ -212,7 +224,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	smsg, err := h.api.MpoolPushMessage(h.ctx, &types.Message{
+	smsg, err := h.api.MpoolPushMessage(h.ctx, auth.GetHlmAuth(), &types.Message{
 		Value: types.BigInt(h.sendPerRequest),
 		From:  h.from,
 		To:    to,

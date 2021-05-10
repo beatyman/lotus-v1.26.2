@@ -78,6 +78,9 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 }
 
 func (m *Sealing) padSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+	// use remote worker mode. hack by hlm
+	return m.sealer.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
+
 	if len(sizes) == 0 {
 		return nil, nil
 	}
@@ -436,14 +439,18 @@ func (m *Sealing) handleCommitting(ctx statemachine.Context, sector SectorInfo) 
 		Unsealed: *sector.CommD,
 		Sealed:   *sector.CommR,
 	}
-	c2in, err := m.sealer.SealCommit1(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), sector.TicketValue, sector.SeedValue, sector.pieceInfos(), cids)
+	//c2in, err := m.sealer.SealCommit1(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), sector.TicketValue, sector.SeedValue, sector.pieceInfos(), cids)
+	//if err != nil {
+	//	return ctx.Send(SectorComputeProofFailed{xerrors.Errorf("computing seal proof failed(1): %w", err)})
+	//}
+	//
+	//proof, err := m.sealer.SealCommit2(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), c2in)
+	//if err != nil {
+	//	return ctx.Send(SectorComputeProofFailed{xerrors.Errorf("computing seal proof failed(2): %w", err)})
+	//}
+	proof, err := m.sealer.SealCommit(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), sector.TicketValue, sector.SeedValue, sector.pieceInfos(), cids)
 	if err != nil {
-		return ctx.Send(SectorComputeProofFailed{xerrors.Errorf("computing seal proof failed(1): %w", err)})
-	}
-
-	proof, err := m.sealer.SealCommit2(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), c2in)
-	if err != nil {
-		return ctx.Send(SectorComputeProofFailed{xerrors.Errorf("computing seal proof failed(2): %w", err)})
+		return ctx.Send(SectorComputeProofFailed{xerrors.Errorf("computing seal proof failed: %w", err)})
 	}
 
 	return ctx.Send(SectorCommitted{

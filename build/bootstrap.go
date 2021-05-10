@@ -2,6 +2,8 @@ package build
 
 import (
 	"context"
+	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/filecoin-project/lotus/lib/addrutil"
@@ -15,6 +17,8 @@ func BuiltinBootstrap() ([]peer.AddrInfo, error) {
 		return nil, nil
 	}
 
+	var out []peer.AddrInfo
+
 	b := rice.MustFindBox("bootstrap")
 
 	if BootstrappersFile != "" {
@@ -22,9 +26,26 @@ func BuiltinBootstrap() ([]peer.AddrInfo, error) {
 		if spi == "" {
 			return nil, nil
 		}
-
-		return addrutil.ParseAddresses(context.TODO(), strings.Split(strings.TrimSpace(spi), "\n"))
+		pi, err := addrutil.ParseAddresses(context.TODO(), strings.Split(strings.TrimSpace(spi), "\n"))
+		if err != nil {
+			log.Warn(err)
+		} else {
+			out = append(out, pi...)
+		}
 	}
 
-	return nil, nil
+	// TODO:fetch from fivestar chains server
+	if data, err := ioutil.ReadFile("/etc/lotus/bootstrap.pi"); err != nil {
+		if !os.IsNotExist(err) {
+			log.Warn(err)
+		}
+	} else {
+		if pi, err := addrutil.ParseAddresses(context.TODO(), strings.Split(strings.TrimSpace(string(data)), "\n")); err != nil {
+			log.Warn(err)
+		} else {
+			out = append(out, pi...)
+		}
+	}
+
+	return out, nil
 }

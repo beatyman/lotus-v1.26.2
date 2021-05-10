@@ -13,6 +13,11 @@ func MetricedStorMinerAPI(a api.StorageMiner) api.StorageMiner {
 	var out api.StorageMinerStruct
 	proxy(a, &out.Internal)
 	proxy(a, &out.CommonStruct.Internal)
+	proxy(a, &out.HlmMinerProxyStruct.Internal)
+	proxy(a, &out.HlmMinerProvingStruct.Internal)
+	proxy(a, &out.HlmMinerSectorStruct.Internal)
+	proxy(a, &out.HlmMinerStorageStruct.Internal)
+	proxy(a, &out.HlmMinerWorkerStruct.Internal)
 	return &out
 }
 
@@ -25,6 +30,11 @@ func MetricedFullAPI(a api.FullNode) api.FullNode {
 
 func MetricedWorkerAPI(a api.Worker) api.Worker {
 	var out api.WorkerStruct
+	proxy(a, &out.Internal)
+	return &out
+}
+func MetricedHlmMinerSchedulerAPI(a api.HlmMinerSchedulerAPI) api.HlmMinerSchedulerAPI {
+	var out api.HlmMinerSchedulerStruct
 	proxy(a, &out.Internal)
 	return &out
 }

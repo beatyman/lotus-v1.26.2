@@ -2,7 +2,10 @@ package storage
 
 import (
 	"context"
+	"sync"
 	"time"
+
+	"github.com/gwaylib/errors"
 
 	"golang.org/x/xerrors"
 
@@ -41,9 +44,18 @@ type WindowPoStScheduler struct {
 
 	// failed abi.ChainEpoch // eps
 	// failLk sync.Mutex
+
+	autoWithdrawLk        sync.Mutex
+	autoWithdrawLastEpoch int64
+	autoWithdrawRunning   bool
 }
 
 func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, as *AddressSelector, sb storage.Prover, verif ffiwrapper.Verifier, ft sectorstorage.FaultTracker, j journal.Journal, actor address.Address) (*WindowPoStScheduler, error) {
+	log.Info("lookup default config: EnableSeparatePartition::", fc.EnableSeparatePartition, "PartitionsPerMsg::", fc.PartitionsPerMsg)
+	EnableSeparatePartition = fc.EnableSeparatePartition
+	if EnableSeparatePartition && fc.PartitionsPerMsg != 0 {
+		PartitionsPerMsg = fc.PartitionsPerMsg
+	}
 	mi, err := api.StateMinerInfo(context.TODO(), actor, types.EmptyTSK)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sector size: %w", err)
@@ -75,12 +87,47 @@ type changeHandlerAPIImpl struct {
 	*WindowPoStScheduler
 }
 
+func nextRoundTime(ts *types.TipSet) time.Time {
+	return time.Unix(int64(ts.MinTimestamp())+int64(build.BlockDelaySecs)+int64(build.PropagationDelaySecs), 0)
+}
+
 func (s *WindowPoStScheduler) Run(ctx context.Context) {
 	// Initialize change handler
 	chImpl := &changeHandlerAPIImpl{storageMinerApi: s.api, WindowPoStScheduler: s}
 	s.ch = newChangeHandler(chImpl, s.actor)
 	defer s.ch.shutdown()
 	s.ch.start()
+
+	// implement by hlm
+	var lastTsHeight abi.ChainEpoch
+	for {
+		bts, err := s.api.ChainHead(ctx)
+		if err != nil {
+			log.Error(errors.As(err))
+			time.Sleep(time.Second)
+			continue
+		}
+		if bts.Height() == lastTsHeight {
+			time.Sleep(time.Second)
+			continue
+		}
+
+		log.Infof("Checking window post at:%d", bts.Height())
+		lastTsHeight = bts.Height()
+		s.update(ctx, nil, bts)
+
+		// loop to next time.
+		select {
+		case <-time.After(time.Until(nextRoundTime(bts))):
+			continue
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	// close this function and use the timer from mining
+	return
+	// end by hlm
 
 	var notifs <-chan []*api.HeadChange
 	var err error
@@ -158,6 +205,9 @@ func (s *WindowPoStScheduler) update(ctx context.Context, revert, apply *types.T
 		log.Error("no new tipset in window post WindowPoStScheduler.update")
 		return
 	}
+
+	s.autoWithdraw(apply) // by hlm
+
 	err := s.ch.update(ctx, revert, apply)
 	if err != nil {
 		log.Errorf("handling head updates in window post sched: %+v", err)

@@ -998,6 +998,10 @@ var clientFindCmd = &cli.Command{
 			return err
 		}
 
+		if len(offers) == 0 {
+			fmt.Println("No offers")
+		}
+
 		for _, offer := range offers {
 			if offer.Err != "" {
 				fmt.Printf("ERR %s@%s: %s\n", offer.Miner, offer.MinerPeer.ID, offer.Err)

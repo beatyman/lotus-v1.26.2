@@ -67,13 +67,16 @@ build-devnets: build lotus-seed lotus-shed lotus-wallet lotus-gateway
 .PHONY: build-devnets
 
 debug: GOFLAGS+=-tags=debug
-debug: build-devnets
+debug: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools lotus-storage
 
-2k: GOFLAGS+=-tags=2k
-2k: build-devnets
+hlm: GOFLAGS+=-tags=hlm
+hlm: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools lotus-storage
 
 calibnet: GOFLAGS+=-tags=calibnet
-calibnet: build-devnets
+calibnet: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools lotus-storage
+
+2k: GOFLAGS+=-tags=2k
+2k: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-seed lotus-bench leveldb-tools lotus-storage
 
 nerpanet: GOFLAGS+=-tags=nerpanet
 nerpanet: build-devnets
@@ -81,6 +84,17 @@ nerpanet: build-devnets
 butterflynet: GOFLAGS+=-tags=butterflynet
 butterflynet: build-devnets
 
+etcd: $(BUILD_DEPS)
+	rm -f etcd
+	go build $(GOFLAGS) -o etcd ./cmd/etcd
+.PHONY: etcd
+BINS+=etcd
+
+etcdctl: $(BUILD_DEPS)
+	rm -f etcdctl
+	go build $(GOFLAGS) -o etcdctl ./cmd/etcdctl
+.PHONY: etcdctl
+BINS+=etcdctl
 lotus: $(BUILD_DEPS)
 	rm -f lotus
 	go build $(GOFLAGS) -o lotus ./cmd/lotus
@@ -98,10 +112,18 @@ BINS+=lotus-miner
 
 lotus-worker: $(BUILD_DEPS)
 	rm -f lotus-worker
-	go build $(GOFLAGS) -o lotus-worker ./cmd/lotus-seal-worker
+	go build $(GOFLAGS) -o lotus-worker ./cmd/lotus-hlm-worker
 	go run github.com/GeertJohan/go.rice/rice append --exec lotus-worker -i ./build
 .PHONY: lotus-worker
 BINS+=lotus-worker
+
+chain-watch: $(BUILD_DEPS)
+	rm -f lotus-chain-watch
+	go build $(GOFLAGS) -o lotus-chain-watch ./cmd/chain-watch
+	go run github.com/GeertJohan/go.rice/rice append --exec lotus-chain-watch -i ./build
+.PHONY: lotus-chain-watch
+BINS+=lotus-chain-watch
+
 
 lotus-shed: $(BUILD_DEPS)
 	rm -f lotus-shed
@@ -116,7 +138,7 @@ lotus-gateway: $(BUILD_DEPS)
 .PHONY: lotus-gateway
 BINS+=lotus-gateway
 
-build: lotus lotus-miner lotus-worker
+build: etcd etcdctl lotus lotus-miner lotus-worker lotus-shed lotus-bench leveldb-tools lotus-storage
 	@[[ $$(type -P "lotus") ]] && echo "Caution: you have \
 an existing lotus binary in your PATH. This may cause problems if you don't run 'sudo make install'" || true
 
@@ -215,6 +237,18 @@ lotus-health:
 	go run github.com/GeertJohan/go.rice/rice append --exec lotus-health -i ./build
 .PHONY: lotus-health
 BINS+=lotus-health
+
+leveldb-tools:
+	rm -f leveldb-tools 
+	go build -o leveldb-tools ./cmd/tools/leveldb-tools
+.PHONY: leveldb-tools
+BINS+=leveldb-tools
+
+lotus-storage:
+	rm -f lotus-storage
+	go build -o lotus-storage ./cmd/lotus-storage
+.PHONY: lotus-storage
+BINS+=lotus-storage
 
 lotus-wallet:
 	rm -f lotus-wallet

@@ -79,9 +79,20 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 		return false, xerrors.Errorf("getting per-sector deal limit: %w", err)
 	}
 
-	if len(sector.dealIDs()) >= maxDeals {
+	cfg, err := m.getConfig()
+	if err != nil {
+		return false, xerrors.Errorf("getting storage config: %w", err)
+	}
+
+	dealIDsLen := len(sector.dealIDs())
+	if dealIDsLen >= maxDeals {
 		// can't accept more deals
 		log.Infow("starting to seal deal sector", "sector", sector.SectorNumber, "trigger", "maxdeals")
+		return true, ctx.Send(SectorStartPacking{})
+	}
+
+	if cfg.MaxDealsPerSector > 0 && uint64(dealIDsLen) >= cfg.MaxDealsPerSector {
+		log.Infow("starting to seal deal sector", "sector", sector.SectorNumber, "trigger", "max-per-sector")
 		return true, ctx.Send(SectorStartPacking{})
 	}
 
@@ -92,11 +103,6 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 	}
 
 	if sector.CreationTime != 0 {
-		cfg, err := m.getConfig()
-		if err != nil {
-			return false, xerrors.Errorf("getting storage config: %w", err)
-		}
-
 		// todo check deal age, start sealing if any deal has less than X (configurable) to start deadline
 		sealTime := time.Unix(sector.CreationTime, 0).Add(cfg.WaitDealsDelay)
 
@@ -173,6 +179,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 
 		offset += padLength.Unpadded()
 
+		log.Infow("Add pads piece", "deal", deal.deal.DealID, "sector", sector.SectorNumber)
 		for _, p := range pads {
 			ppi, err := m.sealer.AddPiece(sectorstorage.WithPriority(ctx.Context(), DealSectorPriority),
 				m.minerSector(sector.SectorType, sector.SectorNumber),
@@ -191,6 +198,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 			})
 		}
 
+		log.Infow("Add deal data piece", "deal", deal.deal.DealID, "sector", sector.SectorNumber)
 		ppi, err := m.sealer.AddPiece(sectorstorage.WithPriority(ctx.Context(), DealSectorPriority),
 			m.minerSector(sector.SectorType, sector.SectorNumber),
 			pieceSizes,
@@ -389,7 +397,7 @@ func (m *Sealing) tryCreateDealSector(ctx context.Context, sp abi.RegisteredSeal
 		return nil
 	}
 
-	sid, err := m.createSector(ctx, cfg, sp)
+	sid, err := m.createSector(ctx, true, cfg, sp)
 	if err != nil {
 		return err
 	}
@@ -402,7 +410,7 @@ func (m *Sealing) tryCreateDealSector(ctx context.Context, sp abi.RegisteredSeal
 }
 
 // call with m.inputLk
-func (m *Sealing) createSector(ctx context.Context, cfg sealiface.Config, sp abi.RegisteredSealProof) (abi.SectorNumber, error) {
+func (m *Sealing) createSector(ctx context.Context, market bool, cfg sealiface.Config, sp abi.RegisteredSealProof) (abi.SectorNumber, error) {
 	// Now actually create a new sector
 
 	sid, err := m.sc.Next()
@@ -410,7 +418,9 @@ func (m *Sealing) createSector(ctx context.Context, cfg sealiface.Config, sp abi
 		return 0, xerrors.Errorf("getting sector number: %w", err)
 	}
 
-	err = m.sealer.NewSector(ctx, m.minerSector(sp, sid))
+	sectorId := m.minerSector(sp, sid)
+	sectorId.IsMarketSector = market // implement by hlm
+	err = m.sealer.NewSector(ctx, sectorId)
 	if err != nil {
 		return 0, xerrors.Errorf("initializing sector: %w", err)
 	}

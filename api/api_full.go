@@ -59,6 +59,11 @@ const LookbackNoLimit = abi.ChainEpoch(-1)
 type FullNode interface {
 	Common
 
+	// implement by hlm
+	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
+	SyncProgress(context.Context) (SyncProgress, error)
+	// implement by hlm end
+
 	// MethodGroup: Chain
 	// The Chain method group contains methods for interacting with the
 	// blockchain, but that do not require any form of state computation.
@@ -955,6 +960,12 @@ type SyncState struct {
 	ActiveSyncs []ActiveSync
 
 	VMApplied uint64
+}
+
+type SyncProgress struct {
+	Syncing      bool
+	VerifyHeight abi.ChainEpoch
+	TargetHeight abi.ChainEpoch
 }
 
 type SyncStateStage int

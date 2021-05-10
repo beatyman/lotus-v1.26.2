@@ -20,6 +20,11 @@ func PermissionedStorMinerAPI(a StorageMiner) StorageMiner {
 	var out StorageMinerStruct
 	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
 	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.CommonStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerProxyStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerProvingStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerSectorStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerStorageStruct.Internal)
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerWorkerStruct.Internal)
 	return &out
 }
 
@@ -32,6 +37,16 @@ func PermissionedFullAPI(a FullNode) FullNode {
 
 func PermissionedWorkerAPI(a Worker) Worker {
 	var out WorkerStruct
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	return &out
+}
+func PermissionedHlmMinerSchedulerAPI(a HlmMinerSchedulerAPI) HlmMinerSchedulerAPI {
+	var out HlmMinerSchedulerStruct
+	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	return &out
+}
+func PermissionedWorkerHlmAPI(a WorkerHlmAPI) WorkerHlmAPI {
+	var out WorkerHlmStruct
 	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
 	return &out
 }

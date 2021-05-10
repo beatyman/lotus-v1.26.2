@@ -14,6 +14,9 @@ type Config struct {
 	// includes failed, 0 = no limit
 	MaxSealingSectorsForDeals uint64
 
+	// includes failed, 0 = no limit
+	MaxDealsPerSector uint64
+
 	WaitDealsDelay time.Duration
 
 	AlwaysKeepUnsealedCopy bool

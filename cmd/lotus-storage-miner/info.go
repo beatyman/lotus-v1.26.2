@@ -36,6 +36,12 @@ var infoCmd = &cli.Command{
 		&cli.BoolFlag{
 			Name:  "hide-sectors-info",
 			Usage: "hide sectors info",
+			Value: true,
+		},
+		&cli.BoolFlag{
+			Name:  "seal",
+			Value: false,
+			Usage: "output the miner seal stats",
 		},
 	},
 	Action: infoCmdAct,
@@ -255,7 +261,7 @@ func infoCmdAct(cctx *cli.Context) error {
 
 	fmt.Println()
 
-	if !cctx.Bool("hide-sectors-info") {
+	if !cctx.Bool("hide-sectors-info") || cctx.Bool("seal") {
 		fmt.Println("Sectors:")
 		err = sectorsInfo(ctx, nodeApi)
 		if err != nil {

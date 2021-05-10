@@ -16,7 +16,21 @@ type readonlyProvider struct {
 	stor  *stores.Local
 }
 
+func (l *readonlyProvider) RepoPath() string {
+	local, err := l.stor.Local(context.TODO())
+	if err != nil {
+		panic(err)
+	}
+	for _, p := range local {
+		if p.CanStore {
+			return p.LocalPath
+		}
+	}
+	panic("No RepoPath")
+}
+
 func (l *readonlyProvider) AcquireSector(ctx context.Context, id storage.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, sealing storiface.PathType) (storiface.SectorPaths, func(), error) {
+	return stores.HLMSectorPath(id.ID, l.RepoPath()), func() {}, nil
 	if allocate != storiface.FTNone {
 		return storiface.SectorPaths{}, nil, xerrors.New("read-only storage")
 	}

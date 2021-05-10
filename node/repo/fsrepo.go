@@ -29,6 +29,8 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/config"
+
+	"github.com/gwaylib/errors"
 )
 
 const (
@@ -49,13 +51,14 @@ const (
 	StorageMiner
 	Worker
 	Wallet
+	HlmMinerScheduler
 )
 
 func defConfForType(t RepoType) interface{} {
 	switch t {
 	case FullNode:
 		return config.DefaultFullNode()
-	case StorageMiner:
+	case StorageMiner, HlmMinerScheduler:
 		return config.DefaultStorageMiner()
 	case Worker:
 		return &struct{}{}
@@ -89,6 +92,14 @@ func NewFS(path string) (*FsRepo, error) {
 		path:       path,
 		configPath: filepath.Join(path, fsConfig),
 	}, nil
+}
+
+func (fsr *FsRepo) Path() string {
+	return fsr.path
+}
+
+func (fsr *FsRepo) ConfigPath() string {
+	return fsr.configPath
 }
 
 func (fsr *FsRepo) SetConfigPath(cfgPath string) {
@@ -178,9 +189,9 @@ func (fsr *FsRepo) APIEndpoint() (multiaddr.Multiaddr, error) {
 
 	f, err := os.Open(p)
 	if os.IsNotExist(err) {
-		return nil, ErrNoAPIEndpoint
+		return nil, errors.As(ErrNoAPIEndpoint, p)
 	} else if err != nil {
-		return nil, err
+		return nil, errors.As(err, p)
 	}
 	defer f.Close() //nolint: errcheck // Read only op
 
@@ -193,7 +204,7 @@ func (fsr *FsRepo) APIEndpoint() (multiaddr.Multiaddr, error) {
 
 	apima, err := multiaddr.NewMultiaddr(strma)
 	if err != nil {
-		return nil, err
+		return nil, errors.As(err, strma)
 	}
 	return apima, nil
 }

@@ -678,14 +678,15 @@ func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredP
 		}
 	}
 
-	bad, err := sm.StorageMgr.CheckProvable(ctx, pp, sectors, rg)
+	timeout := time.Second * 6
+	_, _, bad, err := sm.StorageMgr.CheckProvable(ctx, sectors, rg, timeout)
 	if err != nil {
 		return nil, err
 	}
 
 	var out = make(map[abi.SectorNumber]string)
-	for sid, err := range bad {
-		out[sid.Number] = err
+	for _, stat := range bad {
+		out[stat.Sector.ID.Number] = stat.Err.Error()
 	}
 
 	return out, nil

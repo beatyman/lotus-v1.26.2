@@ -9,6 +9,7 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain"
@@ -25,6 +26,30 @@ type SyncAPI struct {
 	Syncer      *chain.Syncer
 	PubSub      *pubsub.PubSub
 	NetName     dtypes.NetworkName
+}
+
+func (a *SyncAPI) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
+	states := a.Syncer.State()
+	var maxCurHeight, maxTargetHeight abi.ChainEpoch
+	for _, ss := range states {
+		if ss.Target == nil {
+			continue
+		}
+		if ss.Height > maxCurHeight {
+			maxCurHeight = ss.Height
+		}
+		if ss.Target.Height() > maxTargetHeight {
+			maxTargetHeight = ss.Target.Height()
+		}
+	}
+
+	return api.SyncProgress{
+		// maybe > 1?
+		Syncing: maxTargetHeight > 0 && maxTargetHeight-maxCurHeight > 0,
+
+		VerifyHeight: maxCurHeight,
+		TargetHeight: maxTargetHeight,
+	}, nil
 }
 
 func (a *SyncAPI) SyncState(ctx context.Context) (*api.SyncState, error) {

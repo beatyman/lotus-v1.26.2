@@ -14,6 +14,12 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	statemachine "github.com/filecoin-project/go-statemachine"
+	"github.com/filecoin-project/specs-storage/storage"
+
+	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/gwaylib/errors"
 )
 
 func (m *Sealing) Plan(events []statemachine.Event, user interface{}) (interface{}, uint64, error) {
@@ -257,6 +263,43 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	if err != nil {
 		return nil, 0, xerrors.Errorf("running planner for state %s failed: %w", state.State, err)
 	}
+	// checking the sector state in hlm miner
+	sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSectorID(state.SectorNumber)))
+	if err != nil {
+		log.Warn(errors.As(err))
+	} else {
+		switch state.State {
+		case Removing, RemoveFailed, Removed:
+			// update hlm database statue to failed.
+			if sInfo.State > (database.SECTOR_STATE_FAILED - 2) {
+				break
+			}
+			sealer, ok := m.sealer.(*sectorstorage.Manager)
+			if !ok {
+				log.Warnf("m.sealer not (sectorstorage.Manager)")
+				break
+			}
+			ffi, ok := sealer.Prover.(*ffiwrapper.Sealer)
+			if !ok {
+				log.Warnf("sealer.Prover not (ffiwrapper.Sealer)")
+				break
+			}
+			// checking the sector state in hlm miner
+			if _, err := ffi.UpdateSectorState(sInfo.ID, "removed", sInfo.State+500, true, true); err != nil {
+				log.Warn(errors.As(err))
+				break
+			}
+			// hlm end
+
+			// continue the offical remove logic.
+			break
+		default:
+			if sInfo.State > database.SECTOR_STATE_DONE {
+				log.Infof("sector(%s:%d) state(%d:%s) has done in database", sInfo.ID, state.SectorNumber, sInfo.State, state.State)
+				return nil, processed, nil
+			}
+		}
+	}
 
 	/////
 	// Now decide what to do next
@@ -378,6 +421,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	case Removing:
 		return m.handleRemoving, processed, nil
 	case Removed:
+		log.Warnf("Remove sector:%d", state.SectorNumber)
 		return nil, processed, nil
 
 	case RemoveFailed:

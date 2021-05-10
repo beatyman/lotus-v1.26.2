@@ -8,11 +8,13 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/mitchellh/go-homedir"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 	"go.opencensus.io/tag"
@@ -27,11 +29,17 @@ import (
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
+	nauth "github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("main")
 
-func serveRPC(a v1api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}, maxRequestSize int64) error {
+func serveRPC(repo string, a v1api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}, maxRequestSize int64) error {
+	repo, err := homedir.Expand(repo)
+	if err != nil {
+		return errors.As(err)
+	}
 	serverOptions := make([]jsonrpc.ServerOption, 0)
 	if maxRequestSize != 0 { // config set
 		serverOptions = append(serverOptions, jsonrpc.WithMaxRequestSize(maxRequestSize))
@@ -102,7 +110,14 @@ func serveRPC(a v1api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, sh
 	}()
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
-	err = srv.Serve(manet.NetListener(lst))
+	log.Info("rebuild tls cert automatic")
+	certPath := filepath.Join(repo, "lotus_crt.pem")
+	keyPath := filepath.Join(repo, "lotus_key.pem")
+	if err := nauth.CreateTLSCert(certPath, keyPath); err != nil {
+		return errors.As(err)
+	}
+
+	err = srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
 	if err == http.ErrServerClosed {
 		<-shutdownDone
 		return nil

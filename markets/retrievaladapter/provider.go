@@ -20,6 +20,7 @@ import (
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/go-state-types/abi"
 	specstorage "github.com/filecoin-project/specs-storage/storage"
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("retrievaladapter")
@@ -80,7 +81,7 @@ func (rpn *retrievalProviderNode) UnsealSector(ctx context.Context, sectorID abi
 		log.Debugf("read piece in sector %d, offset %d, length %d from miner %d", sectorID, offset, length, mid)
 		err := rpn.sealer.ReadPiece(ctx, w, ref, storiface.UnpaddedByteIndex(offset), length, si.TicketValue, commD)
 		if err != nil {
-			log.Errorf("failed to unseal piece from sector %d: %s", sectorID, err)
+			log.Error(errors.As(err, ref))
 		}
 		// Close the reader with any error that was returned while reading the piece
 		_ = w.CloseWithError(err)

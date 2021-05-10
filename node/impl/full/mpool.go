@@ -232,3 +232,20 @@ func (a *MpoolAPI) MpoolGetNonce(ctx context.Context, addr address.Address) (uin
 func (a *MpoolAPI) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, error) {
 	return a.Mpool.Updates(ctx)
 }
+
+func (a *MpoolAPI) MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error {
+	a.Mpool.Remove(from, nonce, false)
+	return nil
+}
+
+func (a *MpoolAPI) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
+	ts, err := a.Chain.GetTipSetFromKey(tsk)
+	if err != nil {
+		return types.NewInt(0), xerrors.Errorf("computing base fee at %s: %w", ts, err)
+	}
+	baseFee, err := a.Chain.ComputeBaseFee(ctx, ts)
+	if err != nil {
+		return types.NewInt(0), xerrors.Errorf("computing base fee at %s: %w", ts, err)
+	}
+	return baseFee, nil
+}

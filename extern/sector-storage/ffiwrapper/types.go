@@ -26,8 +26,8 @@ type StorageSealer interface {
 }
 
 type Storage interface {
-	storage.Prover
 	StorageSealer
+	storage.Prover
 
 	UnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error
 	ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error)
@@ -42,6 +42,9 @@ type Verifier interface {
 }
 
 type SectorProvider interface {
+	// implement by hlm
+	RepoPath() string
+
 	// * returns storiface.ErrSectorNotFound if a requested existing sector doesn't exist
 	// * returns an error when allocate is set, and existing isn't, and the sector exists
 	AcquireSector(ctx context.Context, id storage.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, ptype storiface.PathType) (storiface.SectorPaths, func(), error)

@@ -31,6 +31,12 @@ type FullNodeStruct struct {
 	CommonStruct
 
 	Internal struct {
+
+		//implement by hlm
+		ChainComputeBaseFee func(context.Context, types.TipSetKey) (types.BigInt, error) `perm:"read"`
+		SyncProgress        func(context.Context) (api.SyncProgress, error)              `perm:"read"`
+		//implement by hlm end
+
 		BeaconGetEntry func(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) `perm:"read"`
 
 		ChainDeleteObj func(p0 context.Context, p1 cid.Cid) error `perm:"admin"`
@@ -450,6 +456,18 @@ type GatewayStruct struct {
 type GatewayStub struct {
 }
 
+func (c *FullNodeStruct) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
+	return c.Internal.ChainComputeBaseFee(ctx, tsk)
+}
+func (c *FullNodeStub) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
+	return types.EmptyInt, xerrors.New("method not supported")
+}
+func (c *FullNodeStruct) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
+	return c.Internal.SyncProgress(ctx)
+}
+func (c *FullNodeStub) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
+	return api.SyncProgress{}, xerrors.New("method not supported")
+}
 func (s *FullNodeStruct) BeaconGetEntry(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) {
 	return s.Internal.BeaconGetEntry(p0, p1)
 }

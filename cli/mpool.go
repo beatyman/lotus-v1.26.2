@@ -6,6 +6,10 @@ import (
 	stdbig "math/big"
 	"sort"
 	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gwaylib/errors"
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
@@ -26,6 +30,12 @@ var MpoolCmd = &cli.Command{
 	Name:  "mpool",
 	Usage: "Manage message pool",
 	Subcommands: []*cli.Command{
+		// implement by hlm
+		mpoolGetCfg,
+		mpoolSetCfg,
+		mpoolFix,
+		// implement by hlm end
+
 		MpoolPending,
 		MpoolClear,
 		MpoolSub,
@@ -36,7 +46,236 @@ var MpoolCmd = &cli.Command{
 		MpoolGasPerfCmd,
 	},
 }
+var mpoolGetCfg = &cli.Command{
+	Name:  "hlm-get-cfg",
+	Usage: "Println the configration of mpool",
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
 
+		ctx := ReqContext(cctx)
+		cfg, err := api.MpoolGetConfig(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%+v\n", cfg)
+		return nil
+	},
+}
+var mpoolSetCfg = &cli.Command{
+	Name:  "hlm-set-cfg",
+	Usage: "Println the configration of mpool",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "Force",
+			Usage: "Packing negative performance messages,Which is equivalent to 3x missing payments from messages.",
+		},
+		&cli.StringFlag{
+			Name:  "PriorityAddrs",
+			Usage: "Array of address, split with ',', empty not change, '-' to clean.",
+		},
+		&cli.IntFlag{
+			Name:  "SizeLimitHigh",
+			Usage: "SizeLimitHigh, < 0 not change.",
+			Value: -1,
+		},
+		&cli.IntFlag{
+			Name:  "SizeLimitLow",
+			Usage: "SizeLimitLow, < 0 not change.",
+			Value: -1,
+		},
+		&cli.Float64Flag{
+			Name:  "ReplaceByFeeRatio",
+			Usage: "ReplaceByFeeRatio, < 0 not change.",
+			Value: -1,
+		},
+		&cli.Int64Flag{
+			Name:  "PruneCooldown",
+			Usage: "PruneCooldown, < 0 not change.",
+			Value: -1,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ctx := ReqContext(cctx)
+		cfg, err := api.MpoolGetConfig(ctx)
+		if err != nil {
+			return err
+		}
+		cfg.Force = cctx.Bool("Force")
+		coolDown := cctx.Int("PruneCooldown")
+		if coolDown > -1 {
+			cfg.PruneCooldown = time.Duration(coolDown)
+		}
+		radio := cctx.Float64("ReplaceByFeeRatio")
+		if radio > -1 {
+			cfg.ReplaceByFeeRatio = radio
+		}
+
+		limitLow := cctx.Int("SizeLimitLow")
+		if limitLow > -1 {
+			cfg.SizeLimitLow = limitLow
+		}
+		limitHigh := cctx.Int("SizeLimitHigh")
+		if limitHigh > -1 {
+			cfg.SizeLimitHigh = limitHigh
+		}
+		addrs := cctx.String("PriorityAddrs")
+		if len(addrs) > 0 {
+			tAddrs := []address.Address{}
+			arrAddr := strings.Split(addrs, ",")
+			for _, a := range arrAddr {
+				if a == "-" {
+					break
+				}
+				tAddr, err := address.NewFromString(a)
+				if err != nil {
+					return err
+				}
+				tAddrs = append(tAddrs, tAddr)
+			}
+			cfg.PriorityAddrs = tAddrs
+		}
+		if err := api.MpoolSetConfig(ctx, cfg); err != nil {
+			return err
+		}
+		fmt.Printf("new cfg: %+v\n", cfg)
+		return nil
+	},
+}
+
+var mpoolFix = &cli.Command{
+	Name:  "hlm-fix",
+	Usage: "hlm-fix [address]",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "really-do-it",
+			Usage: "if you want to replace the message, please using really-do-it",
+		},
+		&cli.Uint64Flag{
+			Name:  "rate-premium",
+			Usage: "0<rate, will be divide 10000, default is 125%",
+			Value: 12500,
+		},
+		&cli.Uint64Flag{
+			Name:  "rate-feecap",
+			Usage: "0<rate, will be divide 10000, default is 125%",
+			Value: 12500,
+		},
+		&cli.Uint64Flag{
+			Name:  "rate-limit",
+			Usage: "0<rate, will be divide 10000, default is 125%",
+			Value: 12500,
+		},
+		&cli.Uint64Flag{
+			Name:  "nonce",
+			Usage: "message nonce. 0 is ignored",
+			Value: 0,
+		},
+		&cli.Uint64Flag{
+			Name:  "limit-msg",
+			Usage: "limit the message. 0 is ignored",
+			Value: 0,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() < 1 {
+			return errors.New("need input from address argument")
+		}
+
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ctx := ReqContext(cctx)
+
+		fixAddr, err := address.NewFromString(cctx.Args().First())
+		if err != nil {
+			return errors.New("need input address")
+		}
+		filter := map[address.Address]struct{}{
+			fixAddr: struct{}{},
+		}
+
+		msgs, err := api.MpoolPending(ctx, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+		baseFee, err := api.ChainComputeBaseFee(ctx, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+		limitMsg := cctx.Uint64("limit-msg")
+		nonce := cctx.Uint64("nonce")
+		ratePremium := cctx.Uint64("rate-premium")
+		rateFeeCap := cctx.Uint64("rate-feecap")
+		rateLimit := cctx.Int64("rate-limit")
+		do := cctx.Bool("really-do-it")
+
+		fixedNum := uint64(0)
+		gasUsed := types.NewInt(0)
+		for idx, msg := range msgs {
+			if _, has := filter[msg.Message.From]; !has {
+				continue
+			}
+			if nonce > 0 && nonce != msg.Message.Nonce {
+				continue
+			}
+			if limitMsg > 0 && fixedNum > limitMsg {
+				continue
+			}
+			fixedNum++
+
+			// fix with replace
+			newMsg := msg.Message
+			retm, err := api.GasEstimateMessageGas(ctx, &newMsg, &lapi.MessageSendSpec{}, types.EmptyTSK)
+			if err != nil {
+				return errors.As(err)
+			}
+			// newMsg.GasFeeCap = retm.GasFeeCap
+			newMsg.GasFeeCap = types.BigAdd(
+				types.BigDiv(types.BigMul(baseFee, types.NewInt(rateFeeCap)), types.NewInt(10000)),
+				types.NewInt(1),
+			)
+
+			// Kubuxu said: The formula is 1.25*oldPremium + 1attoFIL
+			newMsg.GasPremium = types.BigAdd(
+				types.BigDiv(types.BigMul(newMsg.GasPremium, types.NewInt(ratePremium)), types.NewInt(10000)),
+				types.NewInt(1),
+			)
+			newMsg.GasPremium = big.Max(retm.GasPremium, newMsg.GasPremium)
+
+			// gas-limit
+			newMsg.GasLimit = newMsg.GasLimit*rateLimit/10000 + 1
+			gasUsed = types.BigAdd(gasUsed, types.BigMul(newMsg.GasFeeCap, types.NewInt(uint64(newMsg.GasLimit))))
+			if do {
+				smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
+				if err != nil {
+					return fmt.Errorf("failed to sign message: %w", err)
+				}
+				cid, err := api.MpoolPush(ctx, smsg)
+				if err != nil {
+					return fmt.Errorf("failed to push new message to mempool: %w", err)
+				}
+				fmt.Printf("idx:%d, BaseFee:%d, newCid:%s\nnewMsg:%s\noldMsg:%s\n", idx, baseFee, cid, newMsg.String(), msg.Message.String())
+			} else {
+				fmt.Printf("if you want to replace, please using --really-do-it. \nidx:%d, BaseFee:%d\nnewMsg:%s\noldMsg:%s\n", idx, baseFee, newMsg.String(), msg.Message.String())
+			}
+		}
+
+		return nil
+	},
+}
 var MpoolPending = &cli.Command{
 	Name:  "pending",
 	Usage: "Get pending messages",
@@ -160,10 +399,9 @@ var MpoolClear = &cli.Command{
 			//nolint:golint
 			return fmt.Errorf("--really-do-it must be specified for this action to have an effect; you have been warned")
 		}
-
+		ctx := ReqContext(cctx)
 		local := cctx.Bool("local")
 
-		ctx := ReqContext(cctx)
 		return api.MpoolClear(ctx, local)
 	},
 }
@@ -363,6 +601,10 @@ var MpoolReplaceCmd = &cli.Command{
 	Name:  "replace",
 	Usage: "replace a message in the mempool",
 	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "really-do-it",
+			Usage: "if you want to send the message, please using really-do-it",
+		},
 		&cli.StringFlag{
 			Name:  "gas-feecap",
 			Usage: "gas feecap for new message (burn and pay to miner, attoFIL/GasUnit)",
@@ -451,6 +693,7 @@ var MpoolReplaceCmd = &cli.Command{
 		}
 
 		msg := found.Message
+		do := cctx.Bool("really-do-it")
 
 		if cctx.Bool("auto") {
 			minRBF := messagepool.ComputeMinRBF(msg.GasPremium)
@@ -495,6 +738,10 @@ var MpoolReplaceCmd = &cli.Command{
 			if err != nil {
 				return fmt.Errorf("parsing gas-feecap: %w", err)
 			}
+		}
+		if !do {
+			fmt.Printf("if you want to send it out, please using --really-do-it. \nnewMsg:%s\n", msg.String())
+			return nil
 		}
 
 		smsg, err := api.WalletSignMessage(ctx, msg.From, &msg)

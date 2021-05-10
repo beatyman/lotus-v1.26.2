@@ -115,6 +115,19 @@ type localWorkerPathProvider struct {
 	op storiface.AcquireMode
 }
 
+func (l *localWorkerPathProvider) RepoPath() string {
+	paths, err := l.w.localStore.Local(context.TODO())
+	if err != nil {
+		panic(err)
+	}
+	for _, p := range paths {
+		if p.CanStore {
+			return p.LocalPath
+		}
+	}
+	panic("No RepoPath")
+}
+
 func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector storage.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, sealing storiface.PathType) (storiface.SectorPaths, func(), error) {
 	paths, storageIDs, err := l.w.storage.AcquireSector(ctx, sector, existing, allocate, sealing, l.op)
 	if err != nil {
@@ -146,7 +159,7 @@ func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector stor
 }
 
 func (l *LocalWorker) ffiExec() (ffiwrapper.Storage, error) {
-	return ffiwrapper.New(&localWorkerPathProvider{w: l})
+	return ffiwrapper.New(ffiwrapper.RemoteCfg{}, &localWorkerPathProvider{w: l})
 }
 
 type ReturnType string

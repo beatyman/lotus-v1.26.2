@@ -45,7 +45,7 @@ func newChangeHandler(api changeHandlerAPI, actor address.Address) *changeHandle
 
 func (ch *changeHandler) start() {
 	go ch.proveHdlr.run()
-	go ch.submitHdlr.run()
+	go ch.submitHdlr.run(true)
 }
 
 func (ch *changeHandler) update(ctx context.Context, revert *types.TipSet, advance *types.TipSet) error {
@@ -207,6 +207,8 @@ func (p *proveHandler) run() {
 	}
 }
 
+var runningIndex = sync.Map{}
+
 func (p *proveHandler) processHeadChange(ctx context.Context, newTS *types.TipSet, di *dline.Info) {
 	// If the post window has expired, abort the current proof
 	if p.current != nil && newTS.Height() >= p.current.di.Close {
@@ -236,10 +238,19 @@ func (p *proveHandler) processHeadChange(ctx context.Context, newTS *types.TipSe
 	if newTS.Height() < di.Challenge+ChallengeConfidence {
 		return
 	}
+	// checking does it in running.
+	cacheDi, ok := runningIndex.Load(di.Index)
+	if ok && cacheDi.(*dline.Info).Open == di.Open {
+		log.Warnf("wdpost has been running by deadline index:%d", di.Index)
+		return
+	}
 
 	p.current = &currentPost{di: di}
 	curr := p.current
+	runningIndex.Store(di.Index, di) // make a running cache
 	p.current.abort = p.api.startGeneratePoST(ctx, newTS, di, func(posts []miner.SubmitWindowedPoStParams, err error) {
+		// clean the cache, make sure this function can called
+		runningIndex.Delete(di.Index)
 		p.postResults <- &postResult{ts: newTS, currPost: curr, posts: posts, err: err}
 	})
 }
@@ -336,7 +347,7 @@ func newSubmitter(
 	}
 }
 
-func (s *submitHandler) run() {
+func (s *submitHandler) run(submit bool) {
 	// On shutdown, abort in-progress submits
 	defer func() {
 		for _, pw := range s.postWindows {
@@ -464,6 +475,18 @@ func (s *submitHandler) submitIfReady(ctx context.Context, advance *types.TipSet
 	if advance.Height() < pw.di.Open+SubmitConfidence {
 		return
 	}
+
+	// fix this issue of:
+	// 2021-03-08T12:14:12.036Z        ^[[34mINFO^[[0m miner   miner/miner.go:230      Waiting chain sync, current:563305, target:563308
+	// 2021-03-08T12:14:17.037Z        ^[[34mINFO^[[0m miner   miner/miner.go:230      Waiting chain sync, current:563306, target:563308
+	// 2021-03-08T12:14:22.038Z        ^[[34mINFO^[[0m miner   miner/miner.go:230      Waiting chain sync, current:563307, target:563308
+	// 2021-03-08T12:14:22.353Z        ^[[34mINFO^[[0m storageminer    storage/wdpost_sched.go:115     Checking window post at:563308
+	// 2021-03-08T12:14:22.362Z        ^[[31mERROR^[[0m        storageminer    storage/wdpost_run.go:917       estimating gas  {"error": "estimating gas used: message execution failed: exit 16, reason: invalid deadline %!d(MISSING) at epoch %!d(MISSING), expected %!d(MISSING) (RetCode=16)"}
+	// 2021-03-08T12:14:22.367Z        ^[[31mERROR^[[0m        storageminer    storage/wdpost_run.go:193       submit window post failed: pushing message to mpool:
+	//     github.com/filecoin-project/lotus/storage.(*WindowPoStScheduler).submitPost
+	//         /home/helmsman/go/src/github.com/filecoin-project/lotus/storage/wdpost_run.go:884
+	//   - GasEstimateMessageGas error: estimating gas used: message execution failed: exit 16, reason: invalid deadline %!d(MISSING) at epoch %!d(MISSING), expected %!d(MISSING) (RetCode=16)
+	// Check the the deadline is it ready
 
 	// Check if the proofs have been generated for this deadline
 	posts, ok := s.posts.get(pw.di)

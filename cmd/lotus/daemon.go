@@ -37,11 +37,13 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/lib/peermgr"
+	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/modules"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	"github.com/filecoin-project/lotus/node/modules/etcd"
 	"github.com/filecoin-project/lotus/node/modules/testing"
 	"github.com/filecoin-project/lotus/node/repo"
 )
@@ -79,6 +81,15 @@ var DaemonCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "api",
 			Value: "1234",
+		},
+		&cli.StringFlag{
+			Name:  "etcd",
+			Value: "",
+		},
+		&cli.StringFlag{
+			Name:  "report-url",
+			Value: "",
+			Usage: "report url for state",
 		},
 		&cli.StringFlag{
 			Name:   makeGenFlag,
@@ -154,6 +165,8 @@ var DaemonCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		etcd.InitAddr(cctx.String("etcd"))
+
 		isLite := cctx.Bool("lite")
 
 		err := runmetrics.Enable(runmetrics.RunMetricOptions{
@@ -351,8 +364,12 @@ var DaemonCmd = &cli.Command{
 			return xerrors.Errorf("getting api endpoint: %w", err)
 		}
 
+		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
+			report.SetReportUrl(reportUrl)
+		}
+
 		// TODO: properly parse api endpoint (or make it a URL)
-		return serveRPC(api, stop, endpoint, shutdownChan, int64(cctx.Int("api-max-req-size")))
+		return serveRPC(cctx.String("repo"), api, stop, endpoint, shutdownChan, int64(cctx.Int("api-max-req-size")))
 	},
 	Subcommands: []*cli.Command{
 		daemonStopCmd,

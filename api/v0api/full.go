@@ -47,6 +47,11 @@ import (
 type FullNode interface {
 	Common
 
+	// implement by hlm
+	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
+	SyncProgress(context.Context) (api.SyncProgress, error)
+	// implement by hlm end
+
 	// MethodGroup: Chain
 	// The Chain method group contains methods for interacting with the
 	// blockchain, but that do not require any form of state computation.

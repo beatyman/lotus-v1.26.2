@@ -2,7 +2,6 @@ package sealing
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/gwaylib/errors"
 )
 
 const SectorStorePrefix = "/sectors"
@@ -186,8 +186,14 @@ func (m *Sealing) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *Sealing) Remove(ctx context.Context, sid abi.SectorNumber) error {
-	return m.sectors.Send(uint64(sid), SectorRemove{})
+func (m *Sealing) Remove(ctx context.Context, id abi.SectorNumber) error {
+	// release the remote worker
+	sid := storage.SectorName(m.minerSectorID(id))
+	memo := "sectors remove"
+	if _, err := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, 500, true, false); err != nil {
+		return errors.As(err)
+	}
+	return m.sectors.Send(uint64(id), SectorRemove{})
 }
 
 func (m *Sealing) Terminate(ctx context.Context, sid abi.SectorNumber) error {
@@ -217,8 +223,9 @@ func (m *Sealing) currentSealProof(ctx context.Context) (abi.RegisteredSealProof
 }
 
 func (m *Sealing) minerSector(spt abi.RegisteredSealProof, num abi.SectorNumber) storage.SectorRef {
+	id := m.minerSectorID(num)
 	return storage.SectorRef{
-		ID:        m.minerSectorID(num),
+		ID:        id,
 		ProofType: spt,
 	}
 }

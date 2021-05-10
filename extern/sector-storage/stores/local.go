@@ -210,9 +210,10 @@ func (st *Local) OpenPath(ctx context.Context, p string) error {
 		return xerrors.Errorf("declaring storage in index: %w", err)
 	}
 
-	if err := st.declareSectors(ctx, p, meta.ID, meta.CanStore); err != nil {
-		return err
-	}
+	// remove by hlm
+	//if err := st.declareSectors(ctx, p, meta.ID, meta.CanStore); err != nil {
+	//	return err
+	//}
 
 	st.paths[meta.ID] = out
 
@@ -303,7 +304,8 @@ func (st *Local) declareSectors(ctx context.Context, p string, id ID, primary bo
 
 			sid, err := storiface.ParseSectorID(ent.Name())
 			if err != nil {
-				return xerrors.Errorf("parse sector id %s: %w", ent.Name(), err)
+				log.Error(xerrors.Errorf("parse(%s) sector id %s: %w", filepath.Join(p, t.String()), ent.Name(), err))
+				continue
 			}
 
 			if err := st.index.StorageDeclareSector(ctx, id, sid, t, primary); err != nil {

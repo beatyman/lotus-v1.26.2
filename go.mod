@@ -15,6 +15,7 @@ require (
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/cockroachdb/pebble v0.0.0-20201001221639-879f3bfeef07
 	github.com/coreos/go-systemd/v22 v22.1.0
+	github.com/dchest/blake2b v1.0.0
 	github.com/detailyang/go-fallocate v0.0.0-20180908115635-432fa640bd2e
 	github.com/dgraph-io/badger/v2 v2.2007.2
 	github.com/docker/go-units v0.4.0
@@ -49,15 +50,23 @@ require (
 	github.com/filecoin-project/specs-actors/v4 v4.0.0
 	github.com/filecoin-project/specs-storage v0.1.1-0.20201105051918-5188d9774506
 	github.com/filecoin-project/test-vectors/schema v0.0.5
+	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
+	github.com/go-git/go-billy/v5 v5.2.0
 	github.com/go-kit/kit v0.10.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/golang/mock v1.4.4
-	github.com/google/uuid v1.1.2
+	github.com/golang/protobuf v1.4.2
+	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
+	github.com/gwaylib/database v0.0.0-20191004162319-8535ba649f9c
+	github.com/gwaylib/errors v0.0.0-20190905023356-162e59439c92
+	github.com/gwaylib/log v0.0.0-20210507100943-24bc495476d8
 	github.com/hako/durafmt v0.0.0-20200710122514-c0fb7b4da026
 	github.com/hannahhoward/go-pubsub v0.0.0-20200423002714-8d62886cc36e
+	github.com/hanwen/go-fuse v1.0.0
+	github.com/hanwen/go-fuse/v2 v2.1.0
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d
@@ -86,6 +95,7 @@ require (
 	github.com/ipfs/go-ipfs-util v0.0.2
 	github.com/ipfs/go-ipld-cbor v0.0.5
 	github.com/ipfs/go-ipld-format v0.2.0
+	github.com/ipfs/go-log v1.0.4
 	github.com/ipfs/go-log/v2 v2.1.2-0.20200626104915-0016c0b4b3e4
 	github.com/ipfs/go-merkledag v0.3.2
 	github.com/ipfs/go-metrics-interface v0.0.1
@@ -116,11 +126,14 @@ require (
 	github.com/libp2p/go-libp2p-yamux v0.4.1
 	github.com/libp2p/go-maddr-filter v0.1.0
 	github.com/mattn/go-colorable v0.1.6 // indirect
+	github.com/mattn/go-isatty v0.0.12 // indirect
+	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-base32 v0.0.3
 	github.com/multiformats/go-multiaddr v0.3.1
 	github.com/multiformats/go-multiaddr-dns v0.2.0
+	github.com/multiformats/go-multiaddr-net v0.2.0
 	github.com/multiformats/go-multibase v0.0.3
 	github.com/multiformats/go-multihash v0.0.14
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
@@ -139,8 +152,10 @@ require (
 	github.com/whyrusleeping/ledger-filecoin-go v0.9.1-0.20201010031517-c3dcc1bddce4
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7
 	github.com/whyrusleeping/pubsub v0.0.0-20190708150250-92bcb0691325
+	github.com/willscott/go-nfs v0.0.0-20210422193315-8a05dee1ebbe
 	github.com/xorcare/golden v0.6.1-0.20191112154924-b87f686d7542
 	go.etcd.io/bbolt v1.3.4
+	go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b
 	go.opencensus.io v0.22.5
 	go.uber.org/dig v1.10.0 // indirect
 	go.uber.org/fx v1.9.0
@@ -163,4 +178,13 @@ replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
+replace github.com/filecoin-project/specs-storage => ./extern/specs-storage
+
+replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20210503121739-d96073ede4a5
+
+//replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
+replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-20201125193152-8a03d2e9614b
+
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
+
+replace google.golang.org/grpc => google.golang.org/grpc v1.29.1

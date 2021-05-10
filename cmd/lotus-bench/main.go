@@ -105,6 +105,10 @@ func main() {
 		Usage:   "Benchmark performance of lotus on your hardware",
 		Version: build.UserVersion(),
 		Commands: []*cli.Command{
+			pBenchCmd,
+			ffiwrapper.P1Cmd,
+			ffiwrapper.P2Cmd,
+
 			proveCmd,
 			sealBenchCmd,
 			importBenchCmd,
@@ -252,7 +256,7 @@ var sealBenchCmd = &cli.Command{
 			Root: sbdir,
 		}
 
-		sb, err := ffiwrapper.New(sbfs)
+		sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, sbfs)
 		if err != nil {
 			return err
 		}
@@ -303,6 +307,24 @@ var sealBenchCmd = &cli.Command{
 				})
 			}
 		}
+		var provenSectors []storage.ProofSectorInfo
+		for _, c := range sealedSectors {
+			provenSectors = append(provenSectors, storage.ProofSectorInfo{
+				SectorRef: storage.SectorRef{
+					ID: abi.SectorID{
+						Number: c.SectorNumber,
+						Miner:  mid,
+					},
+					ProofType: c.SealProof,
+					SectorFile: storage.SectorFile{
+						SectorId:     fmt.Sprintf("s-t0%s-%d", mid, c.SectorNumber),
+						SealedRepo:   sbdir,
+						UnsealedRepo: sbdir,
+					},
+				},
+				SealedCID: c.SealedCID,
+			})
+		}
 
 		bo := BenchResults{
 			SectorSize:     sectorSize,
@@ -330,15 +352,17 @@ var sealBenchCmd = &cli.Command{
 				return err
 			}
 
+			pcandidates := make([]storage.ProofSectorInfo, len(fcandidates))
 			candidates := make([]saproof2.SectorInfo, len(fcandidates))
 			for i, fcandidate := range fcandidates {
 				candidates[i] = sealedSectors[fcandidate]
+				pcandidates[i] = provenSectors[fcandidate]
 			}
 
 			gencandidates := time.Now()
 
 			log.Info("computing winning post snark (cold)")
-			proof1, err := sb.GenerateWinningPoSt(context.TODO(), mid, candidates, challenge[:])
+			proof1, err := sb.GenerateWinningPoSt(context.TODO(), mid, pcandidates, challenge[:])
 			if err != nil {
 				return err
 			}
@@ -346,7 +370,7 @@ var sealBenchCmd = &cli.Command{
 			winningpost1 := time.Now()
 
 			log.Info("computing winning post snark (hot)")
-			proof2, err := sb.GenerateWinningPoSt(context.TODO(), mid, candidates, challenge[:])
+			proof2, err := sb.GenerateWinningPoSt(context.TODO(), mid, pcandidates, challenge[:])
 			if err != nil {
 				return err
 			}
@@ -386,7 +410,7 @@ var sealBenchCmd = &cli.Command{
 			verifyWinningPost2 := time.Now()
 
 			log.Info("computing window post snark (cold)")
-			wproof1, _, err := sb.GenerateWindowPoSt(context.TODO(), mid, sealedSectors, challenge[:])
+			wproof1, _, err := sb.GenerateWindowPoSt(context.TODO(), mid, provenSectors, challenge[:])
 			if err != nil {
 				return err
 			}
@@ -394,7 +418,7 @@ var sealBenchCmd = &cli.Command{
 			windowpost1 := time.Now()
 
 			log.Info("computing window post snark (hot)")
-			wproof2, _, err := sb.GenerateWindowPoSt(context.TODO(), mid, sealedSectors, challenge[:])
+			wproof2, _, err := sb.GenerateWindowPoSt(context.TODO(), mid, provenSectors, challenge[:])
 			if err != nil {
 				return err
 			}
@@ -751,7 +775,7 @@ var proveCmd = &cli.Command{
 			return err
 		}
 
-		sb, err := ffiwrapper.New(nil)
+		sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, nil)
 		if err != nil {
 			return err
 		}

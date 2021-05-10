@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"go.opencensus.io/trace"
+
 	"golang.org/x/xerrors"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
@@ -16,31 +17,36 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 )
 
-func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof2.SectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, error) {
+func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, error) {
+	sb.postLk.Lock()
+	defer sb.postLk.Unlock()
+
 	randomness[31] &= 0x3f
-	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
+	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
 	if err != nil {
 		return nil, err
 	}
-	defer done()
-	if len(skipped) > 0 {
-		return nil, xerrors.Errorf("pubSectorToPriv skipped sectors: %+v", skipped)
-	}
-
 	return ffi.GenerateWinningPoSt(minerID, privsectors, randomness)
 }
 
-func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof2.SectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, []abi.SectorID, error) {
+func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, []abi.SectorID, error) {
+	sb.postLk.Lock()
+	defer sb.postLk.Unlock()
+
+	AssertGPU(ctx)
+
 	randomness[31] &= 0x3f
-	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
+	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("gathering sector info: %w", err)
 	}
-	defer done()
 
-	if len(skipped) > 0 {
-		return nil, skipped, xerrors.Errorf("pubSectorToPriv skipped some sectors")
-	}
+	// delay for 2k testing
+	//	if sb.ssize == 2048 {
+	//		delay := 6 * time.Minute
+	//		log.Warnf("delay for 2k testing:%s", delay)
+	//		time.Sleep(delay)
+	//	}
 
 	proof, faulty, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
 
@@ -55,54 +61,43 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 	return proof, faultyIDs, err
 }
 
-func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []proof2.SectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, []abi.SectorID, func(), error) {
+func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []storage.ProofSectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, error) {
 	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}
 	}
 
-	var doneFuncs []func()
-	done := func() {
-		for _, df := range doneFuncs {
-			df()
-		}
-	}
-
-	var skipped []abi.SectorID
 	var out []ffi.PrivateSectorInfo
 	for _, s := range sectorInfo {
-		if _, faulty := fmap[s.SectorNumber]; faulty {
+		if _, faulty := fmap[s.ID.Number]; faulty {
 			continue
 		}
 
-		sid := storage.SectorRef{
-			ID:        abi.SectorID{Miner: mid, Number: s.SectorNumber},
-			ProofType: s.SealProof,
+		paths := storiface.SectorPaths{
+			ID:       s.SectorID(),
+			Unsealed: s.UnsealedFile(),
+			Sealed:   s.SealedFile(),
+			Cache:    s.CachePath(),
 		}
 
-		paths, d, err := sb.sectors.AcquireSector(ctx, sid, storiface.FTCache|storiface.FTSealed, 0, storiface.PathStorage)
+		postProofType, err := rpt(s.ProofType)
 		if err != nil {
-			log.Warnw("failed to acquire sector, skipping", "sector", sid.ID, "error", err)
-			skipped = append(skipped, sid.ID)
-			continue
-		}
-		doneFuncs = append(doneFuncs, d)
-
-		postProofType, err := rpt(s.SealProof)
-		if err != nil {
-			done()
-			return ffi.SortedPrivateSectorInfo{}, nil, nil, xerrors.Errorf("acquiring registered PoSt proof from sector info %+v: %w", s, err)
+			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("acquiring registered PoSt proof from sector info %+v: %w", s, err)
 		}
 
 		out = append(out, ffi.PrivateSectorInfo{
 			CacheDirPath:     paths.Cache,
 			PoStProofType:    postProofType,
 			SealedSectorPath: paths.Sealed,
-			SectorInfo:       s,
+			SectorInfo: proof2.SectorInfo{
+				SealProof:    s.ProofType,
+				SectorNumber: s.ID.Number,
+				SealedCID:    s.SealedCID,
+			},
 		})
 	}
 
-	return ffi.NewSortedPrivateSectorInfo(out...), skipped, done, nil
+	return ffi.NewSortedPrivateSectorInfo(out...), nil
 }
 
 var _ Verifier = ProofVerifier

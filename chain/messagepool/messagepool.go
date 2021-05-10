@@ -542,6 +542,11 @@ func (mp *MessagePool) Push(m *types.SignedMessage) (cid.Cid, error) {
 		}
 	}
 
+	if m.Message.Method == 0 {
+		// log the wallet send for audit.
+		log.Warnf("Push balance send :+%v", m.Message)
+	}
+
 	return m.Cid(), nil
 }
 
@@ -1213,6 +1218,7 @@ type statBucket struct {
 func (mp *MessagePool) MessagesForBlocks(blks []*types.BlockHeader) ([]*types.SignedMessage, error) {
 	out := make([]*types.SignedMessage, 0)
 
+	recoverSigFailed := []cid.Cid{}
 	for _, b := range blks {
 		bmsgs, smsgs, err := mp.api.MessagesForBlock(b)
 		if err != nil {
@@ -1228,6 +1234,9 @@ func (mp *MessagePool) MessagesForBlocks(blks []*types.BlockHeader) ([]*types.Si
 				log.Debugf("could not recover signature for bls message %s", msg.Cid())
 			}
 		}
+	}
+	if len(recoverSigFailed) > 0 {
+		log.Warnf("could not recover signature for bls message len:%d", len(recoverSigFailed))
 	}
 
 	return out, nil

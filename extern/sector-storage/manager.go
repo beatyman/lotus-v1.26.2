@@ -2,10 +2,11 @@ package sectorstorage
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"sync"
+
+	"github.com/gwaylib/errors"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
@@ -63,6 +64,8 @@ func (w WorkerID) String() string {
 }
 
 type Manager struct {
+	hlmWorker *hlmWorker
+
 	ls         stores.LocalStorage
 	storage    *stores.Remote
 	localStore *stores.Local
@@ -98,9 +101,23 @@ type SealerConfig struct {
 	AllowPreCommit2 bool
 	AllowCommit     bool
 	AllowUnseal     bool
+
+	RemoteSeal                  bool
+	RemoteWnPoSt                int
+	RemoteWdPoSt                int
+	EnableForceRemoteWindowPoSt bool
 }
 
 type StorageAuth http.Header
+
+// only for hlm worker
+func NewWorkerManager(sb *ffiwrapper.Sealer) *Manager {
+	return &Manager{
+		Prover: sb,
+	}
+}
+
+// end hlmd
 
 type WorkerStateStore *statestore.StateStore
 type ManagerStateStore *statestore.StateStore
@@ -111,7 +128,14 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 		return nil, err
 	}
 
-	prover, err := ffiwrapper.New(&readonlyProvider{stor: lstor, index: si})
+	remoteCfg := ffiwrapper.RemoteCfg{
+		SealSector:                  sc.RemoteSeal,
+		WindowPoSt:                  sc.RemoteWdPoSt,
+		WinningPoSt:                 sc.RemoteWnPoSt,
+		EnableForceRemoteWindowPoSt: sc.EnableForceRemoteWindowPoSt,
+	}
+
+	prover, err := ffiwrapper.New(remoteCfg, &readonlyProvider{stor: lstor, index: si})
 	if err != nil {
 		return nil, xerrors.Errorf("creating prover instance: %w", err)
 	}
@@ -135,6 +159,9 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 		results:    map[WorkID]result{},
 		waitRes:    map[WorkID]chan struct{}{},
 	}
+	m.hlmWorker, err = NewHlmWorker(remoteCfg, stor, lstor, si)
+
+	return m, nil
 
 	m.setupWorkTracker()
 
@@ -158,7 +185,6 @@ func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, sc 
 	if sc.AllowUnseal {
 		localTasks = append(localTasks, sealtasks.TTUnseal)
 	}
-
 	err = m.AddWorker(ctx, NewLocalWorker(WorkerConfig{
 		TaskTypes: localTasks,
 	}, stor, lstor, si, m, wss))
@@ -188,6 +214,9 @@ func (m *Manager) AddLocalStorage(ctx context.Context, path string) error {
 }
 
 func (m *Manager) AddWorker(ctx context.Context, w Worker) error {
+	// close by hlm
+	return nil
+
 	return m.sched.runWorker(ctx, w)
 }
 
@@ -262,6 +291,12 @@ func (m *Manager) tryReadUnsealedPiece(ctx context.Context, sink io.Writer, sect
 }
 
 func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) error {
+	_, err := m.hlmWorker.ReadPiece(ctx, sink, sector, offset, size, ticket, unsealed)
+	if err != nil {
+		return errors.As(err)
+	}
+	return nil
+
 	log.Debugf("fetch and read piece in sector %d, offset %d, size %d", sector.ID, offset, size)
 	foundUnsealed, readOk, selector, err := m.tryReadUnsealedPiece(ctx, sink, sector, offset, size)
 	if err != nil {
@@ -337,11 +372,17 @@ func (m *Manager) ReadPiece(ctx context.Context, sink io.Writer, sector storage.
 }
 
 func (m *Manager) NewSector(ctx context.Context, sector storage.SectorRef) error {
-	log.Warnf("stub NewSector")
-	return nil
+	return m.hlmWorker.NewSector(ctx, sector)
+
+}
+
+func (m *Manager) PledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+	return m.hlmWorker.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
 }
 
 func (m *Manager) AddPiece(ctx context.Context, sector storage.SectorRef, existingPieces []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
+	return m.hlmWorker.AddPiece(ctx, sector, existingPieces, sz, r)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -373,6 +414,8 @@ func (m *Manager) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 }
 
 func (m *Manager) SealPreCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
+	return m.hlmWorker.SealPreCommit1(ctx, sector, ticket, pieces)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -424,6 +467,8 @@ func (m *Manager) SealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 }
 
 func (m *Manager) SealPreCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.PreCommit1Out) (out storage.SectorCids, err error) {
+	return m.hlmWorker.SealPreCommit2(ctx, sector, phase1Out)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -473,6 +518,8 @@ func (m *Manager) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 }
 
 func (m *Manager) SealCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (out storage.Commit1Out, err error) {
+	return m.hlmWorker.SealCommit1(ctx, sector, ticket, seed, pieces, cids)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -525,6 +572,8 @@ func (m *Manager) SealCommit1(ctx context.Context, sector storage.SectorRef, tic
 }
 
 func (m *Manager) SealCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.Commit1Out) (out storage.Proof, err error) {
+	return m.hlmWorker.SealCommit2(ctx, sector, phase1Out)
+
 	wk, wait, cancel, err := m.getWork(ctx, sealtasks.TTCommit2, sector, phase1Out)
 	if err != nil {
 		return storage.Proof{}, xerrors.Errorf("getWork: %w", err)
@@ -567,7 +616,13 @@ func (m *Manager) SealCommit2(ctx context.Context, sector storage.SectorRef, pha
 	return out, waitErr
 }
 
+func (m *Manager) SealCommit(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Proof, error) {
+	return m.hlmWorker.SealCommit(ctx, sector, ticket, seed, pieces, cids)
+}
+
 func (m *Manager) FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {
+	return m.hlmWorker.FinalizeSector(ctx, sector, keepUnsealed)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -626,6 +681,8 @@ func (m *Manager) ReleaseUnsealed(ctx context.Context, sector storage.SectorRef,
 }
 
 func (m *Manager) Remove(ctx context.Context, sector storage.SectorRef) error {
+	return m.hlmWorker.Remove(ctx, sector)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

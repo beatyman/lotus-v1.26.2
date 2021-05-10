@@ -239,7 +239,7 @@ func getGrothParamFileAndVerifyingKeys(s abi.SectorSize) {
 // Groth parameters and verifying keys before running the tests which rely on
 // those parameters and keys. To do this, run the following command:
 //
-// go test -run=^TestDownloadParams
+//	commpffi "github.com/filecoin-project/go-commp-utils/ffiwrapper"
 //
 func TestDownloadParams(t *testing.T) {
 	defer requireFDsClosed(t, openFDs(t))

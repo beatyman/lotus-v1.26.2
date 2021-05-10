@@ -40,6 +40,11 @@ import (
 // StorageMiner is a low-level interface to the Filecoin network storage miner node
 type StorageMiner interface {
 	Common
+	HlmMinerProxy
+	HlmMinerProving
+	HlmMinerSector
+	HlmMinerStorage
+	HlmMinerWorker
 
 	ActorAddress(context.Context) (address.Address, error) //perm:read
 

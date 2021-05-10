@@ -1,5 +1,7 @@
 // +build !debug
 // +build !2k
+// +build !hlm
+// +build !calibration
 // +build !testground
 // +build !calibnet
 // +build !nerpanet

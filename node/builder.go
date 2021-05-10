@@ -233,7 +233,7 @@ var LibP2P = Options(
 	}),
 
 	// Services (connection management)
-	Override(ConnectionManagerKey, lp2p.ConnectionManager(50, 200, 20*time.Second, nil)),
+	Override(ConnectionManagerKey, lp2p.ConnectionManager(15, 50, 20*time.Second, nil)),
 	Override(new(*conngater.BasicConnectionGater), lp2p.ConnGater),
 	Override(ConnGaterKey, lp2p.ConnGaterOption),
 )
@@ -644,6 +644,7 @@ func Repo(r repo.Repo) Option {
 
 			Override(new(types.KeyStore), modules.KeyStore),
 
+			Override(new(*dtypes.WorkerAPIAlg), modules.WorkerAPISecret),
 			Override(new(*dtypes.APIAlg), modules.APISecret),
 
 			ApplyIf(isType(repo.FullNode), ConfigFullNode(c)),

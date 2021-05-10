@@ -38,11 +38,16 @@ type Backup struct {
 type StorageMiner struct {
 	Common
 
+	WorkerAPI  WorkerAddrConfig
 	Dealmaking DealmakingConfig
 	Sealing    SealingConfig
 	Storage    sectorstorage.SealerConfig
 	Fees       MinerFeeConfig
 	Addresses  MinerAddressConfig
+}
+
+type WorkerAddrConfig struct {
+	ListenAddress string
 }
 
 type DealmakingConfig struct {
@@ -78,6 +83,9 @@ type SealingConfig struct {
 	// includes failed, 0 = no limit
 	MaxSealingSectorsForDeals uint64
 
+	// includes failed, 0 = no limit
+	MaxDealsPerSector uint64
+
 	WaitDealsDelay Duration
 
 	AlwaysKeepUnsealedCopy bool
@@ -95,6 +103,9 @@ type MinerFeeConfig struct {
 	MaxWindowPoStGasFee    types.FIL
 	MaxPublishDealsFee     types.FIL
 	MaxMarketBalanceAddFee types.FIL
+
+	EnableSeparatePartition bool
+	PartitionsPerMsg        int
 }
 
 type MinerAddressConfig struct {
@@ -192,8 +203,8 @@ func defCommon() Common {
 			AnnounceAddresses:   []string{},
 			NoAnnounceAddresses: []string{},
 
-			ConnMgrLow:   150,
-			ConnMgrHigh:  180,
+			ConnMgrLow:   15,
+			ConnMgrHigh:  50,
 			ConnMgrGrace: Duration(20 * time.Second),
 		},
 		Pubsub: Pubsub{
@@ -231,10 +242,15 @@ func DefaultStorageMiner() *StorageMiner {
 	cfg := &StorageMiner{
 		Common: defCommon(),
 
+		WorkerAPI: WorkerAddrConfig{
+			ListenAddress: "/ip4/127.0.0.1/tcp/2347/http",
+		},
+
 		Sealing: SealingConfig{
-			MaxWaitDealsSectors:       2, // 64G with 32G sectors
+			MaxWaitDealsSectors:       0, // 64G with 32G sectors
 			MaxSealingSectors:         0,
 			MaxSealingSectorsForDeals: 0,
+			MaxDealsPerSector:         0,
 			WaitDealsDelay:            Duration(time.Hour * 6),
 			AlwaysKeepUnsealedCopy:    true,
 		},
@@ -245,6 +261,9 @@ func DefaultStorageMiner() *StorageMiner {
 			AllowPreCommit2: true,
 			AllowCommit:     true,
 			AllowUnseal:     true,
+			RemoteSeal:      false,
+			RemoteWnPoSt:    0,
+			RemoteWdPoSt:    0,
 
 			// Default to 10 - tcp should still be able to figure this out, and
 			// it's the ratio between 10gbit / 1gbit
