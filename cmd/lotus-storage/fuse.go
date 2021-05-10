@@ -1,9 +1,7 @@
 package main
 
 import (
-	"crypto/md5"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -24,8 +22,9 @@ type connFile struct {
 	lastActive time.Time
 	file       *os.File
 
-	remotePath string
+	user       string
 	auth       string
+	remotePath string
 }
 
 var (
@@ -65,7 +64,7 @@ func getConnFile(id string) (*connFile, error) {
 	}
 
 	// Try restore from session db because maybe it has been gc.
-	path, auth, err := GetSessionFile(id)
+	user, auth, path, err := GetSessionFile(id)
 	if err != nil {
 		if errors.ErrNoData.Equal(err) {
 			return nil, errors.New("file was closed").As(id)
@@ -73,16 +72,12 @@ func getConnFile(id string) (*connFile, error) {
 		return nil, errors.As(err)
 	}
 	read := GetAuthRO()
-	write := GetAuthRW()
 	canWrite := false
-	switch auth {
-	case read:
-		// pass
-	case write:
+	if auth != read {
+		if !authRW(user, auth, path) {
+			return nil, errors.New("auth failed, maybe the auth has changed").As(id)
+		}
 		canWrite = true
-		// pass
-	default:
-		return nil, errors.New("auth failed, maybe the auth has changed").As(id)
 	}
 	var file *os.File
 	if canWrite {
@@ -124,8 +119,8 @@ func gcConnFile() {
 		log.Infof("gcConnFile:%s", id)
 		delete(openFiles, id)
 		// save stack to db
-		if err := AddSessionFile(id, cf.remotePath, cf.auth); err != nil {
-			log.Error(errors.As(err, id, cf.remotePath, cf.auth))
+		if err := AddSessionFile(id, cf.user, cf.auth, cf.remotePath); err != nil {
+			log.Error(errors.As(err, id, cf.user, cf.remotePath, cf.auth))
 		}
 	}
 }
@@ -325,19 +320,16 @@ func handleFUseText(conn net.Conn, bufLen uint32) error {
 			utils.WriteFUseErrResp(conn, 403, utils.ErrFUseParams.As("invalid path"))
 			return nil // open the file failed, close the file thread connection.
 		}
+		user, _ := p["User"]
 		auth, _ := p["Auth"]
-		read := fmt.Sprintf("%x", md5.Sum([]byte(_md5auth+"read")))
-		write := fmt.Sprintf("%x", md5.Sum([]byte(_md5auth+"write")))
+		read := GetAuthRO()
 		canWrite := false
-		switch auth {
-		case read:
-			// pass
-		case write:
+		if auth != read {
+			if !authRW(user, auth, path) {
+				utils.WriteFUseErrResp(conn, 401, utils.ErrFUseParams.As("Auth failed"))
+				return nil
+			}
 			canWrite = true
-			// pass
-		default:
-			utils.WriteFUseErrResp(conn, 401, utils.ErrFUseParams.As("Auth failed"))
-			return nil // open the file failed, close the file thread connection.
 		}
 
 		id := uuid.NewString()
@@ -377,8 +369,9 @@ func handleFUseText(conn net.Conn, bufLen uint32) error {
 			lastActive: time.Now(),
 			file:       file,
 
-			remotePath: path,
+			user:       user,
 			auth:       auth,
+			remotePath: path,
 		})
 		utils.WriteFUseSucResp(conn, 200, map[string]string{
 			"Id": id,

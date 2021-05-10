@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/md5"
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -29,23 +27,21 @@ func authFile(r *http.Request, write bool) (string, bool) {
 	if !validHttpFilePath(file) {
 		return "", false
 	}
-	switch username {
-	case "sys":
-		if write || passwd != fmt.Sprintf("%x", md5.Sum([]byte(_md5auth+"read"))) {
-			return "", false
-		}
-		return file, true
-	default:
-		if !_handler.VerifyToken(username, passwd) {
-			log.Infof("auth failed:%s,%s,%s", r.RemoteAddr, username, passwd)
-			return "", false
-		}
-		if write && !strings.Contains(file, username) {
-			return "", false
-		}
-		return file, true
+	if !_handler.VerifyToken(username, passwd) {
+		log.Infof("auth failed:%s,%s,%s", r.RemoteAddr, username, passwd)
+		return "", false
 	}
-	return "", false
+	return "", authRW(username, passwd, file)
+}
+
+func authRW(user, auth, path string) bool {
+	if !_handler.VerifyToken(user, auth) {
+		return false
+	}
+	if !strings.Contains(path, user) {
+		return false
+	}
+	return true
 }
 
 func authBase(r *http.Request) bool {
