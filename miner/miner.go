@@ -448,7 +448,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
-		log.Infof("Nil MiningBaseInfo for round %d, off tipset %d/%s", round, base.TipSet.Height(), base.TipSet.Key().String())
+		log.Infof("No MiningBaseInfo for round %d, off tipset %d/%s", round, base.TipSet.Height(), base.TipSet.Key().String())
 		return nil, nil
 	}
 
