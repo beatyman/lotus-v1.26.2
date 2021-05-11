@@ -260,7 +260,7 @@ func (m *Miner) mine(ctx context.Context) {
 				}
 			}
 
-			log.Infof("Update %s base height to: %d", m.address, base.TipSet.Height())
+			//log.Infof("Update %s base height to: %d", m.address, base.TipSet.Height())
 
 			nextRound = nextRoundTime(base)
 			lastBase = *base
@@ -300,7 +300,7 @@ func (m *Miner) mine(ctx context.Context) {
 			nextRound = nextRoundTime(&lastBase)
 		}
 
-		log.Infof("Trying mineOne")
+		//log.Infof("Trying mineOne")
 		b, err := m.mineOne(ctx, &oldbase, &lastBase)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)

@@ -52,6 +52,10 @@ func (f *FUseClient) Mount(ctx context.Context, mountPoint string) error {
 	defer f.glock.Unlock()
 	// checking mountpoint
 
+	if err := os.MkdirAll(mountPoint, 0755); err != nil {
+		return errors.As(err, mountPoint)
+	}
+
 	//root := NewMemNodeFSRoot("test")
 	root, err := NewFUseRootFs(f.uri, f.token)
 	if err != nil {
