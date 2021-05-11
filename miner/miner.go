@@ -448,7 +448,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
-		log.Warnf("mineOne: unexpectedly nil MiningBaseInfo for round %d, off tipset %d/%s", round, base.TipSet.Height(), base.TipSet.Key().String())
+		log.Infof("mineOne: unexpectedly nil MiningBaseInfo for round %d, off tipset %d/%s", round, base.TipSet.Height(), base.TipSet.Key().String())
 		return nil, nil
 	}
 
@@ -469,7 +469,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 
 	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
-		log.Info("No EligibleForMining")
 		return nil, nil
 	}
 
@@ -509,7 +508,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	}
 
 	if winner == nil {
-		log.Info("Not Win")
 		return nil, nil
 	}
 
