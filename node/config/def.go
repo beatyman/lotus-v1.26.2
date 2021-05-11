@@ -247,7 +247,7 @@ func DefaultStorageMiner() *StorageMiner {
 		},
 
 		Sealing: SealingConfig{
-			MaxWaitDealsSectors:       0, // 64G with 32G sectors
+			MaxWaitDealsSectors:       2, // 64G with 32G sectors
 			MaxSealingSectors:         0,
 			MaxSealingSectorsForDeals: 0,
 			MaxDealsPerSector:         0,

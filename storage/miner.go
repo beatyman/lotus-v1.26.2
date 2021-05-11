@@ -106,7 +106,6 @@ type storageMinerApi interface {
 	GasEstimateFeeCap(context.Context, *types.Message, int64, types.TipSetKey) (types.BigInt, error)
 	GasEstimateGasPremium(_ context.Context, nblocksincl uint64, sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error)
 
-	SyncProgress(context.Context) (api.SyncProgress, error)
 	ChainHead(context.Context) (*types.TipSet, error)
 	ChainNotify(context.Context) (<-chan []*api.HeadChange, error)
 	ChainGetRandomnessFromTickets(ctx context.Context, tsk types.TipSetKey, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error)
@@ -124,6 +123,7 @@ type storageMinerApi interface {
 
 	// implememt by hlm
 	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)
+	SyncProgress(context.Context) (api.SyncProgress, error)
 	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
 	WalletSignMessage(context.Context, address.Address, *types.Message) (*types.SignedMessage, error)
 	MpoolPush(context.Context, *types.SignedMessage) (cid.Cid, error)

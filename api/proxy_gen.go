@@ -37,9 +37,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
 	xerrors "golang.org/x/xerrors"
-
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 )
 
 type ChainIOStruct struct {
@@ -55,10 +52,6 @@ type ChainIOStub struct {
 
 type CommonStruct struct {
 	Internal struct {
-		// Reload the auth key
-		ReloadHlmAuth func(context.Context) error         `perm:"write"`
-		IsHlmAuthOn   func(context.Context) (bool, error) `perm:"read"`
-
 		AuthNew func(p0 context.Context, p1 []auth.Permission) ([]byte, error) `perm:"admin"`
 
 		AuthVerify func(p0 context.Context, p1 string) ([]auth.Permission, error) `perm:"read"`
@@ -556,64 +549,6 @@ type StorageMinerStruct struct {
 	HlmMinerWorkerStruct
 
 	Internal struct {
-		// implements by hlm
-		ProxyAutoSelect               func(ctx context.Context, on bool) error                                                  `perm:"admin"`
-		ProxyChange                   func(ctx context.Context, idx int) error                                                  `perm:"admin"`
-		ProxyStatus                   func(ctx context.Context, cond ProxyStatCondition) (*ProxyStatus, error)                  `perm:"read"`
-		ProxyReload                   func(ctx context.Context) error                                                           `perm:"admin"`
-		StatusMinerStorage            func(ctx context.Context) ([]byte, error)                                                 `perm:"read"`
-		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                              `perm:"admin"`
-		WdpostSetPartitionNumber      func(ctx context.Context, number int) error                                               `perm:"admin"`
-		RunPledgeSector               func(context.Context) error                                                               `perm:"admin"`
-		StatusPledgeSector            func(context.Context) (int, error)                                                        `perm:"read"`
-		StopPledgeSector              func(context.Context) error                                                               `perm:"admin"`
-		HlmSectorGetState             func(ctx context.Context, sid string) (*database.SectorInfo, error)                       `perm:"read"`
-		HlmSectorSetState             func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)   `perm:"admin"`
-		HlmSectorListAll              func(context.Context) ([]SectorInfo, error)                                               `perm:"read"`
-		HlmSectorFile                 func(ctx context.Context, sid string) (*storage.SectorFile, error)                        `perm:"read"`
-		HlmSectorCheck                func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)       `perm:"read"`
-		SelectCommit2Service          func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)                        `perm:"write"`
-		UnlockGPUService              func(ctx context.Context, workerId, taskKey string) error                                 `perm:"write"`
-		PauseSeal                     func(ctx context.Context, pause int32) error                                              `perm:"write"`
-		WorkerAddress                 func(context.Context, address.Address, types.TipSetKey) (address.Address, error)          `perm:"read"`
-		WorkerStatus                  func(context.Context) (ffiwrapper.WorkerStats, error)                                     `perm:"read"`
-		WorkerStatusAll               func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                             `perm:"read"`
-		WorkerQueue                   func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"write"`
-		WorkerWorking                 func(ctx context.Context, workerId string) (database.WorkingSectors, error)               `perm:"read"`
-		WorkerWorkingById             func(ctx context.Context, sid []string) (database.WorkingSectors, error)                  `perm:"read"`
-		WorkerLock                    func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
-		WorkerUnlock                  func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error          `perm:"write"`
-		WorkerGcLock                  func(ctx context.Context, workerId string) ([]string, error)                              `perm:"write"`
-		WorkerDone                    func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"write"`
-		WorkerInfo                    func(ctx context.Context, wid string) (*database.WorkerInfo, error)                       `perm:"read"`
-		WorkerSearch                  func(ctx context.Context, ip string) ([]database.WorkerInfo, error)                       `perm:"read"`
-		WorkerDisable                 func(ctx context.Context, wid string, disable bool) error                                 `perm:"admin"`
-		WorkerAddConn                 func(ctx context.Context, wid string, num int) error                                      `perm:"write"`
-		WorkerPreConn                 func(ctx context.Context) (*database.WorkerInfo, error)                                   `perm:"read"`
-		WorkerPreConnV1               func(ctx context.Context, skipWid []string) (*database.WorkerInfo, error)                 `perm:"write"`
-		WorkerMinerConn               func(ctx context.Context) (int, error)                                                    `perm:"write"`
-
-		Testing                func(ctx context.Context, fnName string, args []string) error                                 `perm:"admin"`
-		VerHLMStorage          func(ctx context.Context) (int64, error)                                                      `perm:"read"`
-		GetHLMStorage          func(ctx context.Context, id int64) (*database.StorageInfo, error)                            `perm:"read"`
-		SearchHLMStorage       func(ctx context.Context, ip string) ([]database.StorageInfo, error)                          `perm:"read"`
-		AddHLMStorage          func(ctx context.Context, sInfo *database.StorageAuth) error                                  `perm:"admin"`
-		DisableHLMStorage      func(ctx context.Context, id int64, disable bool) error                                       `perm:"admin"`
-		MountHLMStorage        func(ctx context.Context, id int64) error                                                     `perm:"admin"`
-		UMountHLMStorage       func(ctx context.Context, id int64) error                                                     `perm:"admin"`
-		RelinkHLMStorage       func(ctx context.Context, id int64) error                                                     `perm:"admin"`
-		ReplaceHLMStorage      func(ctx context.Context, info *database.StorageAuth) error                                   `perm:"write"`
-		ScaleHLMStorage        func(ctx context.Context, id int64, size int64, work int64) error                             `perm:"admin"`
-		StatusHLMStorage       func(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error)  `perm:"read"`
-		PreStorageNode         func(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) `perm:"write"`
-		CommitStorageNode      func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
-		CancelStorageNode      func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
-		ChecksumStorage        func(ctx context.Context, ver int64) ([]database.StorageInfo, error)                          `perm:"read"`
-		GetProvingCheckTimeout func(ctx context.Context) (time.Duration, error)                                              `perm:"read"`
-		SetProvingCheckTimeout func(ctx context.Context, timeout time.Duration) error                                        `perm:"write"`
-		GetFaultCheckTimeout   func(ctx context.Context) (time.Duration, error)                                              `perm:"read"`
-		SetFaultCheckTimeout   func(ctx context.Context, timeout time.Duration) error                                        `perm:"write"`
-
 		ActorAddress func(p0 context.Context) (address.Address, error) `perm:"read"`
 
 		ActorAddressConfig func(p0 context.Context) (AddressConfig, error) `perm:"read"`
@@ -888,12 +823,6 @@ func (s *ChainIOStub) ChainReadObj(p0 context.Context, p1 cid.Cid) ([]byte, erro
 	return *new([]byte), xerrors.New("method not supported")
 }
 
-func (c *CommonStruct) ReloadHlmAuth(ctx context.Context) error {
-	return c.Internal.ReloadHlmAuth(ctx)
-}
-func (c *CommonStruct) IsHlmAuthOn(ctx context.Context) (bool, error) {
-	return c.Internal.IsHlmAuthOn(ctx)
-}
 func (s *CommonStruct) AuthNew(p0 context.Context, p1 []auth.Permission) ([]byte, error) {
 	return s.Internal.AuthNew(p0, p1)
 }
@@ -1026,7 +955,7 @@ func (s *CommonStruct) NetConnect(p0 context.Context, p1 peer.AddrInfo) error {
 	return s.Internal.NetConnect(p0, p1)
 }
 
-func (s *CommonStub) NetConnect(p0 context.Context, p1 peer.AddrInfo, protect bool) error {
+func (s *CommonStub) NetConnect(p0 context.Context, p1 peer.AddrInfo) error {
 	return xerrors.New("method not supported")
 }
 
@@ -1114,7 +1043,6 @@ func (c *FullNodeStruct) SyncProgress(ctx context.Context) (SyncProgress, error)
 func (c *FullNodeStub) SyncProgress(ctx context.Context) (SyncProgress, error) {
 	return SyncProgress{}, xerrors.New("method not supported")
 }
-
 func (s *FullNodeStruct) BeaconGetEntry(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) {
 	return s.Internal.BeaconGetEntry(p0, p1)
 }
@@ -2714,181 +2642,6 @@ func (s *SignableStruct) Sign(p0 context.Context, p1 SignFunc) error {
 func (s *SignableStub) Sign(p0 context.Context, p1 SignFunc) error {
 	return xerrors.New("method not supported")
 }
-
-// implements by hlm start
-func (c *StorageMinerStruct) ProxyAutoSelect(ctx context.Context, on bool) error {
-	return c.Internal.ProxyAutoSelect(ctx, on)
-}
-func (c *StorageMinerStruct) ProxyChange(ctx context.Context, idx int) error {
-	return c.Internal.ProxyChange(ctx, idx)
-}
-func (c *StorageMinerStruct) ProxyStatus(ctx context.Context, cond ProxyStatCondition) (*ProxyStatus, error) {
-	return c.Internal.ProxyStatus(ctx, cond)
-}
-func (c *StorageMinerStruct) ProxyReload(ctx context.Context) error {
-	return c.Internal.ProxyReload(ctx)
-}
-func (c *StorageMinerStruct) StatusMinerStorage(ctx context.Context) ([]byte, error) {
-	return c.Internal.StatusMinerStorage(ctx)
-}
-func (c *StorageMinerStruct) WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error {
-	return c.Internal.WdpostEnablePartitionSeparate(ctx, enable)
-}
-func (c *StorageMinerStruct) WdpostSetPartitionNumber(ctx context.Context, number int) error {
-	return c.Internal.WdpostSetPartitionNumber(ctx, number)
-}
-
-func (c *StorageMinerStruct) RunPledgeSector(ctx context.Context) error {
-	return c.Internal.RunPledgeSector(ctx)
-}
-func (c *StorageMinerStruct) StatusPledgeSector(ctx context.Context) (int, error) {
-	return c.Internal.StatusPledgeSector(ctx)
-}
-func (c *StorageMinerStruct) StopPledgeSector(ctx context.Context) error {
-	return c.Internal.StopPledgeSector(ctx)
-}
-func (c *StorageMinerStruct) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
-	return c.Internal.HlmSectorGetState(ctx, sid)
-}
-func (c *StorageMinerStruct) HlmSectorSetState(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) {
-	return c.Internal.HlmSectorSetState(ctx, sid, memo, state, force, reset)
-}
-func (c *StorageMinerStruct) HlmSectorListAll(ctx context.Context) ([]SectorInfo, error) {
-	return c.Internal.HlmSectorListAll(ctx)
-}
-func (c *StorageMinerStruct) HlmSectorFile(ctx context.Context, sid string) (*storage.SectorFile, error) {
-	return c.Internal.HlmSectorFile(ctx, sid)
-}
-func (c *StorageMinerStruct) HlmSectorCheck(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error) {
-	return c.Internal.HlmSectorCheck(ctx, sid, timeout)
-}
-func (c *StorageMinerStruct) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {
-	return c.Internal.SelectCommit2Service(ctx, sector)
-}
-func (c *StorageMinerStruct) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
-	return c.Internal.UnlockGPUService(ctx, workerId, taskKey)
-}
-func (c *StorageMinerStruct) PauseSeal(ctx context.Context, pause int32) error {
-	return c.Internal.PauseSeal(ctx, pause)
-}
-func (c *StorageMinerStruct) WorkerAddress(ctx context.Context, act address.Address, tsk types.TipSetKey) (address.Address, error) {
-	return c.Internal.WorkerAddress(ctx, act, tsk)
-}
-func (c *StorageMinerStruct) WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error) {
-	return c.Internal.WorkerStatus(ctx)
-}
-func (c *StorageMinerStruct) WorkerStatusAll(ctx context.Context) ([]ffiwrapper.WorkerRemoteStats, error) {
-	return c.Internal.WorkerStatusAll(ctx)
-}
-func (c *StorageMinerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) {
-	return c.Internal.WorkerQueue(ctx, cfg)
-}
-func (c *StorageMinerStruct) WorkerWorking(ctx context.Context, workerId string) (database.WorkingSectors, error) {
-	return c.Internal.WorkerWorking(ctx, workerId)
-}
-func (c *StorageMinerStruct) WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error) {
-	return c.Internal.WorkerWorkingById(ctx, sid)
-}
-func (c *StorageMinerStruct) WorkerLock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
-	return c.Internal.WorkerLock(ctx, workerId, taskKey, memo, sectorState)
-}
-func (c *StorageMinerStruct) WorkerUnlock(ctx context.Context, workerId, taskKey, memo string, sectorState int) error {
-	return c.Internal.WorkerUnlock(ctx, workerId, taskKey, memo, sectorState)
-}
-func (c *StorageMinerStruct) WorkerGcLock(ctx context.Context, workerId string) ([]string, error) {
-	return c.Internal.WorkerGcLock(ctx, workerId)
-}
-func (c *StorageMinerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
-	return c.Internal.WorkerDone(ctx, res)
-}
-func (c *StorageMinerStruct) WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error) {
-	return c.Internal.WorkerInfo(ctx, wid)
-}
-func (c *StorageMinerStruct) WorkerSearch(ctx context.Context, ip string) ([]database.WorkerInfo, error) {
-	return c.Internal.WorkerSearch(ctx, ip)
-}
-func (c *StorageMinerStruct) WorkerDisable(ctx context.Context, wid string, disable bool) error {
-	return c.Internal.WorkerDisable(ctx, wid, disable)
-}
-func (c *StorageMinerStruct) WorkerAddConn(ctx context.Context, wid string, num int) error {
-	return c.Internal.WorkerAddConn(ctx, wid, num)
-}
-func (c *StorageMinerStruct) WorkerPreConn(ctx context.Context) (*database.WorkerInfo, error) {
-	return c.Internal.WorkerPreConn(ctx)
-}
-func (c *StorageMinerStruct) WorkerPreConnV1(ctx context.Context, skipWid []string) (*database.WorkerInfo, error) {
-	return c.Internal.WorkerPreConnV1(ctx, skipWid)
-}
-func (c *StorageMinerStruct) WorkerMinerConn(ctx context.Context) (int, error) {
-	return c.Internal.WorkerMinerConn(ctx)
-}
-
-func (c *StorageMinerStruct) Testing(ctx context.Context, fnName string, args []string) error {
-	return c.Internal.Testing(ctx, fnName, args)
-}
-func (c *StorageMinerStruct) VerHLMStorage(ctx context.Context) (int64, error) {
-	return c.Internal.VerHLMStorage(ctx)
-}
-func (c *StorageMinerStruct) GetHLMStorage(ctx context.Context, id int64) (*database.StorageInfo, error) {
-	return c.Internal.GetHLMStorage(ctx, id)
-}
-func (c *StorageMinerStruct) SearchHLMStorage(ctx context.Context, ip string) ([]database.StorageInfo, error) {
-	return c.Internal.SearchHLMStorage(ctx, ip)
-}
-func (c *StorageMinerStruct) AddHLMStorage(ctx context.Context, sInfo *database.StorageAuth) error {
-	return c.Internal.AddHLMStorage(ctx, sInfo)
-}
-func (c *StorageMinerStruct) DisableHLMStorage(ctx context.Context, id int64, disable bool) error {
-	return c.Internal.DisableHLMStorage(ctx, id, disable)
-}
-func (c *StorageMinerStruct) MountHLMStorage(ctx context.Context, id int64) error {
-	return c.Internal.MountHLMStorage(ctx, id)
-}
-func (c *StorageMinerStruct) UMountHLMStorage(ctx context.Context, id int64) error {
-	return c.Internal.UMountHLMStorage(ctx, id)
-}
-func (c *StorageMinerStruct) RelinkHLMStorage(ctx context.Context, id int64) error {
-	return c.Internal.RelinkHLMStorage(ctx, id)
-}
-func (c *StorageMinerStruct) ReplaceHLMStorage(ctx context.Context, info *database.StorageAuth) error {
-	return c.Internal.ReplaceHLMStorage(ctx, info)
-}
-func (c *StorageMinerStruct) ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error {
-	return c.Internal.ScaleHLMStorage(ctx, id, size, work)
-}
-func (c *StorageMinerStruct) StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) {
-	return c.Internal.StatusHLMStorage(ctx, id, timeout)
-}
-
-func (c *StorageMinerStruct) PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) {
-	return c.Internal.PreStorageNode(ctx, sectorId, clientIp, kind)
-}
-
-func (c *StorageMinerStruct) CommitStorageNode(ctx context.Context, sectorId string, kind int) error {
-	return c.Internal.CommitStorageNode(ctx, sectorId, kind)
-}
-
-func (c *StorageMinerStruct) CancelStorageNode(ctx context.Context, sectorId string, kind int) error {
-	return c.Internal.CancelStorageNode(ctx, sectorId, kind)
-}
-
-func (c *StorageMinerStruct) ChecksumStorage(ctx context.Context, sumVer int64) ([]database.StorageInfo, error) {
-	return c.Internal.ChecksumStorage(ctx, sumVer)
-}
-func (c *StorageMinerStruct) GetProvingCheckTimeout(ctx context.Context) (time.Duration, error) {
-	return c.Internal.GetProvingCheckTimeout(ctx)
-}
-func (c *StorageMinerStruct) SetProvingCheckTimeout(ctx context.Context, timeout time.Duration) error {
-	return c.Internal.SetProvingCheckTimeout(ctx, timeout)
-}
-func (c *StorageMinerStruct) GetFaultCheckTimeout(ctx context.Context) (time.Duration, error) {
-	return c.Internal.GetFaultCheckTimeout(ctx)
-}
-func (c *StorageMinerStruct) SetFaultCheckTimeout(ctx context.Context, timeout time.Duration) error {
-	return c.Internal.SetFaultCheckTimeout(ctx, timeout)
-}
-
-// implements by hlm end
 
 func (s *StorageMinerStruct) ActorAddress(p0 context.Context) (address.Address, error) {
 	return s.Internal.ActorAddress(p0)
