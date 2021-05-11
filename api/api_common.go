@@ -27,6 +27,7 @@ import (
 //  * Generate openrpc blobs
 
 type Common interface {
+
 	// MethodGroup: Auth
 
 	AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) //perm:read

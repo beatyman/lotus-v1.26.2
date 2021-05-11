@@ -166,6 +166,9 @@ byte[5:n] -- 二进制数据区
 库应用为构建FUseFile实例进行应用，详见client/fuse_file_test.go
 
 fuse挂载应用, 挂载为fuse后，通过标准文件进行读取，当前只支持只读。
+
+系统需要安装fuse库(apt-get install fuse)
+
 ```
 import "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 

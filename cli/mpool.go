@@ -69,10 +69,6 @@ var mpoolSetCfg = &cli.Command{
 	Name:  "hlm-set-cfg",
 	Usage: "Println the configration of mpool",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name:  "Force",
-			Usage: "Packing negative performance messages,Which is equivalent to 3x missing payments from messages.",
-		},
 		&cli.StringFlag{
 			Name:  "PriorityAddrs",
 			Usage: "Array of address, split with ',', empty not change, '-' to clean.",
@@ -110,7 +106,6 @@ var mpoolSetCfg = &cli.Command{
 		if err != nil {
 			return err
 		}
-		cfg.Force = cctx.Bool("Force")
 		coolDown := cctx.Int("PruneCooldown")
 		if coolDown > -1 {
 			cfg.PruneCooldown = time.Duration(coolDown)

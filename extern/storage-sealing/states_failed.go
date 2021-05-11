@@ -8,7 +8,6 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
-	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/exitcode"
@@ -248,7 +247,6 @@ errApiLoop:
 		}
 	}
 
-	log.Infof("checkCommit:%s,%+v", storage.SectorName(m.minerSectorID(sector.SectorNumber)), sector.Proof)
 	if err := m.checkCommit(ctx.Context(), sector, sector.Proof, tok); err != nil {
 		switch err.(type) {
 		case *ErrApi:

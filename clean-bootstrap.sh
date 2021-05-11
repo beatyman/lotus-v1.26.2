@@ -4,6 +4,12 @@ sudo systemctl stop lotus-daemon &
 sudo systemctl stop lotus-genesis-miner &
 sudo systemctl stop lotus-genesis-daemon &
 wait
+sudo systemctl disable lotus-fountain &
+sudo systemctl disable lotus-daemon &
+sudo systemctl disable lotus-genesis-miner &
+sudo systemctl disable lotus-genesis-daemon &
+wait
+
 killall -9 lotus
 killall -9 lotus-miner
 killall -9 lotus-fountain

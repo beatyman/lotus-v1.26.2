@@ -260,7 +260,7 @@ func (m *Miner) mine(ctx context.Context) {
 				}
 			}
 
-			log.Infof("Update %s base height to: %d", m.address, base.TipSet.Height())
+			//log.Infof("Update %s base height to: %d", m.address, base.TipSet.Height())
 
 			nextRound = nextRoundTime(base)
 			lastBase = *base
@@ -300,7 +300,7 @@ func (m *Miner) mine(ctx context.Context) {
 			nextRound = nextRoundTime(&lastBase)
 		}
 
-		log.Infof("Trying mineOne")
+		//log.Infof("Trying mineOne")
 		b, err := m.mineOne(ctx, &oldbase, &lastBase)
 		if err != nil {
 			log.Errorf("mining block failed: %+v", err)
@@ -350,7 +350,6 @@ func (m *Miner) mine(ctx context.Context) {
 			blkKey := fmt.Sprintf("%d", b.Header.Height)
 			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
 				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
-				// in case for nullRound, it will happend the same block.
 				continue
 			}
 
@@ -449,7 +448,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
 	if mbi == nil {
-		log.Warnf("mineOne: unexpectedly nil MiningBaseInfo for round %d, off tipset %d/%s", round, base.TipSet.Height(), base.TipSet.Key().String())
+		log.Infof("Nil MiningBaseInfo for round %d, off tipset %d/%s", round, base.TipSet.Height(), base.TipSet.Key().String())
 		return nil, nil
 	}
 
@@ -470,7 +469,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 
 	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
-		log.Info("No EligibleForMining")
 		return nil, nil
 	}
 
@@ -510,7 +508,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	}
 
 	if winner == nil {
-		log.Info("Not Win")
 		return nil, nil
 	}
 

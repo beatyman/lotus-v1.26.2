@@ -108,6 +108,6 @@ env LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner init --g
 
 kill $lpid
 wait $lpid
-sleep 30
+sleep 3
 
 echo "init done. using deploy-bootstrap.sh to deploy the daemons"

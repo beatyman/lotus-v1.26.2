@@ -21,6 +21,7 @@ func UseLotusProxy(ctx *cli.Context) error {
 		return errors.As(err, repoFlag)
 	}
 	proxyFile := filepath.Join(p, "lotus.proxy")
+	//return proxy.UseLotusProxy(ctx.Context, proxyFile)
 	if _, err := os.Stat(proxyFile); err != nil {
 		if !os.IsNotExist(err) {
 			return errors.As(err)
