@@ -29,15 +29,16 @@ func TestGenRootCert(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	encodeData, err := EncodeRSAKey(priv, "abc")
+	encodeData, err := EncodeWallet([]byte("hello"), "abc")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DecodeRSAKey(encodeData, "abc"); err != nil {
+	if originData, err := DecodeWallet(encodeData, "abc"); err != nil {
 		t.Fatal(err)
+	} else if string(originData) != "hello" {
+		t.Fatal(string(originData))
 	}
 
-	fmt.Println(string(encodeData))
 }
 
 func TestRSARootHash(t *testing.T) {

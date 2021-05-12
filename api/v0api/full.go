@@ -270,7 +270,7 @@ type FullNode interface {
 	// WalletNew creates a new address in the wallet with the given sigType.
 	// Available key types: bls, secp256k1, secp256k1-ledger
 	// Support for numerical types: 1 - secp256k1, 2 - BLS is deprecated
-	WalletNew(context.Context, types.KeyType) (address.Address, error) //perm:write
+	WalletNew(context.Context, types.KeyType, string) (*api.EWallet, error) //perm:write
 	// WalletHas indicates whether the given address is in the wallet.
 	WalletHas(context.Context, address.Address) (bool, error) //perm:write
 	// WalletList lists all the addresses in the wallet.
@@ -289,9 +289,9 @@ type FullNode interface {
 	// WalletSetDefault marks the given address as as the default one.
 	WalletSetDefault(context.Context, address.Address) error //perm:write
 	// WalletExport returns the private key of an address in the wallet.
-	WalletExport(context.Context, address.Address) (*types.KeyInfo, error) //perm:admin
+	WalletExport(context.Context, address.Address, string) (*api.EWallet, error) //perm:admin
 	// WalletImport receives a KeyInfo, which includes a private key, and imports it into the wallet.
-	WalletImport(context.Context, *types.KeyInfo) (address.Address, error) //perm:admin
+	WalletImport(context.Context, []byte, string) (address.Address, error) //perm:admin
 	// WalletDelete deletes an address from the wallet.
 	WalletDelete(context.Context, address.Address) error //perm:admin
 	// WalletValidateAddress validates whether a given string can be decoded as a well-formed address

@@ -439,15 +439,15 @@ type FullNodeStruct struct {
 
 		WalletDelete func(p0 context.Context, p1 address.Address) error `perm:"admin"`
 
-		WalletExport func(p0 context.Context, p1 address.Address) (*types.KeyInfo, error) `perm:"admin"`
+		WalletExport func(p0 context.Context, p1 address.Address, passwd string) (*EWallet, error) `perm:"admin"`
 
 		WalletHas func(p0 context.Context, p1 address.Address) (bool, error) `perm:"write"`
 
-		WalletImport func(p0 context.Context, p1 *types.KeyInfo) (address.Address, error) `perm:"admin"`
+		WalletImport func(p0 context.Context, eData []byte, passwd string) (address.Address, error) `perm:"admin"`
 
 		WalletList func(p0 context.Context) ([]address.Address, error) `perm:"write"`
 
-		WalletNew func(p0 context.Context, p1 types.KeyType) (address.Address, error) `perm:"write"`
+		WalletNew func(p0 context.Context, p1 types.KeyType, passwd string) (*EWallet, error) `perm:"write"`
 
 		WalletSetDefault func(p0 context.Context, p1 address.Address) error `perm:"write"`
 
@@ -735,15 +735,15 @@ type WalletStruct struct {
 	Internal struct {
 		WalletDelete func(p0 context.Context, p1 address.Address) error ``
 
-		WalletExport func(p0 context.Context, p1 address.Address) (*types.KeyInfo, error) ``
+		WalletExport func(p0 context.Context, p1 address.Address, passwd string) (*EWallet, error) ``
 
 		WalletHas func(p0 context.Context, p1 address.Address) (bool, error) ``
 
-		WalletImport func(p0 context.Context, p1 *types.KeyInfo) (address.Address, error) ``
+		WalletImport func(p0 context.Context, eData []byte, passwd string) (address.Address, error) ``
 
 		WalletList func(p0 context.Context) ([]address.Address, error) ``
 
-		WalletNew func(p0 context.Context, p1 types.KeyType) (address.Address, error) ``
+		WalletNew func(p0 context.Context, p1 types.KeyType, passwd string) (*EWallet, error) ``
 
 		WalletSign func(p0 context.Context, p1 address.Address, p2 []byte, p3 MsgMeta) (*crypto.Signature, error) ``
 	}
@@ -2323,11 +2323,11 @@ func (s *FullNodeStub) WalletDelete(p0 context.Context, p1 address.Address) erro
 	return xerrors.New("method not supported")
 }
 
-func (s *FullNodeStruct) WalletExport(p0 context.Context, p1 address.Address) (*types.KeyInfo, error) {
-	return s.Internal.WalletExport(p0, p1)
+func (s *FullNodeStruct) WalletExport(p0 context.Context, p1 address.Address, passwd string) (*EWallet, error) {
+	return s.Internal.WalletExport(p0, p1, passwd)
 }
 
-func (s *FullNodeStub) WalletExport(p0 context.Context, p1 address.Address) (*types.KeyInfo, error) {
+func (s *FullNodeStub) WalletExport(p0 context.Context, p1 address.Address, passwd string) (*EWallet, error) {
 	return nil, xerrors.New("method not supported")
 }
 
@@ -2339,11 +2339,11 @@ func (s *FullNodeStub) WalletHas(p0 context.Context, p1 address.Address) (bool, 
 	return false, xerrors.New("method not supported")
 }
 
-func (s *FullNodeStruct) WalletImport(p0 context.Context, p1 *types.KeyInfo) (address.Address, error) {
-	return s.Internal.WalletImport(p0, p1)
+func (s *FullNodeStruct) WalletImport(p0 context.Context, eData []byte, passwd string) (address.Address, error) {
+	return s.Internal.WalletImport(p0, eData, passwd)
 }
 
-func (s *FullNodeStub) WalletImport(p0 context.Context, p1 *types.KeyInfo) (address.Address, error) {
+func (s *FullNodeStub) WalletImport(p0 context.Context, eData []byte, passwd string) (address.Address, error) {
 	return *new(address.Address), xerrors.New("method not supported")
 }
 
@@ -2355,12 +2355,12 @@ func (s *FullNodeStub) WalletList(p0 context.Context) ([]address.Address, error)
 	return *new([]address.Address), xerrors.New("method not supported")
 }
 
-func (s *FullNodeStruct) WalletNew(p0 context.Context, p1 types.KeyType) (address.Address, error) {
-	return s.Internal.WalletNew(p0, p1)
+func (s *FullNodeStruct) WalletNew(p0 context.Context, p1 types.KeyType, passwd string) (*EWallet, error) {
+	return s.Internal.WalletNew(p0, p1, passwd)
 }
 
-func (s *FullNodeStub) WalletNew(p0 context.Context, p1 types.KeyType) (address.Address, error) {
-	return *new(address.Address), xerrors.New("method not supported")
+func (s *FullNodeStub) WalletNew(p0 context.Context, p1 types.KeyType, passwd string) (*EWallet, error) {
+	return nil, xerrors.New("method not supported")
 }
 
 func (s *FullNodeStruct) WalletSetDefault(p0 context.Context, p1 address.Address) error {
@@ -3355,11 +3355,11 @@ func (s *WalletStub) WalletDelete(p0 context.Context, p1 address.Address) error 
 	return xerrors.New("method not supported")
 }
 
-func (s *WalletStruct) WalletExport(p0 context.Context, p1 address.Address) (*types.KeyInfo, error) {
-	return s.Internal.WalletExport(p0, p1)
+func (s *WalletStruct) WalletExport(p0 context.Context, p1 address.Address, passwd string) (*EWallet, error) {
+	return s.Internal.WalletExport(p0, p1, passwd)
 }
 
-func (s *WalletStub) WalletExport(p0 context.Context, p1 address.Address) (*types.KeyInfo, error) {
+func (s *WalletStub) WalletExport(p0 context.Context, p1 address.Address, passwd string) (*EWallet, error) {
 	return nil, xerrors.New("method not supported")
 }
 
@@ -3371,11 +3371,11 @@ func (s *WalletStub) WalletHas(p0 context.Context, p1 address.Address) (bool, er
 	return false, xerrors.New("method not supported")
 }
 
-func (s *WalletStruct) WalletImport(p0 context.Context, p1 *types.KeyInfo) (address.Address, error) {
-	return s.Internal.WalletImport(p0, p1)
+func (s *WalletStruct) WalletImport(p0 context.Context, eData []byte, passwd string) (address.Address, error) {
+	return s.Internal.WalletImport(p0, eData, passwd)
 }
 
-func (s *WalletStub) WalletImport(p0 context.Context, p1 *types.KeyInfo) (address.Address, error) {
+func (s *WalletStub) WalletImport(p0 context.Context, eData []byte, passwd string) (address.Address, error) {
 	return *new(address.Address), xerrors.New("method not supported")
 }
 
@@ -3387,12 +3387,12 @@ func (s *WalletStub) WalletList(p0 context.Context) ([]address.Address, error) {
 	return *new([]address.Address), xerrors.New("method not supported")
 }
 
-func (s *WalletStruct) WalletNew(p0 context.Context, p1 types.KeyType) (address.Address, error) {
-	return s.Internal.WalletNew(p0, p1)
+func (s *WalletStruct) WalletNew(p0 context.Context, p1 types.KeyType, passwd string) (*EWallet, error) {
+	return s.Internal.WalletNew(p0, p1, passwd)
 }
 
-func (s *WalletStub) WalletNew(p0 context.Context, p1 types.KeyType) (address.Address, error) {
-	return *new(address.Address), xerrors.New("method not supported")
+func (s *WalletStub) WalletNew(p0 context.Context, p1 types.KeyType, passwd string) (*EWallet, error) {
+	return nil, xerrors.New("method not supported")
 }
 
 func (s *WalletStruct) WalletSign(p0 context.Context, p1 address.Address, p2 []byte, p3 MsgMeta) (*crypto.Signature, error) {
