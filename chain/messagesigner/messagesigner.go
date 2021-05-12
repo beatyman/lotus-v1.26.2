@@ -24,19 +24,19 @@ const dsKeyActorNonce = "ActorNextNonce"
 var log = logging.Logger("messagesigner")
 
 type MpoolNonceAPI interface {
-	GetNonce(address.Address) (uint64, error)
+	GetNonce(context.Context, address.Address, types.TipSetKey) (uint64, error)
 }
 
 // MessageSigner keeps track of nonces per address, and increments the nonce
 // when signing a message
 type MessageSigner struct {
-	wallet api.WalletAPI
+	wallet api.Wallet
 	lk     sync.Mutex
 	mpool  MpoolNonceAPI
 	ds     datastore.Batching
 }
 
-func NewMessageSigner(wallet api.WalletAPI, mpool MpoolNonceAPI, ds dtypes.MetadataDS) *MessageSigner {
+func NewMessageSigner(wallet api.Wallet, mpool MpoolNonceAPI, ds dtypes.MetadataDS) *MessageSigner {
 	ds = namespace.Wrap(ds, datastore.NewKey("/message-signer/"))
 	return &MessageSigner{
 		wallet: wallet,
@@ -47,7 +47,7 @@ func NewMessageSigner(wallet api.WalletAPI, mpool MpoolNonceAPI, ds dtypes.Metad
 
 // SignMessage increments the nonce for the message From address, and signs
 // the message
-func (ms *MessageSigner) SignMessage(ctx context.Context, auth []byte, msg *types.Message, cb func(*types.SignedMessage) error) (*types.SignedMessage, error) {
+func (ms *MessageSigner) SignMessage(ctx context.Context, msg *types.Message, cb func(*types.SignedMessage) error) (*types.SignedMessage, error) {
 	ms.lk.Lock()
 	defer ms.lk.Unlock()
 
@@ -64,7 +64,7 @@ func (ms *MessageSigner) SignMessage(ctx context.Context, auth []byte, msg *type
 	defer etcdMutex.Unlock(ctx)
 
 	// Get the next message nonce
-	nonce, err := ms.nextNonce(msg.From)
+	nonce, err := ms.nextNonce(ctx, msg.From)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create nonce: %w", err)
 	}
@@ -77,7 +77,7 @@ func (ms *MessageSigner) SignMessage(ctx context.Context, auth []byte, msg *type
 		return nil, xerrors.Errorf("serializing message: %w", err)
 	}
 
-	sig, err := ms.wallet.WalletSign(ctx, auth, msg.From, mb.Cid().Bytes(), api.MsgMeta{
+	sig, err := ms.wallet.WalletSign(ctx, msg.From, mb.Cid().Bytes(), api.MsgMeta{
 		Type:  api.MTChainMsg,
 		Extra: mb.RawData(),
 	})
@@ -105,12 +105,12 @@ func (ms *MessageSigner) SignMessage(ctx context.Context, auth []byte, msg *type
 
 // nextNonce gets the next nonce for the given address.
 // If there is no nonce in the datastore, gets the nonce from the message pool.
-func (ms *MessageSigner) nextNonce(addr address.Address) (uint64, error) {
+func (ms *MessageSigner) nextNonce(ctx context.Context, addr address.Address) (uint64, error) {
 	// Nonces used to be created by the mempool and we need to support nodes
 	// that have mempool nonces, so first check the mempool for a nonce for
 	// this address. Note that the mempool returns the actor state's nonce
 	// by default.
-	nonce, err := ms.mpool.GetNonce(addr)
+	nonce, err := ms.mpool.GetNonce(ctx, addr, types.EmptyTSK)
 	if err != nil {
 		return 0, xerrors.Errorf("failed to get nonce from mempool: %w", err)
 	}

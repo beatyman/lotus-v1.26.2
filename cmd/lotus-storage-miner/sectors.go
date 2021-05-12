@@ -24,7 +24,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 
 	lcli "github.com/filecoin-project/lotus/cli"
 	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
@@ -627,7 +626,7 @@ var sectorsExtendCmd = &cli.Command{
 				return xerrors.Errorf("serializing params: %w", err)
 			}
 
-			smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+			smsg, err := api.MpoolPushMessage(ctx, &types.Message{
 				From:   mi.Worker,
 				To:     maddr,
 				Method: miner.Methods.ExtendSectorExpiration,

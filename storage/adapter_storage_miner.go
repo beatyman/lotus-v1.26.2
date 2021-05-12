@@ -26,7 +26,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var _ sealing.SealingAPI = new(SealingAPIAdapter)
@@ -104,7 +103,7 @@ func (s SealingAPIAdapter) StateMinerSectorAllocated(ctx context.Context, maddr 
 }
 
 func (s SealingAPIAdapter) StateWaitMsg(ctx context.Context, mcid cid.Cid) (sealing.MsgLookup, error) {
-	wmsg, err := s.delegate.StateWaitMsg(ctx, mcid, build.MessageConfidence)
+	wmsg, err := s.delegate.StateWaitMsg(ctx, mcid, build.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		return sealing.MsgLookup{}, err
 	}
@@ -121,7 +120,7 @@ func (s SealingAPIAdapter) StateWaitMsg(ctx context.Context, mcid cid.Cid) (seal
 }
 
 func (s SealingAPIAdapter) StateSearchMsg(ctx context.Context, c cid.Cid) (*sealing.MsgLookup, error) {
-	wmsg, err := s.delegate.StateSearchMsg(ctx, c)
+	wmsg, err := s.delegate.StateSearchMsg(ctx, types.EmptyTSK, c, api.LookbackNoLimit, true)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +311,7 @@ func (s SealingAPIAdapter) SendMsg(ctx context.Context, from, to address.Address
 		Params: params,
 	}
 
-	smsg, err := s.delegate.MpoolPushMessage(ctx, auth.GetHlmAuth(), &msg, &api.MessageSendSpec{MaxFee: maxFee})
+	smsg, err := s.delegate.MpoolPushMessage(ctx, &msg, &api.MessageSendSpec{MaxFee: maxFee})
 	if err != nil {
 		return cid.Undef, err
 	}

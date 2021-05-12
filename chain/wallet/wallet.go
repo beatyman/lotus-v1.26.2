@@ -12,12 +12,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/api"
-
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/sigs"
 	_ "github.com/filecoin-project/lotus/lib/sigs/bls"  // enable bls signatures
 	_ "github.com/filecoin-project/lotus/lib/sigs/secp" // enable secp signatures
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var log = logging.Logger("wallet")
@@ -60,13 +58,7 @@ func KeyWallet(keys ...*Key) *LocalWallet {
 	}
 }
 
-func (w *LocalWallet) WalletSign(ctx context.Context, authData []byte, addr address.Address, msg []byte, meta api.MsgMeta) (*crypto.Signature, error) {
-	// implement hlm auth
-	if !auth.IsHlmAuth(addr.String(), authData) {
-		return nil, xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", addr.String(), string(authData))
-	}
-	// implement hlm end
-
+func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg []byte, meta api.MsgMeta) (*crypto.Signature, error) {
 	ki, err := w.findKey(addr)
 	if err != nil {
 		return nil, err
@@ -140,13 +132,7 @@ func (w *LocalWallet) tryFind(addr address.Address) (types.KeyInfo, error) {
 	return ki, nil
 }
 
-func (w *LocalWallet) WalletExport(ctx context.Context, authData []byte, addr address.Address) (*types.KeyInfo, error) {
-	// implement hlm auth
-	if !auth.IsHlmAuth(addr.String(), authData) {
-		return nil, xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", addr.String(), string(authData))
-	}
-	// implement hlm end
-
+func (w *LocalWallet) WalletExport(ctx context.Context, addr address.Address) (*types.KeyInfo, error) {
 	k, err := w.findKey(addr)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to find key to export: %w", err)
@@ -282,13 +268,7 @@ func (w *LocalWallet) WalletHas(ctx context.Context, addr address.Address) (bool
 	return k != nil, nil
 }
 
-func (w *LocalWallet) walletDelete(ctx context.Context, authData []byte, addr address.Address) error {
-	// implement hlm auth
-	if !auth.IsHlmAuth(addr.String(), authData) {
-		return xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", addr.String(), string(authData))
-	}
-	// implement hlm end
-
+func (w *LocalWallet) walletDelete(ctx context.Context, addr address.Address) error {
 	k, err := w.findKey(addr)
 
 	if err != nil {
@@ -336,8 +316,8 @@ func (w *LocalWallet) deleteDefault() {
 	}
 }
 
-func (w *LocalWallet) WalletDelete(ctx context.Context, auth []byte, addr address.Address) error {
-	if err := w.walletDelete(ctx, auth, addr); err != nil {
+func (w *LocalWallet) WalletDelete(ctx context.Context, addr address.Address) error {
+	if err := w.walletDelete(ctx, addr); err != nil {
 		return xerrors.Errorf("wallet delete: %w", err)
 	}
 
@@ -349,7 +329,7 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, auth []byte, addr addres
 	return nil
 }
 
-func (w *LocalWallet) Get() api.WalletAPI {
+func (w *LocalWallet) Get() api.Wallet {
 	if w == nil {
 		return nil
 	}
@@ -357,7 +337,7 @@ func (w *LocalWallet) Get() api.WalletAPI {
 	return w
 }
 
-var _ api.WalletAPI = &LocalWallet{}
+var _ api.Wallet = &LocalWallet{}
 
 func swapMainnetForTestnetPrefix(addr string) (string, error) {
 	aChars := []rune(addr)

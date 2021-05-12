@@ -20,7 +20,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/verifreg"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 	cbor "github.com/ipfs/go-ipld-cbor"
 )
 
@@ -80,7 +79,7 @@ var verifRegAddVerifierCmd = &cli.Command{
 			return err
 		}
 
-		smsg, err := api.MsigPropose(ctx, auth.GetHlmAuth(), vrk, verifreg.Address, big.Zero(), sender, uint64(verifreg.Methods.AddVerifier), params)
+		smsg, err := api.MsigPropose(ctx, vrk, verifreg.Address, big.Zero(), sender, uint64(verifreg.Methods.AddVerifier), params)
 		if err != nil {
 			return err
 		}
@@ -155,7 +154,7 @@ var verifRegVerifyClientCmd = &cli.Command{
 			Params: params,
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+		smsg, err := api.MpoolPushMessage(ctx, msg, nil)
 		if err != nil {
 			return err
 		}

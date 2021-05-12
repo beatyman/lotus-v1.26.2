@@ -16,7 +16,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/paych"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/sigs"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 // insufficientFundsErr indicates that there are not enough funds in the
@@ -133,7 +132,7 @@ func (ca *channelAccessor) createVoucher(ctx context.Context, ch address.Address
 		return nil, xerrors.Errorf("failed to get voucher signing bytes: %w", err)
 	}
 
-	sig, err := ca.api.WalletSign(ctx, auth.GetHlmAuth(), ci.Control, vb)
+	sig, err := ca.api.WalletSign(ctx, ci.Control, vb)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to sign voucher: %w", err)
 	}
@@ -422,7 +421,7 @@ func (ca *channelAccessor) submitVoucher(ctx context.Context, ch address.Address
 		return cid.Undef, err
 	}
 
-	smsg, err := ca.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	smsg, err := ca.api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -579,7 +578,7 @@ func (ca *channelAccessor) settle(ctx context.Context, ch address.Address) (cid.
 	if err != nil {
 		return cid.Undef, err
 	}
-	smgs, err := ca.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	smgs, err := ca.api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}
@@ -612,7 +611,7 @@ func (ca *channelAccessor) collect(ctx context.Context, ch address.Address) (cid
 		return cid.Undef, err
 	}
 
-	smsg, err := ca.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	smsg, err := ca.api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}

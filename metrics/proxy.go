@@ -7,11 +7,10 @@ import (
 	"go.opencensus.io/tag"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/api/apistruct"
 )
 
 func MetricedStorMinerAPI(a api.StorageMiner) api.StorageMiner {
-	var out apistruct.StorageMinerStruct
+	var out api.StorageMinerStruct
 	proxy(a, &out.Internal)
 	proxy(a, &out.CommonStruct.Internal)
 	proxy(a, &out.HlmMinerProxyStruct.Internal)
@@ -23,31 +22,31 @@ func MetricedStorMinerAPI(a api.StorageMiner) api.StorageMiner {
 }
 
 func MetricedFullAPI(a api.FullNode) api.FullNode {
-	var out apistruct.FullNodeStruct
+	var out api.FullNodeStruct
 	proxy(a, &out.Internal)
 	proxy(a, &out.CommonStruct.Internal)
 	return &out
 }
 
-func MetricedWorkerAPI(a api.WorkerAPI) api.WorkerAPI {
-	var out apistruct.WorkerStruct
+func MetricedWorkerAPI(a api.Worker) api.Worker {
+	var out api.WorkerStruct
 	proxy(a, &out.Internal)
 	return &out
 }
 func MetricedHlmMinerSchedulerAPI(a api.HlmMinerSchedulerAPI) api.HlmMinerSchedulerAPI {
-	var out apistruct.HlmMinerSchedulerStruct
+	var out api.HlmMinerSchedulerStruct
 	proxy(a, &out.Internal)
 	return &out
 }
 
-func MetricedWalletAPI(a api.WalletAPI) api.WalletAPI {
-	var out apistruct.WalletStruct
+func MetricedWalletAPI(a api.Wallet) api.Wallet {
+	var out api.WalletStruct
 	proxy(a, &out.Internal)
 	return &out
 }
 
-func MetricedGatewayAPI(a api.GatewayAPI) api.GatewayAPI {
-	var out apistruct.GatewayStruct
+func MetricedGatewayAPI(a api.Gateway) api.Gateway {
+	var out api.GatewayStruct
 	proxy(a, &out.Internal)
 	return &out
 }

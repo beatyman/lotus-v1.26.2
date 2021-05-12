@@ -11,7 +11,6 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/node/config"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/api"
@@ -27,7 +26,7 @@ import (
 
 type dealPublisherAPI interface {
 	ChainHead(context.Context) (*types.TipSet, error)
-	MpoolPushMessage(ctx context.Context, auth []byte, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error)
+	MpoolPushMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error)
 	StateMinerInfo(context.Context, address.Address, types.TipSetKey) (miner.MinerInfo, error)
 }
 
@@ -346,7 +345,7 @@ func (p *DealPublisher) publishDealProposals(deals []market2.ClientDealProposal)
 		return cid.Undef, xerrors.Errorf("serializing PublishStorageDeals params failed: %w", err)
 	}
 
-	smsg, err := p.api.MpoolPushMessage(p.ctx, auth.GetHlmAuth(), &types.Message{
+	smsg, err := p.api.MpoolPushMessage(p.ctx, &types.Message{
 		To:     market.Address,
 		From:   mi.Worker,
 		Value:  types.NewInt(0),

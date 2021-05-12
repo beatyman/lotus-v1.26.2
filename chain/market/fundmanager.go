@@ -13,11 +13,10 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/impl/full"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	logging "github.com/ipfs/go-log"
+	logging "github.com/ipfs/go-log/v2"
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
 )
@@ -35,9 +34,9 @@ type FundManagerAPI struct {
 // fundManagerAPI is the specific methods called by the FundManager
 // (used by the tests)
 type fundManagerAPI interface {
-	MpoolPushMessage(context.Context, []byte, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
+	MpoolPushMessage(context.Context, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
 	StateMarketBalance(context.Context, address.Address, types.TipSetKey) (api.MarketBalance, error)
-	StateWaitMsg(ctx context.Context, cid cid.Cid, confidence uint64) (*api.MsgLookup, error)
+	StateWaitMsg(ctx context.Context, cid cid.Cid, confidence uint64, limit abi.ChainEpoch, allowReplaced bool) (*api.MsgLookup, error)
 }
 
 // FundManager keeps track of funds in a set of addresses
@@ -677,7 +676,7 @@ func (env *fundManagerEnvironment) AddFunds(
 		return cid.Undef, err
 	}
 
-	smsg, aerr := env.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+	smsg, aerr := env.api.MpoolPushMessage(ctx, &types.Message{
 		To:     market.Address,
 		From:   wallet,
 		Value:  amt,
@@ -706,7 +705,7 @@ func (env *fundManagerEnvironment) WithdrawFunds(
 		return cid.Undef, xerrors.Errorf("serializing params: %w", err)
 	}
 
-	smsg, aerr := env.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), &types.Message{
+	smsg, aerr := env.api.MpoolPushMessage(ctx, &types.Message{
 		To:     market.Address,
 		From:   wallet,
 		Value:  types.NewInt(0),
@@ -722,6 +721,6 @@ func (env *fundManagerEnvironment) WithdrawFunds(
 }
 
 func (env *fundManagerEnvironment) WaitMsg(ctx context.Context, c cid.Cid) error {
-	_, err := env.api.StateWaitMsg(ctx, c, build.MessageConfidence)
+	_, err := env.api.StateWaitMsg(ctx, c, build.MessageConfidence, api.LookbackNoLimit, true)
 	return err
 }

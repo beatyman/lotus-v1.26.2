@@ -371,12 +371,16 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 		}, nil
 	}
 
+	var payloadRoundedBytes abi.PaddedPieceSize
 	pieceCids := make([]abi.PieceInfo, len(piecePromises))
 	for i, promise := range piecePromises {
-		pieceCids[i], err = promise()
+		pinfo, err := promise()
 		if err != nil {
 			return abi.PieceInfo{}, err
 		}
+
+		pieceCids[i] = pinfo
+		payloadRoundedBytes += pinfo.Size
 	}
 
 	pieceCID, err := ffi.GenerateUnsealedCID(sector.ProofType, pieceCids)
@@ -389,6 +393,14 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 		return abi.PieceInfo{}, err
 	}
 
+	if payloadRoundedBytes < pieceSize.Padded() {
+		paddedCid, err := commpffi.ZeroPadPieceCommitment(pieceCID, payloadRoundedBytes.Unpadded(), pieceSize)
+		if err != nil {
+			return abi.PieceInfo{}, xerrors.Errorf("failed to pad data: %w", err)
+		}
+
+		pieceCID = paddedCid
+	}
 	if isSectorCc {
 		//格式化json cid 写入磁盘中
 		bytes, err := pieceCID.MarshalJSON()

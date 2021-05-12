@@ -10,6 +10,10 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/filecoin-project/lotus/api/v1api"
+
+	"github.com/filecoin-project/lotus/api/v0api"
+
 	mux "github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -23,7 +27,6 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/buried"
 	lcli "github.com/filecoin-project/lotus/cli"
@@ -91,25 +94,29 @@ var runCmd = &cli.Command{
 			log.Infof("lotus proxy is invalid:%+s", err.Error())
 		}
 
-		nodeApi, ncloser, err := lcli.GetFullNodeAPI(cctx)
-		if err != nil {
-			return xerrors.Errorf("getting full node api: %w", err)
-		}
-		defer ncloser()
-
 		ctx, _ := tag.New(lcli.DaemonContext(cctx),
 			tag.Insert(metrics.Version, build.BuildVersion),
 			tag.Insert(metrics.Commit, build.CurrentCommit),
 			tag.Insert(metrics.NodeType, "miner"),
 		)
 		// Register all metric views
-		if err = view.Register(
+		if err := view.Register(
 			metrics.MinerNodeViews...,
 		); err != nil {
 			log.Fatalf("Cannot register the view: %v", err)
 		}
 		// Set the metric to one so it is published to the exporter
 		stats.Record(ctx, metrics.LotusInfo.M(1))
+
+		if err := checkV1ApiSupport(ctx, cctx); err != nil {
+			return err
+		}
+
+		nodeApi, ncloser, err := lcli.GetFullNodeAPIV1(cctx)
+		if err != nil {
+			return xerrors.Errorf("getting full node api: %w", err)
+		}
+		defer ncloser()
 
 		v, err := nodeApi.Version(ctx)
 		if err != nil {
@@ -122,14 +129,14 @@ var runCmd = &cli.Command{
 			}
 		}
 
-		if v.APIVersion != api.FullAPIVersion {
-			return xerrors.Errorf("lotus-daemon API version doesn't match: expected: %s", api.APIVersion{APIVersion: api.FullAPIVersion})
+		if v.APIVersion != api.FullAPIVersion1 {
+			return xerrors.Errorf("lotus-daemon API version doesn't match: expected: %s", api.APIVersion{APIVersion: api.FullAPIVersion1})
 		}
 
 		log.Info("Checking full node sync status")
 
 		if !cctx.Bool("nosync") {
-			if err := lcli.SyncWait(ctx, nodeApi, false); err != nil {
+			if err := lcli.SyncWait(ctx, &v0api.WrapperV1Full{FullNode: nodeApi}, false); err != nil {
 				return xerrors.Errorf("sync wait: %w", err)
 			}
 		}
@@ -186,7 +193,7 @@ var runCmd = &cli.Command{
 				node.Override(new(dtypes.APIEndpoint), func() (dtypes.APIEndpoint, error) {
 					return multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/" + cctx.String("miner-api"))
 				})),
-			node.Override(new(api.FullNode), nodeApi),
+			node.Override(new(v1api.FullNode), nodeApi),
 		)
 		if err != nil {
 			return xerrors.Errorf("creating node: %w", err)
@@ -203,7 +210,7 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("getting full node libp2p address: %w", err)
 		}
 
-		if err := minerapi.NetConnect(ctx, remoteAddrs, true); err != nil {
+		if err := minerapi.NetConnect(ctx, remoteAddrs); err != nil {
 			return xerrors.Errorf("connecting to full node (libp2p): %w", err)
 		}
 
@@ -217,7 +224,7 @@ var runCmd = &cli.Command{
 		mux := mux.NewRouter()
 
 		rpcServer := jsonrpc.NewServer()
-		rpcServer.Register("Filecoin", apistruct.PermissionedStorMinerAPI(metrics.MetricedStorMinerAPI(minerapi)))
+		rpcServer.Register("Filecoin", api.PermissionedStorMinerAPI(metrics.MetricedStorMinerAPI(minerapi)))
 
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)

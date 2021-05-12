@@ -18,7 +18,6 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 // paychFundsRes is the response to a create channel or add funds request
@@ -387,7 +386,7 @@ func (ca *channelAccessor) createPaych(ctx context.Context, amt types.BigInt) (c
 		return cid.Undef, err
 	}
 
-	smsg, err := ca.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	smsg, err := ca.api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return cid.Undef, xerrors.Errorf("initializing paych actor: %w", err)
 	}
@@ -414,7 +413,7 @@ func (ca *channelAccessor) waitForPaychCreateMsg(channelID string, mcid cid.Cid)
 }
 
 func (ca *channelAccessor) waitPaychCreateMsg(channelID string, mcid cid.Cid) error {
-	mwait, err := ca.api.StateWaitMsg(ca.chctx, mcid, build.MessageConfidence)
+	mwait, err := ca.api.StateWaitMsg(ca.chctx, mcid, build.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		log.Errorf("wait msg: %v", err)
 		return err
@@ -469,7 +468,7 @@ func (ca *channelAccessor) addFunds(ctx context.Context, channelInfo *ChannelInf
 		Method: 0,
 	}
 
-	smsg, err := ca.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	smsg, err := ca.api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -500,7 +499,7 @@ func (ca *channelAccessor) waitForAddFundsMsg(channelID string, mcid cid.Cid) {
 }
 
 func (ca *channelAccessor) waitAddFundsMsg(channelID string, mcid cid.Cid) error {
-	mwait, err := ca.api.StateWaitMsg(ca.chctx, mcid, build.MessageConfidence)
+	mwait, err := ca.api.StateWaitMsg(ca.chctx, mcid, build.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		log.Error(err)
 		return err

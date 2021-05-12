@@ -32,38 +32,38 @@ import (
 	"golang.org/x/xerrors"
 
 	lapi "github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	types "github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
-var chainCmd = &cli.Command{
+var ChainCmd = &cli.Command{
 	Name:  "chain",
 	Usage: "Interact with filecoin blockchain",
 	Subcommands: []*cli.Command{
-		chainHeadCmd,
-		chainGetBlock,
-		chainReadObjCmd,
-		chainDeleteObjCmd,
-		chainStatObjCmd,
-		chainGetMsgCmd,
-		chainSetHeadCmd,
-		chainListCmd,
-		chainGetCmd,
-		chainBisectCmd,
-		chainExportCmd,
-		slashConsensusFault,
-		chainGasPriceCmd,
-		chainInspectUsage,
-		chainDecodeCmd,
-		chainEncodeCmd,
-		chainDisputeSetCmd,
+		ChainHeadCmd,
+		ChainGetBlock,
+		ChainReadObjCmd,
+		ChainDeleteObjCmd,
+		ChainStatObjCmd,
+		ChainGetMsgCmd,
+		ChainSetHeadCmd,
+		ChainListCmd,
+		ChainGetCmd,
+		ChainBisectCmd,
+		ChainExportCmd,
+		SlashConsensusFault,
+		ChainGasPriceCmd,
+		ChainInspectUsage,
+		ChainDecodeCmd,
+		ChainEncodeCmd,
+		ChainDisputeSetCmd,
 	},
 }
 
-var chainHeadCmd = &cli.Command{
+var ChainHeadCmd = &cli.Command{
 	Name:  "head",
 	Usage: "Print chain head",
 	Action: func(cctx *cli.Context) error {
@@ -86,7 +86,7 @@ var chainHeadCmd = &cli.Command{
 	},
 }
 
-var chainGetBlock = &cli.Command{
+var ChainGetBlock = &cli.Command{
 	Name:      "getblock",
 	Usage:     "Get a block and print its details",
 	ArgsUsage: "[blockCid]",
@@ -177,7 +177,7 @@ func apiMsgCids(in []lapi.Message) []cid.Cid {
 	return out
 }
 
-var chainReadObjCmd = &cli.Command{
+var ChainReadObjCmd = &cli.Command{
 	Name:      "read-obj",
 	Usage:     "Read the raw bytes of an object",
 	ArgsUsage: "[objectCid]",
@@ -204,7 +204,7 @@ var chainReadObjCmd = &cli.Command{
 	},
 }
 
-var chainDeleteObjCmd = &cli.Command{
+var ChainDeleteObjCmd = &cli.Command{
 	Name:        "delete-obj",
 	Usage:       "Delete an object from the chain blockstore",
 	Description: "WARNING: Removing wrong objects from the chain blockstore may lead to sync issues",
@@ -241,7 +241,7 @@ var chainDeleteObjCmd = &cli.Command{
 	},
 }
 
-var chainStatObjCmd = &cli.Command{
+var ChainStatObjCmd = &cli.Command{
 	Name:      "stat-obj",
 	Usage:     "Collect size and ipld link counts for objs",
 	ArgsUsage: "[cid]",
@@ -288,7 +288,7 @@ var chainStatObjCmd = &cli.Command{
 	},
 }
 
-var chainGetMsgCmd = &cli.Command{
+var ChainGetMsgCmd = &cli.Command{
 	Name:      "getmessage",
 	Usage:     "Get and print a message by its cid",
 	ArgsUsage: "[messageCid]",
@@ -336,7 +336,7 @@ var chainGetMsgCmd = &cli.Command{
 	},
 }
 
-var chainSetHeadCmd = &cli.Command{
+var ChainSetHeadCmd = &cli.Command{
 	Name:      "sethead",
 	Usage:     "manually set the local nodes head tipset (Caution: normally only used for recovery)",
 	ArgsUsage: "[tipsetkey]",
@@ -385,7 +385,7 @@ var chainSetHeadCmd = &cli.Command{
 	},
 }
 
-var chainInspectUsage = &cli.Command{
+var ChainInspectUsage = &cli.Command{
 	Name:  "inspect-usage",
 	Usage: "Inspect block space usage of a given tipset",
 	Flags: []cli.Flag{
@@ -530,7 +530,7 @@ var chainInspectUsage = &cli.Command{
 	},
 }
 
-var chainListCmd = &cli.Command{
+var ChainListCmd = &cli.Command{
 	Name:    "list",
 	Aliases: []string{"love"},
 	Usage:   "View a segment of the chain",
@@ -659,7 +659,7 @@ var chainListCmd = &cli.Command{
 	},
 }
 
-var chainGetCmd = &cli.Command{
+var ChainGetCmd = &cli.Command{
 	Name:      "get",
 	Usage:     "Get chain DAG node by path",
 	ArgsUsage: "[path]",
@@ -723,12 +723,6 @@ var chainGetCmd = &cli.Command{
 				return err
 			}
 
-			if ts == nil {
-				ts, err = api.ChainHead(ctx)
-				if err != nil {
-					return err
-				}
-			}
 			p = "/ipfs/" + ts.ParentState().String() + p
 			if cctx.Bool("verbose") {
 				fmt.Println(p)
@@ -807,7 +801,7 @@ var chainGetCmd = &cli.Command{
 
 type apiIpldStore struct {
 	ctx context.Context
-	api lapi.FullNode
+	api v0api.FullNode
 }
 
 func (ht *apiIpldStore) Context() context.Context {
@@ -835,7 +829,7 @@ func (ht *apiIpldStore) Put(ctx context.Context, v interface{}) (cid.Cid, error)
 	panic("No mutations allowed")
 }
 
-func handleAmt(ctx context.Context, api lapi.FullNode, r cid.Cid) error {
+func handleAmt(ctx context.Context, api v0api.FullNode, r cid.Cid) error {
 	s := &apiIpldStore{ctx, api}
 	mp, err := adt.AsArray(s, r)
 	if err != nil {
@@ -848,7 +842,7 @@ func handleAmt(ctx context.Context, api lapi.FullNode, r cid.Cid) error {
 	})
 }
 
-func handleHamtEpoch(ctx context.Context, api lapi.FullNode, r cid.Cid) error {
+func handleHamtEpoch(ctx context.Context, api v0api.FullNode, r cid.Cid) error {
 	s := &apiIpldStore{ctx, api}
 	mp, err := adt.AsMap(s, r)
 	if err != nil {
@@ -866,7 +860,7 @@ func handleHamtEpoch(ctx context.Context, api lapi.FullNode, r cid.Cid) error {
 	})
 }
 
-func handleHamtAddress(ctx context.Context, api lapi.FullNode, r cid.Cid) error {
+func handleHamtAddress(ctx context.Context, api v0api.FullNode, r cid.Cid) error {
 	s := &apiIpldStore{ctx, api}
 	mp, err := adt.AsMap(s, r)
 	if err != nil {
@@ -906,7 +900,7 @@ func printTipSet(format string, ts *types.TipSet) {
 	fmt.Println(format)
 }
 
-var chainBisectCmd = &cli.Command{
+var ChainBisectCmd = &cli.Command{
 	Name:      "bisect",
 	Usage:     "bisect chain for an event",
 	ArgsUsage: "[minHeight maxHeight path shellCommand <shellCommandArgs (if any)>]",
@@ -1029,7 +1023,7 @@ var chainBisectCmd = &cli.Command{
 	},
 }
 
-var chainExportCmd = &cli.Command{
+var ChainExportCmd = &cli.Command{
 	Name:      "export",
 	Usage:     "export chain to a car file",
 	ArgsUsage: "[outputPath]",
@@ -1107,7 +1101,7 @@ var chainExportCmd = &cli.Command{
 	},
 }
 
-var slashConsensusFault = &cli.Command{
+var SlashConsensusFault = &cli.Command{
 	Name:      "slash-consensus",
 	Usage:     "Report consensus fault",
 	ArgsUsage: "[blockCid1 blockCid2]",
@@ -1217,7 +1211,7 @@ var slashConsensusFault = &cli.Command{
 			Params: enc,
 		}
 
-		smsg, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+		smsg, err := api.MpoolPushMessage(ctx, msg, nil)
 		if err != nil {
 			return err
 		}
@@ -1228,7 +1222,7 @@ var slashConsensusFault = &cli.Command{
 	},
 }
 
-var chainGasPriceCmd = &cli.Command{
+var ChainGasPriceCmd = &cli.Command{
 	Name:  "gas-price",
 	Usage: "Estimate gas prices",
 	Action: func(cctx *cli.Context) error {
@@ -1255,7 +1249,7 @@ var chainGasPriceCmd = &cli.Command{
 	},
 }
 
-var chainDecodeCmd = &cli.Command{
+var ChainDecodeCmd = &cli.Command{
 	Name:  "decode",
 	Usage: "decode various types",
 	Subcommands: []*cli.Command{
@@ -1335,7 +1329,7 @@ var chainDecodeParamsCmd = &cli.Command{
 	},
 }
 
-var chainEncodeCmd = &cli.Command{
+var ChainEncodeCmd = &cli.Command{
 	Name:  "encode",
 	Usage: "encode various types",
 	Subcommands: []*cli.Command{

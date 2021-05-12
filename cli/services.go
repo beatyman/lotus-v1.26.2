@@ -11,10 +11,9 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	types "github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 	cid "github.com/ipfs/go-cid"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	"golang.org/x/xerrors"
@@ -36,7 +35,7 @@ type ServicesAPI interface {
 }
 
 type ServicesImpl struct {
-	api    api.FullNode
+	api    v0api.FullNode
 	closer jsonrpc.ClientCloser
 }
 
@@ -145,7 +144,7 @@ func (s *ServicesImpl) Send(ctx context.Context, params SendParams) (cid.Cid, er
 
 	if params.Nonce != nil {
 		msg.Nonce = *params.Nonce
-		sm, err := s.api.WalletSignMessage(ctx, auth.GetHlmAuth(), params.From, msg)
+		sm, err := s.api.WalletSignMessage(ctx, params.From, msg)
 		if err != nil {
 			return cid.Undef, err
 		}
@@ -158,7 +157,7 @@ func (s *ServicesImpl) Send(ctx context.Context, params SendParams) (cid.Cid, er
 		return sm.Cid(), nil
 	}
 
-	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	sm, err := s.api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return cid.Undef, err
 	}

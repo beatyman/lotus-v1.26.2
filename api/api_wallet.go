@@ -34,14 +34,14 @@ type MsgMeta struct {
 	Extra []byte
 }
 
-type WalletAPI interface {
+type Wallet interface {
 	WalletNew(context.Context, types.KeyType) (address.Address, error)
 	WalletHas(context.Context, address.Address) (bool, error)
 	WalletList(context.Context) ([]address.Address, error)
 
-	WalletSign(ctx context.Context, auth []byte, signer address.Address, toSign []byte, meta MsgMeta) (*crypto.Signature, error)
+	WalletSign(ctx context.Context, signer address.Address, toSign []byte, meta MsgMeta) (*crypto.Signature, error)
 
-	WalletExport(context.Context, []byte, address.Address) (*types.KeyInfo, error)
+	WalletExport(context.Context, address.Address) (*types.KeyInfo, error)
 	WalletImport(context.Context, *types.KeyInfo) (address.Address, error)
-	WalletDelete(context.Context, []byte, address.Address) error
+	WalletDelete(context.Context, address.Address) error
 }

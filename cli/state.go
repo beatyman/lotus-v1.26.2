@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/filecoin-project/lotus/api/v0api"
+
 	"github.com/fatih/color"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 
@@ -41,7 +43,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
-var stateCmd = &cli.Command{
+var StateCmd = &cli.Command{
 	Name:  "state",
 	Usage: "Interact with and query filecoin chain state",
 	Flags: []cli.Flag{
@@ -51,32 +53,76 @@ var stateCmd = &cli.Command{
 		},
 	},
 	Subcommands: []*cli.Command{
-		statePowerCmd,
-		stateSectorsCmd,
-		stateActiveSectorsCmd,
-		stateListActorsCmd,
-		stateListMinersCmd,
-		stateCircSupplyCmd,
-		stateSectorCmd,
-		stateGetActorCmd,
-		stateLookupIDCmd,
-		stateReplayCmd,
-		stateSectorSizeCmd,
-		stateReadStateCmd,
-		stateListMessagesCmd,
-		stateComputeStateCmd,
-		stateCallCmd,
-		stateGetDealSetCmd,
-		stateWaitMsgCmd,
-		stateSearchMsgCmd,
-		stateMinerInfo,
-		stateMarketCmd,
-		stateExecTraceCmd,
-		stateNtwkVersionCmd,
+		StatePowerCmd,
+		StateSectorsCmd,
+		StateActiveSectorsCmd,
+		StateListActorsCmd,
+		StateListMinersCmd,
+		StateCircSupplyCmd,
+		StateSectorCmd,
+		StateGetActorCmd,
+		StateLookupIDCmd,
+		StateReplayCmd,
+		StateSectorSizeCmd,
+		StateReadStateCmd,
+		StateListMessagesCmd,
+		StateComputeStateCmd,
+		StateCallCmd,
+		StateGetDealSetCmd,
+		StateWaitMsgCmd,
+		StateSearchMsgCmd,
+		StateMinerInfo,
+		StateMarketCmd,
+		StateExecTraceCmd,
+		StateNtwkVersionCmd,
+		StateMinerProvingDeadlineCmd,
 	},
 }
 
-var stateMinerInfo = &cli.Command{
+var StateMinerProvingDeadlineCmd = &cli.Command{
+	Name:      "miner-proving-deadline",
+	Usage:     "Retrieve information about a given miner's proving deadline",
+	ArgsUsage: "[minerAddress]",
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		ctx := ReqContext(cctx)
+
+		if !cctx.Args().Present() {
+			return fmt.Errorf("must specify miner to get information for")
+		}
+
+		addr, err := address.NewFromString(cctx.Args().First())
+		if err != nil {
+			return err
+		}
+
+		ts, err := LoadTipSet(ctx, cctx, api)
+		if err != nil {
+			return err
+		}
+
+		cd, err := api.StateMinerProvingDeadline(ctx, addr, ts.Key())
+		if err != nil {
+			return xerrors.Errorf("getting miner info: %w", err)
+		}
+
+		fmt.Printf("Period Start:\t%s\n", cd.PeriodStart)
+		fmt.Printf("Index:\t\t%d\n", cd.Index)
+		fmt.Printf("Open:\t\t%s\n", cd.Open)
+		fmt.Printf("Close:\t\t%s\n", cd.Close)
+		fmt.Printf("Challenge:\t%s\n", cd.Challenge)
+		fmt.Printf("FaultCutoff:\t%s\n", cd.FaultCutoff)
+
+		return nil
+	},
+}
+
+var StateMinerInfo = &cli.Command{
 	Name:      "miner-info",
 	Usage:     "Retrieve miner information",
 	ArgsUsage: "[minerAddress]",
@@ -178,16 +224,19 @@ func ParseTipSetString(ts string) ([]cid.Cid, error) {
 	return cids, nil
 }
 
-func LoadTipSet(ctx context.Context, cctx *cli.Context, api api.FullNode) (*types.TipSet, error) {
+// LoadTipSet gets the tipset from the context, or the head from the API.
+//
+// It always gets the head from the API so commands use a consistent tipset even if time pases.
+func LoadTipSet(ctx context.Context, cctx *cli.Context, api v0api.FullNode) (*types.TipSet, error) {
 	tss := cctx.String("tipset")
 	if tss == "" {
-		return nil, nil
+		return api.ChainHead(ctx)
 	}
 
 	return ParseTipSetRef(ctx, api, tss)
 }
 
-func ParseTipSetRef(ctx context.Context, api api.FullNode, tss string) (*types.TipSet, error) {
+func ParseTipSetRef(ctx context.Context, api v0api.FullNode, tss string) (*types.TipSet, error) {
 	if tss[0] == '@' {
 		if tss == "@head" {
 			return api.ChainHead(ctx)
@@ -219,7 +268,7 @@ func ParseTipSetRef(ctx context.Context, api api.FullNode, tss string) (*types.T
 	return ts, nil
 }
 
-var statePowerCmd = &cli.Command{
+var StatePowerCmd = &cli.Command{
 	Name:      "power",
 	Usage:     "Query network or miner power",
 	ArgsUsage: "[<minerAddress> (optional)]",
@@ -263,7 +312,7 @@ var statePowerCmd = &cli.Command{
 	},
 }
 
-var stateSectorsCmd = &cli.Command{
+var StateSectorsCmd = &cli.Command{
 	Name:      "sectors",
 	Usage:     "Query the sector set of a miner",
 	ArgsUsage: "[minerAddress]",
@@ -303,7 +352,7 @@ var stateSectorsCmd = &cli.Command{
 	},
 }
 
-var stateActiveSectorsCmd = &cli.Command{
+var StateActiveSectorsCmd = &cli.Command{
 	Name:      "active-sectors",
 	Usage:     "Query the active sector set of a miner",
 	ArgsUsage: "[minerAddress]",
@@ -343,7 +392,7 @@ var stateActiveSectorsCmd = &cli.Command{
 	},
 }
 
-var stateExecTraceCmd = &cli.Command{
+var StateExecTraceCmd = &cli.Command{
 	Name:      "exec-trace",
 	Usage:     "Get the execution trace of a given message",
 	ArgsUsage: "<messageCid>",
@@ -411,7 +460,7 @@ var stateExecTraceCmd = &cli.Command{
 	},
 }
 
-var stateReplayCmd = &cli.Command{
+var StateReplayCmd = &cli.Command{
 	Name:      "replay",
 	Usage:     "Replay a particular message",
 	ArgsUsage: "<messageCid>",
@@ -476,7 +525,7 @@ var stateReplayCmd = &cli.Command{
 	},
 }
 
-var stateGetDealSetCmd = &cli.Command{
+var StateGetDealSetCmd = &cli.Command{
 	Name:      "get-deal",
 	Usage:     "View on-chain deal info",
 	ArgsUsage: "[dealId]",
@@ -518,7 +567,7 @@ var stateGetDealSetCmd = &cli.Command{
 	},
 }
 
-var stateListMinersCmd = &cli.Command{
+var StateListMinersCmd = &cli.Command{
 	Name:  "list-miners",
 	Usage: "list all miners in the network",
 	Flags: []cli.Flag{
@@ -574,7 +623,7 @@ var stateListMinersCmd = &cli.Command{
 	},
 }
 
-func getDealsCounts(ctx context.Context, lapi api.FullNode) (map[address.Address]int, error) {
+func getDealsCounts(ctx context.Context, lapi v0api.FullNode) (map[address.Address]int, error) {
 	allDeals, err := lapi.StateMarketDeals(ctx, types.EmptyTSK)
 	if err != nil {
 		return nil, err
@@ -590,7 +639,7 @@ func getDealsCounts(ctx context.Context, lapi api.FullNode) (map[address.Address
 	return out, nil
 }
 
-var stateListActorsCmd = &cli.Command{
+var StateListActorsCmd = &cli.Command{
 	Name:  "list-actors",
 	Usage: "list all actors in the network",
 	Action: func(cctx *cli.Context) error {
@@ -620,7 +669,7 @@ var stateListActorsCmd = &cli.Command{
 	},
 }
 
-var stateGetActorCmd = &cli.Command{
+var StateGetActorCmd = &cli.Command{
 	Name:      "get-actor",
 	Usage:     "Print actor information",
 	ArgsUsage: "[actorrAddress]",
@@ -664,7 +713,7 @@ var stateGetActorCmd = &cli.Command{
 	},
 }
 
-var stateLookupIDCmd = &cli.Command{
+var StateLookupIDCmd = &cli.Command{
 	Name:      "lookup",
 	Usage:     "Find corresponding ID address",
 	ArgsUsage: "[address]",
@@ -715,7 +764,7 @@ var stateLookupIDCmd = &cli.Command{
 	},
 }
 
-var stateSectorSizeCmd = &cli.Command{
+var StateSectorSizeCmd = &cli.Command{
 	Name:      "sector-size",
 	Usage:     "Look up miners sector size",
 	ArgsUsage: "[minerAddress]",
@@ -752,7 +801,7 @@ var stateSectorSizeCmd = &cli.Command{
 	},
 }
 
-var stateReadStateCmd = &cli.Command{
+var StateReadStateCmd = &cli.Command{
 	Name:      "read-state",
 	Usage:     "View a json representation of an actors state",
 	ArgsUsage: "[actorAddress]",
@@ -794,7 +843,7 @@ var stateReadStateCmd = &cli.Command{
 	},
 }
 
-var stateListMessagesCmd = &cli.Command{
+var StateListMessagesCmd = &cli.Command{
 	Name:  "list-messages",
 	Usage: "list messages on chain matching given criteria",
 	Flags: []cli.Flag{
@@ -848,14 +897,6 @@ var stateListMessagesCmd = &cli.Command{
 			return err
 		}
 
-		if ts == nil {
-			head, err := api.ChainHead(ctx)
-			if err != nil {
-				return err
-			}
-			ts = head
-		}
-
 		windowSize := abi.ChainEpoch(100)
 
 		cur := ts
@@ -907,7 +948,7 @@ var stateListMessagesCmd = &cli.Command{
 	},
 }
 
-var stateComputeStateCmd = &cli.Command{
+var StateComputeStateCmd = &cli.Command{
 	Name:  "compute-state",
 	Usage: "Perform state computations",
 	Flags: []cli.Flag{
@@ -955,13 +996,6 @@ var stateComputeStateCmd = &cli.Command{
 		}
 
 		h := abi.ChainEpoch(cctx.Uint64("vm-height"))
-		if ts == nil {
-			head, err := api.ChainHead(ctx)
-			if err != nil {
-				return err
-			}
-			ts = head
-		}
 		if h == 0 {
 			h = ts.Height()
 		}
@@ -1365,7 +1399,7 @@ func jsonReturn(code cid.Cid, method abi.MethodNum, ret []byte) (string, error) 
 	return string(b), err
 }
 
-var stateWaitMsgCmd = &cli.Command{
+var StateWaitMsgCmd = &cli.Command{
 	Name:      "wait-msg",
 	Usage:     "Wait for a message to appear on chain",
 	ArgsUsage: "[messageCid]",
@@ -1407,7 +1441,7 @@ var stateWaitMsgCmd = &cli.Command{
 	},
 }
 
-var stateSearchMsgCmd = &cli.Command{
+var StateSearchMsgCmd = &cli.Command{
 	Name:      "search-msg",
 	Usage:     "Search to see whether a message has appeared on chain",
 	ArgsUsage: "[messageCid]",
@@ -1443,7 +1477,7 @@ var stateSearchMsgCmd = &cli.Command{
 	},
 }
 
-func printReceiptReturn(ctx context.Context, api api.FullNode, m *types.Message, r types.MessageReceipt) error {
+func printReceiptReturn(ctx context.Context, api v0api.FullNode, m *types.Message, r types.MessageReceipt) error {
 	if len(r.Return) == 0 {
 		return nil
 	}
@@ -1463,20 +1497,20 @@ func printReceiptReturn(ctx context.Context, api api.FullNode, m *types.Message,
 	return nil
 }
 
-func printMsg(ctx context.Context, api api.FullNode, msg cid.Cid, mw *lapi.MsgLookup, m *types.Message) error {
-	if mw != nil {
-		if mw.Message != msg {
-			fmt.Printf("Message was replaced: %s\n", mw.Message)
-		}
-
-		fmt.Printf("Executed in tipset: %s\n", mw.TipSet.Cids())
-		fmt.Printf("Exit Code: %d\n", mw.Receipt.ExitCode)
-		fmt.Printf("Gas Used: %d\n", mw.Receipt.GasUsed)
-		fmt.Printf("Return: %x\n", mw.Receipt.Return)
-	} else {
+func printMsg(ctx context.Context, api v0api.FullNode, msg cid.Cid, mw *lapi.MsgLookup, m *types.Message) error {
+	if mw == nil {
 		fmt.Println("message was not found on chain")
+		return nil
 	}
 
+	if mw.Message != msg {
+		fmt.Printf("Message was replaced: %s\n", mw.Message)
+	}
+
+	fmt.Printf("Executed in tipset: %s\n", mw.TipSet.Cids())
+	fmt.Printf("Exit Code: %d\n", mw.Receipt.ExitCode)
+	fmt.Printf("Gas Used: %d\n", mw.Receipt.GasUsed)
+	fmt.Printf("Return: %x\n", mw.Receipt.Return)
 	if err := printReceiptReturn(ctx, api, m, mw.Receipt); err != nil {
 		return err
 	}
@@ -1484,7 +1518,7 @@ func printMsg(ctx context.Context, api api.FullNode, msg cid.Cid, mw *lapi.MsgLo
 	return nil
 }
 
-var stateCallCmd = &cli.Command{
+var StateCallCmd = &cli.Command{
 	Name:      "call",
 	Usage:     "Invoke a method on an actor locally",
 	ArgsUsage: "[toAddress methodId <param1 param2 ...> (optional)]",
@@ -1692,7 +1726,7 @@ func parseParamsForMethod(act cid.Cid, method uint64, args []string) ([]byte, er
 	return buf.Bytes(), nil
 }
 
-var stateCircSupplyCmd = &cli.Command{
+var StateCircSupplyCmd = &cli.Command{
 	Name:  "circulating-supply",
 	Usage: "Get the exact current circulating supply of Filecoin",
 	Flags: []cli.Flag{
@@ -1741,10 +1775,10 @@ var stateCircSupplyCmd = &cli.Command{
 	},
 }
 
-var stateSectorCmd = &cli.Command{
+var StateSectorCmd = &cli.Command{
 	Name:      "sector",
 	Usage:     "Get miner sector info",
-	ArgsUsage: "[miner address] [sector number]",
+	ArgsUsage: "[minerAddress] [sectorNumber]",
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
@@ -1755,19 +1789,12 @@ var stateSectorCmd = &cli.Command{
 		ctx := ReqContext(cctx)
 
 		if cctx.Args().Len() != 2 {
-			return xerrors.Errorf("expected 2 params")
+			return xerrors.Errorf("expected 2 params: minerAddress and sectorNumber")
 		}
 
 		ts, err := LoadTipSet(ctx, cctx, api)
 		if err != nil {
 			return err
-		}
-
-		if ts == nil {
-			ts, err = api.ChainHead(ctx)
-			if err != nil {
-				return err
-			}
 		}
 
 		maddr, err := address.NewFromString(cctx.Args().Get(0))
@@ -1815,7 +1842,7 @@ var stateSectorCmd = &cli.Command{
 	},
 }
 
-var stateMarketCmd = &cli.Command{
+var StateMarketCmd = &cli.Command{
 	Name:  "market",
 	Usage: "Inspect the storage market actor",
 	Subcommands: []*cli.Command{
@@ -1861,7 +1888,7 @@ var stateMarketBalanceCmd = &cli.Command{
 	},
 }
 
-var stateNtwkVersionCmd = &cli.Command{
+var StateNtwkVersionCmd = &cli.Command{
 	Name:  "network-version",
 	Usage: "Returns the network version",
 	Action: func(cctx *cli.Context) error {

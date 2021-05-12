@@ -11,7 +11,6 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 var noncefix = &cli.Command{
@@ -111,7 +110,7 @@ var noncefix = &cli.Command{
 				GasFeeCap:  feeCap,
 				GasPremium: abi.NewTokenAmount(5),
 			}
-			smsg, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), addr, msg)
+			smsg, err := api.WalletSignMessage(ctx, addr, msg)
 			if err != nil {
 				return err
 			}

@@ -195,15 +195,7 @@ func CapGasFee(mff dtypes.DefaultMaxFeeFunc, msg *types.Message, sendSepc *api.M
 		maxFee = mf
 	}
 
-	if maxFee.Equals(big.Zero()) {
-		mf, err := mff()
-		if err != nil {
-			log.Errorf("failed to get default max gas fee: %+v", err)
-			mf = big.Zero()
-		}
-
-		maxFee = mf
-	}
+	// implement by hlm
 	msgGasFeeCap := msg.GasFeeCap.Int64()
 	if msgGasFeeCap < minGasCap {
 		msg.GasFeeCap.SetInt64(minGasCap)
@@ -211,6 +203,7 @@ func CapGasFee(mff dtypes.DefaultMaxFeeFunc, msg *types.Message, sendSepc *api.M
 	if msgGasFeeCap > maxGasCap && maxGasCap > minGasCap {
 		msg.GasFeeCap.SetInt64(maxGasCap)
 	}
+	// implement by hlm end
 
 	gl := types.NewInt(uint64(msg.GasLimit))
 	totalFee := types.BigMul(msg.GasFeeCap, gl)
@@ -817,7 +810,7 @@ func (mp *MessagePool) addLocked(m *types.SignedMessage, strict, untrusted bool)
 	return nil
 }
 
-func (mp *MessagePool) GetNonce(addr address.Address) (uint64, error) {
+func (mp *MessagePool) GetNonce(_ context.Context, addr address.Address, _ types.TipSetKey) (uint64, error) {
 	mp.curTsLk.Lock()
 	defer mp.curTsLk.Unlock()
 
@@ -1235,7 +1228,6 @@ type statBucket struct {
 func (mp *MessagePool) MessagesForBlocks(blks []*types.BlockHeader) ([]*types.SignedMessage, error) {
 	out := make([]*types.SignedMessage, 0)
 
-	recoverSigFailed := []cid.Cid{}
 	for _, b := range blks {
 		bmsgs, smsgs, err := mp.api.MessagesForBlock(b)
 		if err != nil {
@@ -1251,9 +1243,6 @@ func (mp *MessagePool) MessagesForBlocks(blks []*types.BlockHeader) ([]*types.Si
 				log.Debugf("could not recover signature for bls message %s", msg.Cid())
 			}
 		}
-	}
-	if len(recoverSigFailed) > 0 {
-		log.Warnf("could not recover signature for bls message len:%d", len(recoverSigFailed))
 	}
 
 	return out, nil

@@ -24,13 +24,13 @@ type MultiWallet struct {
 }
 
 type getif interface {
-	api.WalletAPI
+	api.Wallet
 
 	// workaround for the fact that iface(*struct(nil)) != nil
-	Get() api.WalletAPI
+	Get() api.Wallet
 }
 
-func firstNonNil(wallets ...getif) api.WalletAPI {
+func firstNonNil(wallets ...getif) api.Wallet {
 	for _, w := range wallets {
 		if w.Get() != nil {
 			return w
@@ -40,8 +40,8 @@ func firstNonNil(wallets ...getif) api.WalletAPI {
 	return nil
 }
 
-func nonNil(wallets ...getif) []api.WalletAPI {
-	var out []api.WalletAPI
+func nonNil(wallets ...getif) []api.Wallet {
+	var out []api.Wallet
 	for _, w := range wallets {
 		if w.Get() == nil {
 			continue
@@ -53,7 +53,7 @@ func nonNil(wallets ...getif) []api.WalletAPI {
 	return out
 }
 
-func (m MultiWallet) find(ctx context.Context, address address.Address, wallets ...getif) (api.WalletAPI, error) {
+func (m MultiWallet) find(ctx context.Context, address address.Address, wallets ...getif) (api.Wallet, error) {
 	ws := nonNil(wallets...)
 
 	for _, w := range ws {
@@ -113,7 +113,7 @@ func (m MultiWallet) WalletList(ctx context.Context) ([]address.Address, error) 
 	return out, nil
 }
 
-func (m MultiWallet) WalletSign(ctx context.Context, auth []byte, signer address.Address, toSign []byte, meta api.MsgMeta) (*crypto.Signature, error) {
+func (m MultiWallet) WalletSign(ctx context.Context, signer address.Address, toSign []byte, meta api.MsgMeta) (*crypto.Signature, error) {
 	w, err := m.find(ctx, signer, m.Remote, m.Ledger, m.Local)
 	if err != nil {
 		return nil, err
@@ -122,10 +122,10 @@ func (m MultiWallet) WalletSign(ctx context.Context, auth []byte, signer address
 		return nil, xerrors.Errorf("key not found")
 	}
 
-	return w.WalletSign(ctx, auth, signer, toSign, meta)
+	return w.WalletSign(ctx, signer, toSign, meta)
 }
 
-func (m MultiWallet) WalletExport(ctx context.Context, auth []byte, address address.Address) (*types.KeyInfo, error) {
+func (m MultiWallet) WalletExport(ctx context.Context, address address.Address) (*types.KeyInfo, error) {
 	w, err := m.find(ctx, address, m.Remote, m.Local)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (m MultiWallet) WalletExport(ctx context.Context, auth []byte, address addr
 		return nil, xerrors.Errorf("key not found")
 	}
 
-	return w.WalletExport(ctx, auth, address)
+	return w.WalletExport(ctx, address)
 }
 
 func (m MultiWallet) WalletImport(ctx context.Context, info *types.KeyInfo) (address.Address, error) {
@@ -151,7 +151,7 @@ func (m MultiWallet) WalletImport(ctx context.Context, info *types.KeyInfo) (add
 	return w.WalletImport(ctx, info)
 }
 
-func (m MultiWallet) WalletDelete(ctx context.Context, auth []byte, address address.Address) error {
+func (m MultiWallet) WalletDelete(ctx context.Context, address address.Address) error {
 	for {
 		w, err := m.find(ctx, address, m.Remote, m.Ledger, m.Local)
 		if err != nil {
@@ -161,10 +161,10 @@ func (m MultiWallet) WalletDelete(ctx context.Context, auth []byte, address addr
 			return nil
 		}
 
-		if err := w.WalletDelete(ctx, auth, address); err != nil {
+		if err := w.WalletDelete(ctx, address); err != nil {
 			return err
 		}
 	}
 }
 
-var _ api.WalletAPI = MultiWallet{}
+var _ api.Wallet = MultiWallet{}
