@@ -92,6 +92,7 @@ func (w *LocalWallet) upgradeRootCert(addr address.Address, cData *auth.CryptoDa
 	cData.Old = false
 	auth.RegisterCryptoCache(dsName, cData)
 	w.keys[addr] = k
+	log.Infof("Upgrade %s cert to %s", dsName, auth.RootKeyHash())
 	return nil
 }
 
