@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -19,12 +20,15 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
+	"github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/howeyc/gopass"
 )
 
 var walletCmd = &cli.Command{
 	Name:  "wallet",
 	Usage: "Manage wallet",
 	Subcommands: []*cli.Command{
+		walletEncode,
 		walletNew,
 		walletList,
 		walletBalance,
@@ -38,11 +42,46 @@ var walletCmd = &cli.Command{
 		walletMarket,
 	},
 }
+var walletEncode = &cli.Command{
+	Name:      "encode",
+	Usage:     "encode the uncrypit key",
+	ArgsUsage: "[address]",
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := ReqContext(cctx)
 
+		if !cctx.Args().Present() {
+			return fmt.Errorf("must specify key to export")
+		}
+
+		passwd := auth.RandPlainText(96)
+		addr, err := address.NewFromString(cctx.Args().First())
+		if err != nil {
+			return err
+		}
+
+		if err := api.WalletEncode(ctx, addr, passwd); err != nil {
+			return err
+		}
+		fmt.Printf("Encode success, password: %s\n", passwd)
+		return nil
+	},
+}
 var walletNew = &cli.Command{
 	Name:      "new",
 	Usage:     "Generate a new key of the given type",
 	ArgsUsage: "[bls|secp256k1 (default secp256k1)]",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "encode",
+			Value: false,
+			Usage: "encode the private key, it will output the password when done",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
@@ -55,13 +94,20 @@ var walletNew = &cli.Command{
 		if t == "" {
 			t = "secp256k1"
 		}
+		passwd := ""
+		if cctx.Bool("encode") {
+			passwd = auth.RandPlainText(96)
+		}
 
-		nk, err := api.WalletNew(ctx, types.KeyType(t))
+		nk, err := api.WalletNew(ctx, types.KeyType(t), passwd)
 		if err != nil {
 			return err
 		}
 
 		fmt.Println(nk.String())
+		if len(passwd) > 0 {
+			fmt.Printf("Encode password: %s\n", passwd)
+		}
 
 		return nil
 	},
@@ -95,10 +141,44 @@ var walletList = &cli.Command{
 		defer closer()
 		ctx := ReqContext(cctx)
 
-		addrs, err := api.WalletList(ctx)
-		if err != nil {
-			return err
+		// implement by zhoushuyue
+		var addrs []address.Address
+		decodeDone := make(chan error, 1)
+		go func() {
+			addrs, err = api.WalletList(ctx)
+			decodeDone <- err
+		}()
+	input:
+		for {
+			select {
+			case err := <-decodeDone:
+				if err != nil {
+					return err
+				}
+				break input
+			default:
+				time.Sleep(1e9)
+				name, err := api.InputWalletStatus(ctx)
+				if err != nil {
+					return err
+				}
+				if len(name) == 0 {
+					break
+				}
+				fmt.Printf("Please input password for '%s':\n", name)
+				passwd, err := gopass.GetPasswd()
+				if err != nil {
+					log.Info(err)
+					break
+				}
+				if err := api.InputWalletPasswd(ctx, string(passwd)); err != nil {
+					log.Info(err)
+					break
+				}
+			}
 		}
+
+		// end implement by zhoushuyue
 
 		// Assume an error means no default key is set
 		def, _ := api.WalletDefaultAddress(ctx)
@@ -111,6 +191,7 @@ var walletList = &cli.Command{
 			tablewriter.Col("Market(Locked)"),
 			tablewriter.Col("Nonce"),
 			tablewriter.Col("Default"),
+			tablewriter.Col("Encrypt"),
 			tablewriter.NewLineCol("Error"))
 
 		for _, addr := range addrs {
@@ -139,6 +220,13 @@ var walletList = &cli.Command{
 				}
 				if addr == def {
 					row["Default"] = "X"
+				}
+
+				keyInfo, err := api.WalletExport(ctx, addr)
+				if err != nil {
+					row["Encrypt"] = err.Error()
+				} else {
+					row["Encrypt"] = keyInfo.Encrypted
 				}
 
 				if cctx.Bool("id") {
@@ -370,9 +458,41 @@ var walletImport = &cli.Command{
 			return fmt.Errorf("unrecognized format: %s", cctx.String("format"))
 		}
 
-		addr, err := api.WalletImport(ctx, &ki)
-		if err != nil {
-			return err
+		var addr address.Address
+		decodeDone := make(chan error, 1)
+
+		go func() {
+			addr, err = api.WalletImport(ctx, &ki)
+			decodeDone <- err
+		}()
+	input:
+		for {
+			select {
+			case err := <-decodeDone:
+				if err != nil {
+					return err
+				}
+				break input
+			default:
+				time.Sleep(1e9)
+				name, err := api.InputWalletStatus(ctx)
+				if err != nil {
+					return err
+				}
+				if len(name) == 0 {
+					break
+				}
+				fmt.Printf("Please input password for '%s':\n", name)
+				passwd, err := gopass.GetPasswd()
+				if err != nil {
+					log.Info(err)
+					break
+				}
+				if err := api.InputWalletPasswd(ctx, string(passwd)); err != nil {
+					log.Info(err)
+					break
+				}
+			}
 		}
 
 		if cctx.Bool("as-default") {

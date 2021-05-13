@@ -34,19 +34,18 @@ type MsgMeta struct {
 	Extra []byte
 }
 
-type EWallet struct {
-	Address    address.Address
-	PrivateKey []byte
-}
-
 type Wallet interface {
-	WalletNew(context.Context, types.KeyType, string) (*EWallet, error)
+	// by zsy
+	WalletEncode(context.Context, address.Address, string) error
+	// end by zsy
+
+	WalletNew(context.Context, types.KeyType, string) (address.Address, error)
 	WalletHas(context.Context, address.Address) (bool, error)
 	WalletList(context.Context) ([]address.Address, error)
 
 	WalletSign(ctx context.Context, signer address.Address, toSign []byte, meta MsgMeta) (*crypto.Signature, error)
 
-	WalletExport(context.Context, address.Address, string) (*EWallet, error)
-	WalletImport(context.Context, []byte, string) (address.Address, error)
+	WalletExport(context.Context, address.Address) (*types.KeyInfo, error)
+	WalletImport(context.Context, *types.KeyInfo) (address.Address, error)
 	WalletDelete(context.Context, address.Address) error
 }

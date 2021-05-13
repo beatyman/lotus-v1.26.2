@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/lotus/lib/sigs"
+	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 type WalletAPI struct {
@@ -24,6 +25,16 @@ type WalletAPI struct {
 	Default         wallet.Default
 	api.Wallet
 }
+
+// by zhoushuyue
+func (a *WalletAPI) InputWalletStatus(ctx context.Context) (string, error) {
+	return auth.InputCryptoStatus(), nil
+}
+func (a *WalletAPI) InputWalletPasswd(ctx context.Context, passwd string) error {
+	return auth.InputCryptoPwd(passwd)
+}
+
+// end by zhoushuyue
 
 func (a *WalletAPI) WalletBalance(ctx context.Context, addr address.Address) (types.BigInt, error) {
 	act, err := a.StateManagerAPI.LoadActorTsk(ctx, addr, types.EmptyTSK)
