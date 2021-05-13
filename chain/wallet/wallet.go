@@ -61,6 +61,40 @@ func KeyWallet(keys ...*Key) *LocalWallet {
 	}
 }
 
+func (w *LocalWallet) upgradeRootCert(addr address.Address, cData *auth.CryptoData) error {
+	if !cData.Old {
+		// not need to upgrade
+		return nil
+	}
+
+	k, err := w.findKey(addr)
+	if err != nil {
+		return err
+	}
+	if k == nil {
+		return xerrors.Errorf("signing using key '%s': %w", addr.String(), types.ErrKeyInfoNotFound)
+	}
+	dsName := KNamePrefix + addr.String()
+	eData, err := auth.EncodeData(dsName, cData.Data, cData.Passwd)
+	if err != nil {
+		return errors.As(err)
+	}
+	k.PrivateKey = eData
+	k.DsName = dsName
+	k.Encrypted = true
+
+	if err := w.keystore.Delete(dsName); err != nil {
+		return xerrors.Errorf("delete to keystore: %w", err)
+	}
+	if err := w.keystore.Put(dsName, k.KeyInfo); err != nil {
+		return xerrors.Errorf("saving to keystore: %w", err)
+	}
+	cData.Old = false
+	auth.RegisterCryptoCache(dsName, cData)
+	w.keys[addr] = k
+	return nil
+}
+
 func (w *LocalWallet) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
 	k, err := w.findKey(addr)
 	if err != nil {
@@ -107,7 +141,8 @@ func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg 
 	// by zhoushuyue
 	privateKey := ki.PrivateKey
 	if ki.Encrypted {
-		cData, err := auth.DecodeData(KNamePrefix+addr.String(), ki.PrivateKey)
+		dsName := KNamePrefix + addr.String()
+		cData, err := auth.DecodeData(dsName, ki.PrivateKey)
 		if err != nil {
 			return nil, errors.As(err)
 		}
@@ -138,6 +173,18 @@ func (w *LocalWallet) findKey(addr address.Address) (*Key, error) {
 		}
 		return nil, xerrors.Errorf("getting from keystore: %w", err)
 	}
+
+	// Try upgrade the root cert
+	if ki.Encrypted {
+		cData, err := auth.DecodeData(ki.DsName, ki.PrivateKey)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+		if err := w.upgradeRootCert(addr, cData); err != nil {
+			return nil, errors.As(err)
+		}
+	}
+
 	k, err = NewKey(ki)
 	if err != nil {
 		return nil, xerrors.Errorf("decoding from keystore: %w", err)

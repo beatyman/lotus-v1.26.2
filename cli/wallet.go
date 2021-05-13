@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -45,25 +46,21 @@ var walletCmd = &cli.Command{
 	},
 }
 var walletGenRootCert = &cli.Command{
-	Name:  "gen-cert",
-	Usage: "generate the encode private cert",
+	Name:      "gen-cert",
+	Usage:     "generate the encode private cert",
+	ArgsUsage: "[output path]",
 	Action: func(cctx *cli.Context) error {
-		fmt.Println("Please input password:")
-		passwd, err := gopass.GetPasswd()
-		if err != nil {
-			return err
+		if !cctx.Args().Present() {
+			return fmt.Errorf("must specify path to export")
 		}
 
 		privKey, err := auth.GenRsaKey()
 		if err != nil {
 			return err
 		}
-		output, err := auth.EncodeRootKey(privKey, string(passwd))
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(output))
-		return nil
+		privBytes := x509.MarshalPKCS1PrivateKey(privKey)
+		output := []byte(hex.EncodeToString(privBytes))
+		return ioutil.WriteFile(cctx.Args().First(), output, 0644)
 	},
 }
 var walletGenPasswd = &cli.Command{

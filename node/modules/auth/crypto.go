@@ -35,13 +35,36 @@ import (
 
 	rice "github.com/GeertJohan/go.rice"
 	"github.com/gwaylib/errors"
+	"github.com/gwaylib/log"
 )
 
 var (
 	// TODO: 发版时需要编译时写入, 以便可以各自指定
 	rootPrivKey, _ = hex.DecodeString(strings.TrimSpace(rice.MustFindBox("../../../build/bootstrap").MustString("root.key")))
 	rootPriv, _    = x509.ParsePKCS1PrivateKey(rootPrivKey)
+
+	oldRootPriv *rsa.PrivateKey // nil for not exists.
 )
+
+func init() {
+	oldKey, err := rice.MustFindBox("../../../build/bootstrap").String("root-old.key")
+	if err != nil {
+		// ignore
+		return
+	}
+
+	oldRootPrivKey, err := hex.DecodeString(strings.TrimSpace(oldKey))
+	if err != nil {
+		log.Warn(errors.As(err, "root-old.key"))
+		return
+	}
+	priv, err := x509.ParsePKCS1PrivateKey(oldRootPrivKey)
+	if err != nil {
+		log.Warn(err, "root-old.key")
+		return
+	}
+	oldRootPriv = priv
+}
 
 func deriveKey(keySize int, password, salt []byte) []byte {
 	hash := md5.New()
@@ -208,6 +231,25 @@ func MixEncript(data []byte, passwd string) ([]byte, error) {
 
 func MixDecript(data []byte, passwd string) ([]byte, error) {
 	e1Wallet, err := RSADecript(data, rootPriv)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+
+	oWallet, err := AESDecript(e1Wallet, passwd)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+
+	// return o_wallet
+	return oWallet, nil
+}
+
+func MixOldDecript(data []byte, passwd string) ([]byte, error) {
+	if oldRootPriv == nil {
+		return nil, errors.New("no old root private key")
+	}
+
+	e1Wallet, err := RSADecript(data, oldRootPriv)
 	if err != nil {
 		return nil, errors.As(err)
 	}

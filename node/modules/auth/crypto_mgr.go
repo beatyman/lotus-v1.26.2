@@ -8,6 +8,7 @@ import (
 )
 
 type CryptoData struct {
+	Old    bool
 	Passwd string // inupt passwd
 	Data   []byte // decoded data
 }
@@ -87,17 +88,24 @@ func DecodeData(key string, eData []byte) (*CryptoData, error) {
 		log.Warnf("Waitting input password for : %s, try: %d", key, try)
 		passwd := <-inputCryptoPwdCh
 		try++
+		old := false
 		data, err := MixDecript(eData, passwd)
 		if err != nil {
-			inputCryptoPwdRet <- errors.As(err)
-			continue
+			// try the old, if it's success, do a upgrade.
+			data, err = MixOldDecript(eData, passwd)
+			if err != nil {
+				inputCryptoPwdRet <- errors.As(err)
+				continue
+			}
+			// pass
+			old = true
 		}
 		log.Infof("Decode %s success.", key)
 		// decode success
 		// response the caller that decode has success.
 		inputCryptoPwdRet <- nil
 
-		wData := &CryptoData{Passwd: passwd, Data: data}
+		wData := &CryptoData{Old: old, Passwd: passwd, Data: data}
 		memCryptoCache[key] = wData
 		return wData, nil
 	}
