@@ -28,6 +28,8 @@ var walletCmd = &cli.Command{
 	Name:  "wallet",
 	Usage: "Manage wallet",
 	Subcommands: []*cli.Command{
+		walletGenRootCert,
+		walletGenPasswd,
 		walletEncode,
 		walletNew,
 		walletList,
@@ -42,6 +44,45 @@ var walletCmd = &cli.Command{
 		walletMarket,
 	},
 }
+var walletGenRootCert = &cli.Command{
+	Name:  "gen-cert",
+	Usage: "generate the encode private cert",
+	Action: func(cctx *cli.Context) error {
+		fmt.Println("Please input password:")
+		passwd, err := gopass.GetPasswd()
+		if err != nil {
+			return err
+		}
+
+		privKey, err := auth.GenRsaKey()
+		if err != nil {
+			return err
+		}
+		output, err := auth.EncodeRootKey(privKey, string(passwd))
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(output))
+		return nil
+	},
+}
+var walletGenPasswd = &cli.Command{
+	Name:  "gen-password",
+	Usage: "generate password",
+	Flags: []cli.Flag{
+		&cli.IntFlag{
+			Name:  "len",
+			Value: 96,
+			Usage: "length of the password",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		passwd := auth.RandPlainText(cctx.Int("len"))
+		fmt.Println(passwd)
+		return nil
+	},
+}
+
 var walletEncode = &cli.Command{
 	Name:      "encode",
 	Usage:     "encode the uncrypit key",
@@ -58,13 +99,17 @@ var walletEncode = &cli.Command{
 			return fmt.Errorf("must specify key to export")
 		}
 
-		passwd := auth.RandPlainText(96)
+		fmt.Println("Please input password:")
+		passwd, err := gopass.GetPasswd()
+		if err != nil {
+			return err
+		}
 		addr, err := address.NewFromString(cctx.Args().First())
 		if err != nil {
 			return err
 		}
 
-		if err := api.WalletEncode(ctx, addr, passwd); err != nil {
+		if err := api.WalletEncode(ctx, addr, string(passwd)); err != nil {
 			return err
 		}
 		fmt.Printf("Encode success, password: %s\n", passwd)
@@ -96,7 +141,12 @@ var walletNew = &cli.Command{
 		}
 		passwd := ""
 		if cctx.Bool("encode") {
-			passwd = auth.RandPlainText(96)
+			fmt.Println("Please input password:")
+			pwd, err := gopass.GetPasswd()
+			if err != nil {
+				return err
+			}
+			passwd = string(pwd)
 		}
 
 		nk, err := api.WalletNew(ctx, types.KeyType(t), passwd)
