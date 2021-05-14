@@ -281,6 +281,9 @@ func GetHlmMinerSchedulerAPIInfo(ctx *cli.Context) (*APIInfo, error) {
 }
 func GetHlmMinerSchedulerAPI(ctx *cli.Context) (api.HlmMinerSchedulerAPI, jsonrpc.ClientCloser, error) {
 	apiInfo, err := GetHlmMinerSchedulerAPIInfo(ctx)
+	if err != nil {
+		return nil, nil, errors.As(err)
+	}
 	addr, err := apiInfo.DialArgs(repo.HlmMinerScheduler)
 	if err != nil {
 		return nil, nil, err
