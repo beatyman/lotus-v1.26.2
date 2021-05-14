@@ -47,7 +47,7 @@ cat > "${BASEDIR}/scripts/create_miner.bash" <<EOF
 #!/usr/bin/env bash
 set -x
 
-owner=\$(lotus wallet new bls)
+owner=\$(lotus wallet new --encode=false bls)
 result=\$(curl -D - -XPOST -F "sectorSize=536870912" -F "address=\$owner" $faucet/mkminer | grep Location)
 query_string=\$(grep -o "\bf=.*\b" <<<\$(echo \$result))
 

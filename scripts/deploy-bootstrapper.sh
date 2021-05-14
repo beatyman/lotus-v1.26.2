@@ -59,7 +59,7 @@ sudo lotus --repo=/data/lotus/dev/.lotus net connect $genesisAddr
 hasDefaultWalletAddr=$(sudo lotus wallet default)
 if [ $? -ne 0 ]; then
     log 'Get fil from t0111'
-    walletAddr=$(sudo lotus wallet new bls)
+    walletAddr=$(sudo lotus wallet new --encode=false bls)
     sudo lotus --repo=/data/lotus/dev/.ldt0111 send $walletAddr 90000000
     git checkout build
 fi

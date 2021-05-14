@@ -120,7 +120,7 @@ var walletNew = &cli.Command{
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "encode",
-			Value: false,
+			Value: true,
 			Usage: "encode the private key, it will output the password when done",
 		},
 	},
