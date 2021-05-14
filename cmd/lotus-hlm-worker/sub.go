@@ -324,17 +324,15 @@ reAllocate:
 	}
 
 	// fetch the unseal sector
-	if task.Type == ffiwrapper.WorkerPledge {
+	switch task.Type {
+	case ffiwrapper.WorkerPledge, ffiwrapper.WorkerPreCommit1:
 		// get the market unsealed data, and copy to local
 		if err := w.fetchUnseal(ctx, sealer, task); err != nil {
 			return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
 		}
 		// fetch done
-	}
-
-	// fetch the seal sector
-	if task.Type == ffiwrapper.WorkerUnseal {
-		// get the unsealed and sealed data
+	case ffiwrapper.WorkerUnseal:
+		// get the unsealed and sealed data to do unseal operate.
 		if err := w.fetchUnseal(ctx, sealer, task); err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
