@@ -157,17 +157,17 @@ var mpoolFix = &cli.Command{
 		},
 		&cli.Uint64Flag{
 			Name:  "rate-premium",
-			Usage: "0<rate, will be divide 10000, default is 125%",
+			Usage: "default is 125%",
 			Value: 12500,
 		},
 		&cli.Uint64Flag{
 			Name:  "rate-feecap",
-			Usage: "0<rate, will be divide 10000, default is 125%",
+			Usage: "default is 125%",
 			Value: 12500,
 		},
 		&cli.Uint64Flag{
 			Name:  "rate-limit",
-			Usage: "0<rate, will be divide 10000, default is 125%",
+			Usage: "default is 125%",
 			Value: 12500,
 		},
 		&cli.Uint64Flag{
@@ -177,8 +177,8 @@ var mpoolFix = &cli.Command{
 		},
 		&cli.Uint64Flag{
 			Name:  "limit-msg",
-			Usage: "limit the message. 0 is ignored",
-			Value: 0,
+			Usage: "limit the messages fixed. 0 is unlimit",
+			Value: 10,
 		},
 	},
 	Action: func(cctx *cli.Context) error {

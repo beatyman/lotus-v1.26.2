@@ -62,7 +62,15 @@ var SyncStatusCmd = &cli.Command{
 			}
 		}
 
-		fmt.Println("sync status:")
+		inputName, err := apic.InputWalletStatus(ctx)
+		if err != nil {
+			return err
+		}
+		if len(inputName) > 0 {
+			fmt.Println("sync status:(need decode wallet:%s)\n", inputName)
+		} else {
+			fmt.Println("sync status:(no wallet need decrypt)\n")
+		}
 		for _, ss := range result {
 			fmt.Printf("worker %d:\n", ss.WorkerID)
 			var base, target []cid.Cid

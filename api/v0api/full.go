@@ -50,6 +50,9 @@ type FullNode interface {
 	// implement by hlm
 	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
 	SyncProgress(context.Context) (api.SyncProgress, error)
+	InputWalletStatus(context.Context) (string, error)
+	InputWalletPasswd(context.Context, string) error
+	WalletEncode(context.Context, address.Address, string) error
 	// implement by hlm end
 
 	// MethodGroup: Chain
@@ -270,7 +273,7 @@ type FullNode interface {
 	// WalletNew creates a new address in the wallet with the given sigType.
 	// Available key types: bls, secp256k1, secp256k1-ledger
 	// Support for numerical types: 1 - secp256k1, 2 - BLS is deprecated
-	WalletNew(context.Context, types.KeyType) (address.Address, error) //perm:write
+	WalletNew(context.Context, types.KeyType, string) (address.Address, error) //perm:write
 	// WalletHas indicates whether the given address is in the wallet.
 	WalletHas(context.Context, address.Address) (bool, error) //perm:write
 	// WalletList lists all the addresses in the wallet.

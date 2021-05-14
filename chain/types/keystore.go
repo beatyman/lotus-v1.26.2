@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/filecoin-project/go-state-types/crypto"
+	"github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/gwaylib/errors"
 )
 
 var (
@@ -57,6 +59,24 @@ const (
 type KeyInfo struct {
 	Type       KeyType
 	PrivateKey []byte
+
+	// by zhoushuyue
+	DsName    string // when encrypted, it's need a not empty value.
+	Encrypted bool
+	// end by zhoushuyue
+}
+
+// need auth.InputCryptPwd if encrypted.
+func (ki *KeyInfo) PlainPrivateKey() ([]byte, error) {
+	if !ki.Encrypted {
+		return ki.PrivateKey, nil
+	}
+
+	cData, err := auth.DecodeData(ki.DsName, ki.PrivateKey)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	return cData.Data, nil
 }
 
 // KeyStore is used for storing secret keys
