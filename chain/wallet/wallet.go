@@ -6,6 +6,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/gwaylib/errors"
+
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/crypto"
 	logging "github.com/ipfs/go-log/v2"
@@ -58,6 +61,40 @@ func KeyWallet(keys ...*Key) *LocalWallet {
 	}
 }
 
+func (w *LocalWallet) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
+	k, err := w.findKey(addr)
+	if err != nil {
+		return err
+	}
+	if k == nil {
+		return xerrors.Errorf("signing using key '%s': %w", addr.String(), types.ErrKeyInfoNotFound)
+	}
+	if len(passwd) == 0 {
+		return xerrors.Errorf("password not set")
+	}
+	if k.Encrypted {
+		return xerrors.Errorf("the address is already encrypted.")
+	}
+
+	dsName := KNamePrefix + addr.String()
+	eData, err := auth.EncodeData(dsName, k.PrivateKey, passwd)
+	if err != nil {
+		return errors.As(err)
+	}
+	k.PrivateKey = eData
+	k.DsName = dsName
+	k.Encrypted = true
+
+	if err := w.keystore.Delete(dsName); err != nil {
+		return xerrors.Errorf("delete to keystore: %w", err)
+	}
+	if err := w.keystore.Put(dsName, k.KeyInfo); err != nil {
+		return xerrors.Errorf("saving to keystore: %w", err)
+	}
+	w.keys[addr] = k
+	return nil
+}
+
 func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg []byte, meta api.MsgMeta) (*crypto.Signature, error) {
 	ki, err := w.findKey(addr)
 	if err != nil {
@@ -67,7 +104,19 @@ func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg 
 		return nil, xerrors.Errorf("signing using key '%s': %w", addr.String(), types.ErrKeyInfoNotFound)
 	}
 
-	return sigs.Sign(ActSigType(ki.Type), ki.PrivateKey, msg)
+	// by zhoushuyue
+	privateKey := ki.PrivateKey
+	if ki.Encrypted {
+		dsName := KNamePrefix + addr.String()
+		cData, err := auth.DecodeData(dsName, ki.PrivateKey)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+		privateKey = cData.Data
+	}
+	// end by zhoushuyue
+
+	return sigs.Sign(ActSigType(ki.Type), privateKey, msg)
 }
 
 func (w *LocalWallet) findKey(addr address.Address) (*Key, error) {
@@ -90,16 +139,47 @@ func (w *LocalWallet) findKey(addr address.Address) (*Key, error) {
 		}
 		return nil, xerrors.Errorf("getting from keystore: %w", err)
 	}
+
+	var cData *auth.CryptoData
+	// Try upgrade the root cert
+	if ki.Encrypted {
+		cData, err = auth.DecodeData(ki.DsName, ki.PrivateKey)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+	}
+
 	k, err = NewKey(ki)
 	if err != nil {
 		return nil, xerrors.Errorf("decoding from keystore: %w", err)
+	}
+
+	// upgrade the old cert to the new cert.
+	if cData != nil && cData.Old {
+		dsName := ki.DsName
+		eData, err := auth.EncodeData(dsName, cData.Data, cData.Passwd)
+		if err != nil {
+			return nil, errors.As(err)
+		}
+		k.PrivateKey = eData
+		k.DsName = dsName
+		k.Encrypted = true
+
+		if err := w.keystore.Delete(dsName); err != nil {
+			return nil, xerrors.Errorf("delete to keystore: %w", err)
+		}
+		if err := w.keystore.Put(dsName, k.KeyInfo); err != nil {
+			return nil, xerrors.Errorf("saving to keystore: %w", err)
+		}
+		cData.Old = false
+		auth.RegisterCryptoCache(dsName, cData)
+		log.Infof("Upgrade %s cert to %s", dsName, auth.RootKeyHash())
 	}
 	w.keys[k.Address] = k
 	return k, nil
 }
 
 func (w *LocalWallet) tryFind(addr address.Address) (types.KeyInfo, error) {
-
 	ki, err := w.keystore.Get(KNamePrefix + addr.String())
 	if err == nil {
 		return ki, err
@@ -181,8 +261,14 @@ func (w *LocalWallet) WalletList(ctx context.Context) ([]address.Address, error)
 				continue // got duplicate with a different prefix
 			}
 			seen[addr] = struct{}{}
-
 			out = append(out, addr)
+
+			// try decode. by zsy
+			if _, err := w.findKey(addr); err != nil {
+				return nil, errors.As(err)
+			}
+			// end by zsy
+
 		}
 	}
 
@@ -232,7 +318,7 @@ func (w *LocalWallet) SetDefault(a address.Address) error {
 	return nil
 }
 
-func (w *LocalWallet) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {
+func (w *LocalWallet) WalletNew(ctx context.Context, typ types.KeyType, passwd string) (address.Address, error) {
 	w.lk.Lock()
 	defer w.lk.Unlock()
 
@@ -241,7 +327,21 @@ func (w *LocalWallet) WalletNew(ctx context.Context, typ types.KeyType) (address
 		return address.Undef, err
 	}
 
-	if err := w.keystore.Put(KNamePrefix+k.Address.String(), k.KeyInfo); err != nil {
+	// by zhoushuyue
+	dsName := KNamePrefix + k.Address.String()
+	// encode the private key
+	if len(passwd) > 0 {
+		eData, err := auth.EncodeData(dsName, k.KeyInfo.PrivateKey, passwd)
+		if err != nil {
+			return address.Undef, errors.As(err)
+		}
+		k.KeyInfo.PrivateKey = eData
+		k.KeyInfo.DsName = dsName
+		k.KeyInfo.Encrypted = true
+	}
+	// end by zhoushuyue
+
+	if err := w.keystore.Put(dsName, k.KeyInfo); err != nil {
 		return address.Undef, xerrors.Errorf("saving to keystore: %w", err)
 	}
 	w.keys[k.Address] = k
@@ -302,6 +402,11 @@ func (w *LocalWallet) walletDelete(ctx context.Context, addr address.Address) er
 	_ = w.keystore.Delete(KNamePrefix + tAddr)
 
 	delete(w.keys, addr)
+
+	// by zhoushuyue
+	// delete the decripted cache
+	auth.DeleteCryptoCache(KNamePrefix + k.Address.String())
+	// end by zhoushuyue
 
 	return nil
 }

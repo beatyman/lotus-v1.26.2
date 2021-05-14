@@ -316,62 +316,64 @@ reAllocate:
 		log.Infof("accept one new task, really time worker ssd -> sector map tupple is:\r\n %+v", mapstr)
 	}
 
-	// checking is the cache in a different storage server, do fetch when it is.
-	if w.workerCfg.CacheMode == 0 && task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit && task.WorkerID != w.workerCfg.ID {
-		// fetch the precommit cache data
-		// lock bandwidth
-		if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
-			ReleaseNodeApi(false)
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
-	retryFetch:
-		// fetch data
-		uri := task.SectorStorage.WorkerInfo.SvcUri
-		if err := w.fetchRemote(
-			"http://"+uri,
-			task.SectorStorage.SectorInfo.ID,
-			sealer.RepoPath(),
-			task.Type,
-		); err != nil {
-			log.Warnf("fileserver error, retry 10s later:%+s", err.Error())
-			time.Sleep(10e9)
-			goto retryFetch
-		}
-		// release bandwidth
-		if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
-			ReleaseNodeApi(false)
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
-		// release the storage cache
-		log.Infof("fetch %s done, try delete remote files.", task.Key())
-		if err := w.deleteRemoteCache(
-			"http://"+uri,
-			task.SectorStorage.SectorInfo.ID,
-			"all",
-		); err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
-	}
-
-	// fetch the unseal sector
-	if task.Type == ffiwrapper.WorkerPledge {
-		// get the market unsealed data, and copy to local
-		if err := w.fetchUnseal(ctx, sealer, task); err != nil {
-			return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
-		}
+	if w.workerCfg.CacheMode == 0 {
+		// fetch the unseal sector
+		switch task.Type {
 		// fetch done
-	}
+		case ffiwrapper.WorkerUnseal:
+			// get the unsealed and sealed data to do unseal operate.
+			if err := w.fetchUnseal(ctx, sealer, task); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			if err := w.fetchSealed(ctx, sealer, task); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			// fetch done
+		default:
+			if task.Type == ffiwrapper.WorkerPledge || task.Type == ffiwrapper.WorkerPreCommit1 {
+				// get the market unsealed data, and copy to local
+				if err := w.fetchUnseal(ctx, sealer, task); err != nil {
+					return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
+				}
+			}
 
-	// fetch the seal sector
-	if task.Type == ffiwrapper.WorkerUnseal {
-		// get the unsealed and sealed data
-		if err := w.fetchUnseal(ctx, sealer, task); err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
+			// checking is the cache in a different storage server, do fetch when it is.
+			if task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit && task.WorkerID != w.workerCfg.ID {
+				// fetch the precommit cache data
+				// lock bandwidth
+				if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
+					ReleaseNodeApi(false)
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
+			retryFetch:
+				// fetch data
+				uri := task.SectorStorage.WorkerInfo.SvcUri
+				if err := w.fetchRemote(
+					"http://"+uri,
+					task.SectorStorage.SectorInfo.ID,
+					sealer.RepoPath(),
+					task.Type,
+				); err != nil {
+					log.Warnf("fileserver error, retry 10s later:%+s", err.Error())
+					time.Sleep(10e9)
+					goto retryFetch
+				}
+				// release bandwidth
+				if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
+					ReleaseNodeApi(false)
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
+				// release the storage cache
+				log.Infof("fetch %s done, try delete remote files.", task.Key())
+				if err := w.deleteRemoteCache(
+					"http://"+uri,
+					task.SectorStorage.SectorInfo.ID,
+					"all",
+				); err != nil {
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
+			}
 		}
-		if err := w.fetchSealed(ctx, sealer, task); err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
-		// fetch done
 	}
 
 	// lock the task to this worker

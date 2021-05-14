@@ -72,7 +72,7 @@ func (f *FUseClient) Mount(ctx context.Context, mountPoint string) error {
 	end := make(chan os.Signal, 2)
 	go func() {
 		server.Serve()
-		close(end)
+		end <- os.Interrupt
 	}()
 
 	// when have a exit signal, make umount so the program could shutdown.

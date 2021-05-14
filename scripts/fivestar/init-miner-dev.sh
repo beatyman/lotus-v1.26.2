@@ -6,7 +6,7 @@ size=2048
 #size=536870912 # 512MB
 #size=34359738368 # 32G
 
-walletAddr=$(./lotus.sh wallet new bls)
+walletAddr=$(./lotus.sh wallet new --encode=false bls)
 echo $walletAddr
 ./lotus.sh wallet export $walletAddr>$walletAddr.dat
 

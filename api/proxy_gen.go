@@ -117,6 +117,9 @@ type FullNodeStruct struct {
 		//implement by hlm
 		ChainComputeBaseFee func(context.Context, types.TipSetKey) (types.BigInt, error) `perm:"read"`
 		SyncProgress        func(context.Context) (SyncProgress, error)                  `perm:"read"`
+		InputWalletStatus   func(context.Context) (string, error)                        `perm:"read"`
+		InputWalletPasswd   func(context.Context, string) error                          `perm:"admin"`
+		WalletEncode        func(context.Context, address.Address, string) error         `perm:"admin"`
 		//implement by hlm end
 
 		BeaconGetEntry func(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) `perm:"read"`
@@ -447,7 +450,7 @@ type FullNodeStruct struct {
 
 		WalletList func(p0 context.Context) ([]address.Address, error) `perm:"write"`
 
-		WalletNew func(p0 context.Context, p1 types.KeyType) (address.Address, error) `perm:"write"`
+		WalletNew func(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error) `perm:"write"`
 
 		WalletSetDefault func(p0 context.Context, p1 address.Address) error `perm:"write"`
 
@@ -733,6 +736,8 @@ type StorageMinerStub struct {
 
 type WalletStruct struct {
 	Internal struct {
+		WalletEncode func(context.Context, address.Address, string) error ``
+
 		WalletDelete func(p0 context.Context, p1 address.Address) error ``
 
 		WalletExport func(p0 context.Context, p1 address.Address) (*types.KeyInfo, error) ``
@@ -743,7 +748,7 @@ type WalletStruct struct {
 
 		WalletList func(p0 context.Context) ([]address.Address, error) ``
 
-		WalletNew func(p0 context.Context, p1 types.KeyType) (address.Address, error) ``
+		WalletNew func(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error) ``
 
 		WalletSign func(p0 context.Context, p1 address.Address, p2 []byte, p3 MsgMeta) (*crypto.Signature, error) ``
 	}
@@ -1042,6 +1047,24 @@ func (c *FullNodeStruct) SyncProgress(ctx context.Context) (SyncProgress, error)
 }
 func (c *FullNodeStub) SyncProgress(ctx context.Context) (SyncProgress, error) {
 	return SyncProgress{}, xerrors.New("method not supported")
+}
+func (c *FullNodeStruct) InputWalletStatus(ctx context.Context) (string, error) {
+	return c.Internal.InputWalletStatus(ctx)
+}
+func (c *FullNodeStub) InputWalletStatus(ctx context.Context) (string, error) {
+	return "", xerrors.New("method not supported")
+}
+func (c *FullNodeStruct) InputWalletPasswd(ctx context.Context, passwd string) error {
+	return c.Internal.InputWalletPasswd(ctx, passwd)
+}
+func (c *FullNodeStub) InputWalletPasswd(ctx context.Context, passwd string) error {
+	return xerrors.New("method not supported")
+}
+func (c *FullNodeStruct) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
+	return c.Internal.WalletEncode(ctx, addr, passwd)
+}
+func (c *FullNodeStub) WalletEncode(ctx context.Context, addr, passwd string) error {
+	return xerrors.New("method not supported")
 }
 func (s *FullNodeStruct) BeaconGetEntry(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) {
 	return s.Internal.BeaconGetEntry(p0, p1)
@@ -2355,12 +2378,12 @@ func (s *FullNodeStub) WalletList(p0 context.Context) ([]address.Address, error)
 	return *new([]address.Address), xerrors.New("method not supported")
 }
 
-func (s *FullNodeStruct) WalletNew(p0 context.Context, p1 types.KeyType) (address.Address, error) {
-	return s.Internal.WalletNew(p0, p1)
+func (s *FullNodeStruct) WalletNew(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error) {
+	return s.Internal.WalletNew(p0, p1, p2)
 }
 
-func (s *FullNodeStub) WalletNew(p0 context.Context, p1 types.KeyType) (address.Address, error) {
-	return *new(address.Address), xerrors.New("method not supported")
+func (s *FullNodeStub) WalletNew(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error) {
+	return address.Undef, xerrors.New("method not supported")
 }
 
 func (s *FullNodeStruct) WalletSetDefault(p0 context.Context, p1 address.Address) error {
@@ -3346,7 +3369,12 @@ func (s *StorageMinerStruct) WorkerStats(p0 context.Context) (map[uuid.UUID]stor
 func (s *StorageMinerStub) WorkerStats(p0 context.Context) (map[uuid.UUID]storiface.WorkerStats, error) {
 	return *new(map[uuid.UUID]storiface.WorkerStats), xerrors.New("method not supported")
 }
-
+func (c *WalletStruct) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
+	return c.Internal.WalletEncode(ctx, addr, passwd)
+}
+func (c *WalletStub) WalletEncode(ctx context.Context, addr, passwd string) error {
+	return xerrors.New("method not supported")
+}
 func (s *WalletStruct) WalletDelete(p0 context.Context, p1 address.Address) error {
 	return s.Internal.WalletDelete(p0, p1)
 }
@@ -3387,12 +3415,12 @@ func (s *WalletStub) WalletList(p0 context.Context) ([]address.Address, error) {
 	return *new([]address.Address), xerrors.New("method not supported")
 }
 
-func (s *WalletStruct) WalletNew(p0 context.Context, p1 types.KeyType) (address.Address, error) {
-	return s.Internal.WalletNew(p0, p1)
+func (s *WalletStruct) WalletNew(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error) {
+	return s.Internal.WalletNew(p0, p1, p2)
 }
 
-func (s *WalletStub) WalletNew(p0 context.Context, p1 types.KeyType) (address.Address, error) {
-	return *new(address.Address), xerrors.New("method not supported")
+func (s *WalletStub) WalletNew(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error) {
+	return address.Undef, xerrors.New("method not supported")
 }
 
 func (s *WalletStruct) WalletSign(p0 context.Context, p1 address.Address, p2 []byte, p3 MsgMeta) (*crypto.Signature, error) {

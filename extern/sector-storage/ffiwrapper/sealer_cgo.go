@@ -118,7 +118,7 @@ func (sb *Sealer) ExpireAllMarketRetrieve() {
 }
 
 func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error {
-	log.Infof("sealer.NewSector:%+v", sector.ID)
+	log.Infof("sealer.NewSector:%+v, market:%t", sector.ID, sector.IsMarketSector)
 
 	if database.HasDB() {
 		sName := sectorName(sector.ID)

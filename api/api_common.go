@@ -100,10 +100,12 @@ type APIVersion struct {
 
 	// Seconds
 	BlockDelay uint64
+
+	Cert string
 }
 
 func (v APIVersion) String() string {
-	return fmt.Sprintf("%s+api%s", v.Version, v.APIVersion.String())
+	return fmt.Sprintf("%s+api%s+cert:%s", v.Version, v.APIVersion.String(), v.Cert)
 }
 
 type NatInfo struct {
