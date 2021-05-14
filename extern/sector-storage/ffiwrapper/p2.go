@@ -60,12 +60,24 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 	unixAddr := filepath.Join(os.TempDir(), ".p2-"+uuid.New().String())
 	defer os.Remove(unixAddr)
 
-	cmd := exec.CommandContext(ctx, programName,
-		"precommit2",
-		"--worker-repo", repo,
-		"--name", task.SectorName(),
-		"--addr", unixAddr,
-	)
+	var cmd *exec.Cmd
+	if os.Getenv("LOTUS_WORKER_P2_CPU_LIST") != "" {
+		cpuList:=os.Getenv("LOTUS_WORKER_P2_CPU_LIST")
+		log.Infof("Lock P2 cpu list: %v ",cpuList)
+		cmd = exec.CommandContext(ctx, "taskset","-c",cpuList,programName,
+			"precommit2",
+			"--worker-repo", repo,
+			"--name", task.SectorName(),
+			"--addr", unixAddr,
+		)
+	}else {
+		cmd = exec.CommandContext(ctx, programName,
+			"precommit2",
+			"--worker-repo", repo,
+			"--name", task.SectorName(),
+			"--addr", unixAddr,
+		)
+	}
 	// set the env
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, fmt.Sprintf("NEPTUNE_DEFAULT_GPU=%s", gpuKey))
