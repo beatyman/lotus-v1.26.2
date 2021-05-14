@@ -216,7 +216,7 @@ var walletList = &cli.Command{
 				passwd, err := gopass.GetPasswd()
 				if err != nil {
 					log.Info(err)
-					break
+					break input
 				}
 				if err := api.InputWalletPasswd(ctx, string(passwd)); err != nil {
 					log.Info(err)
@@ -533,7 +533,7 @@ var walletImport = &cli.Command{
 				passwd, err := gopass.GetPasswd()
 				if err != nil {
 					log.Info(err)
-					break
+					break input
 				}
 				if err := api.InputWalletPasswd(ctx, string(passwd)); err != nil {
 					log.Info(err)
