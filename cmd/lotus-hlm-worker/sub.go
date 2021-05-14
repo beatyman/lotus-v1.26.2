@@ -300,7 +300,7 @@ reAllocate:
 			}
 			// fetch done
 		default:
-			if task.Type == ffiwrapper.WorkerPledge || task.Type == ffiwapper.WorkerPreCommit1 {
+			if task.Type == ffiwrapper.WorkerPledge || task.Type == ffiwrapper.WorkerPreCommit1 {
 				// get the market unsealed data, and copy to local
 				if err := w.fetchUnseal(ctx, sealer, task); err != nil {
 					return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)

@@ -12,22 +12,22 @@ export CGO_CFLAGS="-D__BLST_PORTABLE__"
 export FFI_BUILD_FROM_SOURCE=1
 
 if [ -f scripts/root.key ]; then
-    cp scripts/root.key build/bootstrap/root.key
+    cp -v scripts/root.key build/cert/root.key
 fi
 if [ -f scripts/root-old.key ]; then
-    cp scripts/root-old.key build/bootstrap/root.key
+    cp -v scripts/root-old.key build/cert/root-old.key
 fi
 
 echo "make "$1
 case $1 in
     "debug")
-        cp -f scripts/bootstrappers.pi build/bootstrap/devnet.pi
-        cp -f scripts/devnet.car build/genesis/devnet.car
+        cp -v scripts/bootstrappers.pi build/bootstrap/devnet.pi
+        cp -v scripts/devnet.car build/genesis/devnet.car
         make debug
     ;;
     "hlm")
-        cp -f scripts/bootstrappers.pi build/bootstrap/devnet.pi
-        cp -f scripts/devnet-hlm.car build/genesis/devnet.car
+        cp -v scripts/bootstrappers.pi build/bootstrap/devnet.pi
+        cp -v scripts/devnet-hlm.car build/genesis/devnet.car
         make hlm
     ;;
     "calibration")

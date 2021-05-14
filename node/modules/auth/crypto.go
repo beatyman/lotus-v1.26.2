@@ -27,44 +27,17 @@ import (
 	"crypto/rsa"
 	"crypto/sha512"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/pem"
-	"fmt"
 	"io"
-	"strings"
 
-	rice "github.com/GeertJohan/go.rice"
+	"github.com/filecoin-project/lotus/build"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 )
 
 var (
 	// TODO: 发版时需要编译时写入, 以便可以各自指定
-	rootPrivKey, _ = hex.DecodeString(strings.TrimSpace(rice.MustFindBox("../../../build/bootstrap").MustString("root.key")))
-	rootPriv, _    = x509.ParsePKCS1PrivateKey(rootPrivKey)
-
-	oldRootPriv *rsa.PrivateKey // nil for not exists.
+	rootPriv, oldRootPriv = build.GetRootCert()
 )
-
-func init() {
-	oldKey, err := rice.MustFindBox("../../../build/bootstrap").String("root-old.key")
-	if err != nil {
-		// ignore
-		return
-	}
-
-	oldRootPrivKey, err := hex.DecodeString(strings.TrimSpace(oldKey))
-	if err != nil {
-		log.Warn(errors.As(err, "root-old.key"))
-		return
-	}
-	priv, err := x509.ParsePKCS1PrivateKey(oldRootPrivKey)
-	if err != nil {
-		log.Warn(err, "root-old.key")
-		return
-	}
-	oldRootPriv = priv
-}
 
 func deriveKey(keySize int, password, salt []byte) []byte {
 	hash := md5.New()
@@ -98,7 +71,7 @@ func split(buf []byte, lim int) [][]byte {
 
 // echo for verifying version of the root's private key
 func RootKeyHash() string {
-	return fmt.Sprintf("%x", md5.Sum(rootPrivKey))
+	return rootPriv.Hash
 }
 
 func GenRsaKey() (*rsa.PrivateKey, error) {
@@ -222,7 +195,7 @@ func MixEncript(data []byte, passwd string) ([]byte, error) {
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	e2Wallet, err := RSAEncript(e1Wallet, &rootPriv.PublicKey)
+	e2Wallet, err := RSAEncript(e1Wallet, &rootPriv.PrivateKey.PublicKey)
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -230,7 +203,7 @@ func MixEncript(data []byte, passwd string) ([]byte, error) {
 }
 
 func MixDecript(data []byte, passwd string) ([]byte, error) {
-	e1Wallet, err := RSADecript(data, rootPriv)
+	e1Wallet, err := RSADecript(data, rootPriv.PrivateKey)
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -244,12 +217,12 @@ func MixDecript(data []byte, passwd string) ([]byte, error) {
 	return oWallet, nil
 }
 
-func MixOldDecript(data []byte, passwd string) ([]byte, error) {
+func OldMixDecript(data []byte, passwd string) ([]byte, error) {
 	if oldRootPriv == nil {
 		return nil, errors.New("no old root private key")
 	}
 
-	e1Wallet, err := RSADecript(data, oldRootPriv)
+	e1Wallet, err := RSADecript(data, oldRootPriv.PrivateKey)
 	if err != nil {
 		return nil, errors.As(err)
 	}

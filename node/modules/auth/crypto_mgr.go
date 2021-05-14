@@ -92,7 +92,7 @@ func DecodeData(key string, eData []byte) (*CryptoData, error) {
 		data, err := MixDecript(eData, passwd)
 		if err != nil {
 			// try the old, if it's success, do a upgrade.
-			data, err = MixOldDecript(eData, passwd)
+			data, err = OldMixDecript(eData, passwd)
 			if err != nil {
 				inputCryptoPwdRet <- errors.As(err)
 				continue
@@ -100,7 +100,7 @@ func DecodeData(key string, eData []byte) (*CryptoData, error) {
 			// pass
 			old = true
 		}
-		log.Infof("Decode %s success.", key)
+		log.Infof("Decode %s success, old cert:%t.", key, old)
 		// decode success
 		// response the caller that decode has success.
 		inputCryptoPwdRet <- nil
