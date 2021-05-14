@@ -311,7 +311,7 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 			busyWindowPoSt++
 		}
 	}
-	log.Infof("workerIP: %v; real<=21: %v/%v ; AddPiece: %v/%v ; P1: %v/%v ; P2: %v/%v ;Commit: %v/%v", r.cfg.IP, realWorking, r.cfg.MaxTaskNum, busyPledgeNum, r.cfg.ParallelPledge, busyPrecommit1Num, r.cfg.ParallelPrecommit1, busyPrecommit2Num, r.cfg.ParallelPrecommit2, busyCommitNum, r.cfg.ParallelCommit)
+	//log.Infof("workerIP: %v; real<=21: %v/%v ; AddPiece: %v/%v ; P1: %v/%v ; P2: %v/%v ;Commit: %v/%v", r.cfg.IP, realWorking, r.cfg.MaxTaskNum, busyPledgeNum, r.cfg.ParallelPledge, busyPrecommit1Num, r.cfg.ParallelPrecommit1, busyPrecommit2Num, r.cfg.ParallelPrecommit2, busyCommitNum, r.cfg.ParallelCommit)
 	if isSrvCalled {
 		// mutex to any other task.
 		return sumWorkingTask > 0
@@ -325,7 +325,7 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 		}
 		return busyPledgeNum >= r.cfg.ParallelPledge || realWorking >= r.cfg.MaxTaskNum || busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1
 	case WorkerPreCommit1, WorkerUnseal: // unseal is shared with the parallel-precommit1
-		return busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1 || (busyPledgeNum > 0)
+		return busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1
 
 	// mutex gpu for precommit2, commit2.
 	case WorkerPreCommit2:

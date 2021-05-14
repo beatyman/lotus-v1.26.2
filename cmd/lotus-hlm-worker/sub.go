@@ -281,7 +281,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	if err := w.GcRepoSectors(ctx); err != nil {
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
-
+	cleanTimes := 0
 	// allocate worker sealer
 reAllocate:
 	w.workMu.Lock()
@@ -290,6 +290,12 @@ reAllocate:
 		w.workMu.Unlock()
 		log.Warn(errors.As(err))
 		time.Sleep(60e9)
+		cleanTimes++
+		if cleanTimes%10 == 0 {
+			if err := w.GcRepoSectors(ctx); err != nil {
+				log.Warn(errors.As(err, w.workerCfg), &res)
+			}
+		}
 		goto reAllocate
 	}
 	sealer, ok := w.sealers[dpState.MountPoint]
@@ -419,24 +425,24 @@ reAllocate:
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-		var commR=out.Sealed.String()
+		var commR = out.Sealed.String()
 		var redoTimes int64
 		var errCommR string
 		switch w.ssize {
 		case 64 * GB:
-			errCommR="bagboea4b5abcbybig6p4wwrozr7zdzj62afkq3kwjfb4ywla5hly7ir6wcivrg3p"
+			errCommR = "bagboea4b5abcbybig6p4wwrozr7zdzj62afkq3kwjfb4ywla5hly7ir6wcivrg3p"
 		case 32 * GB:
-			errCommR="bagboea4b5abcaefyn3i26gpj4odjnnceqc6uju4jfuzf5cw7zq3t3uw6welsdwyd"
+			errCommR = "bagboea4b5abcaefyn3i26gpj4odjnnceqc6uju4jfuzf5cw7zq3t3uw6welsdwyd"
 		}
-		for  strings.EqualFold(commR,errCommR) && redoTimes<2 {
+		for strings.EqualFold(commR, errCommR) && redoTimes < 2 {
 			redoTimes++
-			log.Infof("WARN###: Redo P2 : times %v ",redoTimes)
+			log.Infof("WARN###: Redo P2 : times %v ", redoTimes)
 			out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
 			res.PreCommit2Out = out
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			commR=out.Sealed.String()
+			commR = out.Sealed.String()
 		}
 	case ffiwrapper.WorkerCommit:
 		pieceInfo := task.Pieces
