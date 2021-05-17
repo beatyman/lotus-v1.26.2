@@ -531,8 +531,7 @@ var walletImport = &cli.Command{
 				fmt.Printf("Please input password for '%s':\n", name)
 				passwd, err := gopass.GetPasswd()
 				if err != nil {
-					log.Info(err)
-					break input
+					return err
 				}
 				if err := api.InputWalletPasswd(ctx, string(passwd)); err != nil {
 					log.Info(err)
