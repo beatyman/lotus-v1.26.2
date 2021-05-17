@@ -632,7 +632,7 @@ func createStorageMiner(ctx context.Context, api lapi.FullNode, peerid peer.ID, 
 	if cctx.String("worker") != "" {
 		worker, err = address.NewFromString(cctx.String("worker"))
 	} else if cctx.Bool("create-worker-key") { // TODO: Do we need to force this if owner is Secpk?
-		worker, err = api.WalletNew(ctx, types.KTBLS)
+		worker, err = api.WalletNew(ctx, types.KTBLS, "")
 	}
 	if err != nil {
 		return address.Address{}, err
