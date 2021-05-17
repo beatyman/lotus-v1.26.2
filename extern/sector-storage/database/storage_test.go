@@ -17,7 +17,7 @@ func TestSearchStorageInfo(t *testing.T) {
 
 func TestAddStorage(t *testing.T) {
 	InitDB("./")
-	storageInfo := &StorageInfo{
+	storageInfo := StorageInfo{
 		MaxSize:        922372036854775807,
 		MaxWork:        1000,
 		MountType:      "nfs",
@@ -26,7 +26,7 @@ func TestAddStorage(t *testing.T) {
 		MountDir:       "/data/nfs",
 		MountOpt:       "-o proto=tcp -o nolock -o port=2049",
 	}
-	if _, err := AddStorageInfo(storageInfo); err != nil {
+	if _, err := AddStorage(&StorageAuth{StorageInfo: storageInfo}); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -19,6 +19,7 @@ type HlmMinerProxy interface {
 
 type HlmMinerProving interface {
 	Testing(ctx context.Context, fnName string, args []string) error
+	StatisWin(ctx context.Context, id string) (*database.StatisWin, error)
 	WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error
 	WdpostSetPartitionNumber(ctx context.Context, number int) error
 }

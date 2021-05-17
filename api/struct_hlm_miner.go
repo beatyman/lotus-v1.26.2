@@ -27,9 +27,10 @@ type HlmMinerProxyStruct struct {
 
 type HlmMinerProvingStruct struct {
 	Internal struct {
-		Testing                       func(ctx context.Context, fnName string, args []string) error `perm:"admin"`
-		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                  `perm:"admin"`
-		WdpostSetPartitionNumber      func(ctx context.Context, number int) error                   `perm:"admin"`
+		Testing                       func(ctx context.Context, fnName string, args []string) error     `perm:"admin"`
+		StatisWin                     func(ctx context.Context, id string) (*database.StatisWin, error) `perm:"read"`
+		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                      `perm:"admin"`
+		WdpostSetPartitionNumber      func(ctx context.Context, number int) error                       `perm:"admin"`
 	}
 }
 
@@ -99,6 +100,9 @@ func (c *HlmMinerProxyStruct) ProxyReload(ctx context.Context) error {
 
 func (c *HlmMinerProvingStruct) Testing(ctx context.Context, fnName string, args []string) error {
 	return c.Internal.Testing(ctx, fnName, args)
+}
+func (c *HlmMinerProvingStruct) StatisWin(ctx context.Context, id string) (*database.StatisWin, error) {
+	return c.Internal.StatisWin(ctx, id)
 }
 func (c *HlmMinerProvingStruct) WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error {
 	return c.Internal.WdpostEnablePartitionSeparate(ctx, enable)
