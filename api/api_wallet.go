@@ -35,7 +35,11 @@ type MsgMeta struct {
 }
 
 type WalletAPI interface {
-	WalletNew(context.Context, types.KeyType) (address.Address, error)
+	// by zsy
+	WalletEncode(context.Context, address.Address, string) error
+	// end by zsy
+
+	WalletNew(context.Context, types.KeyType, string) (address.Address, error)
 	WalletHas(context.Context, address.Address) (bool, error)
 	WalletList(context.Context) ([]address.Address, error)
 

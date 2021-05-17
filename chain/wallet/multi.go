@@ -70,7 +70,19 @@ func (m MultiWallet) find(ctx context.Context, address address.Address, wallets 
 	return nil, nil
 }
 
-func (m MultiWallet) WalletNew(ctx context.Context, keyType types.KeyType) (address.Address, error) {
+func (m MultiWallet) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
+	w, err := m.find(ctx, addr, m.Remote, m.Local)
+	if err != nil {
+		return err
+	}
+	if w == nil {
+		return xerrors.Errorf("key not found")
+	}
+
+	return w.WalletEncode(ctx, addr, passwd)
+}
+
+func (m MultiWallet) WalletNew(ctx context.Context, keyType types.KeyType, passwd string) (address.Address, error) {
 	var local getif = m.Local
 	if keyType == types.KTSecp256k1Ledger {
 		local = m.Ledger
@@ -81,7 +93,7 @@ func (m MultiWallet) WalletNew(ctx context.Context, keyType types.KeyType) (addr
 		return address.Undef, xerrors.Errorf("no wallet backends supporting key type: %s", keyType)
 	}
 
-	return w.WalletNew(ctx, keyType)
+	return w.WalletNew(ctx, keyType, passwd)
 }
 
 func (m MultiWallet) WalletHas(ctx context.Context, address address.Address) (bool, error) {

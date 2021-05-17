@@ -85,6 +85,15 @@ type FullNodeStruct struct {
 	CommonStruct
 
 	Internal struct {
+
+		//implement by hlm
+		ChainComputeBaseFee func(context.Context, types.TipSetKey) (types.BigInt, error) `perm:"read"`
+		SyncProgress        func(context.Context) (api.SyncProgress, error)              `perm:"read"`
+		InputWalletStatus   func(context.Context) (string, error)                        `perm:"admin"`
+		InputWalletPasswd   func(context.Context, string) error                          `perm:"admin"`
+		WalletEncode        func(context.Context, address.Address, string) error         `perm:"admin"`
+		//implement by hlm end
+
 		ChainNotify                   func(context.Context) (<-chan []*api.HeadChange, error)                                                            `perm:"read"`
 		ChainHead                     func(context.Context) (*types.TipSet, error)                                                                       `perm:"read"`
 		ChainGetRandomnessFromTickets func(context.Context, types.TipSetKey, crypto.DomainSeparationTag, abi.ChainEpoch, []byte) (abi.Randomness, error) `perm:"read"`
@@ -107,8 +116,6 @@ type FullNodeStruct struct {
 		ChainGetPath                  func(context.Context, types.TipSetKey, types.TipSetKey) ([]*api.HeadChange, error)                                 `perm:"read"`
 		ChainExport                   func(context.Context, abi.ChainEpoch, bool, types.TipSetKey) (<-chan []byte, error)                                `perm:"read"`
 
-		ChainComputeBaseFee func(context.Context, types.TipSetKey) (types.BigInt, error) `perm:"read"`
-
 		BeaconGetEntry func(ctx context.Context, epoch abi.ChainEpoch) (*types.BeaconEntry, error) `perm:"read"`
 
 		GasEstimateGasPremium func(context.Context, uint64, address.Address, int64, types.TipSetKey) (types.BigInt, error)         `perm:"read"`
@@ -117,7 +124,6 @@ type FullNodeStruct struct {
 		GasEstimateMessageGas func(context.Context, *types.Message, *api.MessageSendSpec, types.TipSetKey) (*types.Message, error) `perm:"read"`
 
 		SyncState          func(context.Context) (*api.SyncState, error)                `perm:"read"`
-		SyncProgress       func(context.Context) (api.SyncProgress, error)              `perm:"read"`
 		SyncSubmitBlock    func(ctx context.Context, blk *types.BlockMsg) error         `perm:"write"`
 		SyncIncomingBlocks func(ctx context.Context) (<-chan *types.BlockHeader, error) `perm:"read"`
 		SyncCheckpoint     func(ctx context.Context, key types.TipSetKey) error         `perm:"admin"`
@@ -150,7 +156,7 @@ type FullNodeStruct struct {
 		MinerGetBaseInfo func(context.Context, address.Address, abi.ChainEpoch, types.TipSetKey) (*api.MiningBaseInfo, error) `perm:"read"`
 		MinerCreateBlock func(context.Context, *api.BlockTemplate) (*types.BlockMsg, error)                                   `perm:"write"`
 
-		WalletNew             func(context.Context, types.KeyType) (address.Address, error)                                `perm:"write"`
+		WalletNew             func(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error)               `perm:"write"`
 		WalletHas             func(context.Context, address.Address) (bool, error)                                         `perm:"write"`
 		WalletList            func(context.Context) ([]address.Address, error)                                             `perm:"write"`
 		WalletBalance         func(context.Context, address.Address) (types.BigInt, error)                                 `perm:"read"`
@@ -474,7 +480,8 @@ type GatewayStruct struct {
 
 type WalletStruct struct {
 	Internal struct {
-		WalletNew    func(context.Context, types.KeyType) (address.Address, error)                                  `perm:"write"`
+		WalletEncode func(context.Context, address.Address, string) error                                           `perm:"admin"`
+		WalletNew    func(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error)                 ``
 		WalletHas    func(context.Context, address.Address) (bool, error)                                           `perm:"write"`
 		WalletList   func(context.Context) ([]address.Address, error)                                               `perm:"write"`
 		WalletSign   func(context.Context, []byte, address.Address, []byte, api.MsgMeta) (*crypto.Signature, error) `perm:"sign"`
@@ -595,6 +602,22 @@ func (c *CommonStruct) Closing(ctx context.Context) (<-chan struct{}, error) {
 }
 
 // FullNodeStruct
+
+func (c *FullNodeStruct) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
+	return c.Internal.ChainComputeBaseFee(ctx, tsk)
+}
+func (c *FullNodeStruct) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
+	return c.Internal.SyncProgress(ctx)
+}
+func (c *FullNodeStruct) InputWalletStatus(ctx context.Context) (string, error) {
+	return c.Internal.InputWalletStatus(ctx)
+}
+func (c *FullNodeStruct) InputWalletPasswd(ctx context.Context, passwd string) error {
+	return c.Internal.InputWalletPasswd(ctx, passwd)
+}
+func (c *FullNodeStruct) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
+	return c.Internal.WalletEncode(ctx, addr, passwd)
+}
 
 func (c *FullNodeStruct) ClientListImports(ctx context.Context) ([]api.Import, error) {
 	return c.Internal.ClientListImports(ctx)
@@ -780,8 +803,8 @@ func (c *FullNodeStruct) ChainGetTipSetByHeight(ctx context.Context, h abi.Chain
 	return c.Internal.ChainGetTipSetByHeight(ctx, h, tsk)
 }
 
-func (c *FullNodeStruct) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {
-	return c.Internal.WalletNew(ctx, typ)
+func (s *FullNodeStruct) WalletNew(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error) {
+	return s.Internal.WalletNew(p0, p1, p2)
 }
 
 func (c *FullNodeStruct) WalletHas(ctx context.Context, addr address.Address) (bool, error) {
@@ -904,19 +927,12 @@ func (c *FullNodeStruct) ChainExport(ctx context.Context, nroots abi.ChainEpoch,
 	return c.Internal.ChainExport(ctx, nroots, iom, tsk)
 }
 
-func (c *FullNodeStruct) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
-	return c.Internal.ChainComputeBaseFee(ctx, tsk)
-}
-
 func (c *FullNodeStruct) BeaconGetEntry(ctx context.Context, epoch abi.ChainEpoch) (*types.BeaconEntry, error) {
 	return c.Internal.BeaconGetEntry(ctx, epoch)
 }
 
 func (c *FullNodeStruct) SyncState(ctx context.Context) (*api.SyncState, error) {
 	return c.Internal.SyncState(ctx)
-}
-func (c *FullNodeStruct) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
-	return c.Internal.SyncProgress(ctx)
 }
 
 func (c *FullNodeStruct) SyncSubmitBlock(ctx context.Context, blk *types.BlockMsg) error {
@@ -1859,8 +1875,11 @@ func (g GatewayStruct) StateReadState(ctx context.Context, addr address.Address,
 	return g.Internal.StateReadState(ctx, addr, ts)
 }
 
-func (c *WalletStruct) WalletNew(ctx context.Context, typ types.KeyType) (address.Address, error) {
-	return c.Internal.WalletNew(ctx, typ)
+func (s *WalletStruct) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
+	return s.Internal.WalletEncode(ctx, addr, passwd)
+}
+func (s *WalletStruct) WalletNew(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error) {
+	return s.Internal.WalletNew(p0, p1, p2)
 }
 
 func (c *WalletStruct) WalletHas(ctx context.Context, addr address.Address) (bool, error) {
