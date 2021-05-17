@@ -181,7 +181,7 @@ func infoCmdAct(cctx *cli.Context) error {
 	if err != nil {
 		fmt.Printf("Statis Win %s\n", errors.As(err).Code())
 	} else {
-		fmt.Printf("Statis Win %s, times:%d, win:%d, suc:%d\n", statisWin.Id, statisWin.WinAll, statisWin.WinGen, statisWin.WinSuc)
+		fmt.Printf("Statis Win %s, times:%d, win:%d, suc:%d, lost:%d\n", statisWin.Id, statisWin.WinAll, statisWin.WinGen, statisWin.WinSuc, statisWin.WinGen-statisWin.WinSuc)
 	}
 
 	fmt.Println()
