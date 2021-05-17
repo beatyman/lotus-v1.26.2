@@ -24,6 +24,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/gwaylib/errors"
 )
 
 var infoCmd = &cli.Command{
@@ -174,6 +175,13 @@ func infoCmdAct(cctx *cli.Context) error {
 			fmt.Print("Expected block win rate: ")
 			color.Blue("%.4f/day (every %s)", winPerDay, winRate.Truncate(time.Second))
 		}
+	}
+
+	statisWin, err := nodeApi.StatisWin(ctx, time.Now().Format("20060102"))
+	if err != nil {
+		fmt.Printf("Statis Win %s\n", errors.As(err).Code())
+	} else {
+		fmt.Printf("Statis Win %s, times:%d, win:%d, suc:%d\n", statisWin.Id, statisWin.WinAll, statisWin.WinGen, statisWin.WinSuc)
 	}
 
 	fmt.Println()

@@ -32,6 +32,7 @@ import (
 	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
 )
 
@@ -245,6 +246,19 @@ func (m *Miner) mine(ctx context.Context) {
 			continue
 		}
 		if !prebase.TipSet.Equals(lastBase.TipSet) {
+
+			// log the win packing has on a right chain.
+			lastBlks := prebase.TipSet.Blocks()
+			for _, blk := range lastBlks {
+				if blk.Miner.String() != m.address.String() {
+					continue
+				}
+				if err := database.AddWinSuc(time.Now().Format("20060102")); err != nil {
+					log.Error(errors.As(err))
+				}
+				break
+			}
+
 			base := prebase
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			now := time.Now()
@@ -438,6 +452,9 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 //
 //  1.
 func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.BlockMsg, error) {
+	if err := database.AddWinTimes(time.Now().Format("20060102")); err != nil {
+		log.Warn(errors.As(err))
+	}
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := build.Clock.Now()
 
@@ -455,6 +472,12 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	// always write out a log from this point out
 	var winner *types.ElectionProof
 	defer func() {
+		if winner != nil {
+			if err := database.AddWinGen(time.Now().Format("20060102")); err != nil {
+				log.Warn(errors.As(err))
+			}
+		}
+
 		log.Infow(
 			"completed mineOne",
 			"forRound", int64(round),

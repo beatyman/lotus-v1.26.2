@@ -6,6 +6,13 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+type StatisWin struct {
+	Id     string
+	WinAll int
+	WinGen int
+	WinSuc int
+}
+
 func AddWinTimes(id string) error {
 	mdb := GetDB()
 	result, err := mdb.Exec("UPDATE statis_win SET win_all=win_all+1 WHERE id=?", id)
@@ -26,6 +33,13 @@ func AddWinTimes(id string) error {
 	}
 	return nil
 }
+func AddWinGen(id string) error {
+	mdb := GetDB()
+	if _, err := mdb.Exec("UPDATE statis_win SET win_gen=win_suc+1 WHERE id=?", id); err != nil {
+		return errors.As(err, id)
+	}
+	return nil
+}
 func AddWinSuc(id string) error {
 	mdb := GetDB()
 	if _, err := mdb.Exec("UPDATE statis_win SET win_suc=win_suc+1 WHERE id=?", id); err != nil {
@@ -34,13 +48,13 @@ func AddWinSuc(id string) error {
 	return nil
 }
 
-func StatisWinSuc(id string) (int, int, error) {
-	var all, suc int
+func GetStatisWin(id string) (*StatisWin, error) {
+	s := &StatisWin{Id: id}
 	mdb := GetDB()
-	if err := mdb.QueryRow("SELECT win_all, win_suc FROM statis_win WHERE id=?", id).Scan(&all, &suc); err != nil {
+	if err := mdb.QueryRow("SELECT win_all, win_gen, win_suc FROM statis_win WHERE id=?", id).Scan(&s.WinAll, &s.WinGen, &s.WinSuc); err != nil {
 		if err != sql.ErrNoRows {
-			return 0, 0, err
+			return s, err
 		}
 	}
-	return all, suc, nil
+	return s, nil
 }

@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS statis_win (
 	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	win_all INTEGER NOT NULL DEFAULT 0,
+	win_gen INTEGER NOT NULL DEFAULT 0,
 	win_suc INTEGER NOT NULL DEFAULT 0
 );
 `

@@ -11,14 +11,17 @@ func TestStatisWin(t *testing.T) {
 	if err := AddWinTimes(id); err != nil {
 		t.Fatal(err)
 	}
+	if err := AddWinGen(id); err != nil {
+		t.Fatal(err)
+	}
 	if err := AddWinSuc(id); err != nil {
 		t.Fatal(err)
 	}
-	all, suc, err := StatisWinSuc(id)
+	s, err := GetStatisWin(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if all != suc {
-		t.Fatal(all, suc)
+	if s.WinGen != s.WinSuc {
+		t.Fatal(*s)
 	}
 }
