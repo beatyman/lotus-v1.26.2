@@ -44,6 +44,14 @@ type ChainIO interface {
 type FullNode interface {
 	Common
 
+	// implement by hlm
+	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
+	SyncProgress(context.Context) (SyncProgress, error)
+	InputWalletStatus(context.Context) (string, error)
+	InputWalletPasswd(context.Context, string) error
+	WalletEncode(context.Context, address.Address, string) error
+	// implement by hlm end
+
 	// MethodGroup: Chain
 	// The Chain method group contains methods for interacting with the
 	// blockchain, but that do not require any form of state computation.
@@ -133,8 +141,6 @@ type FullNode interface {
 	// If oldmsgskip is set, messages from before the requested roots are also not included.
 	ChainExport(ctx context.Context, nroots abi.ChainEpoch, oldmsgskip bool, tsk types.TipSetKey) (<-chan []byte, error)
 
-	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
-
 	// MethodGroup: Beacon
 	// The Beacon method group contains methods for interacting with the random beacon (DRAND)
 
@@ -165,7 +171,6 @@ type FullNode interface {
 
 	// SyncState returns the current status of the lotus sync system.
 	SyncState(context.Context) (*SyncState, error)
-	SyncProgress(context.Context) (SyncProgress, error)
 
 	// SyncSubmitBlock can be used to submit a newly created block to the.
 	// network through this node
@@ -254,7 +259,7 @@ type FullNode interface {
 	// WalletNew creates a new address in the wallet with the given sigType.
 	// Available key types: bls, secp256k1, secp256k1-ledger
 	// Support for numerical types: 1 - secp256k1, 2 - BLS is deprecated
-	WalletNew(context.Context, types.KeyType) (address.Address, error)
+	WalletNew(context.Context, types.KeyType, string) (address.Address, error) //perm:write
 	// WalletHas indicates whether the given address is in the wallet.
 	WalletHas(context.Context, address.Address) (bool, error)
 	// WalletList lists all the addresses in the wallet.

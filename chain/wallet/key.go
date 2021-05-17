@@ -5,6 +5,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/crypto"
+	"github.com/gwaylib/errors"
 
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/sigs"
@@ -38,8 +39,14 @@ func NewKey(keyinfo types.KeyInfo) (*Key, error) {
 		KeyInfo: keyinfo,
 	}
 
-	var err error
-	k.PublicKey, err = sigs.ToPublic(ActSigType(k.Type), k.PrivateKey)
+	// by zhoushuyue
+	privateKey, err := keyinfo.PlainPrivateKey()
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	// end by zhoushuyue
+
+	k.PublicKey, err = sigs.ToPublic(ActSigType(k.Type), privateKey)
 	if err != nil {
 		return nil, err
 	}
