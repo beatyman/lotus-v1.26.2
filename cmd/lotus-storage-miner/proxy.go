@@ -26,8 +26,9 @@ var proxyCmd = &cli.Command{
 	},
 }
 var proxyAutoCmd = &cli.Command{
-	Name:  "auto",
-	Usage: "change the proxy auto select a node",
+	Name:      "auto",
+	Usage:     "change the proxy auto select a node",
+	ArgsUsage: "[on/off]",
 	Action: func(cctx *cli.Context) error {
 		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -50,8 +51,9 @@ var proxyAutoCmd = &cli.Command{
 	},
 }
 var proxyChangeCmd = &cli.Command{
-	Name:  "change",
-	Usage: "change the proxy to a node of given",
+	Name:      "change",
+	Usage:     "change the proxy to a node of given",
+	ArgsUsage: "[index]",
 	Action: func(cctx *cli.Context) error {
 		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -191,7 +193,7 @@ var proxyStatusCmd = &cli.Command{
 
 var proxyReloadCmd = &cli.Command{
 	Name:  "reload",
-	Usage: "Reload the proxy configration file",
+	Usage: "Reload the proxy configration file. if change the proxy token or listen port, need restart the miner.",
 	Action: func(cctx *cli.Context) error {
 		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
