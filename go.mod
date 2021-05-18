@@ -156,7 +156,7 @@ require (
 	github.com/willscott/go-nfs v0.0.0-20210422193315-8a05dee1ebbe
 	github.com/xorcare/golden v0.6.1-0.20191112154924-b87f686d7542
 	go.etcd.io/bbolt v1.3.5
-	go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b
+	go.etcd.io/etcd v0.0.0-20210512015243-d19fbe541bf9
 	go.opencensus.io v0.22.5
 	go.uber.org/dig v1.10.0 // indirect
 	go.uber.org/fx v1.9.0
@@ -164,7 +164,7 @@ require (
 	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20201022231255-08b38378de70
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
+	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
@@ -184,7 +184,7 @@ replace github.com/filecoin-project/specs-storage => ./extern/specs-storage
 replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.0.0-20210503121739-d96073ede4a5
 
 //replace github.com/filecoin-project/go-jsonrpc => ../go-jsonrpc
-replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-20201125193152-8a03d2e9614b
+replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-20210512015243-d19fbe541bf9
 
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
