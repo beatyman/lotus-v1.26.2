@@ -87,7 +87,7 @@ func PreSeal(maddr address.Address, spt abi.RegisteredSealProof, offset abi.Sect
 
 	var minerAddr *wallet.Key
 	if key != nil {
-		minerAddr, err = wallet.NewKey(*key)
+		minerAddr, err = wallet.NewKey(context.TODO(), *key)
 		if err != nil {
 			return nil, nil, err
 		}

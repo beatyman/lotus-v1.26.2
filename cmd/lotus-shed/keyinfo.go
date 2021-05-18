@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -320,7 +321,7 @@ var keyinfoInfoCmd = &cli.Command{
 		case types.KTSecp256k1, types.KTBLS:
 			kio.Type = keyInfo.Type
 
-			key, err := wallet.NewKey(keyInfo)
+			key, err := wallet.NewKey(context.TODO(), keyInfo)
 			if err != nil {
 				return err
 			}

@@ -37,7 +37,7 @@ type LocalWallet struct {
 }
 
 type Default interface {
-	GetDefault() (address.Address, error)
+	GetDefault(ctx context.Context) (address.Address, error)
 	SetDefault(a address.Address) error
 }
 
@@ -62,7 +62,7 @@ func KeyWallet(keys ...*Key) *LocalWallet {
 }
 
 func (w *LocalWallet) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
-	k, err := w.findKey(addr)
+	k, err := w.findKey(ctx, addr)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (w *LocalWallet) WalletEncode(ctx context.Context, addr address.Address, pa
 }
 
 func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg []byte, meta api.MsgMeta) (*crypto.Signature, error) {
-	ki, err := w.findKey(addr)
+	ki, err := w.findKey(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg 
 	privateKey := ki.PrivateKey
 	if ki.Encrypted {
 		dsName := KNamePrefix + addr.String()
-		cData, err := auth.DecodeData(dsName, ki.PrivateKey)
+		cData, err := auth.DecodeData(ctx, dsName, ki.PrivateKey)
 		if err != nil {
 			return nil, errors.As(err)
 		}
@@ -119,7 +119,7 @@ func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg 
 	return sigs.Sign(ActSigType(ki.Type), privateKey, msg)
 }
 
-func (w *LocalWallet) findKey(addr address.Address) (*Key, error) {
+func (w *LocalWallet) findKey(ctx context.Context, addr address.Address) (*Key, error) {
 	w.lk.Lock()
 	defer w.lk.Unlock()
 
@@ -143,13 +143,13 @@ func (w *LocalWallet) findKey(addr address.Address) (*Key, error) {
 	var cData *auth.CryptoData
 	// Try upgrade the root cert
 	if ki.Encrypted {
-		cData, err = auth.DecodeData(ki.DsName, ki.PrivateKey)
+		cData, err = auth.DecodeData(ctx, ki.DsName, ki.PrivateKey)
 		if err != nil {
 			return nil, errors.As(err)
 		}
 	}
 
-	k, err = NewKey(ki)
+	k, err = NewKey(ctx, ki)
 	if err != nil {
 		return nil, xerrors.Errorf("decoding from keystore: %w", err)
 	}
@@ -213,7 +213,7 @@ func (w *LocalWallet) tryFind(addr address.Address) (types.KeyInfo, error) {
 }
 
 func (w *LocalWallet) WalletExport(ctx context.Context, addr address.Address) (*types.KeyInfo, error) {
-	k, err := w.findKey(addr)
+	k, err := w.findKey(ctx, addr)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to find key to export: %w", err)
 	}
@@ -228,7 +228,7 @@ func (w *LocalWallet) WalletImport(ctx context.Context, ki *types.KeyInfo) (addr
 	w.lk.Lock()
 	defer w.lk.Unlock()
 
-	k, err := NewKey(*ki)
+	k, err := NewKey(ctx, *ki)
 	if err != nil {
 		return address.Undef, xerrors.Errorf("failed to make key: %w", err)
 	}
@@ -264,7 +264,7 @@ func (w *LocalWallet) WalletList(ctx context.Context) ([]address.Address, error)
 			out = append(out, addr)
 
 			// try decode. by zsy
-			if _, err := w.findKey(addr); err != nil {
+			if _, err := w.findKey(ctx, addr); err != nil {
 				return nil, errors.As(err)
 			}
 			// end by zsy
@@ -279,7 +279,7 @@ func (w *LocalWallet) WalletList(ctx context.Context) ([]address.Address, error)
 	return out, nil
 }
 
-func (w *LocalWallet) GetDefault() (address.Address, error) {
+func (w *LocalWallet) GetDefault(ctx context.Context) (address.Address, error) {
 	w.lk.Lock()
 	defer w.lk.Unlock()
 
@@ -288,7 +288,7 @@ func (w *LocalWallet) GetDefault() (address.Address, error) {
 		return address.Undef, xerrors.Errorf("failed to get default key: %w", err)
 	}
 
-	k, err := NewKey(ki)
+	k, err := NewKey(ctx, ki)
 	if err != nil {
 		return address.Undef, xerrors.Errorf("failed to read default key from keystore: %w", err)
 	}
@@ -361,7 +361,7 @@ func (w *LocalWallet) WalletNew(ctx context.Context, typ types.KeyType, passwd s
 }
 
 func (w *LocalWallet) WalletHas(ctx context.Context, addr address.Address) (bool, error) {
-	k, err := w.findKey(addr)
+	k, err := w.findKey(ctx, addr)
 	if err != nil {
 		return false, err
 	}
@@ -369,7 +369,7 @@ func (w *LocalWallet) WalletHas(ctx context.Context, addr address.Address) (bool
 }
 
 func (w *LocalWallet) walletDelete(ctx context.Context, addr address.Address) error {
-	k, err := w.findKey(addr)
+	k, err := w.findKey(ctx, addr)
 
 	if err != nil {
 		return xerrors.Errorf("failed to delete key %s : %w", addr, err)
@@ -426,7 +426,7 @@ func (w *LocalWallet) WalletDelete(ctx context.Context, addr address.Address) er
 		return xerrors.Errorf("wallet delete: %w", err)
 	}
 
-	if def, err := w.GetDefault(); err == nil {
+	if def, err := w.GetDefault(ctx); err == nil {
 		if def == addr {
 			w.deleteDefault()
 		}
@@ -457,7 +457,7 @@ func swapMainnetForTestnetPrefix(addr string) (string, error) {
 
 type nilDefault struct{}
 
-func (n nilDefault) GetDefault() (address.Address, error) {
+func (n nilDefault) GetDefault(ctx context.Context) (address.Address, error) {
 	return address.Undef, nil
 }
 

@@ -1,6 +1,7 @@
 package types
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -67,12 +68,12 @@ type KeyInfo struct {
 }
 
 // need auth.InputCryptPwd if encrypted.
-func (ki *KeyInfo) PlainPrivateKey() ([]byte, error) {
+func (ki *KeyInfo) PlainPrivateKey(ctx context.Context) ([]byte, error) {
 	if !ki.Encrypted {
 		return ki.PrivateKey, nil
 	}
 
-	cData, err := auth.DecodeData(ki.DsName, ki.PrivateKey)
+	cData, err := auth.DecodeData(ctx, ki.DsName, ki.PrivateKey)
 	if err != nil {
 		return nil, errors.As(err)
 	}
