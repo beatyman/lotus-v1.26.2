@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/lotus/api"
@@ -232,6 +233,7 @@ func startLotusProxy(addr string) (string, func() error, error) {
 			default:
 				conn, err := ln.Accept()
 				if err != nil {
+					time.Sleep(1e9)
 					// handle error
 					log.Warn(errors.As(err))
 					continue
@@ -384,20 +386,11 @@ func reloadNodes(proxyAddr *apiaddr.APIInfo, nodes []*LotusNode) error {
 	if proxyAddr == nil {
 		return nil
 	}
-
-	// start the proxy
+	// only support restart the miner to upgrade a new listen
 	if lotusProxyAddr != nil {
-		if lotusProxyAddr.String() == proxyAddr.String() {
-			// the proxy has not changed
-			return nil
-		}
-
-		if lotusProxyCloser != nil {
-			lotusProxyCloser()
-			lotusProxyCloser = nil
-			lotusProxyAddr = nil
-		}
+		return nil
 	}
+
 	// start a new proxy
 	host, err := proxyAddr.Host()
 	if err != nil {
@@ -433,9 +426,18 @@ func lotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.Pr
 	nodes := []api.ProxyNode{}
 	for _, c := range lotusNodes {
 		isAlive := c.IsAlive()
+		decoding := "unknow"
 		var syncStat *api.SyncState
 		var mpStat []api.ProxyMpStat
 		if isAlive {
+			inputName, err := c.nodeApi.InputWalletStatus(ctx)
+			if err != nil {
+				decoding = errors.As(err).Code()
+			} else if len(inputName) == 0 {
+				decoding = "none"
+			} else {
+				decoding = inputName
+			}
 			if cond.ChainSync {
 				st, err := c.nodeApi.SyncState(ctx)
 				if err != nil {
@@ -457,6 +459,7 @@ func lotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.Pr
 			Addr:      c.apiInfo.Addr,
 			Alive:     c.IsAlive(),
 			Using:     c.apiInfo.Addr == proxyingAddr,
+			Decoding:  decoding,
 			Height:    c.curHeight,
 			UsedTimes: c.usedTimes,
 			SyncStat:  syncStat,
