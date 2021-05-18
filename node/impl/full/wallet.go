@@ -86,7 +86,7 @@ func (a *WalletAPI) WalletVerify(ctx context.Context, k address.Address, msg []b
 }
 
 func (a *WalletAPI) WalletDefaultAddress(ctx context.Context) (address.Address, error) {
-	return a.Default.GetDefault()
+	return a.Default.GetDefault(ctx)
 }
 
 func (a *WalletAPI) WalletSetDefault(ctx context.Context, addr address.Address) error {

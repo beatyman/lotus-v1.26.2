@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"sync"
 
 	"github.com/gwaylib/errors"
@@ -50,7 +51,6 @@ func InputCryptoPwd(pwd string) error {
 	if err != nil {
 		return errors.As(err)
 	}
-	inputCryptoPwdName = ""
 	return nil
 }
 
@@ -68,7 +68,7 @@ func InputCryptoPwd(pwd string) error {
 // thread 2
 // ret, err := DecodeData(...)
 // ...
-func DecodeData(key string, eData []byte) (*CryptoData, error) {
+func DecodeData(ctx context.Context, key string, eData []byte) (*CryptoData, error) {
 	memCryptoLk.Lock()
 	defer memCryptoLk.Unlock()
 
@@ -81,13 +81,25 @@ func DecodeData(key string, eData []byte) (*CryptoData, error) {
 	inputCryptoPwdLk.Lock()
 	inputCryptoPwdName = key
 	inputCryptoPwdLk.Unlock()
+	defer func() {
+		inputCryptoPwdLk.Lock()
+		inputCryptoPwdName = ""
+		inputCryptoPwdLk.Unlock()
+	}()
 
 	// TODO: dead lock?
 	try := 0
 	for {
 		log.Warnf("Waitting input password for : %s, try: %d", key, try)
-		passwd := <-inputCryptoPwdCh
+		passwd := ""
+		select {
+		case pwd := <-inputCryptoPwdCh:
+			passwd = pwd
+		case <-ctx.Done():
+			return nil, errors.New("input canceled")
+		}
 		try++
+
 		old := false
 		data, err := MixDecript(eData, passwd)
 		if err != nil {

@@ -89,16 +89,43 @@ var runCmd = &cli.Command{
 				return err
 			}
 		}
-		// use the cluster proxy if it's exist.
-		if err := cliutil.UseLotusProxy(cctx); err != nil {
-			log.Infof("lotus proxy is invalid:%+s", err.Error())
-		}
-
+		minerRepoPath := cctx.String(FlagMinerRepo)
 		ctx, _ := tag.New(lcli.DaemonContext(cctx),
 			tag.Insert(metrics.Version, build.BuildVersion),
 			tag.Insert(metrics.Commit, build.CurrentCommit),
 			tag.Insert(metrics.NodeType, "miner"),
 		)
+
+		// implement by hlm
+		// use the cluster proxy if it's exist.
+		if err := cliutil.UseLotusProxy(cctx); err != nil {
+			log.Infof("lotus proxy is invalid:%+s", err.Error())
+		}
+		// init storage database
+		// TODO: already implement in init.go, so remove this checking in running?
+		database.InitDB(minerRepoPath)
+		log.Info("Mount all storage")
+		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
+			return errors.As(err)
+		}
+		// mount nfs storage node
+		if err := database.MountAllStorage(false); err != nil {
+			return errors.As(err)
+		}
+		log.Info("Clean storage worker")
+		// clean storage cur_work cause by no worker on starting.
+		if err := database.ClearStorageWork(); err != nil {
+			return errors.As(err)
+		}
+		log.Info("Check sealed")
+		// TODO: Move to window post
+		// checking sealed for proof
+		//if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
+		//	return errors.As(err)
+		//}
+		log.Info("Check done")
+		// implement by hlm end.
+
 		// Register all metric views
 		if err := view.Register(
 			metrics.MinerNodeViews...,
@@ -141,7 +168,6 @@ var runCmd = &cli.Command{
 			}
 		}
 
-		minerRepoPath := cctx.String(FlagMinerRepo)
 		r, err := repo.NewFS(minerRepoPath)
 		if err != nil {
 			return err
@@ -154,31 +180,6 @@ var runCmd = &cli.Command{
 		if !ok {
 			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-miner init' to set it up", minerRepoPath)
 		}
-
-		// implement by hlm
-		// init storage database
-		database.InitDB(minerRepoPath)
-		log.Info("Mount all storage")
-		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
-			return errors.As(err)
-		}
-		// mount nfs storage node
-		if err := database.MountAllStorage(false); err != nil {
-			return errors.As(err)
-		}
-		log.Info("Clean storage worker")
-		// clean storage cur_work cause by no worker on starting.
-		if err := database.ClearStorageWork(); err != nil {
-			return errors.As(err)
-		}
-		log.Info("Check sealed")
-		// TODO: Move to window post
-		// checking sealed for proof
-		//if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
-		//	return errors.As(err)
-		//}
-		// implement by hlm end.
-		log.Info("Check done")
 
 		shutdownChan := make(chan struct{})
 

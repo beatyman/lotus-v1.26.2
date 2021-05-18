@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS worker_info (
 	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	ip TEXT NOT NULL DEFAULT '',
 	svc_uri TEXT NOT NULL DEFAULT '',
-	svc_conn INTERGER NOT NULL DEFAULT 0,
+	svc_conn INTEGER NOT NULL DEFAULT 0,
 	online INTEGER NOT NULL DEFAULT 0,
-	disable INTERGER NOT NULL DEFAULT 0 /* disable should not be allocate*/
+	disable INTEGER NOT NULL DEFAULT 0 /* disable should not be allocate*/
 );
 `
 	// for single node storage
@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS storage_info (
 	id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
-	disable INTERGER NOT NULL DEFAULT 0, /* disable should not be allocate for storage. it disgin for local storage, if you have a net storage, should disable it*/
-	kind INTERGER NOT NULL DEFAULT 0, /* 0, for sealed; 1 for unsealed. */
+	disable INTEGER NOT NULL DEFAULT 0, /* disable should not be allocate for storage. it disgin for local storage, if you have a net storage, should disable it*/
+	kind INTEGER NOT NULL DEFAULT 0, /* 0, for sealed; 1 for unsealed. */
 	max_size INTEGER NOT NULL, /* max storage size, in byte, filling by manu. */
 	keep_size INTEGER DEFAULT 0, /* keep left storage size, in byte, filling by manu. */
 	used_size INTEGER DEFAULT 0, /* added by state of secotr success. */
@@ -78,5 +78,15 @@ CREATE TABLE IF NOT EXISTS market_retrieve (
 	active INT DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS market_retrieve_idx0 ON market_retrieve(retrieve_time,active);
+`
+	tb_statis_win_sql = `
+CREATE TABLE IF NOT EXISTS statis_win (
+	id TEXT NOT NULL PRIMARY KEY, /*20210517*/
+	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
+	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
+	win_all INTEGER NOT NULL DEFAULT 0,
+	win_gen INTEGER NOT NULL DEFAULT 0,
+	win_suc INTEGER NOT NULL DEFAULT 0
+);
 `
 )
