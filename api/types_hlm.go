@@ -10,9 +10,10 @@ type ProxyMpStat struct {
 	GasLimit          big.Int
 }
 type ProxyNode struct {
-	Addr  string
-	Alive bool
-	Using bool
+	Addr     string
+	Alive    bool
+	Using    bool
+	Decoding string
 
 	// for lotus
 	Height    int64
