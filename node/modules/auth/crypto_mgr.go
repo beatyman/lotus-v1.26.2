@@ -18,6 +18,7 @@ var (
 	memCryptoLk    = sync.Mutex{}
 	memCryptoCache = map[string]*CryptoData{}
 
+	inputLastPasswd    = ""
 	inputCryptoPwdLk   = sync.Mutex{}
 	inputCryptoPwdName = ""
 	inputCryptoPwdCh   = make(chan string, 1)
@@ -87,6 +88,14 @@ func DecodeData(ctx context.Context, key string, eData []byte) (*CryptoData, err
 		inputCryptoPwdLk.Unlock()
 	}()
 
+	// try the last passwd
+	data, err := MixDecript(eData, inputLastPasswd)
+	if err == nil {
+		wData := &CryptoData{Old: false, Passwd: inputLastPasswd, Data: data}
+		memCryptoCache[key] = wData
+		return wData, nil
+	}
+
 	// TODO: dead lock?
 	try := 0
 	for {
@@ -117,6 +126,7 @@ func DecodeData(ctx context.Context, key string, eData []byte) (*CryptoData, err
 		// response the caller that decode has success.
 		inputCryptoPwdRet <- nil
 
+		inputLastPasswd = passwd
 		wData := &CryptoData{Old: old, Passwd: passwd, Data: data}
 		memCryptoCache[key] = wData
 		return wData, nil
