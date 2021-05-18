@@ -155,7 +155,7 @@ require (
 	github.com/whyrusleeping/pubsub v0.0.0-20190708150250-92bcb0691325
 	github.com/willscott/go-nfs v0.0.0-20210422193315-8a05dee1ebbe
 	github.com/xorcare/golden v0.6.1-0.20191112154924-b87f686d7542
-	go.etcd.io/bbolt v1.3.4
+	go.etcd.io/bbolt v1.3.5
 	go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b
 	go.opencensus.io v0.22.5
 	go.uber.org/dig v1.10.0 // indirect
