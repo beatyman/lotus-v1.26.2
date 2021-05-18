@@ -162,7 +162,7 @@ func infoCmdAct(cctx *cli.Context) error {
 	}
 
 	if !pow.HasMinPower {
-		fmt.Print("Below minimum power threshold, no blocks will be won")
+		fmt.Print("Below minimum power threshold, no blocks will be won\n")
 	} else {
 		expWinChance := float64(types.BigMul(qpercI, types.NewInt(build.BlocksPerEpoch)).Int64()) / 1000000
 		if expWinChance > 0 {

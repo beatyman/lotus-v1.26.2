@@ -29,6 +29,7 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-statestore"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 
@@ -207,6 +208,9 @@ var initCmd = &cli.Command{
 		}
 
 		log.Info("Initializing repo")
+
+		// init storage database
+		database.InitDB(repoPath)
 
 		if err := r.Init(repo.StorageMiner); err != nil {
 			return err
