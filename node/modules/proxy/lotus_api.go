@@ -2,6 +2,10 @@ package proxy
 
 import (
 	"context"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/filecoin-project/lotus/api"
@@ -9,6 +13,38 @@ import (
 	"github.com/filecoin-project/lotus/cli/util/apiaddr"
 	"github.com/gwaylib/errors"
 )
+
+const (
+	PROXY_FILE = "lotus.proxy"
+)
+
+func CreateLotusProxyFile(lotusRepo string) error {
+	proxyFile := filepath.Join(lotusRepo, PROXY_FILE)
+	//return proxy.UseLotusProxy(ctx.Context, proxyFile)
+	if _, err := os.Stat(proxyFile); err != nil {
+		if !os.IsNotExist(err) {
+			return errors.As(err)
+		}
+		// proxy file not exist, create it.
+		token, err := ioutil.ReadFile(filepath.Join(lotusRepo, "token"))
+		if err != nil {
+			return errors.As(err)
+		}
+		api, err := ioutil.ReadFile(filepath.Join(lotusRepo, "api"))
+		if err != nil {
+			return errors.As(err)
+		}
+		// is the next line '\n' or '\r\n'
+		output := fmt.Sprintf(`# the first line is for proxy addr
+%s:/ip4/127.0.0.1/tcp/0/http
+# bellow is the cluster node.
+%s:%s`, string(token), string(token), string(api))
+		if err := ioutil.WriteFile(proxyFile, []byte(output), 0600); err != nil {
+			return errors.As(err)
+		}
+	}
+	return nil
+}
 
 func UseLotusProxy(ctx context.Context, cfgFile string) error {
 	lotusNodesLock.Lock()
