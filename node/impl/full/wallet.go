@@ -31,7 +31,7 @@ func (a *WalletAPI) InputWalletStatus(ctx context.Context) (string, error) {
 	return auth.InputCryptoStatus(), nil
 }
 func (a *WalletAPI) InputWalletPasswd(ctx context.Context, passwd string) error {
-	return auth.InputCryptoPwd(passwd)
+	return auth.InputCryptoPwd(ctx, passwd)
 }
 
 // end by zhoushuyue
