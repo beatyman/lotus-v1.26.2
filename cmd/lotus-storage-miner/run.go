@@ -36,6 +36,7 @@ import (
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
@@ -195,14 +196,24 @@ var runCmd = &cli.Command{
 		}
 
 		// Bootstrap with full node
-		remoteAddrs, err := nodeApi.NetAddrsListen(ctx)
+		// implement by zhoushuyue
+		ok, err = proxy.LotusProxyNetConnect(minerapi.NetConnect)
 		if err != nil {
-			return xerrors.Errorf("getting full node libp2p address: %w", err)
+			return errors.As(err)
 		}
+		// no proxy on, using the local
+		// TODO: fix in lotus-miner net connect
+		if !ok {
+			remoteAddrs, err := nodeApi.NetAddrsListen(ctx)
+			if err != nil {
+				return xerrors.Errorf("getting full node libp2p address: %w", err)
+			}
 
-		if err := minerapi.NetConnect(ctx, remoteAddrs); err != nil {
-			return xerrors.Errorf("connecting to full node (libp2p): %w", err)
+			if err := minerapi.NetConnect(ctx, remoteAddrs); err != nil {
+				return xerrors.Errorf("connecting to full node (libp2p): %w", err)
+			}
 		}
+		// end implement by zhoushuyue
 
 		log.Infof("Remote version %s", v)
 
