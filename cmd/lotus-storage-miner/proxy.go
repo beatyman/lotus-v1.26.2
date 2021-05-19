@@ -9,7 +9,9 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/lotus/api"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/ipfs/go-cid"
+	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 
 	"github.com/gwaylib/errors"
@@ -19,10 +21,26 @@ var proxyCmd = &cli.Command{
 	Name:  "proxy",
 	Usage: "Manage proxy",
 	Subcommands: []*cli.Command{
+		proxyCreateCmd,
 		proxyAutoCmd,
 		proxyChangeCmd,
 		proxyStatusCmd,
 		proxyReloadCmd,
+	},
+}
+var proxyCreateCmd = &cli.Command{
+	Name:  "create",
+	Usage: "create the lotus.proxy file in local lotus repo",
+	Action: func(cctx *cli.Context) error {
+		dir, err := homedir.Expand(cctx.String("repo"))
+		if err != nil {
+			return err
+		}
+		if err := proxy.CreateLotusProxyFile(dir); err != nil {
+			return err
+		}
+		fmt.Printf("create proxy file at %s done\n", dir)
+		return nil
 	},
 }
 var proxyAutoCmd = &cli.Command{
