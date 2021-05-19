@@ -177,11 +177,14 @@ func infoCmdAct(cctx *cli.Context) error {
 		}
 	}
 
-	statisWin, err := nodeApi.StatisWin(ctx, time.Now().Format("20060102"))
+	statisWin, err := nodeApi.StatisWin(ctx, time.Now().UTC().Format("20060102"))
 	if err != nil {
 		fmt.Printf("Statis Win %s\n", errors.As(err).Code())
 	} else {
-		fmt.Printf("Statis Win %s, times:%d, win:%d, suc:%d, lost:%d\n", statisWin.Id, statisWin.WinAll, statisWin.WinGen, statisWin.WinSuc, statisWin.WinGen-statisWin.WinSuc)
+		fmt.Printf("Statis Win %s, times:%d, err:%d, win:%d, suc:%d, lost:%d\n",
+			statisWin.Id, statisWin.WinAll, statisWin.WinErr, statisWin.WinGen, statisWin.WinSuc,
+			statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
+		)
 	}
 
 	fmt.Println()
