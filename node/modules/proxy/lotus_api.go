@@ -11,12 +11,16 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/cli/util/apiaddr"
+	"github.com/libp2p/go-libp2p-core/peer"
+
 	"github.com/gwaylib/errors"
 )
 
 const (
 	PROXY_FILE = "lotus.proxy"
 )
+
+type NetConnect func(context.Context, peer.AddrInfo) error
 
 func CreateLotusProxyFile(lotusRepo string) error {
 	proxyFile := filepath.Join(lotusRepo, PROXY_FILE)
@@ -53,6 +57,7 @@ func UseLotusProxy(ctx context.Context, cfgFile string) error {
 		return errors.As(err)
 	}
 	lotusProxyOn = true
+
 	// only once call.
 	go func() {
 		lotusCheckOnce.Do(func() {
@@ -132,6 +137,32 @@ func LotusProxyAddr() *apiaddr.APIInfo {
 	lotusNodesLock.Lock()
 	defer lotusNodesLock.Unlock()
 	return lotusProxyAddr
+}
+
+func LotusProxyNetConnect(mp2p NetConnect) (bool, error) {
+	lotusNodesLock.Lock()
+	defer lotusNodesLock.Unlock()
+	minerp2p = mp2p
+	proxyOn := false
+	for _, node := range lotusNodes {
+		if !node.IsAlive() {
+			continue
+		}
+		nApi, err := node.getNodeApi()
+		if err != nil {
+			return proxyOn, errors.As(err)
+		}
+		remoteAddrs, err := nApi.NetAddrsListen(node.ctx)
+		if err != nil {
+			return proxyOn, errors.As(err)
+		}
+		log.Infof("minerp2p connect to : %s", remoteAddrs)
+		if err := minerp2p(node.ctx, remoteAddrs); err != nil {
+			return proxyOn, errors.As(err)
+		}
+		proxyOn = true
+	}
+	return proxyOn, nil
 }
 
 func LotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.ProxyStatus, error) {

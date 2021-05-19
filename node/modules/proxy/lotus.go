@@ -113,6 +113,8 @@ func (l *LotusNode) newConn() (api.FullNode, net.Conn, error) {
 }
 
 var (
+	lotusNodesLock = sync.Mutex{}
+
 	lotusProxyCfg    string
 	lotusProxyOn     bool
 	lotusAutoSelect  bool
@@ -120,8 +122,8 @@ var (
 	lotusProxyCloser func() error
 	lotusNodes       = []*LotusNode{}
 	bestLotusNode    *LotusNode
-	lotusNodesLock   = sync.Mutex{}
 	lotusCheckOnce   sync.Once
+	minerp2p         NetConnect
 )
 
 func checkLotusEpoch() {
@@ -150,6 +152,18 @@ func checkLotusEpoch() {
 				return
 			}
 			if !alive {
+				if minerp2p != nil {
+					remoteAddrs, err := nApi.NetAddrsListen(c.ctx)
+					if err != nil {
+						log.Warn(xerrors.Errorf("getting full node libp2p address: %w", err))
+						return
+					}
+					log.Infof("minerp2p auto connect to : %s", remoteAddrs)
+					if err := minerp2p(c.ctx, remoteAddrs); err != nil {
+						log.Warn(errors.As(err))
+						return
+					}
+				}
 				log.Infof("lotus node up:%s", c.apiInfo.Addr)
 			}
 			c.curHeight = int64(ts.Height())
