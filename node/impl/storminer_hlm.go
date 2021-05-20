@@ -19,6 +19,10 @@ import (
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
 	return sm.Miner.Testing(ctx, fnName, args)
 }
+func (sm *StorageMinerAPI) StatisWin(ctx context.Context, id string) (*database.StatisWin, error) {
+	return database.GetStatisWin(id)
+}
+
 func (sm *StorageMinerAPI) ProxyAutoSelect(ctx context.Context, on bool) error {
 	return proxy.SetLotusAutoSelect(on)
 }

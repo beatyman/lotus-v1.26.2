@@ -18,9 +18,6 @@ import (
 )
 
 func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, error) {
-	sb.postLk.Lock()
-	defer sb.postLk.Unlock()
-
 	randomness[31] &= 0x3f
 	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
 	if err != nil {

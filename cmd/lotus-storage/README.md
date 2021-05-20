@@ -20,42 +20,65 @@
 
 存储安全分物理存储安全及软件存储安全两大部份。
 
-物理存储安全需要依靠上层应用做多副本存储，本节点中只提供单机型的raid6级的raid冗余，最大可损坏两块硬盘。
+物理存储安全需要依靠上层应用做多副本存储，
+本节点中只提供单机型的raid6级的raid冗余，最大可损坏两块硬盘。
 
-软件存储安全主要为访问安全，分本地访问与网络访问两部分。本地访问依赖于linux本身的安全；本设计主要针对网络访问安全而设计。
+软件存储安全主要为访问安全，分本地访问与网络访问两部分。
+本地访问依赖于linux本身的安全；本设计主要针对网络访问安全而设计。
 
-网络访问主要参考了oauth2的鉴权流程对外提供文件增、删、查、改功能，并根据filecoin的系统文件要求提供对应的posix规范综合进行了以下改造:
+网络访问主要参考了oauth2的鉴权流程对外提供文件增、删、查、改功能，
+并根据filecoin的系统文件要求提供对应的posix规范综合进行了以下改造:
 
 ## 鉴权系统
 ```
 鉴权系统主要提供了基本安全密钥生成，包括两部分：
 BasicAuth 基本鉴权，需要通过https接入, 在miner机上进行管理。
-TokenAuth 会话授权，通过BasicAuth换取每一次会话授权所需要的token，此权限可以通过http进行文件的增、删、查、改功能。 
-PosixAuth Posix接口，因Filecoin需要Posix文件访问，此授权通过BasicAuth生成只读的token仅授权给miner、wdpost访问，此访问受BasicAuth管理。
+TokenAuth 会话授权，通过BasicAuth换取每一次会话授权所需要的token，
+          此权限可以通过http进行文件的增、删、查、改功能。 
+PosixAuth Posix接口，因Filecoin需要Posix文件访问，
+          此授权通过BasicAuth生成只读的token仅授权给miner、wdpost访问，此访问受BasicAuth管理。
 ```
 
 ### BasicAuth
 ```
 存储节点初始化时，会有一个初始的密钥。
+
 当存储节点被添加到miner节点时，miner通过初始密钥对存储节点的BasicAuth进行接管；
-miner接管理BasicAuth后，重新重启miner会进行一次密钥变更，同时提供了手工变更BasicAuth密钥的功能，防止BasicAuth被强破的可能性。
-miner管理存储节点的的BasicAuth时，每一台存储节点会一个唯一不同的密钥，不同的存储节点需要不同的BasicAuth访问。
-miner需要被视为可信的物理节点，当miner节点不可信时，应及时变更存储节点密码，默认情况下重启miner即可变，不需人工介入。
+
+miner接管理BasicAuth后，重新重启miner会进行一次密钥变更，
+同时提供了手工变更BasicAuth密钥的功能，防止BasicAuth被强破的可能性。
+
+miner管理存储节点的的BasicAuth时，每一台存储节点会一个唯一不同的密钥，
+不同的存储节点需要不同的BasicAuth访问。
+
+miner需要被视为可信的物理节点，当miner节点不可信时，应及时变更存储节点密码，
+默认情况下重启miner即可变，不需人工介入。
 ```
 
 ### TokenAuth
 ```
-此为Filecoin的每一个扇区访问安全而设计，即不同扇区每一次会话会有不同的TokenAuth，以确保每一个扇区的操作使用的是唯一密钥。
-当需要操作存储节点上的某个扇区(上传、下载、读取、删除)时，需通过miner获取该扇区的会话授权token，使用完后自行释放，不释放时默认一定时后会自行释放。
+此为Filecoin的每一个扇区访问安全而设计，即不同扇区每一次会话会有不同的TokenAuth，
+以确保每一个扇区的操作使用的是唯一密钥。
+
+当需要操作存储节点上的某个扇区(上传、下载、读取、删除)时，需通过miner获取该扇区的会话授权token，
+使用完后自行释放，不释放时默认一定时后会自行释放。
+
 此设计专为大文件传输而设计，小文件请使用PoxixAuth接口。
 ```
 
 ### PosixAuth
 ```
-因filecoin本身是基于Posix的文件系统设计，涉及范围较广，不易修改源码，故基于go-fuse开源库改造了文件的访问方式，但文件访问难以控制每一个扇区的权限。
-授权后默认为只读功能，打开写功能时，应只能授权给miner节点全用，关闭其他不可信节点的改写存储节点的能力。
-PosixAuth的授权码基于BasicAuth生成，因此当PosixAuth不可信时，应及时变更BasicAuth，默认情况下重启miner即可，不需人工介入。
-小文件读取会带来大量的上下文切换从而产生系统开销。此设计专为高并发小读取而设计，适用于多并发的小文件读取。
+因filecoin本身是基于Posix的文件系统设计，涉及范围较广，不易修改源码，
+故基于go-fuse开源库改造了文件的访问方式，但文件访问难以控制每一个扇区的权限。
+
+授权后默认为只读功能，打开写功能时，应只能授权给miner节点全用，
+关闭其他不可信节点的改写存储节点的能力。
+
+PosixAuth的授权码基于BasicAuth生成，因此当PosixAuth不可信时，应及时变更BasicAuth，
+默认情况下重启miner即可，不需人工介入。
+
+小文件读取会带来大量的上下文切换从而产生系统开销。
+此设计专为高并发小读取而设计，适用于多并发的小文件读取。
 ```
 
 ## 协议设计
@@ -166,6 +189,9 @@ byte[5:n] -- 二进制数据区
 库应用为构建FUseFile实例进行应用，详见client/fuse_file_test.go
 
 fuse挂载应用, 挂载为fuse后，通过标准文件进行读取，当前只支持只读。
+
+系统需要安装fuse库(apt-get install fuse)
+
 ```
 import "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 
@@ -199,4 +225,22 @@ LOTUS_FUSE_DEBUG=1 lotus-storage daemon # 运行存储服务程序
 LOTUS_FUSE_DEBUG=1 LOTUS_FUSE_POOL_SIZE=15 lotus-storage mount [mountpoint] # 通过fuse挂载到本地目录
 lotus-storage download [remote path] [local path] 下载文件到本地
 lotus-storage upload [local path] [remote path] 上传本地文件到服务器
+```
+
+## 状态检测
+```shell
+curl -k "https://127.0.0.1:1330/check"
+#返回all pools are healthy
+
+36盘位对应为
+curl -k "https://127.0.0.1:1330/check" # 对应lotus-storage-0
+curl -k "https://127.0.0.1:1340/check" # 对应lotus-storage-1
+curl -k "https://127.0.0.1:1350/check" # 对应lotus-storage-2
+```
+
+## 重置存储节点接口密码
+```
+rm $storage-root/auth.dat
+# 删除以上配置文件后会重置lotus-storage的接入密码
+# 若此时有miner在使用，miner需要重新挂载，挂载时会自动使用默认密码重新接管理密码系统
 ```

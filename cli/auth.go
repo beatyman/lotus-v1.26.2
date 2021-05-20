@@ -8,22 +8,21 @@ import (
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 
-	"github.com/filecoin-project/lotus/api/apistruct"
+	"github.com/filecoin-project/lotus/api"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/node/repo"
 )
 
-var authCmd = &cli.Command{
+var AuthCmd = &cli.Command{
 	Name:  "auth",
 	Usage: "Manage RPC permissions",
 	Subcommands: []*cli.Command{
-		authCreateAdminToken,
-		authApiInfoToken,
-		authReloadHlmAuth,
+		AuthCreateAdminToken,
+		AuthApiInfoToken,
 	},
 }
 
-var authCreateAdminToken = &cli.Command{
+var AuthCreateAdminToken = &cli.Command{
 	Name:  "create-token",
 	Usage: "Create token",
 	Flags: []cli.Flag{
@@ -48,18 +47,18 @@ var authCreateAdminToken = &cli.Command{
 
 		perm := cctx.String("perm")
 		idx := 0
-		for i, p := range apistruct.AllPermissions {
+		for i, p := range api.AllPermissions {
 			if auth.Permission(perm) == p {
 				idx = i + 1
 			}
 		}
 
 		if idx == 0 {
-			return fmt.Errorf("--perm flag has to be one of: %s", apistruct.AllPermissions)
+			return fmt.Errorf("--perm flag has to be one of: %s", api.AllPermissions)
 		}
 
 		// slice on [:idx] so for example: 'sign' gives you [read, write, sign]
-		token, err := napi.AuthNew(ctx, apistruct.AllPermissions[:idx])
+		token, err := napi.AuthNew(ctx, api.AllPermissions[:idx])
 		if err != nil {
 			return err
 		}
@@ -71,7 +70,7 @@ var authCreateAdminToken = &cli.Command{
 	},
 }
 
-var authApiInfoToken = &cli.Command{
+var AuthApiInfoToken = &cli.Command{
 	Name:  "api-info",
 	Usage: "Get token with API info required to connect to this node",
 	Flags: []cli.Flag{
@@ -91,23 +90,23 @@ var authApiInfoToken = &cli.Command{
 		ctx := ReqContext(cctx)
 
 		if !cctx.IsSet("perm") {
-			return xerrors.New("--perm flag not set")
+			return xerrors.New("--perm flag not set, use with one of: read, write, sign, admin")
 		}
 
 		perm := cctx.String("perm")
 		idx := 0
-		for i, p := range apistruct.AllPermissions {
+		for i, p := range api.AllPermissions {
 			if auth.Permission(perm) == p {
 				idx = i + 1
 			}
 		}
 
 		if idx == 0 {
-			return fmt.Errorf("--perm flag has to be one of: %s", apistruct.AllPermissions)
+			return fmt.Errorf("--perm flag has to be one of: %s", api.AllPermissions)
 		}
 
 		// slice on [:idx] so for example: 'sign' gives you [read, write, sign]
-		token, err := napi.AuthNew(ctx, apistruct.AllPermissions[:idx])
+		token, err := napi.AuthNew(ctx, api.AllPermissions[:idx])
 		if err != nil {
 			return err
 		}
@@ -130,42 +129,6 @@ var authApiInfoToken = &cli.Command{
 		// TODO: Log in audit log when it is implemented
 
 		fmt.Printf("%s=%s:%s\n", cliutil.EnvForRepo(t), string(token), ainfo.Addr)
-		return nil
-	},
-}
-
-var authReloadHlmAuth = &cli.Command{
-	Name:  "reload-hlm-auth",
-	Usage: "Reload hlm auth key",
-	Action: func(cctx *cli.Context) error {
-		napi, closer, err := GetAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-
-		ctx := ReqContext(cctx)
-		return napi.ReloadHlmAuth(ctx)
-	},
-}
-
-var authHlmAuthOn = &cli.Command{
-	Name:  "hlm-auth-on",
-	Usage: "show the hlm-auth is it open.",
-	Action: func(cctx *cli.Context) error {
-		napi, closer, err := GetAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-
-		ctx := ReqContext(cctx)
-		on, err := napi.IsHlmAuthOn(ctx)
-		if err != nil {
-			fmt.Println(err.Error())
-		} else {
-			fmt.Println(on)
-		}
 		return nil
 	},
 }

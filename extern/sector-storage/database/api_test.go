@@ -22,7 +22,7 @@ func TestAllocateStorage(t *testing.T) {
 	if _, err := db.Exec("DELETE FROM storage_info"); err != nil {
 		t.Fatal(err)
 	}
-	info := &StorageInfo{
+	info := StorageInfo{
 		UpdateTime:     time.Now(),
 		MaxSize:        10240, // 10 sector size
 		KeepSize:       1024,  // keep one sector
@@ -32,7 +32,7 @@ func TestAllocateStorage(t *testing.T) {
 		MountTransfUri: "127.0.0.1:/data/zfs",
 	}
 
-	if _, err := AddStorageInfo(info); err != nil {
+	if _, err := AddStorage(&StorageAuth{StorageInfo: info}); err != nil {
 		t.Fatal(err)
 	}
 	// case 0 make a error cancel
@@ -86,42 +86,48 @@ func TestMountAllStorage(t *testing.T) {
 	}
 
 	// for local
-	if _, err := AddStorageInfo(&StorageInfo{
-		UpdateTime:     time.Now(),
-		MaxSize:        922372036854775807,
-		SectorSize:     107374182400,
-		MaxWork:        1000,
-		MountSignalUri: "/data/sdb/lotus-user-1",
-		MountTransfUri: "/data/sdb/lotus-user-1",
-		MountDir:       "/data/testing",
+	if _, err := AddStorage(&StorageAuth{
+		StorageInfo: StorageInfo{
+			UpdateTime:     time.Now(),
+			MaxSize:        922372036854775807,
+			SectorSize:     107374182400,
+			MaxWork:        1000,
+			MountSignalUri: "/data/sdb/lotus-user-1",
+			MountTransfUri: "/data/sdb/lotus-user-1",
+			MountDir:       "/data/testing",
+		},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	// for net work, make sure it exists.
-	if _, err := AddStorageInfo(&StorageInfo{
-		UpdateTime:     time.Now(),
-		MaxSize:        922372036854775807,
-		SectorSize:     107374182400,
-		MaxWork:        1000,
-		MountType:      "nfs",
-		MountSignalUri: "127.0.0.1:/data/zfs",
-		MountTransfUri: "127.0.0.1:/data/zfs",
-		MountDir:       "/data/testing",
+	if _, err := AddStorage(&StorageAuth{
+		StorageInfo: StorageInfo{
+			UpdateTime:     time.Now(),
+			MaxSize:        922372036854775807,
+			SectorSize:     107374182400,
+			MaxWork:        1000,
+			MountType:      "nfs",
+			MountSignalUri: "127.0.0.1:/data/zfs",
+			MountTransfUri: "127.0.0.1:/data/zfs",
+			MountDir:       "/data/testing",
+		},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	// for net work, make sure it exists.
-	if _, err := AddStorageInfo(&StorageInfo{
-		UpdateTime:     time.Now(),
-		MaxSize:        922372036854775807,
-		SectorSize:     107374182400,
-		MaxWork:        1000,
-		MountType:      "nfs",
-		MountSignalUri: "127.0.0.1:/data/zfs",
-		MountTransfUri: "127.0.0.1:/data/zfs",
-		MountDir:       "/data/testing",
-		MountOpt:       "-o noatime,nodev,nosuid",
+	if _, err := AddStorage(&StorageAuth{
+		StorageInfo: StorageInfo{
+			UpdateTime:     time.Now(),
+			MaxSize:        922372036854775807,
+			SectorSize:     107374182400,
+			MaxWork:        1000,
+			MountType:      "nfs",
+			MountSignalUri: "127.0.0.1:/data/zfs",
+			MountTransfUri: "127.0.0.1:/data/zfs",
+			MountDir:       "/data/testing",
+			MountOpt:       "-o noatime,nodev,nosuid",
+		},
 	}); err != nil {
 		t.Fatal(err)
 	}

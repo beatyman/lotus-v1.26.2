@@ -1,6 +1,8 @@
 package wallet
 
 import (
+	"context"
+
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
@@ -24,7 +26,7 @@ func GenerateKey(typ types.KeyType) (*Key, error) {
 		Type:       typ,
 		PrivateKey: pk,
 	}
-	return NewKey(ki)
+	return NewKey(context.TODO(), ki)
 }
 
 type Key struct {
@@ -34,13 +36,13 @@ type Key struct {
 	Address   address.Address
 }
 
-func NewKey(keyinfo types.KeyInfo) (*Key, error) {
+func NewKey(ctx context.Context, keyinfo types.KeyInfo) (*Key, error) {
 	k := &Key{
 		KeyInfo: keyinfo,
 	}
 
 	// by zhoushuyue
-	privateKey, err := keyinfo.PlainPrivateKey()
+	privateKey, err := keyinfo.PlainPrivateKey(ctx)
 	if err != nil {
 		return nil, errors.As(err)
 	}

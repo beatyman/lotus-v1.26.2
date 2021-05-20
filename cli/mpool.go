@@ -24,24 +24,26 @@ import (
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/config"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
-var mpoolCmd = &cli.Command{
+var MpoolCmd = &cli.Command{
 	Name:  "mpool",
 	Usage: "Manage message pool",
 	Subcommands: []*cli.Command{
+		// implement by hlm
 		mpoolGetCfg,
 		mpoolSetCfg,
 		mpoolFix,
-		mpoolPending,
-		mpoolClear,
-		mpoolSub,
-		mpoolStat,
-		mpoolReplaceCmd,
-		mpoolFindCmd,
-		mpoolConfig,
-		mpoolGasPerfCmd,
+		// implement by hlm end
+
+		MpoolPending,
+		MpoolClear,
+		MpoolSub,
+		MpoolStat,
+		MpoolReplaceCmd,
+		MpoolFindCmd,
+		MpoolConfig,
+		MpoolGasPerfCmd,
 	},
 }
 var mpoolGetCfg = &cli.Command{
@@ -67,10 +69,6 @@ var mpoolSetCfg = &cli.Command{
 	Name:  "hlm-set-cfg",
 	Usage: "Println the configration of mpool",
 	Flags: []cli.Flag{
-		&cli.BoolFlag{
-			Name:  "Force",
-			Usage: "Packing negative performance messages,Which is equivalent to 3x missing payments from messages.",
-		},
 		&cli.StringFlag{
 			Name:  "PriorityAddrs",
 			Usage: "Array of address, split with ',', empty not change, '-' to clean.",
@@ -108,7 +106,6 @@ var mpoolSetCfg = &cli.Command{
 		if err != nil {
 			return err
 		}
-		cfg.Force = cctx.Bool("Force")
 		coolDown := cctx.Int("PruneCooldown")
 		if coolDown > -1 {
 			cfg.PruneCooldown = time.Duration(coolDown)
@@ -160,17 +157,17 @@ var mpoolFix = &cli.Command{
 		},
 		&cli.Uint64Flag{
 			Name:  "rate-premium",
-			Usage: "0<rate, will be divide 10000, default is 125%",
+			Usage: "default is 125%",
 			Value: 12500,
 		},
 		&cli.Uint64Flag{
 			Name:  "rate-feecap",
-			Usage: "0<rate, will be divide 10000, default is 125%",
+			Usage: "default is 125%",
 			Value: 12500,
 		},
 		&cli.Uint64Flag{
 			Name:  "rate-limit",
-			Usage: "0<rate, will be divide 10000, default is 125%",
+			Usage: "default is 125%",
 			Value: 12500,
 		},
 		&cli.Uint64Flag{
@@ -180,8 +177,8 @@ var mpoolFix = &cli.Command{
 		},
 		&cli.Uint64Flag{
 			Name:  "limit-msg",
-			Usage: "limit the message. 0 is ignored",
-			Value: 0,
+			Usage: "limit the messages fixed. 0 is unlimit",
+			Value: 10,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -230,7 +227,7 @@ var mpoolFix = &cli.Command{
 				continue
 			}
 			if limitMsg > 0 && fixedNum > limitMsg {
-				continue
+				break
 			}
 			fixedNum++
 
@@ -257,7 +254,7 @@ var mpoolFix = &cli.Command{
 			newMsg.GasLimit = newMsg.GasLimit*rateLimit/10000 + 1
 			gasUsed = types.BigAdd(gasUsed, types.BigMul(newMsg.GasFeeCap, types.NewInt(uint64(newMsg.GasLimit))))
 			if do {
-				smsg, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), newMsg.From, &newMsg)
+				smsg, err := api.WalletSignMessage(ctx, newMsg.From, &newMsg)
 				if err != nil {
 					return fmt.Errorf("failed to sign message: %w", err)
 				}
@@ -274,7 +271,8 @@ var mpoolFix = &cli.Command{
 		return nil
 	},
 }
-var mpoolPending = &cli.Command{
+
+var MpoolPending = &cli.Command{
 	Name:  "pending",
 	Usage: "Get pending messages",
 	Flags: []cli.Flag{
@@ -369,9 +367,11 @@ var mpoolPending = &cli.Command{
 	},
 }
 
-var mpoolClear = &cli.Command{
-	Name:  "clear",
-	Usage: "Clear all pending messages from the mpool (USE WITH CARE)",
+// Deprecated: MpoolClear is now available at `lotus-shed mpool clear`
+var MpoolClear = &cli.Command{
+	Name:   "clear",
+	Usage:  "Clear all pending messages from the mpool (USE WITH CARE) (DEPRECATED)",
+	Hidden: true,
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "local",
@@ -383,6 +383,7 @@ var mpoolClear = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		fmt.Println("DEPRECATED: This behavior is being moved to `lotus-shed mpool clear`")
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
 			return err
@@ -401,7 +402,7 @@ var mpoolClear = &cli.Command{
 	},
 }
 
-var mpoolSub = &cli.Command{
+var MpoolSub = &cli.Command{
 	Name:  "sub",
 	Usage: "Subscribe to mpool changes",
 	Action: func(cctx *cli.Context) error {
@@ -433,7 +434,7 @@ var mpoolSub = &cli.Command{
 	},
 }
 
-var mpoolStat = &cli.Command{
+var MpoolStat = &cli.Command{
 	Name:  "stat",
 	Usage: "print mempool stats",
 	Flags: []cli.Flag{
@@ -592,7 +593,7 @@ var mpoolStat = &cli.Command{
 	},
 }
 
-var mpoolReplaceCmd = &cli.Command{
+var MpoolReplaceCmd = &cli.Command{
 	Name:  "replace",
 	Usage: "replace a message in the mempool",
 	Flags: []cli.Flag{
@@ -739,7 +740,7 @@ var mpoolReplaceCmd = &cli.Command{
 			return nil
 		}
 
-		smsg, err := api.WalletSignMessage(ctx, auth.GetHlmAuth(), msg.From, &msg)
+		smsg, err := api.WalletSignMessage(ctx, msg.From, &msg)
 		if err != nil {
 			return fmt.Errorf("failed to sign message: %w", err)
 		}
@@ -754,7 +755,7 @@ var mpoolReplaceCmd = &cli.Command{
 	},
 }
 
-var mpoolFindCmd = &cli.Command{
+var MpoolFindCmd = &cli.Command{
 	Name:  "find",
 	Usage: "find a message in the mempool",
 	Flags: []cli.Flag{
@@ -837,7 +838,7 @@ var mpoolFindCmd = &cli.Command{
 	},
 }
 
-var mpoolConfig = &cli.Command{
+var MpoolConfig = &cli.Command{
 	Name:      "config",
 	Usage:     "get or set current mpool configuration",
 	ArgsUsage: "[new-config]",
@@ -882,7 +883,7 @@ var mpoolConfig = &cli.Command{
 	},
 }
 
-var mpoolGasPerfCmd = &cli.Command{
+var MpoolGasPerfCmd = &cli.Command{
 	Name:  "gas-perf",
 	Usage: "Check gas performance of messages in mempool",
 	Flags: []cli.Flag{

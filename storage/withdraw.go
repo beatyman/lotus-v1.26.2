@@ -17,7 +17,6 @@ import (
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/node/config"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/gwaylib/errors"
 
 	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
@@ -44,10 +43,15 @@ func (s *WindowPoStScheduler) StateWaitMsg(ctx context.Context, sm *types.Signed
 	result := make(chan *WaitResult, 1)
 	defer close(result)
 
+	head, err := s.api.ChainHead(ctx)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 	go func() {
-		lp, err := s.api.StateWaitMsg(cancelCtx, sm.Cid(), build.MessageConfidence)
+		lp, err := s.api.StateWaitMsg(cancelCtx, sm.Cid(), build.MessageConfidence, head.Height()+30, true)
 		result <- &WaitResult{lp, err}
 	}()
 	select {
@@ -57,7 +61,8 @@ func (s *WindowPoStScheduler) StateWaitMsg(ctx context.Context, sm *types.Signed
 		if err != nil {
 			return nil, errors.As(err)
 		}
-		return s.api.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence)
+
+		return s.api.StateWaitMsg(ctx, smsg.Cid(), build.MessageConfidence, head.Height()+60, true)
 	case res := <-result:
 		return res.lookup, res.err
 	}
@@ -94,7 +99,7 @@ func (s *WindowPoStScheduler) fixMpool(ctx context.Context, sm *types.SignedMess
 
 	// gas-limit
 	newMsg.GasLimit = newMsg.GasLimit*rateLimit/10000 + 1
-	smsg, err := s.api.WalletSignMessage(ctx, auth.GetHlmAuth(), newMsg.From, &newMsg)
+	smsg, err := s.api.WalletSignMessage(ctx, newMsg.From, &newMsg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign message: %w", err)
 	}
@@ -221,7 +226,7 @@ func (s *WindowPoStScheduler) doWithdraw(cfg *WithdrawConfig) error {
 		Method: miner.Methods.WithdrawBalance,
 		Params: params,
 	}
-	sm, err := api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	sm, err := api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return errors.As(err, *cfg)
 	}
@@ -255,7 +260,7 @@ func (s *WindowPoStScheduler) withdrawSend(ctx context.Context, fromAddr, toAddr
 		Value:  amount,
 		Params: []byte{},
 	}
-	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, nil)
+	sm, err := s.api.MpoolPushMessage(ctx, msg, nil)
 	if err != nil {
 		return errors.As(err)
 	}

@@ -9,7 +9,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
-	logging "github.com/ipfs/go-log"
+	logging "github.com/ipfs/go-log/v2"
 	ledgerfil "github.com/whyrusleeping/ledger-filecoin-go"
 	"golang.org/x/xerrors"
 
@@ -18,7 +18,6 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 )
 
@@ -37,19 +36,13 @@ type LedgerKeyInfo struct {
 	Path    []uint32
 }
 
-var _ api.WalletAPI = (*LedgerWallet)(nil)
+var _ api.Wallet = (*LedgerWallet)(nil)
 
 func (lw LedgerWallet) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
 	return fmt.Errorf("unimplement")
 }
 
-func (lw LedgerWallet) WalletSign(ctx context.Context, authData []byte, signer address.Address, toSign []byte, meta api.MsgMeta) (*crypto.Signature, error) {
-	// implement hlm auth
-	if !auth.IsHlmAuth(signer.String(), authData) {
-		return nil, xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", signer.String(), string(authData))
-	}
-	// implement hlm end
-
+func (lw LedgerWallet) WalletSign(ctx context.Context, signer address.Address, toSign []byte, meta api.MsgMeta) (*crypto.Signature, error) {
 	ki, err := lw.getKeyInfo(signer)
 	if err != nil {
 		return nil, err
@@ -105,22 +98,11 @@ func (lw LedgerWallet) getKeyInfo(addr address.Address) (*LedgerKeyInfo, error) 
 	return &out, nil
 }
 
-func (lw LedgerWallet) WalletDelete(ctx context.Context, authData []byte, k address.Address) error {
-	// implement hlm auth
-	if !auth.IsHlmAuth(k.String(), authData) {
-		return xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", k.String(), string(authData))
-	}
-	// implement hlm end
+func (lw LedgerWallet) WalletDelete(ctx context.Context, k address.Address) error {
 	return lw.ds.Delete(keyForAddr(k))
 }
 
-func (lw LedgerWallet) WalletExport(ctx context.Context, authData []byte, k address.Address) (*types.KeyInfo, error) {
-	// implement hlm auth
-	if !auth.IsHlmAuth(k.String(), authData) {
-		return nil, xerrors.Errorf("wallet(%s:%s) auth failed, please conntact administrator.", k.String(), string(authData))
-	}
-	// implement hlm end
-
+func (lw LedgerWallet) WalletExport(ctx context.Context, k address.Address) (*types.KeyInfo, error) {
 	return nil, fmt.Errorf("cannot export keys from ledger wallets")
 }
 
@@ -249,7 +231,7 @@ func (lw LedgerWallet) WalletNew(ctx context.Context, t types.KeyType, passwd st
 	return lw.importKey(lki)
 }
 
-func (lw *LedgerWallet) Get() api.WalletAPI {
+func (lw *LedgerWallet) Get() api.Wallet {
 	if lw == nil {
 		return nil
 	}

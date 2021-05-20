@@ -10,7 +10,7 @@ import (
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
-	"github.com/filecoin-project/lotus/api/apistruct"
+	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/fileserver"
@@ -63,7 +63,7 @@ func listenSchedulerApi(cctx *cli.Context, repoFs *repo.FsRepo, sm *impl.Storage
 	mux := mux.NewRouter()
 	hs := impl.NewHlmMinerScheduler(sm)
 	rpcServer := jsonrpc.NewServer()
-	rpcServer.Register("Filecoin", apistruct.PermissionedHlmMinerSchedulerAPI(metrics.MetricedHlmMinerSchedulerAPI(hs)))
+	rpcServer.Register("Filecoin", api.PermissionedHlmMinerSchedulerAPI(metrics.MetricedHlmMinerSchedulerAPI(hs)))
 	mux.Handle("/rpc/v0", rpcServer)
 	mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(repoFs.Path()).FileHttpServer)
 

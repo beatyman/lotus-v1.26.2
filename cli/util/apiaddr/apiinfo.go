@@ -41,7 +41,7 @@ func (a *APIInfo) String() string {
 	return string(a.Token) + ":" + a.Addr
 }
 
-func (a *APIInfo) DialArgs(repoType repo.RepoType) (string, error) {
+func (a *APIInfo) DialArgs(version string, repoType repo.RepoType) (string, error) {
 	// TODO: force to wss or https when c2 fix done.
 
 	ma, err := multiaddr.NewMultiaddr(a.Addr)
@@ -53,9 +53,9 @@ func (a *APIInfo) DialArgs(repoType repo.RepoType) (string, error) {
 
 		switch repoType {
 		case repo.FullNode, repo.StorageMiner:
-			return "wss://" + addr + "/rpc/v0", nil
+			return "wss://" + addr + "/rpc/" + version, nil
 		default:
-			return "ws://" + addr + "/rpc/v0", nil
+			return "ws://" + addr + "/rpc/" + version, nil
 		}
 
 	}
@@ -64,7 +64,7 @@ func (a *APIInfo) DialArgs(repoType repo.RepoType) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return a.Addr + "/rpc/v0", nil
+	return a.Addr + "/rpc/" + version, nil
 }
 
 func (a *APIInfo) Host() (string, error) {

@@ -15,11 +15,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 
 	"github.com/gwaylib/errors"
 )
@@ -155,7 +154,7 @@ func prepFundsHtml(box *rice.Box) http.HandlerFunc {
 
 type handler struct {
 	ctx context.Context
-	api api.FullNode
+	api v0api.FullNode
 
 	from           address.Address
 	sendPerRequest types.FIL
@@ -224,7 +223,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	smsg, err := h.api.MpoolPushMessage(h.ctx, auth.GetHlmAuth(), &types.Message{
+	smsg, err := h.api.MpoolPushMessage(h.ctx, &types.Message{
 		Value: types.BigInt(h.sendPerRequest),
 		From:  h.from,
 		To:    to,

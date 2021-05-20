@@ -26,6 +26,7 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/v1api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
@@ -89,10 +90,9 @@ type storageMinerApi interface {
 	StateMinerPreCommitDepositForPower(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (types.BigInt, error)
 	StateMinerInitialPledgeCollateral(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (types.BigInt, error)
 	StateMinerSectorAllocated(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (bool, error)
-	StateSearchMsg(context.Context, cid.Cid) (*api.MsgLookup, error)
-	StateWaitMsg(ctx context.Context, cid cid.Cid, confidence uint64) (*api.MsgLookup, error) // TODO: removeme eventually
+	StateSearchMsg(ctx context.Context, from types.TipSetKey, msg cid.Cid, limit abi.ChainEpoch, allowReplaced bool) (*api.MsgLookup, error)
+	StateWaitMsg(ctx context.Context, cid cid.Cid, confidence uint64, limit abi.ChainEpoch, allowReplaced bool) (*api.MsgLookup, error)
 	StateGetActor(ctx context.Context, actor address.Address, ts types.TipSetKey) (*types.Actor, error)
-	StateGetReceipt(context.Context, cid.Cid, types.TipSetKey) (*types.MessageReceipt, error)
 	StateMarketStorageDeal(context.Context, abi.DealID, types.TipSetKey) (*api.MarketDeal, error)
 	StateMinerFaults(context.Context, address.Address, types.TipSetKey) (bitfield.BitField, error)
 	StateMinerRecoveries(context.Context, address.Address, types.TipSetKey) (bitfield.BitField, error)
@@ -100,13 +100,12 @@ type storageMinerApi interface {
 	StateNetworkVersion(context.Context, types.TipSetKey) (network.Version, error)
 	StateLookupID(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 
-	MpoolPushMessage(context.Context, []byte, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
+	MpoolPushMessage(context.Context, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
 
 	GasEstimateMessageGas(context.Context, *types.Message, *api.MessageSendSpec, types.TipSetKey) (*types.Message, error)
 	GasEstimateFeeCap(context.Context, *types.Message, int64, types.TipSetKey) (types.BigInt, error)
 	GasEstimateGasPremium(_ context.Context, nblocksincl uint64, sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error)
 
-	SyncProgress(context.Context) (api.SyncProgress, error)
 	ChainHead(context.Context) (*types.TipSet, error)
 	ChainNotify(context.Context) (<-chan []*api.HeadChange, error)
 	ChainGetRandomnessFromTickets(ctx context.Context, tsk types.TipSetKey, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) (abi.Randomness, error)
@@ -118,14 +117,15 @@ type storageMinerApi interface {
 	ChainHasObj(context.Context, cid.Cid) (bool, error)
 	ChainGetTipSet(ctx context.Context, key types.TipSetKey) (*types.TipSet, error)
 
-	WalletSign(context.Context, []byte, address.Address, []byte) (*crypto.Signature, error)
+	WalletSign(context.Context, address.Address, []byte) (*crypto.Signature, error)
 	WalletBalance(context.Context, address.Address) (types.BigInt, error)
 	WalletHas(context.Context, address.Address) (bool, error)
 
 	// implememt by hlm
 	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)
+	SyncProgress(context.Context) (api.SyncProgress, error)
 	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
-	WalletSignMessage(context.Context, []byte, address.Address, *types.Message) (*types.SignedMessage, error)
+	WalletSignMessage(context.Context, address.Address, *types.Message) (*types.SignedMessage, error)
 	MpoolPush(context.Context, *types.SignedMessage) (cid.Cid, error)
 }
 
@@ -237,7 +237,7 @@ type StorageWpp struct {
 	winnRpt  abi.RegisteredPoStProof
 }
 
-func NewWinningPoStProver(api api.FullNode, prover storage.Prover, verifier ffiwrapper.Verifier, miner dtypes.MinerID) (*StorageWpp, error) {
+func NewWinningPoStProver(api v1api.FullNode, prover storage.Prover, verifier ffiwrapper.Verifier, miner dtypes.MinerID) (*StorageWpp, error) {
 	ma, err := address.NewIDAddress(uint64(miner))
 	if err != nil {
 		return nil, err

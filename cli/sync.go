@@ -12,23 +12,24 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/build"
 )
 
-var syncCmd = &cli.Command{
+var SyncCmd = &cli.Command{
 	Name:  "sync",
 	Usage: "Inspect or interact with the chain syncer",
 	Subcommands: []*cli.Command{
-		syncStatusCmd,
-		syncWaitCmd,
-		syncMarkBadCmd,
-		syncUnmarkBadCmd,
-		syncCheckBadCmd,
-		syncCheckpointCmd,
+		SyncStatusCmd,
+		SyncWaitCmd,
+		SyncMarkBadCmd,
+		SyncUnmarkBadCmd,
+		SyncCheckBadCmd,
+		SyncCheckpointCmd,
 	},
 }
 
-var syncStatusCmd = &cli.Command{
+var SyncStatusCmd = &cli.Command{
 	Name:  "status",
 	Usage: "check sync status",
 	Flags: []cli.Flag{
@@ -61,7 +62,15 @@ var syncStatusCmd = &cli.Command{
 			}
 		}
 
-		fmt.Println("sync status:")
+		inputName, err := apic.InputWalletStatus(ctx)
+		if err != nil {
+			return err
+		}
+		if len(inputName) > 0 {
+			fmt.Printf("sync status:(Need decode wallet:%s)\n", inputName)
+		} else {
+			fmt.Printf("sync status:(No wallet need decrypt)\n")
+		}
 		for _, ss := range result {
 			fmt.Printf("worker %d:\n", ss.WorkerID)
 			var base, target []cid.Cid
@@ -98,7 +107,7 @@ var syncStatusCmd = &cli.Command{
 	},
 }
 
-var syncWaitCmd = &cli.Command{
+var SyncWaitCmd = &cli.Command{
 	Name:  "wait",
 	Usage: "Wait for sync to be complete",
 	Flags: []cli.Flag{
@@ -119,7 +128,7 @@ var syncWaitCmd = &cli.Command{
 	},
 }
 
-var syncMarkBadCmd = &cli.Command{
+var SyncMarkBadCmd = &cli.Command{
 	Name:      "mark-bad",
 	Usage:     "Mark the given block as bad, will prevent syncing to a chain that contains it",
 	ArgsUsage: "[blockCid]",
@@ -144,7 +153,7 @@ var syncMarkBadCmd = &cli.Command{
 	},
 }
 
-var syncUnmarkBadCmd = &cli.Command{
+var SyncUnmarkBadCmd = &cli.Command{
 	Name:  "unmark-bad",
 	Usage: "Unmark the given block as bad, makes it possible to sync to a chain containing it",
 	Flags: []cli.Flag{
@@ -179,7 +188,7 @@ var syncUnmarkBadCmd = &cli.Command{
 	},
 }
 
-var syncCheckBadCmd = &cli.Command{
+var SyncCheckBadCmd = &cli.Command{
 	Name:      "check-bad",
 	Usage:     "check if the given block was marked bad, and for what reason",
 	ArgsUsage: "[blockCid]",
@@ -215,7 +224,7 @@ var syncCheckBadCmd = &cli.Command{
 	},
 }
 
-var syncCheckpointCmd = &cli.Command{
+var SyncCheckpointCmd = &cli.Command{
 	Name:      "checkpoint",
 	Usage:     "mark a certain tipset as checkpointed; the node will never fork away from this tipset",
 	ArgsUsage: "[tipsetKey]",
@@ -257,7 +266,7 @@ var syncCheckpointCmd = &cli.Command{
 	},
 }
 
-func SyncWait(ctx context.Context, napi api.FullNode, watch bool) error {
+func SyncWait(ctx context.Context, napi v0api.FullNode, watch bool) error {
 	tick := time.Second / 4
 
 	lastLines := 0

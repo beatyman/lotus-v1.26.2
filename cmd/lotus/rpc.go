@@ -24,17 +24,18 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/api/apistruct"
+	"github.com/filecoin-project/lotus/api/v0api"
+	"github.com/filecoin-project/lotus/api/v1api"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
-	nauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/impl"
+	nauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("main")
 
-func serveRPC(repo string, a api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}, maxRequestSize int64) error {
+func serveRPC(repo string, a v1api.FullNode, stop node.StopFunc, addr multiaddr.Multiaddr, shutdownCh <-chan struct{}, maxRequestSize int64) error {
 	repo, err := homedir.Expand(repo)
 	if err != nil {
 		return errors.As(err)
@@ -43,15 +44,22 @@ func serveRPC(repo string, a api.FullNode, stop node.StopFunc, addr multiaddr.Mu
 	if maxRequestSize != 0 { // config set
 		serverOptions = append(serverOptions, jsonrpc.WithMaxRequestSize(maxRequestSize))
 	}
-	rpcServer := jsonrpc.NewServer(serverOptions...)
-	rpcServer.Register("Filecoin", apistruct.PermissionedFullAPI(metrics.MetricedFullAPI(a)))
+	serveRpc := func(path string, hnd interface{}) {
+		rpcServer := jsonrpc.NewServer(serverOptions...)
+		rpcServer.Register("Filecoin", hnd)
 
-	ah := &auth.Handler{
-		Verify: a.AuthVerify,
-		Next:   rpcServer.ServeHTTP,
+		ah := &auth.Handler{
+			Verify: a.AuthVerify,
+			Next:   rpcServer.ServeHTTP,
+		}
+
+		http.Handle(path, ah)
 	}
 
-	http.Handle("/rpc/v0", ah)
+	pma := api.PermissionedFullAPI(metrics.MetricedFullAPI(a))
+
+	serveRpc("/rpc/v1", pma)
+	serveRpc("/rpc/v0", &v0api.WrapperV1Full{FullNode: pma})
 
 	importAH := &auth.Handler{
 		Verify: a.AuthVerify,
@@ -123,7 +131,7 @@ func handleImport(a *impl.FullNodeAPI) func(w http.ResponseWriter, r *http.Reque
 			w.WriteHeader(404)
 			return
 		}
-		if !auth.HasPerm(r.Context(), nil, apistruct.PermWrite) {
+		if !auth.HasPerm(r.Context(), nil, api.PermWrite) {
 			w.WriteHeader(401)
 			_ = json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: missing write permission"})
 			return

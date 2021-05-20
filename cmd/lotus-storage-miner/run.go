@@ -10,6 +10,10 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/filecoin-project/lotus/api/v1api"
+
+	"github.com/filecoin-project/lotus/api/v0api"
+
 	mux "github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -23,7 +27,6 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/api/apistruct"
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
@@ -33,6 +36,7 @@ import (
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
@@ -75,70 +79,20 @@ var runCmd = &cli.Command{
 				return err
 			}
 		}
-		// use the cluster proxy if it's exist.
-		if err := cliutil.UseLotusProxy(cctx); err != nil {
-			log.Infof("lotus proxy is invalid:%+s", err.Error())
-		}
-
-		nodeApi, ncloser, err := lcli.GetFullNodeAPI(cctx)
-		if err != nil {
-			return xerrors.Errorf("getting full node api: %w", err)
-		}
-		defer ncloser()
-
+		minerRepoPath := cctx.String(FlagMinerRepo)
 		ctx, _ := tag.New(lcli.DaemonContext(cctx),
 			tag.Insert(metrics.Version, build.BuildVersion),
 			tag.Insert(metrics.Commit, build.CurrentCommit),
 			tag.Insert(metrics.NodeType, "miner"),
 		)
-		// Register all metric views
-		if err = view.Register(
-			metrics.MinerNodeViews...,
-		); err != nil {
-			log.Fatalf("Cannot register the view: %v", err)
-		}
-		// Set the metric to one so it is published to the exporter
-		stats.Record(ctx, metrics.LotusInfo.M(1))
-
-		v, err := nodeApi.Version(ctx)
-		if err != nil {
-			return err
-		}
-
-		if cctx.Bool("manage-fdlimit") {
-			if _, _, err := ulimit.ManageFdLimit(); err != nil {
-				log.Errorf("setting file descriptor limit: %s", err)
-			}
-		}
-
-		if v.APIVersion != api.FullAPIVersion {
-			return xerrors.Errorf("lotus-daemon API version doesn't match: expected: %s", api.APIVersion{APIVersion: api.FullAPIVersion})
-		}
-
-		log.Info("Checking full node sync status")
-
-		if !cctx.Bool("nosync") {
-			if err := lcli.SyncWait(ctx, nodeApi, false); err != nil {
-				return xerrors.Errorf("sync wait: %w", err)
-			}
-		}
-
-		minerRepoPath := cctx.String(FlagMinerRepo)
-		r, err := repo.NewFS(minerRepoPath)
-		if err != nil {
-			return err
-		}
-
-		ok, err := r.Exists()
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-miner init' to set it up", minerRepoPath)
-		}
 
 		// implement by hlm
+		// use the cluster proxy if it's exist.
+		if err := cliutil.UseLotusProxy(cctx); err != nil {
+			log.Infof("lotus proxy is invalid:%+s", err.Error())
+		}
 		// init storage database
+		// TODO: already implement in init.go, so remove this checking in running?
 		database.InitDB(minerRepoPath)
 		log.Info("Mount all storage")
 		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
@@ -159,8 +113,63 @@ var runCmd = &cli.Command{
 		//if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
 		//	return errors.As(err)
 		//}
-		// implement by hlm end.
 		log.Info("Check done")
+		// implement by hlm end.
+
+		// Register all metric views
+		if err := view.Register(
+			metrics.MinerNodeViews...,
+		); err != nil {
+			log.Fatalf("Cannot register the view: %v", err)
+		}
+		// Set the metric to one so it is published to the exporter
+		stats.Record(ctx, metrics.LotusInfo.M(1))
+
+		if err := checkV1ApiSupport(ctx, cctx); err != nil {
+			return err
+		}
+
+		nodeApi, ncloser, err := lcli.GetFullNodeAPIV1(cctx)
+		if err != nil {
+			return xerrors.Errorf("getting full node api: %w", err)
+		}
+		defer ncloser()
+
+		v, err := nodeApi.Version(ctx)
+		if err != nil {
+			return err
+		}
+
+		if cctx.Bool("manage-fdlimit") {
+			if _, _, err := ulimit.ManageFdLimit(); err != nil {
+				log.Errorf("setting file descriptor limit: %s", err)
+			}
+		}
+
+		if v.APIVersion != api.FullAPIVersion1 {
+			return xerrors.Errorf("lotus-daemon API version doesn't match: expected: %s", api.APIVersion{APIVersion: api.FullAPIVersion1})
+		}
+
+		log.Info("Checking full node sync status")
+
+		if !cctx.Bool("nosync") {
+			if err := lcli.SyncWait(ctx, &v0api.WrapperV1Full{FullNode: nodeApi}, false); err != nil {
+				return xerrors.Errorf("sync wait: %w", err)
+			}
+		}
+
+		r, err := repo.NewFS(minerRepoPath)
+		if err != nil {
+			return err
+		}
+
+		ok, err := r.Exists()
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-miner init' to set it up", minerRepoPath)
+		}
 
 		shutdownChan := make(chan struct{})
 
@@ -175,7 +184,7 @@ var runCmd = &cli.Command{
 				node.Override(new(dtypes.APIEndpoint), func() (dtypes.APIEndpoint, error) {
 					return multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/" + cctx.String("miner-api"))
 				})),
-			node.Override(new(api.FullNode), nodeApi),
+			node.Override(new(v1api.FullNode), nodeApi),
 		)
 		if err != nil {
 			return xerrors.Errorf("creating node: %w", err)
@@ -187,14 +196,24 @@ var runCmd = &cli.Command{
 		}
 
 		// Bootstrap with full node
-		remoteAddrs, err := nodeApi.NetAddrsListen(ctx)
+		// implement by zhoushuyue
+		ok, err = proxy.LotusProxyNetConnect(minerapi.NetConnect)
 		if err != nil {
-			return xerrors.Errorf("getting full node libp2p address: %w", err)
+			return errors.As(err)
 		}
+		// no proxy on, using the local
+		// TODO: fix in lotus-miner net connect
+		if !ok {
+			remoteAddrs, err := nodeApi.NetAddrsListen(ctx)
+			if err != nil {
+				return xerrors.Errorf("getting full node libp2p address: %w", err)
+			}
 
-		if err := minerapi.NetConnect(ctx, remoteAddrs, true); err != nil {
-			return xerrors.Errorf("connecting to full node (libp2p): %w", err)
+			if err := minerapi.NetConnect(ctx, remoteAddrs); err != nil {
+				return xerrors.Errorf("connecting to full node (libp2p): %w", err)
+			}
 		}
+		// end implement by zhoushuyue
 
 		log.Infof("Remote version %s", v)
 
@@ -206,7 +225,7 @@ var runCmd = &cli.Command{
 		mux := mux.NewRouter()
 
 		rpcServer := jsonrpc.NewServer()
-		rpcServer.Register("Filecoin", apistruct.PermissionedStorMinerAPI(metrics.MetricedStorMinerAPI(minerapi)))
+		rpcServer.Register("Filecoin", api.PermissionedStorMinerAPI(metrics.MetricedStorMinerAPI(minerapi)))
 
 		mux.Handle("/rpc/v0", rpcServer)
 		mux.PathPrefix("/remote").HandlerFunc(minerapi.(*impl.StorageMinerAPI).ServeRemote)

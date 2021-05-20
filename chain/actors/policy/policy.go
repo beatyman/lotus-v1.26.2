@@ -33,7 +33,7 @@ const (
 	ChainFinality                  = miner4.ChainFinality
 	SealRandomnessLookback         = ChainFinality
 	PaychSettleDelay               = paych4.SettleDelay
-	MaxPreCommitRandomnessLookback = builtin3.EpochsInDay + SealRandomnessLookback
+	MaxPreCommitRandomnessLookback = builtin4.EpochsInDay + SealRandomnessLookback
 )
 
 // SetSupportedProofTypes sets supported proof types, across all actor versions.
@@ -187,6 +187,7 @@ func GetWinningPoStSectorSetLookback(nwVer network.Version) abi.ChainEpoch {
 		return 10
 	}
 
+	// NOTE: if this ever changes, adjust it in a (*Miner).mineOne() logline as well
 	return ChainFinality
 }
 

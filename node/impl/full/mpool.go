@@ -20,6 +20,8 @@ type MpoolModuleAPI interface {
 	MpoolPush(ctx context.Context, smsg *types.SignedMessage) (cid.Cid, error)
 }
 
+var _ MpoolModuleAPI = *new(api.FullNode)
+
 // MpoolModule provides a default implementation of MpoolModuleAPI.
 // It can be swapped out with another implementation through Dependency
 // Injection (for example with a thin RPC client).
@@ -132,7 +134,7 @@ func (a *MpoolAPI) MpoolPushUntrusted(ctx context.Context, smsg *types.SignedMes
 	return a.Mpool.PushUntrusted(smsg)
 }
 
-func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, authData []byte, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
+func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
 	cp := *msg
 	msg = &cp
 	inMsg := *msg
@@ -179,7 +181,7 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, authData []byte, msg *t
 	}
 
 	// Sign and push the message
-	return a.MessageSigner.SignMessage(ctx, authData, msg, func(smsg *types.SignedMessage) error {
+	return a.MessageSigner.SignMessage(ctx, msg, func(smsg *types.SignedMessage) error {
 		if _, err := a.MpoolModuleAPI.MpoolPush(ctx, smsg); err != nil {
 			return xerrors.Errorf("mpool push: failed to push message: %w", err)
 		}
@@ -211,10 +213,10 @@ func (a *MpoolAPI) MpoolBatchPushUntrusted(ctx context.Context, smsgs []*types.S
 	return messageCids, nil
 }
 
-func (a *MpoolAPI) MpoolBatchPushMessage(ctx context.Context, hlmAuth []byte, msgs []*types.Message, spec *api.MessageSendSpec) ([]*types.SignedMessage, error) {
+func (a *MpoolAPI) MpoolBatchPushMessage(ctx context.Context, msgs []*types.Message, spec *api.MessageSendSpec) ([]*types.SignedMessage, error) {
 	var smsgs []*types.SignedMessage
 	for _, msg := range msgs {
-		smsg, err := a.MpoolPushMessage(ctx, hlmAuth, msg, spec)
+		smsg, err := a.MpoolPushMessage(ctx, msg, spec)
 		if err != nil {
 			return smsgs, err
 		}
@@ -224,7 +226,7 @@ func (a *MpoolAPI) MpoolBatchPushMessage(ctx context.Context, hlmAuth []byte, ms
 }
 
 func (a *MpoolAPI) MpoolGetNonce(ctx context.Context, addr address.Address) (uint64, error) {
-	return a.Mpool.GetNonce(addr)
+	return a.Mpool.GetNonce(ctx, addr, types.EmptyTSK)
 }
 
 func (a *MpoolAPI) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, error) {

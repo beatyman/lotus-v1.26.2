@@ -22,6 +22,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
 	"github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/gwaylib/errors"
 	"github.com/howeyc/gopass"
 )
 
@@ -32,6 +33,7 @@ var walletCmd = &cli.Command{
 		walletGenRootCert,
 		walletGenPasswd,
 		walletEncode,
+		walletDecode,
 		walletNew,
 		walletList,
 		walletBalance,
@@ -110,6 +112,79 @@ var walletEncode = &cli.Command{
 			return err
 		}
 		fmt.Printf("Encode success, password: %s\n", passwd)
+		return nil
+	},
+}
+var walletDecode = &cli.Command{
+	Name:  "decode",
+	Usage: "input and decode to run the lotus daemon",
+	Action: func(cctx *cli.Context) error {
+		ctx := ReqContext(cctx)
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			// local mode
+			for {
+				time.Sleep(1e9)
+				name, sFile, err := auth.InputCryptoUnixStatus(ctx)
+				if err != nil {
+					if !errors.ErrNoData.Equal(err) {
+						return errors.As(err)
+					}
+					fmt.Println("No wallet is waiting input, exit.")
+					return nil
+				}
+
+				fmt.Printf("Please input password for '%s':\n", name)
+				passwd, err := gopass.GetPasswd()
+				if err != nil {
+					return err
+				}
+				if err := auth.WriteCryptoUnixPwd(ctx, sFile, string(passwd)); err != nil {
+					fmt.Println(err.Error())
+					continue
+				}
+				fmt.Println("Decode success!")
+			}
+		}
+		// remote mode
+		defer closer()
+
+		// implement by zhoushuyue
+		var addrs []address.Address
+		decodeDone := make(chan error, 1)
+		go func() {
+			addrs, err = api.WalletList(ctx)
+			decodeDone <- err
+		}()
+	input:
+		for {
+			select {
+			case err := <-decodeDone:
+				if err != nil {
+					return err
+				}
+				break input
+			default:
+				time.Sleep(1e9)
+				name, err := api.InputWalletStatus(ctx)
+				if err != nil {
+					return err
+				}
+				if len(name) == 0 {
+					continue input
+				}
+				fmt.Printf("Please input password for '%s':\n", name)
+				passwd, err := gopass.GetPasswd()
+				if err != nil {
+					return err
+				}
+				if err := api.InputWalletPasswd(ctx, string(passwd)); err != nil {
+					log.Info(err)
+					continue input
+				}
+			}
+		}
+		fmt.Println("All remote wallets decode success, exit.")
 		return nil
 	},
 }
@@ -268,7 +343,7 @@ var walletList = &cli.Command{
 					row["Default"] = "X"
 				}
 
-				keyInfo, err := api.WalletExport(ctx, auth.GetHlmAuth(), addr)
+				keyInfo, err := api.WalletExport(ctx, addr)
 				if err != nil {
 					row["Encrypt"] = err.Error()
 				} else {
@@ -408,7 +483,7 @@ var walletExport = &cli.Command{
 			return err
 		}
 
-		ki, err := api.WalletExport(ctx, auth.GetHlmAuth(), addr)
+		ki, err := api.WalletExport(ctx, addr)
 		if err != nil {
 			return err
 		}
@@ -579,7 +654,7 @@ var walletSign = &cli.Command{
 			return err
 		}
 
-		sig, err := api.WalletSign(ctx, auth.GetHlmAuth(), addr, msg)
+		sig, err := api.WalletSign(ctx, addr, msg)
 
 		if err != nil {
 			return err
@@ -665,7 +740,7 @@ var walletDelete = &cli.Command{
 			return err
 		}
 
-		return api.WalletDelete(ctx, auth.GetHlmAuth(), addr)
+		return api.WalletDelete(ctx, addr)
 	},
 }
 

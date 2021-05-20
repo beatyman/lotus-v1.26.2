@@ -36,7 +36,6 @@ import (
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 func (s *WindowPoStScheduler) failPost(err error, ts *types.TipSet, deadline *dline.Info) {
@@ -369,14 +368,14 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 		return recoveries, nil, err
 	}
 
-	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)})
+	sm, err := s.api.MpoolPushMessage(ctx, msg, &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)})
 	if err != nil {
 		return recoveries, sm, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
 
 	log.Warnw("declare faults recovered Message CID", "deadline", dlIdx, "cid", sm.Cid())
 
-	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
+	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		return recoveries, sm, xerrors.Errorf("declare faults recovered wait error: %w", err)
 	}
@@ -456,14 +455,14 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 		return faults, nil, err
 	}
 
-	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, spec)
+	sm, err := s.api.MpoolPushMessage(ctx, msg, spec)
 	if err != nil {
 		return faults, sm, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
 
 	log.Warnw("declare faults Message CID", "deadline", dlIdx, "cid", sm.Cid())
 
-	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
+	rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		return faults, sm, xerrors.Errorf("declare faults wait error: %w", err)
 	}
@@ -898,7 +897,7 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	}
 
 	// TODO: consider maybe caring about the output
-	sm, err := s.api.MpoolPushMessage(ctx, auth.GetHlmAuth(), msg, spec)
+	sm, err := s.api.MpoolPushMessage(ctx, msg, spec)
 
 	if err != nil {
 		return nil, xerrors.Errorf("pushing message to mpool: %w", err)
@@ -907,7 +906,7 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	log.Infof("Submitting window post %d: %s", proof.Deadline, sm.Cid())
 
 	go func() {
-		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence)
+		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence, api.LookbackNoLimit, true)
 		if err != nil {
 			log.Error(errors.As(err, proof.Deadline))
 			return
@@ -942,7 +941,7 @@ func (s *WindowPoStScheduler) setSender(ctx context.Context, msg *types.Message,
 	// estimate
 	minGasFeeMsg := *msg
 
-	minGasFeeMsg.GasPremium, err = s.api.GasEstimateGasPremium(ctx, 5, msg.From, msg.GasLimit, types.TipSetKey{})
+	minGasFeeMsg.GasPremium, err = s.api.GasEstimateGasPremium(ctx, 5, msg.From, msg.GasLimit, types.EmptyTSK)
 	if err != nil {
 		log.Errorf("failed to estimate minimum gas premium: %+v", err)
 		minGasFeeMsg.GasPremium = msg.GasPremium
