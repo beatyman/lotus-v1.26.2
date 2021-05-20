@@ -376,10 +376,10 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 			continue
 		}
 		remotes = append(remotes, &req{r, &task})
-		log.Infof("Selected GpuService:%s", r.cfg.SvcUri)
+		log.Infof("Selected GpuService for winning PoSt:%s", r.cfg.SvcUri)
 	}
 	if len(remotes) == 0 {
-		log.Info("No GpuService Found, using local mode")
+		log.Info("No GpuService for winning PoSt, using local mode")
 		return sb.generateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 	}
 
@@ -459,24 +459,24 @@ selectWorker:
 			continue
 		}
 		remotes = append(remotes, &req{r, &task})
-		log.Infof("Selected GpuService:%s", r.cfg.SvcUri)
+		log.Infof("Selected GpuService for window PoSt:%s", r.cfg.SvcUri)
 	}
 	if len(remotes) == 0 {
 		// using the old version when EnableForceRemoteWindowPoSt is not set.
 
 		if !sb.remoteCfg.EnableForceRemoteWindowPoSt {
-			log.Info("No GpuService found, using local mode")
+			log.Info("No GpuService for window PoSt, using local mode")
 			return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 		}
 
 		retrycount++
 		if retrycount < 60 {
-			log.Warnf(" retry select gpuservice:%d", retrycount)
+			log.Warnf(" retry select gpuservice for window PoSt, times:%d", retrycount)
 			time.Sleep(10 * time.Second)
 			goto selectWorker
 		}
 
-		log.Error("timeout for select gpuservice, no gpu service found")
+		log.Error("timeout for select gpuservice, no gpu service for window PoSt")
 		return nil, nil, errors.New("timeout for select gpuservice,no gpu service found")
 	}
 
