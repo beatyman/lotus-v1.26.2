@@ -81,7 +81,9 @@ func InputCryptoUnixStatus(ctx context.Context) (string, string, error) {
 		sFile := filepath.Join(inputCryptoPwdDir, f.Name())
 		name, err := getCryptoUnixStatus(ctx, sFile)
 		if err != nil {
-			log.Warn(errors.As(err))
+			// restart the lotus-daemon when waiting input could happen this.
+			log.Info("Remove file %s by %s", sFile, errors.As(err).Code())
+			os.Remove(sFile)
 			continue
 		}
 		return name, sFile, nil
