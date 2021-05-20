@@ -166,8 +166,8 @@ func (sb *Sealer) sealPreCommit2Remote(call workerCall) (storage.SectorCids, err
 	}
 }
 func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.PreCommit1Out) (storage.SectorCids, error) {
-	log.Infof("DEBUG:SealPreCommit2 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector)
-	defer log.Infof("DEBUG:SealPreCommit2 out,%+v", sector)
+	log.Infof("DEBUG:SealPreCommit2 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
+	defer log.Infof("DEBUG:SealPreCommit2 out,%+v", sector.ID)
 
 	atomic.AddInt32(&_precommit2Wait, 1)
 	if !sb.remoteCfg.SealSector {
