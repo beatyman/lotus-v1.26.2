@@ -338,7 +338,7 @@ reAllocate:
 			}
 
 			// checking is the cache in a different storage server, do fetch when it is.
-			if task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit && task.WorkerID != w.workerCfg.ID {
+			if len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID && task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit {
 				// fetch the precommit cache data
 				// lock bandwidth
 				if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {

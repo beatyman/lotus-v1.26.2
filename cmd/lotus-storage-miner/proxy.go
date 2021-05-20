@@ -9,7 +9,9 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/lotus/api"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/ipfs/go-cid"
+	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 
 	"github.com/gwaylib/errors"
@@ -19,15 +21,32 @@ var proxyCmd = &cli.Command{
 	Name:  "proxy",
 	Usage: "Manage proxy",
 	Subcommands: []*cli.Command{
+		proxyCreateCmd,
 		proxyAutoCmd,
 		proxyChangeCmd,
 		proxyStatusCmd,
 		proxyReloadCmd,
 	},
 }
+var proxyCreateCmd = &cli.Command{
+	Name:  "create",
+	Usage: "create the lotus.proxy file in local lotus repo",
+	Action: func(cctx *cli.Context) error {
+		dir, err := homedir.Expand(cctx.String("repo"))
+		if err != nil {
+			return err
+		}
+		if err := proxy.CreateLotusProxyFile(dir); err != nil {
+			return err
+		}
+		fmt.Printf("create proxy file at %s done\n", dir)
+		return nil
+	},
+}
 var proxyAutoCmd = &cli.Command{
-	Name:  "auto",
-	Usage: "change the proxy auto select a node",
+	Name:      "auto",
+	Usage:     "change the proxy auto select a node",
+	ArgsUsage: "[on/off]",
 	Action: func(cctx *cli.Context) error {
 		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -50,8 +69,9 @@ var proxyAutoCmd = &cli.Command{
 	},
 }
 var proxyChangeCmd = &cli.Command{
-	Name:  "change",
-	Usage: "change the proxy to a node of given",
+	Name:      "change",
+	Usage:     "change the proxy to a node of given",
+	ArgsUsage: "[index]",
 	Action: func(cctx *cli.Context) error {
 		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
@@ -104,8 +124,8 @@ var proxyStatusCmd = &cli.Command{
 		fmt.Println("lotus nodes:")
 		for i := 0; i < len(nodes); i++ {
 			fmt.Printf(
-				"idx:%d, addr:%s, using:%t, alive:%t, height:%d, used-times:%d\n",
-				i, nodes[i].Addr, nodes[i].Using, nodes[i].Alive, nodes[i].Height, nodes[i].UsedTimes,
+				"idx:%d, addr:%s, using:%t, alive:%t, height:%d, used-times:%d, decoding:%s\n",
+				i, nodes[i].Addr, nodes[i].Using, nodes[i].Alive, nodes[i].Height, nodes[i].UsedTimes, nodes[i].Decoding,
 			)
 		}
 		if cond.ChainMpool {
@@ -191,7 +211,7 @@ var proxyStatusCmd = &cli.Command{
 
 var proxyReloadCmd = &cli.Command{
 	Name:  "reload",
-	Usage: "Reload the proxy configration file",
+	Usage: "Reload the proxy configration file. if change the proxy token or listen port, need restart the miner.",
 	Action: func(cctx *cli.Context) error {
 		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {

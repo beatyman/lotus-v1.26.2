@@ -379,27 +379,7 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	sessionKey := uuid.New().String()
 	log.Infof("DEBUG:GenerateWinningPoSt in(remote:%t),%s, session:%s", sb.remoteCfg.SealSector, minerID, sessionKey)
 	defer log.Infof("DEBUG:GenerateWinningPoSt out,%s, session:%s", minerID, sessionKey)
-
-	timeoutCtx, cancel := context.WithTimeout(ctx, 30*1e9)
-	defer cancel()
-
-	result := make(chan struct {
-		proofs []proof.PoStProof
-		err    error
-	}, 1)
-	go func() {
-		p, err := sb.generateWinningPoStWithTimeout(timeoutCtx, minerID, sectorInfo, randomness)
-		result <- struct {
-			proofs []proof.PoStProof
-			err    error
-		}{p, err}
-	}()
-	select {
-	case p := <-result:
-		return p.proofs, p.err
-	case <-ctx.Done():
-		return []proof.PoStProof{}, errors.New("Generate winning post timeout")
-	}
+	return sb.generateWinningPoStWithTimeout(ctx, minerID, sectorInfo, randomness)
 }
 func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	// remote worker is not set, use local mode

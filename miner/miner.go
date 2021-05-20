@@ -253,7 +253,7 @@ func (m *Miner) mine(ctx context.Context) {
 				if blk.Miner.String() != m.address.String() {
 					continue
 				}
-				if err := database.AddWinSuc(time.Now().Format("20060102")); err != nil {
+				if err := database.AddWinSuc(time.Now().UTC().Format("20060102")); err != nil {
 					log.Error(errors.As(err))
 				}
 				break
@@ -315,11 +315,41 @@ func (m *Miner) mine(ctx context.Context) {
 		}
 
 		//log.Infof("Trying mineOne")
-		b, err := m.mineOne(ctx, &oldbase, &lastBase)
-		if err != nil {
-			log.Errorf("mining block failed: %+v", err)
-			m.niceSleep(time.Second)
-			//onDone(false, 0, err)
+		block := make(chan interface{}, 1)
+		mineCtx, mineCtxCancel := context.WithCancel(ctx)
+		go func() {
+			if err := database.AddWinTimes(time.Now().UTC().Format("20060102")); err != nil {
+				log.Warn(errors.As(err))
+			}
+			b, err := m.mineOne(mineCtx, &oldbase, &lastBase)
+			if err != nil {
+				if err := database.AddWinErr(time.Now().UTC().Format("20060102")); err != nil {
+					log.Warn(errors.As(err))
+				}
+				block <- err
+			} else {
+				if err := database.AddWinGen(time.Now().UTC().Format("20060102")); err != nil {
+					log.Warn(errors.As(err))
+				}
+				block <- b
+			}
+		}()
+
+		var b *types.BlockMsg
+		select {
+		case bl := <-block:
+			mineCtxCancel()
+			err, ok := bl.(error)
+			if ok {
+				log.Errorf("mining block failed: %+v", err)
+				m.niceSleep(time.Second)
+				//onDone(false, 0, err)
+				continue
+			}
+			b = bl.(*types.BlockMsg)
+		case <-build.Clock.After(build.Clock.Until(nextRound)):
+			mineCtxCancel()
+			log.Error("mining block failed by timeout, does the wallet undecode?")
 			continue
 		}
 		//lastBase = *base
@@ -357,6 +387,7 @@ func (m *Miner) mine(ctx context.Context) {
 			}
 
 			if err := m.sf.MinedBlock(b.Header, lastBase.TipSet.Height()+lastBase.NullRounds); err != nil {
+				lastBase.TipSet = nil // clean the cache and redo the mining
 				log.Errorf("<!!> SLASH FILTER ERROR: %s", err)
 				continue
 			}
@@ -452,9 +483,6 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 //
 //  1.
 func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.BlockMsg, error) {
-	if err := database.AddWinTimes(time.Now().Format("20060102")); err != nil {
-		log.Warn(errors.As(err))
-	}
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := build.Clock.Now()
 
@@ -472,12 +500,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	// always write out a log from this point out
 	var winner *types.ElectionProof
 	defer func() {
-		if winner != nil {
-			if err := database.AddWinGen(time.Now().Format("20060102")); err != nil {
-				log.Warn(errors.As(err))
-			}
-		}
-
 		log.Infow(
 			"completed mineOne",
 			"forRound", int64(round),
