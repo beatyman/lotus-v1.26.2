@@ -38,11 +38,11 @@ type LotusNode struct {
 	proxyConns map[net.Conn]bool
 }
 
-func (l *LotusNode) closeConn(conn net.Conn) {
+func (l *LotusNode) closeConn(conn net.Conn) error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	delete(l.proxyConns, conn)
-	database.Close(conn)
+	return conn.Close()
 }
 
 func (l *LotusNode) CloseAll() error {
