@@ -74,7 +74,7 @@ func (m *Sealing) handlePreCommitFailed(ctx statemachine.Context, sector SectorI
 errApiLoop:
 	tok, height, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
-		log.Errorf("handlePreCommitFailed: api error, not proceeding: %+v", err)
+		log.Errorf("handlePreCommitFailed: api error, not proceeding:%+v, %+v", sector.SectorNumber, err)
 		time.Sleep(10e9)
 		goto errApiLoop
 	}
@@ -187,7 +187,7 @@ func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo
 errApiLoop:
 	tok, height, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
-		log.Errorf("handleCommitting: api error, not proceeding: %+v", err)
+		log.Errorf("handleCommitting: api error, not proceeding: %+v, %+v", sector.SectorNumber, err)
 		time.Sleep(10e9)
 		goto errApiLoop
 	}
