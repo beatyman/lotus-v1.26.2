@@ -400,11 +400,14 @@ func (m *Miner) mine(ctx context.Context) {
 
 			m.minedBlockHeights.Add(blkKey, true)
 
-		loopSubmitBlock:
-			if err := m.api.SyncSubmitBlock(ctx, b); err != nil {
-				log.Errorf("failed to submit newly mined block: %+v", err)
-				time.Sleep(1e9)
-				goto loopSubmitBlock
+			for i := 0; i < 10; i++ {
+				if err := m.api.SyncSubmitBlock(ctx, b); err != nil {
+					log.Errorf("failed to submit newly mined block: %+v", err)
+					time.Sleep(1e9)
+					continue
+				}
+				// submit success, break
+				break
 			}
 		} else {
 			// Wait until the next epoch, plus the propagation delay, so a new tipset
