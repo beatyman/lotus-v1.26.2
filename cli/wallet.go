@@ -20,6 +20,7 @@ import (
 	"github.com/filecoin-project/go-state-types/crypto"
 
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
 	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/gwaylib/errors"
@@ -33,7 +34,6 @@ var walletCmd = &cli.Command{
 		walletGenRootCert,
 		walletGenPasswd,
 		walletEncode,
-		walletDecode,
 		walletNew,
 		walletList,
 		walletBalance,
@@ -115,79 +115,7 @@ var walletEncode = &cli.Command{
 		return nil
 	},
 }
-var walletDecode = &cli.Command{
-	Name:  "decode",
-	Usage: "input and decode to run the lotus daemon",
-	Action: func(cctx *cli.Context) error {
-		ctx := ReqContext(cctx)
-		api, closer, err := GetFullNodeAPI(cctx)
-		if err != nil {
-			// local mode
-			for {
-				time.Sleep(1e9)
-				name, sFile, err := auth.InputCryptoUnixStatus(ctx)
-				if err != nil {
-					if !errors.ErrNoData.Equal(err) {
-						return errors.As(err)
-					}
-					fmt.Println("No wallet is waiting input, exit.")
-					return nil
-				}
 
-				fmt.Printf("Please input password for '%s':\n", name)
-				passwd, err := gopass.GetPasswd()
-				if err != nil {
-					return err
-				}
-				if err := auth.WriteCryptoUnixPwd(ctx, sFile, string(passwd)); err != nil {
-					fmt.Println(err.Error())
-					continue
-				}
-				fmt.Println("Decode success!")
-			}
-		}
-		// remote mode
-		defer closer()
-
-		// implement by zhoushuyue
-		var addrs []address.Address
-		decodeDone := make(chan error, 1)
-		go func() {
-			addrs, err = api.WalletList(ctx)
-			decodeDone <- err
-		}()
-	input:
-		for {
-			select {
-			case err := <-decodeDone:
-				if err != nil {
-					return err
-				}
-				break input
-			default:
-				time.Sleep(1e9)
-				name, err := api.InputWalletStatus(ctx)
-				if err != nil {
-					return err
-				}
-				if len(name) == 0 {
-					continue input
-				}
-				fmt.Printf("Please input password for '%s':\n", name)
-				passwd, err := gopass.GetPasswd()
-				if err != nil {
-					return err
-				}
-				if err := api.InputWalletPasswd(ctx, string(passwd)); err != nil {
-					log.Info(err)
-					continue input
-				}
-			}
-		}
-		fmt.Println("All remote wallets decode success, exit.")
-		return nil
-	},
-}
 var walletNew = &cli.Command{
 	Name:      "new",
 	Usage:     "Generate a new key of the given type",
@@ -197,6 +125,11 @@ var walletNew = &cli.Command{
 			Name:  "encode",
 			Value: true,
 			Usage: "encode the private key, it will output the password when done",
+		},
+		&cli.BoolFlag{
+			Name:  "local",
+			Value: false,
+			Usage: "generate private key in local file",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -221,14 +154,43 @@ var walletNew = &cli.Command{
 			passwd = string(pwd)
 		}
 
-		nk, err := api.WalletNew(ctx, types.KeyType(t), passwd)
-		if err != nil {
-			return err
-		}
+		typ := types.KeyType(t)
+		if !cctx.Bool("local") {
+			nk, err := api.WalletNew(ctx, typ, passwd)
+			if err != nil {
+				return err
+			}
 
-		fmt.Println(nk.String())
-		if len(passwd) > 0 {
-			fmt.Printf("Encode password: %s\n", passwd)
+			fmt.Println(nk.String())
+		} else {
+			// by zhoushuyue
+			k, err := wallet.GenerateKey(typ)
+			if err != nil {
+				return err
+			}
+			dsName := wallet.KNamePrefix + k.Address.String()
+			// encode the private key
+			if len(passwd) > 0 {
+				eData, err := auth.EncodeData(dsName, k.KeyInfo.PrivateKey, passwd)
+				if err != nil {
+					return errors.As(err)
+				}
+				k.KeyInfo.PrivateKey = eData
+				k.KeyInfo.DsName = dsName
+				k.KeyInfo.Encrypted = true
+			}
+			keyData, err := json.Marshal(k.KeyInfo)
+			if err != nil {
+				return xerrors.Errorf("encoding key '%s': %w", dsName, err)
+			}
+
+			err = ioutil.WriteFile(k.Address.String()+".dat", []byte(hex.EncodeToString(keyData)), 0600)
+			if err != nil {
+				return xerrors.Errorf("writing key '%s': %w", dsName, err)
+			}
+			// end by zhoushuyue
+
+			fmt.Println(k.Address.String())
 		}
 
 		return nil
@@ -236,8 +198,9 @@ var walletNew = &cli.Command{
 }
 
 var walletList = &cli.Command{
-	Name:  "list",
-	Usage: "List wallet address",
+	Name:    "list",
+	Aliases: []string{"decode"},
+	Usage:   "List wallet address",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:    "addr-only",
@@ -256,12 +219,42 @@ var walletList = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		ctx := ReqContext(cctx)
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
-			return err
+			closer = nil
+
+			// local mode
+			for {
+				time.Sleep(1e9)
+				name, sFile, err := auth.InputCryptoUnixStatus(ctx)
+				if err != nil {
+					if !errors.ErrNoData.Equal(err) {
+						return errors.As(err)
+					}
+					break
+				}
+
+				fmt.Printf("Please input password for '%s':\n", name)
+				passwd, err := gopass.GetPasswd()
+				if err != nil {
+					return err
+				}
+				if err := auth.WriteCryptoUnixPwd(ctx, sFile, string(passwd)); err != nil {
+					fmt.Println(err.Error())
+					continue
+				}
+				fmt.Println("Decode success!")
+			}
+		}
+		if closer == nil {
+			api, closer, err = GetFullNodeAPI(cctx)
+			if err != nil {
+				fmt.Println("No local wallets are waiting input, exit.")
+				return nil
+			}
 		}
 		defer closer()
-		ctx := ReqContext(cctx)
 
 		// implement by zhoushuyue
 		var addrs []address.Address
