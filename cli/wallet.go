@@ -20,6 +20,7 @@ import (
 	"github.com/filecoin-project/go-state-types/crypto"
 
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
 	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/gwaylib/errors"
@@ -125,6 +126,11 @@ var walletNew = &cli.Command{
 			Value: true,
 			Usage: "encode the private key, it will output the password when done",
 		},
+		&cli.BoolFlag{
+			Name:  "local",
+			Value: false,
+			Usage: "generate private key in local file",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
@@ -148,14 +154,43 @@ var walletNew = &cli.Command{
 			passwd = string(pwd)
 		}
 
-		nk, err := api.WalletNew(ctx, types.KeyType(t), passwd)
-		if err != nil {
-			return err
-		}
+		typ := types.KeyType(t)
+		if !cctx.Bool("local") {
+			nk, err := api.WalletNew(ctx, typ, passwd)
+			if err != nil {
+				return err
+			}
 
-		fmt.Println(nk.String())
-		if len(passwd) > 0 {
-			fmt.Printf("Encode password: %s\n", passwd)
+			fmt.Println(nk.String())
+		} else {
+			// by zhoushuyue
+			k, err := wallet.GenerateKey(typ)
+			if err != nil {
+				return err
+			}
+			dsName := wallet.KNamePrefix + k.Address.String()
+			// encode the private key
+			if len(passwd) > 0 {
+				eData, err := auth.EncodeData(dsName, k.KeyInfo.PrivateKey, passwd)
+				if err != nil {
+					return errors.As(err)
+				}
+				k.KeyInfo.PrivateKey = eData
+				k.KeyInfo.DsName = dsName
+				k.KeyInfo.Encrypted = true
+			}
+			keyData, err := json.Marshal(k.KeyInfo)
+			if err != nil {
+				return xerrors.Errorf("encoding key '%s': %w", dsName, err)
+			}
+
+			err = ioutil.WriteFile(k.Address.String()+".dat", []byte(hex.EncodeToString(keyData)), 0600)
+			if err != nil {
+				return xerrors.Errorf("writing key '%s': %w", dsName, err)
+			}
+			// end by zhoushuyue
+
+			fmt.Println(k.Address.String())
 		}
 
 		return nil
