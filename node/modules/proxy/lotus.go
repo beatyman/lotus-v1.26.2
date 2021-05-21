@@ -223,7 +223,7 @@ func changeLotusNode(idx int) error {
 			// close the connection and let the client do reconnect.
 			bestLotusNode.CloseAll()
 		} else {
-			return errors.New("node not changed")
+			return errors.New("no change")
 		}
 	}
 	log.Infof("change lotus node: idx:%d, addr:%s", idx, lotusNodes[idx].apiInfo.Addr)
