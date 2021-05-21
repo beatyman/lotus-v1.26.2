@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/hex"
 	"time"
 
 	"github.com/filecoin-project/specs-storage/storage"
@@ -275,8 +276,6 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInf
 	//	return []builtin.PoStProof{{ProofBytes: []byte("valid proof")}}, nil
 	//}
 
-	log.Infof("Computing WinningPoSt ;%+v; %v", ssi, rand)
-
 	start := build.Clock.Now()
 	repo := ""
 	sm, ok := wpp.prover.(*sectorstorage.Manager)
@@ -308,7 +307,6 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInf
 			SealedCID: s.SealedCID,
 		})
 	}
-	// TODO: confirm here need to check the files
 	// check files
 	_, _, bad, err := ffiwrapper.CheckProvable(ctx, rSectors, nil, 6*time.Second)
 	if err != nil {
@@ -317,12 +315,12 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInf
 	if len(bad) > 0 {
 		return nil, xerrors.Errorf("pubSectorToPriv skipped sectors: %+v", bad)
 	}
-	log.Infof("GenerateWinningPoSt checking %s", time.Since(start))
+	checkingTook := time.Since(start)
 
 	proof, err := wpp.prover.GenerateWinningPoSt(ctx, wpp.miner, pSectors, rand)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("GenerateWinningPoSt took %s", time.Since(start))
+	log.Infof("GenerateWinningPoSt check files took %s, PoSt took %s, ssi:%+v, rand:%+v", checkingTook, time.Since(start), ssi, hex.EncodeToString(rand))
 	return proof, nil
 }

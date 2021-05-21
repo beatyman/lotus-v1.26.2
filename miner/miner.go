@@ -347,7 +347,7 @@ func (m *Miner) mine(ctx context.Context) {
 				continue
 			}
 			b = bl.(*types.BlockMsg)
-		case <-build.Clock.After(time.Duration(build.BlockDelaySecs) * time.Second):
+		case <-build.Clock.After(2 * time.Duration(build.BlockDelaySecs) * time.Second):
 			mineCtxCancel()
 			log.Error("mining block failed by timeout, does the wallet undecode?")
 			continue
@@ -400,8 +400,11 @@ func (m *Miner) mine(ctx context.Context) {
 
 			m.minedBlockHeights.Add(blkKey, true)
 
+		loopSubmitBlock:
 			if err := m.api.SyncSubmitBlock(ctx, b); err != nil {
 				log.Errorf("failed to submit newly mined block: %+v", err)
+				time.Sleep(1e9)
+				goto loopSubmitBlock
 			}
 		} else {
 			// Wait until the next epoch, plus the propagation delay, so a new tipset

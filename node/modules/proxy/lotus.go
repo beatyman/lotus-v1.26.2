@@ -213,19 +213,23 @@ func selectBestNode(diff int64) {
 	return
 }
 
-func changeLotusNode(idx int) {
+func changeLotusNode(idx int) error {
 	// no client set
-	if len(lotusNodes)-1 < idx && idx < 0 {
-		return
+	if idx > len(lotusNodes)-1 || idx < 0 {
+		return errors.New("index not found")
 	}
-	if bestLotusNode != nil && bestLotusNode.apiInfo.Addr != lotusNodes[idx].apiInfo.Addr {
-		// close the connection and let the client do reconnect.
-		bestLotusNode.CloseAll()
+	if bestLotusNode != nil {
+		if bestLotusNode.apiInfo.Addr != lotusNodes[idx].apiInfo.Addr {
+			// close the connection and let the client do reconnect.
+			bestLotusNode.CloseAll()
+		} else {
+			return errors.New("node not changed")
+		}
 	}
 	log.Infof("change lotus node: idx:%d, addr:%s", idx, lotusNodes[idx].apiInfo.Addr)
 	bestLotusNode = lotusNodes[idx]
 	bestLotusNode.usedTimes++
-	return
+	return nil
 }
 
 func startLotusProxy(addr string) (string, func() error, error) {
