@@ -252,6 +252,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 		stagedFile, err = createUnsealedPartialFile(maxPieceSize, sector)
 		//拷贝文件
 		if isSectorCc {
+			log.Info("copyFile path ====================", path)
 			isSuccess := CopyFile(unsealedPath, path)
 			if !isSuccess {
 				log.Error("Copy Unsealed File Failt .....")
