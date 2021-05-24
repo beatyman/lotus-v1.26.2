@@ -454,7 +454,7 @@ reAllocate:
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 		w.removeDataLayer(ctx, sector.CachePath())
-		localSectors.WriteMap(task.SectorName(), 31)
+		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerCommitDone)
 		// if local gpu no set, using remotes .
 		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
 			for {

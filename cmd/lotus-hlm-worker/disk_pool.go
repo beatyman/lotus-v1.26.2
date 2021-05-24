@@ -427,7 +427,7 @@ func (dpImpl *diskPoolImpl) NewAllocate(sid string) (SectorState, error) {
 			val := localSectors.ReadMap(sector)
 			cap := assignSectorCap(uint64(dpImpl.ssize))
 			freeCap := assignSectorFreeCap(uint64(dpImpl.ssize))
-			if val < 31 {
+			if val < ffiwrapper.WorkerCommitDone {
 				realUse += cap
 			} else {
 				realUse += freeCap
@@ -444,7 +444,7 @@ func (dpImpl *diskPoolImpl) NewAllocate(sid string) (SectorState, error) {
 			val := localSectors.ReadMap(sector)
 			cap := assignSectorCap(uint64(dpImpl.ssize))
 			freeCap := assignSectorFreeCap(uint64(dpImpl.ssize))
-			if val < 31 {
+			if val < ffiwrapper.WorkerCommitDone {
 				realUse += cap
 			} else {
 				realUse += freeCap
