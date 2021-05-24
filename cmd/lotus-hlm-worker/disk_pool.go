@@ -380,11 +380,11 @@ func assignSectorCap(ssize uint64) uint64 {
 func assignSectorFreeCap(ssize uint64) uint64 {
 	switch ssize {
 	case 64 * GB:
-		return 100 * GB
+		return 220 * GB
 	case 32 * GB:
-		return 50 * GB
+		return 110 * GB
 	case 512 * MB:
-		return 800 * MB
+		return 1600 * MB
 	case 8 * MB:
 		return 20 * MB
 	case 2 * KB:
