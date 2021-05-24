@@ -126,8 +126,7 @@ func LotusProxyChange(idx int) error {
 	if !lotusProxyOn {
 		return errors.New("lotux proxy not on")
 	}
-	changeLotusNode(idx)
-	return nil
+	return changeLotusNode(idx)
 }
 
 // for lotus api connect
