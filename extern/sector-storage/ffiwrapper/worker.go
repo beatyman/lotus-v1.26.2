@@ -1084,7 +1084,6 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		case <-sb.stopping:
 			return
 		case task.ret <- res:
-			log.Infof("Got task ret done:%s", res.TaskID)
 			return
 		}
 	}()
@@ -1131,7 +1130,6 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		log.Infof("worker canceled:%s", taskKey)
 		return SealRes{}, true
 	case r.sealTasks <- task:
-		log.Infof("DEBUG: send task %s to %s done", task.Key(), r.cfg.ID)
 	}
 
 	// wait for the TaskDone called
@@ -1147,7 +1145,6 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		return SealRes{}, true
 	case res := <-resCh:
 		// send the result back to the caller
-		log.Infof("DEBUG: return task:%s", res.TaskID)
 		return res, false
 	}
 }

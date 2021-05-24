@@ -29,7 +29,6 @@ var (
 	inputCryptoPwdName = ""
 	inputCryptoPwdDir  = filepath.Join(os.TempDir(), ".wallet-encode")
 	inputCryptoPwdFile = ""
-	inputCryptoPwdRet  = make(chan error, 1)
 )
 
 func RegisterCryptoCache(key string, value *CryptoData) {
@@ -57,10 +56,6 @@ func InputCryptoPwd(ctx context.Context, pwd string) error {
 	if err := WriteCryptoUnixPwd(ctx, inputCryptoPwdFile, pwd); err != nil {
 		return errors.As(err)
 	}
-	err := <-inputCryptoPwdRet
-	if err != nil {
-		return errors.As(err)
-	}
 	return nil
 }
 func InputCryptoUnixStatus(ctx context.Context) (string, string, error) {
@@ -81,7 +76,9 @@ func InputCryptoUnixStatus(ctx context.Context) (string, string, error) {
 		sFile := filepath.Join(inputCryptoPwdDir, f.Name())
 		name, err := getCryptoUnixStatus(ctx, sFile)
 		if err != nil {
-			log.Warn(errors.As(err))
+			// restart the lotus-daemon when waiting input could happen this.
+			log.Info("Remove file %s by %s", sFile, errors.As(err).Code())
+			os.Remove(sFile)
 			continue
 		}
 		return name, sFile, nil
@@ -141,51 +138,17 @@ func WriteCryptoUnixPwd(ctx context.Context, unixSFile, passwd string) error {
 	if err := WriteSocketTextReq(conn, input); err != nil {
 		return errors.As(err)
 	}
-	return nil
-}
-
-func daemonCryptoPwd(ctx context.Context, ln net.Listener) (string, error) {
-	result := make(chan interface{}, 1)
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				result <- errors.As(err)
-				return
-			}
-			defer conn.Close()
-
-			req, err := ReadSocketTextReq(conn)
-			if err != nil {
-				result <- errors.As(err)
-				return
-			}
-			switch req["Method"] {
-			case "Passwd":
-				result <- req["Passwd"]
-				return
-			default:
-				// output the input name and continue waitting input.
-				if err := WriteSocketSucResp(conn, 200, map[string]interface{}{
-					"Name": inputCryptoPwdName,
-				}); err != nil {
-					result <- errors.As(err)
-					return
-				}
-
-				//	continue
-			}
-		}
-	}()
-	select {
-	case r := <-result:
-		err, ok := r.(errors.Error)
-		if ok {
-			return "", err
-		}
-		return r.(string), nil
-	case <-ctx.Done():
-		return "", errors.New("ctx canceled")
+	resp, err := ReadSocketTextResp(conn)
+	if err != nil {
+		return errors.As(err)
+	}
+	switch resp["Code"].(string) {
+	case "200":
+		return nil
+	case "401":
+		return errors.New("Decode failed")
+	default:
+		return errors.Parse(resp["Err"].(string))
 	}
 }
 
@@ -248,33 +211,49 @@ func DecodeData(ctx context.Context, key string, eData []byte) (*CryptoData, err
 	try := 0
 	for {
 		log.Warnf("Waitting input password for : %s, try: %d", key, try)
-		passwd, err := daemonCryptoPwd(ctx, ln)
+		conn, err := ln.Accept()
 		if err != nil {
 			return nil, errors.As(err)
 		}
-		try++
+		defer conn.Close()
 
-		old := false
-		data, err := MixDecript(eData, passwd)
+		req, err := ReadSocketTextReq(conn)
 		if err != nil {
-			// try the old, if it's success, do a upgrade.
-			data, err = OldMixDecript(eData, passwd)
-			if err != nil {
-				inputCryptoPwdRet <- errors.As(err)
-				continue
-			}
-			// pass
-			old = true
+			return nil, errors.As(err)
 		}
-		log.Infof("Decode %s success, old cert:%t.", key, old)
-		// decode success
-		// response the caller that decode has success.
-		inputCryptoPwdRet <- nil
+		switch req["Method"] {
+		case "Passwd":
+			try++
+			passwd := req["Passwd"]
+			old := false
+			data, err := MixDecript(eData, passwd)
+			if err != nil {
+				// try the old, if it's success, do a upgrade.
+				data, err = OldMixDecript(eData, passwd)
+				if err != nil {
+					WriteSocketErrResp(conn, 401, errors.As(err))
+					continue
+				}
+				// pass
+				old = true
+			}
+			log.Infof("Decode %s success, old cert:%t.", key, old)
+			// decode success
 
-		inputLastPasswd = passwd
-		wData := &CryptoData{Old: old, Passwd: passwd, Data: data}
-		memCryptoCache[key] = wData
-		return wData, nil
+			// response the caller that decode has success.
+			WriteSocketSucResp(conn, 200, nil)
+
+			inputLastPasswd = passwd
+			wData := &CryptoData{Old: old, Passwd: passwd, Data: data}
+			memCryptoCache[key] = wData
+			return wData, nil
+		default:
+			// output the input name and continue waitting input.
+			WriteSocketSucResp(conn, 200, map[string]interface{}{
+				"Name": inputCryptoPwdName,
+			})
+			//	continue
+		}
 	}
 }
 
