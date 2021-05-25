@@ -42,6 +42,7 @@ var actorCmd = &cli.Command{
 		actorControl,
 		actorProposeChangeWorker,
 		actorConfirmChangeWorker,
+		actorCompactAllocatedCmd,
 	},
 }
 
