@@ -419,3 +419,11 @@ func fromV0SectorOnChainInfo(v0 miner0.SectorOnChainInfo) SectorOnChainInfo {
 func fromV0SectorPreCommitOnChainInfo(v0 miner0.SectorPreCommitOnChainInfo) SectorPreCommitOnChainInfo {
 	return (SectorPreCommitOnChainInfo)(v0)
 }
+func (s *state0) GetAllocatedSectors() (*bitfield.BitField, error) {
+	var allocatedSectors bitfield.BitField
+	if err := s.store.Get(s.store.Context(), s.State.AllocatedSectors, &allocatedSectors); err != nil {
+		return nil, err
+	}
+
+	return &allocatedSectors, nil
+}

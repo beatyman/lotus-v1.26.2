@@ -436,3 +436,11 @@ func fromV4SectorPreCommitOnChainInfo(v4 miner4.SectorPreCommitOnChainInfo) Sect
 		VerifiedDealWeight: v4.VerifiedDealWeight,
 	}
 }
+func (s *state4) GetAllocatedSectors() (*bitfield.BitField, error) {
+	var allocatedSectors bitfield.BitField
+	if err := s.store.Get(s.store.Context(), s.State.AllocatedSectors, &allocatedSectors); err != nil {
+		return nil, err
+	}
+
+	return &allocatedSectors, nil
+}
