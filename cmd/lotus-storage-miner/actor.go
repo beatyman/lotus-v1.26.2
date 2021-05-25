@@ -1032,11 +1032,6 @@ var actorCompactAllocatedCmd = &cli.Command{
 			fmt.Println("Pass --really-do-it to actually execute this action")
 			return nil
 		}
-
-		if !cctx.Args().Present() {
-			return fmt.Errorf("must pass address of new owner address")
-		}
-
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
@@ -1075,18 +1070,7 @@ var actorCompactAllocatedCmd = &cli.Command{
 
 		var maskBf bitfield.BitField
 
-		{
-			exclusiveFlags := []string{"mask-last-offset", "mask-upto-n"}
-			hasFlag := false
-			for _, f := range exclusiveFlags {
-				if hasFlag && cctx.IsSet(f) {
-					return xerrors.Errorf("more than one 'mask` flag set")
-				}
-				hasFlag = hasFlag || cctx.IsSet(f)
-			}
-		}
-		switch {
-		case cctx.IsSet("mask-last-offset"):
+		if cctx.IsSet("mask-last-offset") {
 			last, err := allocs.Last()
 			if err != nil {
 				return err
@@ -1106,14 +1090,14 @@ var actorCompactAllocatedCmd = &cli.Command{
 			if err != nil {
 				return xerrors.Errorf("forming bitfield: %w", err)
 			}
-		case cctx.IsSet("mask-upto-n"):
+		} else if cctx.IsSet("mask-upto-n") {
 			n := cctx.Uint64("mask-upto-n")
 			maskBf, err = bitfield.NewFromIter(&rlepluslazy.RunSliceIterator{
 				Runs: []rlepluslazy.Run{{Val: true, Len: n}}})
 			if err != nil {
 				return xerrors.Errorf("forming bitfield: %w", err)
 			}
-		default:
+		} else {
 			return xerrors.Errorf("no 'mask' flags set")
 		}
 
