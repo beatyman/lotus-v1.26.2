@@ -14,8 +14,8 @@ import (
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
+	"github.com/filecoin-project/lotus/chain/wallet/encode"
 	"github.com/filecoin-project/lotus/lib/sigs"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 )
 
 type WalletAPI struct {
@@ -28,10 +28,10 @@ type WalletAPI struct {
 
 // by zhoushuyue
 func (a *WalletAPI) InputWalletStatus(ctx context.Context) (string, error) {
-	return auth.InputCryptoStatus(), nil
+	return encode.InputCryptoStatus(), nil
 }
 func (a *WalletAPI) InputWalletPasswd(ctx context.Context, passwd string) error {
-	return auth.InputCryptoPwd(ctx, passwd)
+	return encode.InputCryptoPwd(ctx, passwd)
 }
 
 // end by zhoushuyue

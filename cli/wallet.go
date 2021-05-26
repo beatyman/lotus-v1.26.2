@@ -21,8 +21,8 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
+	"github.com/filecoin-project/lotus/chain/wallet/encode"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
-	"github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/gwaylib/errors"
 	"github.com/howeyc/gopass"
 )
@@ -56,7 +56,7 @@ var walletGenRootCert = &cli.Command{
 			return fmt.Errorf("must specify path to export")
 		}
 
-		privKey, err := auth.GenRsaKey()
+		privKey, err := encode.GenRsaKey()
 		if err != nil {
 			return err
 		}
@@ -76,7 +76,7 @@ var walletGenPasswd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		passwd := auth.RandPlainText(cctx.Int("len"))
+		passwd := encode.RandPlainText(cctx.Int("len"))
 		fmt.Println(passwd)
 		return nil
 	},
@@ -171,7 +171,7 @@ var walletNew = &cli.Command{
 			dsName := wallet.KNamePrefix + k.Address.String()
 			// encode the private key
 			if len(passwd) > 0 {
-				eData, err := auth.EncodeData(dsName, k.KeyInfo.PrivateKey, passwd)
+				eData, err := encode.EncodeData(dsName, k.KeyInfo.PrivateKey, passwd)
 				if err != nil {
 					return errors.As(err)
 				}
@@ -227,7 +227,7 @@ var walletList = &cli.Command{
 			// local mode
 			for {
 				time.Sleep(1e9)
-				name, sFile, err := auth.InputCryptoUnixStatus(ctx)
+				name, sFile, err := encode.InputCryptoUnixStatus(ctx)
 				if err != nil {
 					if !errors.ErrNoData.Equal(err) {
 						return errors.As(err)
@@ -240,7 +240,7 @@ var walletList = &cli.Command{
 				if err != nil {
 					return err
 				}
-				if err := auth.WriteCryptoUnixPwd(ctx, sFile, string(passwd)); err != nil {
+				if err := encode.WriteCryptoUnixPwd(ctx, sFile, string(passwd)); err != nil {
 					fmt.Println(err.Error())
 					continue
 				}
