@@ -9,7 +9,13 @@ import (
 
 	"github.com/gwaylib/errors"
 	"github.com/urfave/cli/v2"
+
+	"github.com/filecoin-project/lotus/build"
 )
+
+func BuildVersion() string {
+	return build.BuildVersion + build.CurrentCommit
+}
 
 const (
 	_authFile = "auth.dat"
@@ -54,7 +60,7 @@ func main() {
 	app := &cli.App{
 		Name:    "lotus-storage",
 		Usage:   "storage server to replace nfs for lotus",
-		Version: "1.0.0",
+		Version: BuildVersion(),
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:  "storage-root",
