@@ -26,7 +26,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	apitypes "github.com/filecoin-project/lotus/api/types"
 	"github.com/filecoin-project/lotus/build"
-	nauth "github.com/filecoin-project/lotus/node/modules/auth"
+	encode "github.com/filecoin-project/lotus/chain/wallet/encode"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/lp2p"
 )
@@ -230,7 +230,7 @@ func (a *CommonAPI) Version(context.Context) (api.APIVersion, error) {
 		APIVersion: v,
 
 		BlockDelay: build.BlockDelaySecs,
-		Cert:       nauth.RootKeyHash(),
+		Cert:       encode.RootKeyHash(),
 	}, nil
 }
 
