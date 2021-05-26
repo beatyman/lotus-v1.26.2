@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/filecoin-project/go-state-types/crypto"
-	"github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/filecoin-project/lotus/chain/wallet/encode"
 	"github.com/gwaylib/errors"
 )
 
@@ -67,13 +67,13 @@ type KeyInfo struct {
 	// end by zhoushuyue
 }
 
-// need auth.InputCryptPwd if encrypted.
+// need encode.InputCryptPwd if encrypted.
 func (ki *KeyInfo) PlainPrivateKey(ctx context.Context) ([]byte, error) {
 	if !ki.Encrypted {
 		return ki.PrivateKey, nil
 	}
 
-	cData, err := auth.DecodeData(ctx, ki.DsName, ki.PrivateKey)
+	cData, err := encode.DecodeData(ctx, ki.DsName, ki.PrivateKey)
 	if err != nil {
 		return nil, errors.As(err)
 	}

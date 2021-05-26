@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/filecoin-project/lotus/chain/wallet/encode"
 	"github.com/urfave/cli/v2"
 )
 
@@ -28,7 +28,7 @@ var VersionCmd = &cli.Command{
 
 		fmt.Print("Local: ")
 		cli.VersionPrinter(cctx)
-		fmt.Println("Local: root cert " + auth.RootKeyHash())
+		fmt.Println("Local: root cert " + encode.RootKeyHash())
 		return nil
 	},
 }

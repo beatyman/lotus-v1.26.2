@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/filecoin-project/lotus/chain/wallet/encode"
 	"github.com/gwaylib/errors"
 
 	"github.com/filecoin-project/go-address"
@@ -77,7 +77,7 @@ func (w *LocalWallet) WalletEncode(ctx context.Context, addr address.Address, pa
 	}
 
 	dsName := KNamePrefix + addr.String()
-	eData, err := auth.EncodeData(dsName, k.PrivateKey, passwd)
+	eData, err := encode.EncodeData(dsName, k.PrivateKey, passwd)
 	if err != nil {
 		return errors.As(err)
 	}
@@ -108,7 +108,7 @@ func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg 
 	privateKey := ki.PrivateKey
 	if ki.Encrypted {
 		dsName := KNamePrefix + addr.String()
-		cData, err := auth.DecodeData(ctx, dsName, ki.PrivateKey)
+		cData, err := encode.DecodeData(ctx, dsName, ki.PrivateKey)
 		if err != nil {
 			return nil, errors.As(err)
 		}
@@ -140,10 +140,10 @@ func (w *LocalWallet) findKey(ctx context.Context, addr address.Address) (*Key, 
 		return nil, xerrors.Errorf("getting from keystore: %w", err)
 	}
 
-	var cData *auth.CryptoData
+	var cData *encode.CryptoData
 	// Try upgrade the root cert
 	if ki.Encrypted {
-		cData, err = auth.DecodeData(ctx, ki.DsName, ki.PrivateKey)
+		cData, err = encode.DecodeData(ctx, ki.DsName, ki.PrivateKey)
 		if err != nil {
 			return nil, errors.As(err)
 		}
@@ -157,7 +157,7 @@ func (w *LocalWallet) findKey(ctx context.Context, addr address.Address) (*Key, 
 	// upgrade the old cert to the new cert.
 	if cData != nil && cData.Old {
 		dsName := ki.DsName
-		eData, err := auth.EncodeData(dsName, cData.Data, cData.Passwd)
+		eData, err := encode.EncodeData(dsName, cData.Data, cData.Passwd)
 		if err != nil {
 			return nil, errors.As(err)
 		}
@@ -172,8 +172,8 @@ func (w *LocalWallet) findKey(ctx context.Context, addr address.Address) (*Key, 
 			return nil, xerrors.Errorf("saving to keystore: %w", err)
 		}
 		cData.Old = false
-		auth.RegisterCryptoCache(dsName, cData)
-		log.Infof("Upgrade %s cert to %s", dsName, auth.RootKeyHash())
+		encode.RegisterCryptoCache(dsName, cData)
+		log.Infof("Upgrade %s cert to %s", dsName, encode.RootKeyHash())
 	}
 	w.keys[k.Address] = k
 	return k, nil
@@ -331,7 +331,7 @@ func (w *LocalWallet) WalletNew(ctx context.Context, typ types.KeyType, passwd s
 	dsName := KNamePrefix + k.Address.String()
 	// encode the private key
 	if len(passwd) > 0 {
-		eData, err := auth.EncodeData(dsName, k.KeyInfo.PrivateKey, passwd)
+		eData, err := encode.EncodeData(dsName, k.KeyInfo.PrivateKey, passwd)
 		if err != nil {
 			return address.Undef, errors.As(err)
 		}
@@ -405,7 +405,7 @@ func (w *LocalWallet) walletDelete(ctx context.Context, addr address.Address) er
 
 	// by zhoushuyue
 	// delete the decripted cache
-	auth.DeleteCryptoCache(KNamePrefix + k.Address.String())
+	encode.DeleteCryptoCache(KNamePrefix + k.Address.String())
 	// end by zhoushuyue
 
 	return nil
