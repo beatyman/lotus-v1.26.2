@@ -17,7 +17,7 @@
 // 3, 程序解密e2_wallet得到o_wallet到加载链程序内存中
 // 4, 使用内存中的o_wallet进行原消息签名进行发送
 // 5, TODO: 消息安全审计
-package auth
+package encode
 
 import (
 	"crypto/aes"
@@ -29,15 +29,26 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"io"
+	"sync"
 
 	"github.com/filecoin-project/lotus/build"
 	"github.com/gwaylib/errors"
 )
 
 var (
-	// TODO: 发版时需要编译时写入, 以便可以各自指定
-	rootPriv, oldRootPriv = build.GetRootCert()
+	_rootPrivLk             = sync.Mutex{}
+	_rootPriv, _oldRootPriv *build.RootCert
 )
+
+func getRootPriv() (*build.RootCert, *build.RootCert) {
+	_rootPrivLk.Lock()
+	defer _rootPrivLk.Unlock()
+
+	if _rootPriv == nil {
+		_rootPriv, _oldRootPriv = build.GetRootCert()
+	}
+	return _rootPriv, _oldRootPriv
+}
 
 func deriveKey(keySize int, password, salt []byte) []byte {
 	hash := md5.New()
@@ -71,6 +82,7 @@ func split(buf []byte, lim int) [][]byte {
 
 // echo for verifying version of the root's private key
 func RootKeyHash() string {
+	rootPriv, _ := getRootPriv()
 	return rootPriv.Hash
 }
 
@@ -195,6 +207,7 @@ func MixEncript(data []byte, passwd string) ([]byte, error) {
 	if err != nil {
 		return nil, errors.As(err)
 	}
+	rootPriv, _ := getRootPriv()
 	e2Wallet, err := RSAEncript(e1Wallet, &rootPriv.PrivateKey.PublicKey)
 	if err != nil {
 		return nil, errors.As(err)
@@ -203,6 +216,7 @@ func MixEncript(data []byte, passwd string) ([]byte, error) {
 }
 
 func MixDecript(data []byte, passwd string) ([]byte, error) {
+	rootPriv, _ := getRootPriv()
 	e1Wallet, err := RSADecript(data, rootPriv.PrivateKey)
 	if err != nil {
 		return nil, errors.As(err)
@@ -218,6 +232,7 @@ func MixDecript(data []byte, passwd string) ([]byte, error) {
 }
 
 func OldMixDecript(data []byte, passwd string) ([]byte, error) {
+	_, oldRootPriv := getRootPriv()
 	if oldRootPriv == nil {
 		return nil, errors.New("no old root private key")
 	}
