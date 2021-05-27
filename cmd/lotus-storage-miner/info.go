@@ -174,19 +174,25 @@ func infoCmdAct(cctx *cli.Context) error {
 
 			fmt.Print("Expected block win rate: ")
 			color.Blue("%.4f/day (every %s)", winPerDay, winRate.Truncate(time.Second))
+
+			statisWin, err := nodeApi.StatisWin(ctx, time.Now().UTC().Format("20060102"))
+			if err != nil {
+				fmt.Printf("Statis Win %s\n", errors.As(err).Code())
+			} else {
+				fmt.Printf("Statis Win %s, times:%d, err:%d, win:%d, expect:%d, suc:%d, lost:%d\n",
+					statisWin.Id, statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
+					int(time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs)*winRate)),
+					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
+				)
+				fmt.Printf("Win rate %s, win rate:%d%, all rate:%d%\n",
+					statisWin.Id,
+					statisWin.WinSuc*100/int(time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs)*winRate)),
+					int(winRate)*100,
+				)
+			}
+
 		}
 	}
-
-	statisWin, err := nodeApi.StatisWin(ctx, time.Now().UTC().Format("20060102"))
-	if err != nil {
-		fmt.Printf("Statis Win %s\n", errors.As(err).Code())
-	} else {
-		fmt.Printf("Statis Win %s, times:%d, err:%d, win:%d, suc:%d, lost:%d\n",
-			statisWin.Id, statisWin.WinAll, statisWin.WinErr, statisWin.WinGen, statisWin.WinSuc,
-			statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
-		)
-	}
-
 	fmt.Println()
 
 	deals, err := nodeApi.MarketListIncompleteDeals(ctx)
