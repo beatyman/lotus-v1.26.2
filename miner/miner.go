@@ -328,8 +328,10 @@ func (m *Miner) mine(ctx context.Context) {
 				}
 				block <- err
 			} else {
-				if err := database.AddWinGen(time.Now().UTC().Format("20060102")); err != nil {
-					log.Warn(errors.As(err))
+				if b != nil {
+					if err := database.AddWinGen(time.Now().UTC().Format("20060102")); err != nil {
+						log.Warn(errors.As(err))
+					}
 				}
 				block <- b
 			}
