@@ -173,7 +173,7 @@ func infoCmdAct(cctx *cli.Context) error {
 			winPerDay := float64(time.Hour*24) / float64(winRate)
 
 			fmt.Printf("Expected block win rate(%.2f%%): ", expWinChance*100)
-			color.Blue("%.4f times/day (every %s)", winPerDay, winRate.Truncate(time.Second))
+			color.Blue("%.4f blocks/day (every %s)", winPerDay, winRate.Truncate(time.Second))
 
 			now := time.Unix(int64(head.MinTimestamp()), 0)
 			statisWin, err := nodeApi.StatisWin(ctx, now.Format("20060102"))
@@ -186,7 +186,7 @@ func infoCmdAct(cctx *cli.Context) error {
 					rounds = time.Duration(head.Height())
 				}
 				expectNum := float64(rounds) * expWinChance
-				fmt.Printf("Statis Win %s(UTC), drew:%d, err:%d, won:%d, suc:%d, lost:%d",
+				fmt.Printf("Statis Win %s(UTC), drew:%d, err:%d, won:%d, suc:%d, lost:%d\n",
 					statisWin.Id, statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
 					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
 				)
