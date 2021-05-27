@@ -190,7 +190,7 @@ func infoCmdAct(cctx *cli.Context) error {
 					statisWin.Id, statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
 					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
 				)
-				fmt.Printf("WinRate %s(UTC), suc:%d/%.0f(%.2f%%)\n",
+				fmt.Printf("Win   Rate %s(UTC), suc:%d, expect:%.0f, suc rate:%.2f%%\n",
 					statisWin.Id,
 					statisWin.WinSuc, expectNum,
 					float64(statisWin.WinSuc*100)/expectNum,
