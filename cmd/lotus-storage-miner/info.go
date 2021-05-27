@@ -182,7 +182,7 @@ func infoCmdAct(cctx *cli.Context) error {
 			} else {
 				beginDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 				rounds := time.Now().Sub(beginDay) / (time.Second * time.Duration(build.BlockDelaySecs))
-				if rounds < time.Duration(head.Height()) {
+				if rounds > time.Duration(head.Height()) {
 					rounds = time.Duration(head.Height())
 				}
 				expectNum := float64(rounds) * expWinChance
