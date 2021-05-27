@@ -181,18 +181,18 @@ func infoCmdAct(cctx *cli.Context) error {
 				fmt.Printf("Statis Win %s\n", errors.As(err).Code())
 			} else {
 				beginDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-				allNum := time.Now().Sub(beginDay) / (time.Second * time.Duration(build.BlockDelaySecs))
-				if allNum < time.Duration(head.Height()) {
-					allNum = time.Duration(head.Height())
+				rounds := time.Now().Sub(beginDay) / (time.Second * time.Duration(build.BlockDelaySecs))
+				if rounds < time.Duration(head.Height()) {
+					rounds = time.Duration(head.Height())
 				}
-				expectNum := float64(allNum) * expWinChance
-				fmt.Printf("Statis Win %s, drew:%d, err:%d, won:%d, suc:%d, lost:%d, expect won:%.0f\n",
+				expectNum := float64(rounds) * expWinChance
+				fmt.Printf("Statis Win %s(UTC), drew:%d, err:%d, won:%d, suc:%d, lost:%d",
 					statisWin.Id, statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
-					expectNum,
 					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
 				)
-				fmt.Printf("Cur WinRate %s, suc:%.2f%%\n",
+				fmt.Printf("WinRate %s(UTC), suc:%d/%.0f(%.2f%%)\n",
 					statisWin.Id,
+					statisWin.WinSuc, expectNum,
 					float64(statisWin.WinSuc*100)/expectNum,
 				)
 			}
