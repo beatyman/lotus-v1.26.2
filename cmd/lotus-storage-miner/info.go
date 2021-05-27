@@ -172,23 +172,28 @@ func infoCmdAct(cctx *cli.Context) error {
 			winRate := time.Duration(float64(time.Second*time.Duration(build.BlockDelaySecs)) / expWinChance)
 			winPerDay := float64(time.Hour*24) / float64(winRate)
 
-			fmt.Print("Expected block win rate: ")
-			color.Blue("%.4f/day (every %s)", winPerDay, winRate.Truncate(time.Second))
+			fmt.Printf("Expected block win rate(%.2f%%): ", expWinChance*100)
+			color.Blue("%.4f times/day (every %s)", winPerDay, winRate.Truncate(time.Second))
 
-			statisWin, err := nodeApi.StatisWin(ctx, time.Now().UTC().Format("20060102"))
+			now := time.Unix(int64(head.MinTimestamp()), 0)
+			statisWin, err := nodeApi.StatisWin(ctx, now.Format("20060102"))
 			if err != nil {
 				fmt.Printf("Statis Win %s\n", errors.As(err).Code())
 			} else {
-				expectNum := int(time.Hour * 24 / (time.Second * time.Duration(build.BlockDelaySecs)) * winRate)
-				fmt.Printf("Statis Win %s, times:%d, err:%d, win:%d, expect:%d, suc:%d, lost:%d\n",
+				beginDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+				allNum := time.Now().Sub(beginDay) / (time.Second * time.Duration(build.BlockDelaySecs))
+				if allNum < time.Duration(head.Height()) {
+					allNum = time.Duration(head.Height())
+				}
+				expectNum := float64(allNum) * expWinChance
+				fmt.Printf("Statis Win %s, drew:%d, err:%d, won:%d, suc:%d, lost:%d, expect won:%.0f\n",
 					statisWin.Id, statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
 					expectNum,
 					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
 				)
-				fmt.Printf("Win rate %s, win rate:%d%, all rate:%d%\n",
+				fmt.Printf("Cur WinRate %s, suc:%.2f%%\n",
 					statisWin.Id,
-					statisWin.WinSuc*100/expectNum,
-					int(winRate)*100,
+					float64(statisWin.WinSuc*100)/expectNum,
 				)
 			}
 
