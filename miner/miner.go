@@ -262,7 +262,10 @@ func (m *Miner) mine(ctx context.Context) {
 			base := prebase
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			now := time.Now()
-			delay := (time.Duration(build.PropagationDelaySecs*5/2) * time.Second) - now.Sub(nextRound)
+			// 3/2 = 1.5
+			// 5/2 = 2.5
+			// 7/2 = 3.5
+			delay := (time.Duration(build.PropagationDelaySecs*7/2) * time.Second) - now.Sub(nextRound)
 			log.Infof("Waiting PropagationDelay time: %s", delay)
 			if delay > 0 && now.Sub(nextRound) > 0 {
 				time.Sleep(delay + (time.Second / 2)) // offset 500ms
