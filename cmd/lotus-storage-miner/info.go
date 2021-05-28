@@ -165,15 +165,16 @@ func infoCmdAct(cctx *cli.Context) error {
 		fmt.Print("Below minimum power threshold, no blocks will be won\n")
 	} else {
 		expWinChance := float64(types.BigMul(qpercI, types.NewInt(build.BlocksPerEpoch)).Int64()) / 1000000
+		//expWinChance := float64(qpercI.Int64()) / 1000000
 		if expWinChance > 0 {
 			if expWinChance > 1 {
 				expWinChance = 1
 			}
 			winRate := time.Duration(float64(time.Second*time.Duration(build.BlockDelaySecs)) / expWinChance)
 			winPerDay := float64(time.Hour*24) / float64(winRate)
-
-			fmt.Printf("Expected block win rate(%.2f%%): ", expWinChance*100)
+			fmt.Printf("Expected block win rate(%.4f%%): ", expWinChance*100)
 			color.Blue("%.4f blocks/day (every %s)", winPerDay, winRate.Truncate(time.Second))
+			fmt.Println()
 
 			now := time.Unix(int64(head.MinTimestamp()), 0)
 			statisWin, err := nodeApi.StatisWin(ctx, now.Format("20060102"))
@@ -185,18 +186,25 @@ func infoCmdAct(cctx *cli.Context) error {
 				if rounds > time.Duration(head.Height()) {
 					rounds = time.Duration(head.Height())
 				}
-				expectNum := float64(rounds) * expWinChance
-				fmt.Printf("Statis Win %s(UTC), drew:%d, err:%d, won:%d, suc:%d, lost:%d\n",
-					statisWin.Id, statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
-					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
-				)
-				fmt.Printf("Win   Rate %s(UTC), suc:%d, expect:%.0f, suc rate:%.2f%%\n",
+				expectNum := int(float64(rounds) * expWinChance)
+				fmt.Printf(
+					`Statis Win %s(UTC): 
+	expect day:  rounds:%d, win:%d 
+	expect cur:  rounds:%d, win:%d 
+	actual run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d
+	actual rate: draw rate:%.2f%%, win rate:%.2f%%, suc rate:%.2f%%
+`,
 					statisWin.Id,
-					statisWin.WinSuc, expectNum,
-					float64(statisWin.WinSuc*100)/expectNum,
+
+					time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs)), statisWin.WinExp,
+					rounds, expectNum,
+
+					statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
+					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
+
+					float64(statisWin.WinAll*100)/float64(rounds), float64(statisWin.WinGen*100)/float64(expectNum), float64(statisWin.WinSuc*100)/float64(expectNum),
 				)
 			}
-
 		}
 	}
 	fmt.Println()
