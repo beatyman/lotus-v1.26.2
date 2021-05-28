@@ -172,9 +172,9 @@ func infoCmdAct(cctx *cli.Context) error {
 			}
 			winRate := time.Duration(float64(time.Second*time.Duration(build.BlockDelaySecs)) / expWinChance)
 			winPerDay := float64(time.Hour*24) / float64(winRate)
-
 			fmt.Printf("Expected block win rate(%.4f%%): ", expWinChance*100)
 			color.Blue("%.4f blocks/day (every %s)", winPerDay, winRate.Truncate(time.Second))
+			fmt.Println()
 
 			now := time.Unix(int64(head.MinTimestamp()), 0)
 			statisWin, err := nodeApi.StatisWin(ctx, now.Format("20060102"))
@@ -187,19 +187,28 @@ func infoCmdAct(cctx *cli.Context) error {
 					rounds = time.Duration(head.Height())
 				}
 				expectNum := int(float64(rounds) * expWinChance)
-				fmt.Printf("Statis Win %s(UTC), rounds:%d, expectwon:%d; drew:%d, err:%d, won:%d, suc:%d, lost:%d\n",
-					statisWin.Id, rounds, expectNum,
+				fmt.Printf(
+					`Statis Win %s(UTC): 
+	expect day:  rounds:%d, win:%d 
+	expect cur:  rounds:%d, win:%d 
+	really run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d
+`,
+					statisWin.Id,
+					int(float64(time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs)))*expWinChance), statisWin.WinExp,
+					rounds, expectNum,
 					statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
 					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
 				)
-				fmt.Printf("Win   Rate %s(UTC), drew rate:%.2f%%, won rate:%.2f%%, suc rate:%.2f%%\n",
+				fmt.Printf(
+					`Rate   Win %s(UTC):
+	draw rate:%.2f%%, win rate:%.2f%%, suc rate:%.2f%%
+`,
 					statisWin.Id,
 					float64(statisWin.WinAll*100)/float64(rounds),
 					float64(statisWin.WinGen*100)/float64(expectNum),
 					float64(statisWin.WinSuc*100)/float64(expectNum),
 				)
 			}
-
 		}
 	}
 	fmt.Println()

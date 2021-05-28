@@ -318,9 +318,6 @@ func (m *Miner) mine(ctx context.Context) {
 		block := make(chan interface{}, 1)
 		mineCtx, mineCtxCancel := context.WithCancel(ctx)
 		go func() {
-			if err := database.AddWinTimes(time.Now().UTC().Format("20060102")); err != nil {
-				log.Warn(errors.As(err))
-			}
 			b, err := m.mineOne(mineCtx, &oldbase, &lastBase)
 			if err != nil {
 				if err := database.AddWinErr(time.Now().UTC().Format("20060102")); err != nil {
@@ -500,6 +497,21 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
+
+	// log mineOne statis
+	expNum := 0
+	if mbi != nil {
+		qpercI := types.BigDiv(types.BigMul(mbi.MinerPower, types.NewInt(1000000)), mbi.NetworkPower)
+		expWinChance := float64(types.BigMul(qpercI, types.NewInt(build.BlocksPerEpoch)).Int64()) / 1000000
+		if expWinChance > 1 {
+			expWinChance = 1
+		}
+		expNum = int(float64(time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs))) * expWinChance)
+	}
+	if err := database.AddWinTimes(time.Now().UTC().Format("20060102"), expNum); err != nil {
+		log.Warn(errors.As(err))
+	}
+
 	if mbi == nil {
 		log.Infof("No MiningBaseInfo for round %d, off tipset %d/%s", round, base.TipSet.Height(), base.TipSet.Key().String())
 		return nil, nil
