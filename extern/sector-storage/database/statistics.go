@@ -12,24 +12,25 @@ type StatisWin struct {
 	WinErr int
 	WinGen int
 	WinSuc int
+	WinExp int
 }
 
-func AddWinTimes(id string) error {
+func AddWinTimes(id string, exp int) error {
 	mdb := GetDB()
-	result, err := mdb.Exec("UPDATE statis_win SET win_all=win_all+1 WHERE id=?", id)
+	result, err := mdb.Exec("UPDATE statis_win SET win_all=win_all+1,win_exp=? WHERE id=?", exp, id)
 	if err != nil {
-		return errors.As(err, id)
+		return errors.As(err, id, exp)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return errors.As(err, id)
+		return errors.As(err, id, exp)
 	}
 	if affected > 0 {
 		return nil
 	}
 
 	// row not exist, make a new record.
-	if _, err := mdb.Exec("INSERT INTO statis_win(id,win_all)VALUES(?,?)", id, 1); err != nil {
+	if _, err := mdb.Exec("INSERT INTO statis_win(id,win_all,win_exp)VALUES(?,?,?)", id, 1, exp); err != nil {
 		return errors.As(err, id)
 	}
 	return nil
@@ -59,7 +60,7 @@ func AddWinSuc(id string) error {
 func GetStatisWin(id string) (*StatisWin, error) {
 	s := &StatisWin{Id: id}
 	mdb := GetDB()
-	if err := mdb.QueryRow("SELECT win_all, win_err, win_gen, win_suc FROM statis_win WHERE id=?", id).Scan(&s.WinAll, &s.WinErr, &s.WinGen, &s.WinSuc); err != nil {
+	if err := mdb.QueryRow("SELECT win_all, win_err, win_gen, win_suc, win_exp FROM statis_win WHERE id=?", id).Scan(&s.WinAll, &s.WinErr, &s.WinGen, &s.WinSuc, &s.WinExp); err != nil {
 		if err != sql.ErrNoRows {
 			return s, err
 		}
