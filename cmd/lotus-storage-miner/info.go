@@ -191,22 +191,18 @@ func infoCmdAct(cctx *cli.Context) error {
 					`Statis Win %s(UTC): 
 	expect day:  rounds:%d, win:%d 
 	expect cur:  rounds:%d, win:%d 
-	really run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d
+	actual run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d
+	actual rate: draw rate:%.2f%%, win rate:%.2f%%, suc rate:%.2f%%
 `,
 					statisWin.Id,
-					int(float64(time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs)))*expWinChance), statisWin.WinExp,
+
+					time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs)), statisWin.WinExp,
 					rounds, expectNum,
+
 					statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
 					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
-				)
-				fmt.Printf(
-					`Rate   Win %s(UTC):
-	draw rate:%.2f%%, win rate:%.2f%%, suc rate:%.2f%%
-`,
-					statisWin.Id,
-					float64(statisWin.WinAll*100)/float64(rounds),
-					float64(statisWin.WinGen*100)/float64(expectNum),
-					float64(statisWin.WinSuc*100)/float64(expectNum),
+
+					float64(statisWin.WinAll*100)/float64(rounds), float64(statisWin.WinGen*100)/float64(expectNum), float64(statisWin.WinSuc*100)/float64(expectNum),
 				)
 			}
 		}
