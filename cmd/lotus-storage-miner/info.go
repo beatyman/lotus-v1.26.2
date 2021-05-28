@@ -187,12 +187,17 @@ func infoCmdAct(cctx *cli.Context) error {
 					rounds = time.Duration(head.Height())
 				}
 				expectNum := int(float64(rounds) * expWinChance)
+				avgUsed := time.Duration(0)
+				if statisWin.WinGen > 0 {
+					avgUsed = time.Duration(statisWin.WinUsed / int64(statisWin.WinGen))
+				}
 				fmt.Printf(
 					`Statis Win %s(UTC): 
 	expect day:  rounds:%d, win:%d 
 	expect cur:  rounds:%d, win:%d 
-	actual run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d
+	actual run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d,
 	actual rate: draw rate:%.2f%%, win rate:%.2f%%, suc rate:%.2f%%
+	average win took: %s
 `,
 					statisWin.Id,
 
@@ -203,6 +208,8 @@ func infoCmdAct(cctx *cli.Context) error {
 					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
 
 					float64(statisWin.WinAll*100)/float64(rounds), float64(statisWin.WinGen*100)/float64(expectNum), float64(statisWin.WinSuc*100)/float64(expectNum),
+
+					avgUsed,
 				)
 			}
 		}
