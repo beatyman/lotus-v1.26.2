@@ -19,7 +19,7 @@ type StatisWin struct {
 
 func AddWinTimes(id string, exp int) error {
 	mdb := GetDB()
-	result, err := mdb.Exec("UPDATE statis_win SET win_all=win_all+1,win_exp=? WHERE id=?", exp, id)
+	result, err := mdb.Exec("UPDATE statis_win SET updated_at=NOW(),win_all=win_all+1,win_exp=? WHERE id=?", exp, id)
 	if err != nil {
 		return errors.As(err, id, exp)
 	}

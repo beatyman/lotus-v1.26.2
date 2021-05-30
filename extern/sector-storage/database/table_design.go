@@ -84,12 +84,12 @@ CREATE TABLE IF NOT EXISTS statis_win (
 	id TEXT NOT NULL PRIMARY KEY, /*20210517*/
 	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
-	win_all INTEGER NOT NULL DEFAULT 0,
-	win_err INTEGER NOT NULL DEFAULT 0,
-	win_gen INTEGER NOT NULL DEFAULT 0,
-	win_suc INTEGER NOT NULL DEFAULT 0,
-	win_exp INTEGER NOT NULL DEFAULT 0,
-	win_used INTEGER NOT NULL DEFAULT 0 /* unit: millisecond*/
+	win_all INTEGER NOT NULL DEFAULT 0, /*触发调用mineOne的次数，正常运行的情况下等于轮数*/
+	win_err INTEGER NOT NULL DEFAULT 0, /*调用mineOne不成功的次数*/
+	win_gen INTEGER NOT NULL DEFAULT 0, /*本地中奖的次数*/
+	win_suc INTEGER NOT NULL DEFAULT 0, /*成功成为TipSet*/
+	win_exp INTEGER NOT NULL DEFAULT 0, /*预期可中奖次数，等于天总轮数(固定值)乘以概率值*/
+	win_used INTEGER NOT NULL DEFAULT 0 /*本地计算中奖的用时，单位为毫秒，除以win_gen可得到平均用时*/
 );
 `
 )
