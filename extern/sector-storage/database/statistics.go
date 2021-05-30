@@ -19,7 +19,8 @@ type StatisWin struct {
 
 func AddWinTimes(id string, exp int) error {
 	mdb := GetDB()
-	result, err := mdb.Exec("UPDATE statis_win SET updated_at=NOW(),win_all=win_all+1,win_exp=? WHERE id=?", exp, id)
+	now := time.Now()
+	result, err := mdb.Exec("UPDATE statis_win SET updated_at=?,win_all=win_all+1,win_exp=? WHERE id=?", now, exp, id)
 	if err != nil {
 		return errors.As(err, id, exp)
 	}
@@ -32,7 +33,7 @@ func AddWinTimes(id string, exp int) error {
 	}
 
 	// row not exist, make a new record.
-	if _, err := mdb.Exec("INSERT INTO statis_win(id,win_all,win_exp)VALUES(?,?,?)", id, 1, exp); err != nil {
+	if _, err := mdb.Exec("INSERT INTO statis_win(id,created_at,updated_at,win_all,win_exp)VALUES(?,?,?,?,?)", id, now, now, 1, exp); err != nil {
 		return errors.As(err, id)
 	}
 	return nil
