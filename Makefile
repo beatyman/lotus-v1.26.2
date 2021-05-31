@@ -246,7 +246,7 @@ BINS+=leveldb-tools
 
 lotus-storage:
 	rm -f lotus-storage
-	go build -o lotus-storage ./cmd/lotus-storage
+	go build $(GOFLAGS) -o lotus-storage ./cmd/lotus-storage
 .PHONY: lotus-storage
 BINS+=lotus-storage
 

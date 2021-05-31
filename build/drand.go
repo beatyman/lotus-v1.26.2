@@ -32,6 +32,7 @@ const (
 var DrandConfigs = map[DrandEnum]dtypes.DrandConfig{
 	DrandMainnet: {
 		Servers: []string{
+			"https://drand.lib10.cn",
 			"https://api.drand.sh",
 			"https://api2.drand.sh",
 			"https://api3.drand.sh",
