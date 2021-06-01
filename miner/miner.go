@@ -253,7 +253,7 @@ func (m *Miner) mine(ctx context.Context) {
 				if blk.Miner.String() != m.address.String() {
 					continue
 				}
-				if err := database.AddWinSuc(time.Unix(int64(blk.Timestamp), 0).UTC().Format("20060102")); err != nil {
+				if err := database.AddWinSuc(time.Unix(int64(blk.Timestamp), 0)); err != nil {
 					log.Error(errors.As(err))
 				}
 				break
@@ -321,16 +321,15 @@ func (m *Miner) mine(ctx context.Context) {
 		block := make(chan interface{}, 1)
 		mineCtx, mineCtxCancel := context.WithCancel(ctx)
 		go func() {
-			collectionTime := nextRound.UTC().Format("20060102")
 			took, b, err := m.mineOne(mineCtx, &oldbase, &lastBase, nextRound)
 			if err != nil {
-				if err := database.AddWinErr(collectionTime); err != nil {
+				if err := database.AddWinErr(nextRound); err != nil {
 					log.Warn(errors.As(err))
 				}
 				block <- err
 			} else {
 				if b != nil {
-					if err := database.AddWinGen(collectionTime, took); err != nil {
+					if err := database.AddWinGen(nextRound, took); err != nil {
 						log.Warn(errors.As(err))
 					}
 				}
@@ -512,7 +511,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		}
 		expNum = int(float64(time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs))) * expWinChance)
 	}
-	if err := database.AddWinTimes(submitTime.UTC().Format("20060102"), expNum); err != nil {
+	if err := database.AddWinTimes(submitTime, expNum); err != nil {
 		log.Warn(errors.As(err))
 	}
 

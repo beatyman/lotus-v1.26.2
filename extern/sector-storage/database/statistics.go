@@ -17,9 +17,10 @@ type StatisWin struct {
 	WinUsed int64
 }
 
-func AddWinTimes(id string, exp int) error {
+func AddWinTimes(submitTime time.Time, exp int) error {
 	mdb := GetDB()
-	now := time.Now().UTC()
+	now := submitTime.UTC()
+	id := now.Format("20060102")
 	result, err := mdb.Exec("UPDATE statis_win SET updated_at=?,win_all=win_all+1,win_exp=? WHERE id=?", now, exp, id)
 	if err != nil {
 		return errors.As(err, id, exp)
@@ -38,22 +39,25 @@ func AddWinTimes(id string, exp int) error {
 	}
 	return nil
 }
-func AddWinErr(id string) error {
+func AddWinErr(submitTime time.Time) error {
 	mdb := GetDB()
+	id := submitTime.UTC().Format("20060102")
 	if _, err := mdb.Exec("UPDATE statis_win SET win_err=win_err+1 WHERE id=?", id); err != nil {
 		return errors.As(err, id)
 	}
 	return nil
 }
-func AddWinGen(id string, used time.Duration) error {
+func AddWinGen(submitTime time.Time, used time.Duration) error {
 	mdb := GetDB()
+	id := submitTime.UTC().Format("20060102")
 	if _, err := mdb.Exec("UPDATE statis_win SET win_gen=win_gen+1, win_used=win_used+? WHERE id=?", used, id); err != nil {
 		return errors.As(err, id, used)
 	}
 	return nil
 }
-func AddWinSuc(id string) error {
+func AddWinSuc(submitTime time.Time) error {
 	mdb := GetDB()
+	id := submitTime.UTC().Format("20060102")
 	if _, err := mdb.Exec("UPDATE statis_win SET win_suc=win_suc+1 WHERE id=?", id); err != nil {
 		return errors.As(err, id)
 	}
