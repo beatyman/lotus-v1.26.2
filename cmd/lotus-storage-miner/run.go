@@ -94,26 +94,6 @@ var runCmd = &cli.Command{
 		// init storage database
 		// TODO: already implement in init.go, so remove this checking in running?
 		database.InitDB(minerRepoPath)
-		log.Info("Mount all storage")
-		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
-			return errors.As(err)
-		}
-		// mount nfs storage node
-		if err := database.MountAllStorage(false); err != nil {
-			return errors.As(err)
-		}
-		log.Info("Clean storage worker")
-		// clean storage cur_work cause by no worker on starting.
-		if err := database.ClearStorageWork(); err != nil {
-			return errors.As(err)
-		}
-		log.Info("Check sealed")
-		// TODO: Move to window post
-		// checking sealed for proof
-		//if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
-		//	return errors.As(err)
-		//}
-		log.Info("Check done")
 		// implement by hlm end.
 
 		// Register all metric views
@@ -170,6 +150,26 @@ var runCmd = &cli.Command{
 		if !ok {
 			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-miner init' to set it up", minerRepoPath)
 		}
+
+		// init hlm resouce, by zhoushuyue
+		if err := r.IsLocked(); err != nil {
+			return err
+		}
+		log.Info("Mount all storage")
+		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
+			return errors.As(err)
+		}
+		// mount nfs storage node
+		if err := database.MountAllStorage(false); err != nil {
+			return errors.As(err)
+		}
+		log.Info("Clean storage worker")
+		// clean storage cur_work cause by no worker on starting.
+		if err := database.ClearStorageWork(); err != nil {
+			return errors.As(err)
+		}
+		log.Info("Check done")
+		// end by zhoushuyue
 
 		shutdownChan := make(chan struct{})
 
