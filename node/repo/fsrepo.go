@@ -234,7 +234,7 @@ func (fsr *FsRepo) IsLocked() error {
 		return xerrors.Errorf("could not check lock status: %w", err)
 	}
 	if locked {
-		return ErrRepoAlreadyLocked
+		return errors.As(ErrRepoAlreadyLocked).As(fsr.path)
 	}
 	return nil
 }
