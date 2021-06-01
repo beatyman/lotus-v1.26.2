@@ -176,13 +176,13 @@ func infoCmdAct(cctx *cli.Context) error {
 			color.Blue("%.4f blocks/day (every %s)", winPerDay, winRate.Truncate(time.Second))
 			fmt.Println()
 
-			now := time.Unix(int64(head.MinTimestamp()), 0)
+			now := time.Unix(int64(head.MinTimestamp()), 0).UTC()
 			statisWin, err := nodeApi.StatisWin(ctx, now.Format("20060102"))
 			if err != nil {
 				fmt.Printf("Statis Win %s\n", errors.As(err).Code())
 			} else {
 				beginDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-				rounds := time.Now().Sub(beginDay) / (time.Second * time.Duration(build.BlockDelaySecs))
+				rounds := now.Sub(beginDay) / (time.Second * time.Duration(build.BlockDelaySecs))
 				if rounds > time.Duration(head.Height()) {
 					rounds = time.Duration(head.Height())
 				}
