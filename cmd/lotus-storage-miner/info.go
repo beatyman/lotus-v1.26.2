@@ -176,16 +176,22 @@ func infoCmdAct(cctx *cli.Context) error {
 			color.Blue("%.4f blocks/day (every %s)", winPerDay, winRate.Truncate(time.Second))
 			fmt.Println()
 
+			limit := 7
 			now := time.Unix(int64(head.MinTimestamp()), 0).UTC()
-			statisWin, err := nodeApi.StatisWin(ctx, now.Format("20060102"))
+			statisWins, err := nodeApi.StatisWins(ctx, now, limit)
 			if err != nil {
 				fmt.Printf("Statis Win %s\n", errors.As(err).Code())
+			} else if len(statisWins) == 0 {
+				fmt.Printf("Statis Win %s\n", "No data found")
 			} else {
+				// for current
+				statisWin := statisWins[0]
 				beginDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 				rounds := now.Sub(beginDay) / (time.Second * time.Duration(build.BlockDelaySecs))
 				if rounds > time.Duration(head.Height()) {
 					rounds = time.Duration(head.Height())
 				}
+				expDayRounds := int(time.Hour * 24 / (time.Second * time.Duration(build.BlockDelaySecs)))
 				expectNum := int(float64(rounds) * expWinChance)
 				avgUsed := time.Duration(0)
 				if statisWin.WinGen > 0 {
@@ -201,7 +207,7 @@ func infoCmdAct(cctx *cli.Context) error {
 `,
 					statisWin.Id,
 
-					time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs)), statisWin.WinExp,
+					expDayRounds, statisWin.WinExp,
 					rounds, expectNum,
 
 					statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
@@ -210,6 +216,32 @@ func infoCmdAct(cctx *cli.Context) error {
 					float64(statisWin.WinAll*100)/float64(rounds), float64(statisWin.WinGen*100)/float64(expectNum), float64(statisWin.WinSuc*100)/float64(expectNum),
 
 					avgUsed,
+				)
+
+				// sum for limit day
+				sumExpRounds := expDayRounds * limit
+				sumExpWin := 0
+				sumDraw := 0
+				sumErr := 0
+				sumWin := 0
+				sumSuc := 0
+				for _, w := range statisWins {
+					sumExpWin += w.WinExp
+					sumDraw += w.WinAll
+					sumErr += w.WinErr
+					sumWin += w.WinGen
+					sumSuc += w.WinSuc
+				}
+				fmt.Printf(
+					`Statis %d days win:
+	expect day:  rounds:%d, win:%d 
+	actual run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d,
+	actual rate: draw rate:%.2f%%, win rate:%.2f%%, suc rate:%.2f%%
+`,
+					len(statisWins),
+					sumExpRounds, sumExpWin,
+					sumDraw, sumErr, sumWin, sumSuc, sumErr+sumWin-sumSuc,
+					float64(sumDraw*100)/float64(sumExpRounds), float64(sumWin*100)/float64(sumExpWin), float64(sumSuc*100)/float64(sumExpWin),
 				)
 			}
 		}

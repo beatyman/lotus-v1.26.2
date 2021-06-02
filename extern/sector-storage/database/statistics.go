@@ -76,3 +76,22 @@ func GetStatisWin(id string) (*StatisWin, error) {
 	}
 	return s, nil
 }
+func GetStatisWins(now time.Time, limit int) ([]StatisWin, error) {
+	mdb := GetDB()
+	rows, err := mdb.Query("SELECT id, win_all, win_err, win_gen, win_suc, win_exp, win_used FROM statis_win WHERE id<? limit ?", now.UTC().Format("20060102"), limit)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	defer rows.Close()
+	result := []StatisWin{}
+	for rows.Next() {
+		s := StatisWin{}
+		if err := rows.Scan(
+			&s.Id, &s.WinAll, &s.WinErr, &s.WinGen, &s.WinSuc, &s.WinExp, &s.WinUsed,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, s)
+	}
+	return result, nil
+}
