@@ -78,7 +78,8 @@ func GetStatisWin(id string) (*StatisWin, error) {
 }
 func GetStatisWins(now time.Time, limit int) ([]StatisWin, error) {
 	mdb := GetDB()
-	rows, err := mdb.Query("SELECT id, win_all, win_err, win_gen, win_suc, win_exp, win_used FROM statis_win WHERE id<? limit ?", now.UTC().Format("20060102"), limit)
+	maxId := now.Add(24 * time.Hour).UTC().Format("20060102")
+	rows, err := mdb.Query("SELECT id, win_all, win_err, win_gen, win_suc, win_exp, win_used FROM statis_win WHERE id<? ORDER BY id DESC limit ?", maxId, limit)
 	if err != nil {
 		return nil, errors.As(err)
 	}
