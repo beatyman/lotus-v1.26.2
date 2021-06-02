@@ -219,7 +219,7 @@ func infoCmdAct(cctx *cli.Context) error {
 				)
 
 				// sum for limit day
-				sumExpRounds := expDayRounds * limit
+				sumExpRounds := expDayRounds * len(statisWins)
 				sumExpWin := 0
 				sumDraw := 0
 				sumErr := 0
@@ -234,7 +234,7 @@ func infoCmdAct(cctx *cli.Context) error {
 				}
 				fmt.Printf(
 					`Statis %d days win:
-	expect day:  rounds:%d, win:%d 
+	expect all:  rounds:%d, win:%d 
 	actual run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d,
 	actual rate: draw rate:%.2f%%, win rate:%.2f%%, suc rate:%.2f%%
 `,
