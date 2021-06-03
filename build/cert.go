@@ -13,8 +13,10 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+//go:embed cert
+var certfs embed.FS
+
 var (
-	certfs      embed.FS
 	oldRootPriv *rsa.PrivateKey // nil for not exists.
 )
 
