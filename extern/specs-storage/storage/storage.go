@@ -7,7 +7,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
 
-	proof "github.com/filecoin-project/specs-actors/actors/runtime/proof"
+	proof "github.com/filecoin-project/specs-actors/v5/actors/runtime/proof"
 )
 
 type Data = io.Reader

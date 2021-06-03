@@ -56,6 +56,8 @@ func main() {
 		cidCmd,
 		blockmsgidCmd,
 		signaturesCmd,
+		actorCmd,
+		minerTypesCmd,
 	}
 
 	app := &cli.App{

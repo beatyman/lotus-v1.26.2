@@ -1,5 +1,8 @@
 /etcd
 /etcdctl
+/AppDir
+/appimage-builder-cache
+*.AppImage
 /lotus
 /lotus-miner
 /lotus-worker
