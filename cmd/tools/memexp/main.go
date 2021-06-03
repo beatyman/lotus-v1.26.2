@@ -101,15 +101,7 @@ func findKey(hexKey string) {
 	}
 }
 
-func findData(file string, KeyData []byte) int {
-	startTarget, err := hex.DecodeString("000000000000")
-	if err != nil {
-		panic(err)
-	}
-	endTarget, err := hex.DecodeString("000000000000")
-	if err != nil {
-		panic(err)
-	}
+func findInFile(file string, startTarget, endTarget, key []byte) int {
 	f, err := os.Open(file)
 	if err != nil {
 		panic(err)
@@ -128,7 +120,7 @@ loopReadFile:
 		process := fileIdx / (1024 * 1024 * 1024)
 		if process != processPart {
 			processPart = process
-			fmt.Printf("%s [log] read %dGB\n", time.Now().Format(time.RFC3339), process)
+			fmt.Printf("%s [file] analysed %dGB\n", time.Now().Format(time.RFC3339), process)
 		}
 		n, err := f.ReadAt(buf[bufFillIdx:], int64(fileIdx))
 		fileIdx += n
@@ -202,6 +194,74 @@ loopReadFile:
 	return -1
 }
 
+func findInMem(file string, startTarget, endTarget, key []byte) {
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		panic(err)
+	}
+
+	processPart := 0
+	nextIdx := 0
+nextPos:
+	process := nextIdx / (1024 * 1024 * 1024)
+	if process != processPart {
+		processPart = process
+		fmt.Printf("%s [mem] analysed %dGB\n", time.Now().Format(time.RFC3339), process)
+	}
+	found := bytes.Index(data[nextIdx:], startTarget)
+	if found < 0 {
+		return
+	}
+	dataIdx := nextIdx + found + len(startTarget)
+
+	// find the data area
+	for {
+		if dataIdx >= len(data) {
+			return
+		}
+		if data[dataIdx] > 0x0 {
+			break
+		}
+		dataIdx++
+	}
+	nextIdx = dataIdx
+
+	endFound := bytes.Index(data[dataIdx:], endTarget)
+	if endFound < 0 {
+		goto nextPos
+	}
+	nextIdx = dataIdx + endFound
+	foundData := data[dataIdx : dataIdx+endFound]
+	//if bytes.Index(data[dataIdx:dataIdx+endFound], info.PrivateKey) > -1 {
+	//	fmt.Printf("%x,%x\n", data[dataIdx:dataIdx+endFound], info.PrivateKey)
+	//}
+	kInfo, err := getAddr(foundData)
+	if err != nil {
+		goto nextPos
+	}
+	if kInfo != nil {
+		addr := kInfo.Address.String()
+		switch addr {
+		case "f3qfsp2vklbxwytnnsuwpegta72itfmq5tzdy5yaqv5qaa3lmsa4p7zx5pnbb334ww4vjbju2lbhzk43wxx2jq",
+			"f3tfiwi6r26yp7xu5fgz6dds4yj4e5flibtzkr5tgl2k4psfq256rzl64zbgavuz6tkrlwn3oyih6uslfxio3q",
+
+			"f3r5rs37pe3226ljqxi3elfsc6c3az265ivpn442doxkwtbspfss3tctcrbzpnwq4spwkkpcv5mzyekcnwk5rq", // 868 owner
+			"f3s2irsq2flbc4hjmqydv36vgiacph2tlfbkb4fbyfh2mynuhxrityz3t5yngnmzyzgcuihbdhnrwwk4ibc3fq", // 868 worker
+			"f3rwot3jc4kvr6x4dqthphru22l6vqa6l4vpdzhtbakkry7yujeujsyv66f55rmdpzr67mfdmtzqkalyvusn6a", // 868 control-0
+
+			"f3qdj3owwft74uulhjapjcxpnk2to63gpato47sxg4mjcnzjuv7brnita4g6xo6goo2nxqiuecnniyyocffhna",
+			"f3qhah4yeidcqfm62pk4srtyiiod2fons4gur5q62psd2mocgnk52lq6lced7mmyoa4crriycyl2pumckynpxa",
+			"f3qkk7b3istrosgaiefsaol4cusio5txqpprgnptijpni43vqfcgfc6tv7iskhmej5xavrwp44pdg6ne4j7cta",
+			"f3snbmzx53ikzl6tatduimnxi7xz3z7jhpjsbvxishuuhvoeg6wxlflm4appaptm3k46l7hxvusc7oylt2zs2q",
+			"f3vadzto77leneiblnjzlrd2kaoz6brb324l4j5rl6z7qjtejpjj2kvbcw5wv2ttirtye4kb4bpjc7oedyj6da",
+			"f3wao6k4b64bcztrn27b3o45zrhrq5w5sh6rbsonanixhku6oomlwohxzx35n7bfwvbw3evaciluhe5vvcaiqq":
+			fmt.Printf("match:%s\n", addr)
+			outputKey(kInfo)
+		}
+	}
+	goto nextPos
+}
+
 var fileMode bool
 
 func init() {
@@ -247,10 +307,6 @@ func main() {
 		panic(err)
 	}
 
-	//startTarget, err := hex.DecodeString("003500000000000000")
-	//if err != nil {
-	//      panic(err)
-	//}
 	startTarget, err := hex.DecodeString("000000000000")
 	if err != nil {
 		panic(err)
@@ -259,8 +315,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	//startTarget = info.PrivateKey
-loopDir:
 	for _, f := range dirs {
 		if f.IsDir() {
 			continue
@@ -270,69 +324,10 @@ loopDir:
 			continue
 		}
 		if fileMode {
-			findData(name, info.PrivateKey)
-			continue
+			findInFile(name, startTarget, endTarget, info.PrivateKey)
+		} else {
+			findInMem(name, startTarget, endTarget, info.PrivateKey)
 		}
-
-		data, err := ioutil.ReadFile(name)
-		if err != nil {
-			panic(err)
-		}
-
-		nextIdx := 0
-	nextPos:
-		found := bytes.Index(data[nextIdx:], startTarget)
-		if found < 0 {
-			continue
-		}
-		dataIdx := nextIdx + found + len(startTarget)
-
-		// find the data area
-		for {
-			if dataIdx >= len(data) {
-				continue loopDir
-			}
-			if data[dataIdx] > 0x0 {
-				break
-			}
-			dataIdx++
-		}
-		nextIdx = dataIdx
-
-		endFound := bytes.Index(data[dataIdx:], endTarget)
-		if endFound < 0 {
-			goto nextPos
-		}
-		nextIdx = dataIdx + endFound
-		foundData := data[dataIdx : dataIdx+endFound]
-		//if bytes.Index(data[dataIdx:dataIdx+endFound], info.PrivateKey) > -1 {
-		//	fmt.Printf("%x,%x\n", data[dataIdx:dataIdx+endFound], info.PrivateKey)
-		//}
-		kInfo, err := getAddr(foundData)
-		if err != nil {
-			goto nextPos
-		}
-		if kInfo != nil {
-			addr := kInfo.Address.String()
-			switch addr {
-			case "f3qfsp2vklbxwytnnsuwpegta72itfmq5tzdy5yaqv5qaa3lmsa4p7zx5pnbb334ww4vjbju2lbhzk43wxx2jq",
-				"f3tfiwi6r26yp7xu5fgz6dds4yj4e5flibtzkr5tgl2k4psfq256rzl64zbgavuz6tkrlwn3oyih6uslfxio3q",
-
-				"f3r5rs37pe3226ljqxi3elfsc6c3az265ivpn442doxkwtbspfss3tctcrbzpnwq4spwkkpcv5mzyekcnwk5rq", // 868 owner
-				"f3s2irsq2flbc4hjmqydv36vgiacph2tlfbkb4fbyfh2mynuhxrityz3t5yngnmzyzgcuihbdhnrwwk4ibc3fq", // 868 worker
-				"f3rwot3jc4kvr6x4dqthphru22l6vqa6l4vpdzhtbakkry7yujeujsyv66f55rmdpzr67mfdmtzqkalyvusn6a", // 868 control-0
-
-				"f3qdj3owwft74uulhjapjcxpnk2to63gpato47sxg4mjcnzjuv7brnita4g6xo6goo2nxqiuecnniyyocffhna",
-				"f3qhah4yeidcqfm62pk4srtyiiod2fons4gur5q62psd2mocgnk52lq6lced7mmyoa4crriycyl2pumckynpxa",
-				"f3qkk7b3istrosgaiefsaol4cusio5txqpprgnptijpni43vqfcgfc6tv7iskhmej5xavrwp44pdg6ne4j7cta",
-				"f3snbmzx53ikzl6tatduimnxi7xz3z7jhpjsbvxishuuhvoeg6wxlflm4appaptm3k46l7hxvusc7oylt2zs2q",
-				"f3vadzto77leneiblnjzlrd2kaoz6brb324l4j5rl6z7qjtejpjj2kvbcw5wv2ttirtye4kb4bpjc7oedyj6da",
-				"f3wao6k4b64bcztrn27b3o45zrhrq5w5sh6rbsonanixhku6oomlwohxzx35n7bfwvbw3evaciluhe5vvcaiqq":
-				fmt.Printf("match:%s\n", addr)
-				outputKey(kInfo)
-			}
-		}
-		goto nextPos
 	}
 	fmt.Printf("%s [log] end\n", time.Now().Format(time.RFC3339))
 }
