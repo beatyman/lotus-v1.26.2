@@ -30,7 +30,6 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
-	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
@@ -55,7 +54,7 @@ var runCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "report-url",
 			Value: "",
-			Usage: "report url for state",
+			Usage: "report url for state. TODO: remove this argument",
 		},
 		&cli.BoolFlag{
 			Name:  "enable-gpu-proving",
@@ -94,26 +93,6 @@ var runCmd = &cli.Command{
 		// init storage database
 		// TODO: already implement in init.go, so remove this checking in running?
 		database.InitDB(minerRepoPath)
-		log.Info("Mount all storage")
-		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
-			return errors.As(err)
-		}
-		// mount nfs storage node
-		if err := database.MountAllStorage(false); err != nil {
-			return errors.As(err)
-		}
-		log.Info("Clean storage worker")
-		// clean storage cur_work cause by no worker on starting.
-		if err := database.ClearStorageWork(); err != nil {
-			return errors.As(err)
-		}
-		log.Info("Check sealed")
-		// TODO: Move to window post
-		// checking sealed for proof
-		//if err := ffiwrapper.CheckSealed(minerRepoPath); err != nil {
-		//	return errors.As(err)
-		//}
-		log.Info("Check done")
 		// implement by hlm end.
 
 		// Register all metric views
@@ -170,6 +149,26 @@ var runCmd = &cli.Command{
 		if !ok {
 			return xerrors.Errorf("repo at '%s' is not initialized, run 'lotus-miner init' to set it up", minerRepoPath)
 		}
+
+		// init hlm resouce, by zhoushuyue
+		if err := r.IsLocked(); err != nil {
+			return err
+		}
+		log.Info("Mount all storage")
+		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
+			return errors.As(err)
+		}
+		// mount nfs storage node
+		if err := database.MountAllStorage(false); err != nil {
+			return errors.As(err)
+		}
+		log.Info("Clean storage worker")
+		// clean storage cur_work cause by no worker on starting.
+		if err := database.ClearStorageWork(); err != nil {
+			return errors.As(err)
+		}
+		log.Info("Check done")
+		// end by zhoushuyue
 
 		shutdownChan := make(chan struct{})
 
@@ -278,10 +277,6 @@ var runCmd = &cli.Command{
 			}
 		}()
 		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
-
-		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
-			report.SetReportUrl(reportUrl)
-		}
 
 		log.Info("rebuild tls cert automatic")
 		certPath := filepath.Join(minerRepoPath, "miner_crt.pem")

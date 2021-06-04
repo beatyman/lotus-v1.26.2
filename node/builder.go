@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/filecoin-project/lotus/lib/report"
+
 	metricsi "github.com/ipfs/go-metrics-interface"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -483,6 +485,12 @@ func StorageMiner(out *api.StorageMiner) Option {
 
 // Config sets up constructors based on the provided Config
 func ConfigCommon(cfg *config.Common) Option {
+	report.SetConfig(
+		&report.Config{
+			Url:        cfg.Collector.ReportUrl,
+			Interval:   time.Duration(cfg.Collector.Interval),
+			RetryTimes: cfg.Collector.RetryTimes,
+		})
 	return Options(
 		func(s *Settings) error { s.Config = true; return nil },
 		Override(new(dtypes.APIEndpoint), func() (dtypes.APIEndpoint, error) {
@@ -577,6 +585,7 @@ func ConfigStorageMiner(c interface{}) Option {
 		})),
 		Override(new(storagemarket.StorageProviderNode), storageadapter.NewProviderNodeAdapter(&cfg.Fees, &cfg.Dealmaking)),
 
+		Override(new(*dtypes.WorkerAPIAlg), modules.WorkerAPISecret),
 		Override(new(sectorstorage.SealerConfig), cfg.Storage),
 		Override(new(*storage.AddressSelector), modules.AddressSelector(&cfg.Addresses)),
 		Override(new(*storage.Miner), modules.StorageMiner(cfg.Fees)),
@@ -647,7 +656,6 @@ func Repo(r repo.Repo) Option {
 
 			Override(new(types.KeyStore), modules.KeyStore),
 
-			Override(new(*dtypes.WorkerAPIAlg), modules.WorkerAPISecret),
 			Override(new(*dtypes.APIAlg), modules.APISecret),
 
 			ApplyIf(isType(repo.FullNode), ConfigFullNode(c)),

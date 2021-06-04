@@ -12,12 +12,19 @@ import (
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 )
 
+type Collector struct {
+	ReportUrl  string // server url
+	Interval   Duration
+	RetryTimes int
+}
+
 // Common is common config between full node and miner
 type Common struct {
-	API    API
-	Backup Backup
-	Libp2p Libp2p
-	Pubsub Pubsub
+	API       API
+	Collector Collector
+	Backup    Backup
+	Libp2p    Libp2p
+	Pubsub    Pubsub
 }
 
 // FullNode is a full node config
@@ -220,6 +227,10 @@ func defCommon() Common {
 		API: API{
 			ListenAddress: "/ip4/127.0.0.1/tcp/1234/http",
 			Timeout:       Duration(30 * time.Second),
+		},
+		Collector: Collector{
+			Interval:   Duration(30 * time.Second),
+			RetryTimes: 3,
 		},
 		Backup: Backup{
 			DisableMetadataLog: true,

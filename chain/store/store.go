@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -927,7 +927,12 @@ func (cs *ChainStore) AddToTipSetTracker(b *types.BlockHeader) error {
 		h, err := cs.GetBlock(oc)
 		if err == nil && h != nil {
 			if h.Miner == b.Miner {
-				log.Warnf("Have multiple blocks from miner %s at height %d in our tipset cache %s-%s", b.Miner, b.Height, b.Cid(), h.Cid())
+				log.Warnf(
+					"Have multiple blocks from miner %s at height %d in our tipset cache %s-%s; quality,new:%f, old:%f; timestamp, new:%d, old:%d",
+					b.Miner, b.Height, b.Cid(), h.Cid(),
+					b.Ticket.Quality(), h.Ticket.Quality(),
+					b.Timestamp, h.Timestamp,
+				)
 			}
 		}
 	}
@@ -1027,7 +1032,13 @@ func (cs *ChainStore) expandTipset(b *types.BlockHeader) (*types.TipSet, error) 
 		}
 
 		if cid, found := inclMiners[h.Miner]; found {
-			log.Warnf("Have multiple blocks from miner %s at height %d in our tipset cache %s-%s", h.Miner, h.Height, h.Cid(), cid)
+			log.Warnf(
+				"Have multiple blocks from miner %s at height %d in our tipset cache %s-%s; quality,new:%f, old:%f; timestamp, new:%d, old:%d",
+				h.Miner, h.Height, h.Cid(), cid,
+				b.Ticket.Quality(), h.Ticket.Quality(),
+				b.Timestamp, h.Timestamp,
+			)
+			// TODO: compare which one is the heaviest.
 			continue
 		}
 

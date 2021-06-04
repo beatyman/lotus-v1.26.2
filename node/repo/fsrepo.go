@@ -228,6 +228,17 @@ func (fsr *FsRepo) APIToken() ([]byte, error) {
 	return bytes.TrimSpace(tb), nil
 }
 
+func (fsr *FsRepo) IsLocked() error {
+	locked, err := fslock.Locked(fsr.path, fsLock)
+	if err != nil {
+		return xerrors.Errorf("could not check lock status: %w", err)
+	}
+	if locked {
+		return errors.As(ErrRepoAlreadyLocked).As(fsr.path)
+	}
+	return nil
+}
+
 // Lock acquires exclusive lock on this repo
 func (fsr *FsRepo) Lock(repoType RepoType) (LockedRepo, error) {
 	locked, err := fslock.Locked(fsr.path, fsLock)

@@ -255,7 +255,7 @@ func (m *Miner) mine(ctx context.Context) {
 				if blk.Miner.String() != m.address.String() {
 					continue
 				}
-				if err := database.AddWinSuc(time.Now().UTC().Format("20060102")); err != nil {
+				if err := database.AddWinSuc(time.Unix(int64(blk.Timestamp), 0)); err != nil {
 					log.Error(errors.As(err))
 				}
 				break
@@ -323,15 +323,15 @@ func (m *Miner) mine(ctx context.Context) {
 		block := make(chan interface{}, 1)
 		mineCtx, mineCtxCancel := context.WithCancel(ctx)
 		go func() {
-			took, b, err := m.mineOne(mineCtx, &oldbase, &lastBase)
+			took, b, err := m.mineOne(mineCtx, &oldbase, &lastBase, nextRound)
 			if err != nil {
-				if err := database.AddWinErr(time.Now().UTC().Format("20060102")); err != nil {
+				if err := database.AddWinErr(nextRound); err != nil {
 					log.Warn(errors.As(err))
 				}
 				block <- err
 			} else {
 				if b != nil {
-					if err := database.AddWinGen(time.Now().UTC().Format("20060102"), took); err != nil {
+					if err := database.AddWinGen(nextRound, took); err != nil {
 						log.Warn(errors.As(err))
 					}
 				}
@@ -492,7 +492,7 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 // This method does the following:
 //
 //  1.
-func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (dur time.Duration, minedBlock *types.BlockMsg, err error) {
+func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTime time.Time) (time.Duration, *types.BlockMsg, error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	tStart := build.Clock.Now()
 
@@ -567,7 +567,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (dur tim
 		}
 		expNum = int(float64(time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs))) * expWinChance)
 	}
-	if err := database.AddWinTimes(time.Now().UTC().Format("20060102"), expNum); err != nil {
+	if err := database.AddWinTimes(submitTime, expNum); err != nil {
 		log.Warn(errors.As(err))
 	}
 	if mbi == nil {

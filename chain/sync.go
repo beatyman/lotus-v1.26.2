@@ -1416,13 +1416,13 @@ loop:
 	incomingHeaviestMiners := []string{}
 	for _, blk := range incoming.Blocks() {
 		incomingHeaviestMiners = append(incomingHeaviestMiners,
-			fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+			fmt.Sprintf("miner:%s,parentw:%d,height:%d,timestamp:%d,quality:%f", blk.Miner, blk.ParentWeight, blk.Height, blk.Timestamp, blk.Ticket.Quality()),
 		)
 	}
 	knownHeaviestMiners := []string{}
 	for _, blk := range incoming.Blocks() {
 		knownHeaviestMiners = append(knownHeaviestMiners,
-			fmt.Sprintf("%s-%d", blk.Miner, blk.ParentWeight),
+			fmt.Sprintf("miner:%s,parentw:%d,height:%d,timestamp:%d,quality:%f", blk.Miner, blk.ParentWeight, blk.Height, blk.Timestamp, blk.Ticket.Quality()),
 		)
 	}
 
