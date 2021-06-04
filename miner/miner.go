@@ -492,7 +492,7 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 // This method does the following:
 //
 //  1.
-func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTime time.Time) (time.Duration, *types.BlockMsg, error) {
+func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTime time.Time) (dur time.Duration, minedBlock *types.BlockMsg, err error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	tStart := build.Clock.Now()
 
