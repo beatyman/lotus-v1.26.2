@@ -136,6 +136,7 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 		case <-time.After(time.Until(nextRoundTime(bts))):
 			continue
 		case <-ctx.Done():
+			log.Info("wdpost ctx exit")
 			return
 		}
 	}
