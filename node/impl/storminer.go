@@ -49,6 +49,8 @@ import (
 type StorageMinerAPI struct {
 	common.CommonAPI
 
+	WorkerAPISecret *dtypes.WorkerAPIAlg
+
 	SectorBlocks *sectorblocks.SectorBlocks
 
 	PieceStore        dtypes.ProviderPieceStore
