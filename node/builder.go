@@ -574,6 +574,7 @@ func ConfigStorageMiner(c interface{}) Option {
 		})),
 		Override(new(storagemarket.StorageProviderNode), storageadapter.NewProviderNodeAdapter(&cfg.Fees, &cfg.Dealmaking)),
 
+		Override(new(*dtypes.WorkerAPIAlg), modules.WorkerAPISecret),
 		Override(new(sectorstorage.SealerConfig), cfg.Storage),
 		Override(new(*storage.AddressSelector), modules.AddressSelector(&cfg.Addresses)),
 		Override(new(*storage.Miner), modules.StorageMiner(cfg.Fees)),
@@ -644,7 +645,6 @@ func Repo(r repo.Repo) Option {
 
 			Override(new(types.KeyStore), modules.KeyStore),
 
-			Override(new(*dtypes.WorkerAPIAlg), modules.WorkerAPISecret),
 			Override(new(*dtypes.APIAlg), modules.APISecret),
 
 			ApplyIf(isType(repo.FullNode), ConfigFullNode(c)),
