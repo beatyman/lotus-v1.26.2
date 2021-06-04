@@ -253,7 +253,7 @@ func (m *Miner) mine(ctx context.Context) {
 				if blk.Miner.String() != m.address.String() {
 					continue
 				}
-				if err := database.AddWinSuc(time.Now().UTC().Format("20060102")); err != nil {
+				if err := database.AddWinSuc(time.Unix(int64(blk.Timestamp), 0)); err != nil {
 					log.Error(errors.As(err))
 				}
 				break
@@ -262,7 +262,10 @@ func (m *Miner) mine(ctx context.Context) {
 			base := prebase
 			// cause by net delay, skiping for a late tipset in begining of genesis node.
 			now := time.Now()
-			delay := (time.Duration(build.PropagationDelaySecs*5/2) * time.Second) - now.Sub(nextRound)
+			// 3/2 = 1.5
+			// 5/2 = 2.5
+			// 7/2 = 3.5
+			delay := (time.Duration(build.PropagationDelaySecs*7/2) * time.Second) - now.Sub(nextRound)
 			log.Infof("Waiting PropagationDelay time: %s", delay)
 			if delay > 0 && now.Sub(nextRound) > 0 {
 				time.Sleep(delay + (time.Second / 2)) // offset 500ms
@@ -318,18 +321,17 @@ func (m *Miner) mine(ctx context.Context) {
 		block := make(chan interface{}, 1)
 		mineCtx, mineCtxCancel := context.WithCancel(ctx)
 		go func() {
-			if err := database.AddWinTimes(time.Now().UTC().Format("20060102")); err != nil {
-				log.Warn(errors.As(err))
-			}
-			b, err := m.mineOne(mineCtx, &oldbase, &lastBase)
+			took, b, err := m.mineOne(mineCtx, &oldbase, &lastBase, nextRound)
 			if err != nil {
-				if err := database.AddWinErr(time.Now().UTC().Format("20060102")); err != nil {
+				if err := database.AddWinErr(nextRound); err != nil {
 					log.Warn(errors.As(err))
 				}
 				block <- err
 			} else {
-				if err := database.AddWinGen(time.Now().UTC().Format("20060102")); err != nil {
-					log.Warn(errors.As(err))
+				if b != nil {
+					if err := database.AddWinGen(nextRound, took); err != nil {
+						log.Warn(errors.As(err))
+					}
 				}
 				block <- b
 			}
@@ -347,7 +349,7 @@ func (m *Miner) mine(ctx context.Context) {
 				continue
 			}
 			b = bl.(*types.BlockMsg)
-		case <-build.Clock.After(2 * time.Duration(build.BlockDelaySecs) * time.Second):
+		case <-build.Clock.After(time.Duration(build.BlockDelaySecs) * time.Second):
 			mineCtxCancel()
 			log.Error("mining block failed by timeout, does the wallet undecode?")
 			continue
@@ -488,7 +490,7 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 // This method does the following:
 //
 //  1.
-func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.BlockMsg, error) {
+func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTime time.Time) (time.Duration, *types.BlockMsg, error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := build.Clock.Now()
 
@@ -496,11 +498,26 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 
 	mbi, err := m.api.MinerGetBaseInfo(ctx, m.address, round, base.TipSet.Key())
 	if err != nil {
-		return nil, xerrors.Errorf("failed to get mining base info: %w", err)
+		return 0, nil, xerrors.Errorf("failed to get mining base info: %w", err)
 	}
+
+	// log mineOne statis
+	expNum := 0
+	if mbi != nil {
+		qpercI := types.BigDiv(types.BigMul(mbi.MinerPower, types.NewInt(1000000)), mbi.NetworkPower)
+		expWinChance := float64(types.BigMul(qpercI, types.NewInt(build.BlocksPerEpoch)).Int64()) / 1000000
+		if expWinChance > 1 {
+			expWinChance = 1
+		}
+		expNum = int(float64(time.Hour*24/(time.Second*time.Duration(build.BlockDelaySecs))) * expWinChance)
+	}
+	if err := database.AddWinTimes(submitTime, expNum); err != nil {
+		log.Warn(errors.As(err))
+	}
+
 	if mbi == nil {
 		log.Infof("No MiningBaseInfo for round %d, off tipset %d/%s", round, base.TipSet.Height(), base.TipSet.Key().String())
-		return nil, nil
+		return 0, nil, nil
 	}
 
 	// always write out a log from this point out
@@ -520,7 +537,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 
 	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
-		return nil, nil
+		return 0, nil, nil
 	}
 
 	tMBI := build.Clock.Now()
@@ -550,28 +567,28 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 
 	ticket, err := m.computeTicket(ctx, &rbase, base, mbi)
 	if err != nil {
-		return nil, xerrors.Errorf("scratching ticket failed: %w", err)
+		return 0, nil, xerrors.Errorf("scratching ticket failed: %w", err)
 	}
 
 	winner, err = gen.IsRoundWinner(ctx, base.TipSet, round, m.address, rbase, mbi, m.api)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to check if we win next round: %w", err)
+		return 0, nil, xerrors.Errorf("failed to check if we win next round: %w", err)
 	}
 
 	if winner == nil {
-		return nil, nil
+		return 0, nil, nil
 	}
 
 	tTicket := build.Clock.Now()
 
 	buf := new(bytes.Buffer)
 	if err := m.address.MarshalCBOR(buf); err != nil {
-		return nil, xerrors.Errorf("failed to marshal miner address: %w", err)
+		return 0, nil, xerrors.Errorf("failed to marshal miner address: %w", err)
 	}
 
 	rand, err := store.DrawRandomness(rbase.Data, crypto.DomainSeparationTag_WinningPoStChallengeSeed, round, buf.Bytes())
 	if err != nil {
-		return nil, xerrors.Errorf("failed to get randomness for winning post: %w", err)
+		return 0, nil, xerrors.Errorf("failed to get randomness for winning post: %w", err)
 	}
 
 	prand := abi.PoStRandomness(rand)
@@ -581,7 +598,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	postProof, err := m.epp.ComputeProof(ctx, mbi.Sectors, prand)
 	if err != nil {
 		log.Warn(errors.As(err, mbi.Sectors, prand))
-		return nil, xerrors.Errorf("failed to compute winning post proof: %w", err)
+		return 0, nil, xerrors.Errorf("failed to compute winning post proof: %w", err)
 	}
 
 	tProof := build.Clock.Now()
@@ -589,7 +606,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	// get pending messages early,
 	msgs, err := m.api.MpoolSelect(context.TODO(), base.TipSet.Key(), ticket.Quality())
 	if err != nil {
-		return nil, xerrors.Errorf("failed to select messages for block: %w", err)
+		return 0, nil, xerrors.Errorf("failed to select messages for block: %w", err)
 	}
 
 	tPending := build.Clock.Now()
@@ -597,7 +614,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 	// TODO: winning post proof
 	b, err := m.createBlock(base, m.address, ticket, winner, bvals, postProof, msgs)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to create block: %w", err)
+		return 0, nil, xerrors.Errorf("failed to create block: %w", err)
 	}
 
 	tCreateBlock := build.Clock.Now()
@@ -627,7 +644,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase) (*types.
 			"tCreateBlock ", tCreateBlock.Sub(tPending))
 	}
 
-	return b, nil
+	return dur, b, nil
 }
 
 func (m *Miner) computeTicket(ctx context.Context, brand *types.BeaconEntry, base *MiningBase, mbi *api.MiningBaseInfo) (*types.Ticket, error) {
