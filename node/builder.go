@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/filecoin-project/lotus/lib/report"
+
 	metricsi "github.com/ipfs/go-metrics-interface"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -480,6 +482,12 @@ func StorageMiner(out *api.StorageMiner) Option {
 
 // Config sets up constructors based on the provided Config
 func ConfigCommon(cfg *config.Common) Option {
+	report.SetConfig(
+		&report.Config{
+			Url:        cfg.Collector.ReportUrl,
+			Interval:   time.Duration(cfg.Collector.Interval),
+			RetryTimes: cfg.Collector.RetryTimes,
+		})
 	return Options(
 		func(s *Settings) error { s.Config = true; return nil },
 		Override(new(dtypes.APIEndpoint), func() (dtypes.APIEndpoint, error) {

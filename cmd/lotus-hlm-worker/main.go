@@ -26,7 +26,6 @@ import (
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/lib/lotuslog"
-	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/gwaylib/errors"
@@ -164,7 +163,7 @@ var runCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "report-url",
 			Value: "",
-			Usage: "report url for state",
+			Usage: "report url for state, TODO: remove this field",
 		},
 		&cli.StringFlag{
 			Name:  "listen-addr",
@@ -372,11 +371,6 @@ var runCmd = &cli.Command{
 				os.Exit(1)
 			}
 		}()
-
-		// set report url
-		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
-			report.SetReportUrl(reportUrl)
-		}
 
 		log.Info("starting acceptJobs")
 		if err := acceptJobs(ctx,

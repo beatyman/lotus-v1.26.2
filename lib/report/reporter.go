@@ -7,14 +7,22 @@ import (
 	"net/http"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	"github.com/gwaylib/errors"
 	"github.com/gwaylib/log"
 )
 
+type Config struct {
+	Url        string
+	Interval   time.Duration
+	RetryTimes int
+}
+
 type Reporter struct {
-	lk        sync.Mutex
-	serverUrl string
+	lk sync.Mutex
+
+	cfg *Config
 
 	reports chan []byte
 
@@ -45,10 +53,10 @@ func (r *Reporter) send(data []byte) error {
 
 	r.lk.Lock()
 	defer r.lk.Unlock()
-	if len(r.serverUrl) == 0 {
+	if r.cfg == nil || len(r.cfg.Url) == 0 {
 		return nil
 	}
-	resp, err := http.Post(r.serverUrl, "encoding/json", bytes.NewReader(data))
+	resp, err := http.Post(r.cfg.Url, "encoding/json", bytes.NewReader(data))
 	if err != nil {
 		return errors.As(err)
 	}
@@ -97,10 +105,10 @@ func (r *Reporter) Run() {
 	}
 }
 
-func (r *Reporter) SetUrl(url string) {
+func (r *Reporter) SetConfig(c *Config) {
 	r.lk.Lock()
 	defer r.lk.Unlock()
-	r.serverUrl = url
+	r.cfg = c
 }
 
 func (r *Reporter) Send(data []byte) {
