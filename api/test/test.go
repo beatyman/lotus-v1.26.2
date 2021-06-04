@@ -121,27 +121,47 @@ var OneMiner = []StorageMiner{{Full: 0, Preseal: PresealGenesis}}
 var OneFull = DefaultFullOpts(1)
 var TwoFull = DefaultFullOpts(2)
 
-var FullNodeWithActorsV4At = func(upgradeHeight abi.ChainEpoch) FullNodeOpts {
-	if upgradeHeight == -1 {
-		upgradeHeight = 3
+var FullNodeWithLatestActorsAt = func(upgradeHeight abi.ChainEpoch) FullNodeOpts {
+	// Attention: Update this when introducing new actor versions or your tests will be sad
+	return FullNodeWithNetworkUpgradeAt(network.Version13, upgradeHeight)
+}
+
+var FullNodeWithNetworkUpgradeAt = func(version network.Version, upgradeHeight abi.ChainEpoch) FullNodeOpts {
+	fullSchedule := stmgr.UpgradeSchedule{{
+		// prepare for upgrade.
+		Network:   network.Version9,
+		Height:    1,
+		Migration: stmgr.UpgradeActorsV2,
+	}, {
+		Network:   network.Version10,
+		Height:    2,
+		Migration: stmgr.UpgradeActorsV3,
+	}, {
+		Network:   network.Version12,
+		Height:    3,
+		Migration: stmgr.UpgradeActorsV4,
+	}, {
+		Network:   network.Version13,
+		Height:    4,
+		Migration: stmgr.UpgradeActorsV5,
+	}}
+
+	schedule := stmgr.UpgradeSchedule{}
+	for _, upgrade := range fullSchedule {
+		if upgrade.Network > version {
+			break
+		}
+
+		schedule = append(schedule, upgrade)
+	}
+
+	if upgradeHeight > 0 {
+		schedule[len(schedule)-1].Height = upgradeHeight
 	}
 
 	return FullNodeOpts{
 		Opts: func(nodes []TestNode) node.Option {
-			return node.Override(new(stmgr.UpgradeSchedule), stmgr.UpgradeSchedule{{
-				// prepare for upgrade.
-				Network:   network.Version9,
-				Height:    1,
-				Migration: stmgr.UpgradeActorsV2,
-			}, {
-				Network:   network.Version10,
-				Height:    2,
-				Migration: stmgr.UpgradeActorsV3,
-			}, {
-				Network:   network.Version12,
-				Height:    upgradeHeight,
-				Migration: stmgr.UpgradeActorsV4,
-			}})
+			return node.Override(new(stmgr.UpgradeSchedule), schedule)
 		},
 	}
 }

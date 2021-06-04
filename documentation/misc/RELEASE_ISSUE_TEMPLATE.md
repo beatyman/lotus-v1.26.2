@@ -20,6 +20,8 @@ We're happy to announce Lotus X.Y.Z...
 
 ## ✅ Release Checklist
 
+**Note for whomever is owning the release:** please capture notes as comments in this issue for anything you noticed that could be improved for future releases.  There is a *Post Release* step below for incorporating changes back into the [RELEASE_ISSUE_TEMPLATE](https://github.com/filecoin-project/lotus/blob/master/documentation/misc/RELEASE_ISSUE_TEMPLATE.md), and this is easier done by collecting notes from along the way rather than just thinking about it at the end.
+
 First steps:
 
   - [ ] Fork a new branch (`release/vX.Y.Z`) from `master` and make any further release related changes to this branch. If any "non-trivial" changes get added to the release, uncheck all the checkboxes and return to this stage.
@@ -40,6 +42,9 @@ Testing an RC:
     - [ ] Testground tests
 
 - [ ] **Stage 1 - Internal Testing**
+  - Binaries
+    - [ ] Ensure the RC release has downloadable binaries
+    - [ ] Validate the binary is able to run on at least one platform  
   - Upgrade our testnet infra
     - [ ] 1 bootstrap node
     - [ ] 1 miner
@@ -81,7 +86,7 @@ Testing an RC:
     - [ ] Ensure that [CHANGELOG.md](https://github.com/filecoin-project/lotus/blob/master/CHANGELOG.md) is up to date
     - [ ] Check if any [config](https://docs.filecoin.io/get-started/lotus/configuration-and-advanced-usage/#configuration) updates are needed
   - [ ] Invite the wider community through (link to the release issue):
-    - [ ] Create a lotus disucssion, example [here](https://github.com/filecoin-project/lotus/discussions/5595)
+    - [ ] Check `Create a discussion for this release` when tagging for the major rcs(new features, hot-fixes) release 
     - [ ] Link the disucssion in #fil-lotus on Filecoin slack
     
 - [ ] **Stage 4 - Release**
@@ -90,17 +95,18 @@ Testing an RC:
     - [ ] Ensure that [CHANGELOG.md](https://github.com/filecoin-project/lotus/blob/master/CHANGELOG.md) is up to date
     - [ ] Ensure that [README.md](https://github.com/filecoin-project/lotus/blob/master/README.md) is up to date
     - [ ] Merge `release-vX.Y.Z` into the `releases` branch.
-    - [ ] Tag this merge commit (on the `releases` branch) with `vX.Y.Z`.
+    - [ ] Tag this merge commit (on the `releases` branch) with `vX.Y.Z`
     - [ ] Cut the release [here](https://github.com/filecoin-project/lotus/releases/new?prerelease=true&target=releases).
+        - [ ]  Check `Create a discussion for this release` when tagging the release 
     - [ ] Final announcements
         - [ ] Update network.filecoin.io for mainnet, calib and nerpa.
-        - [ ] Add a comment when the final release is tagged, example [here](https://github.com/filecoin-project/lotus/discussions/5905#discussioncomment-571752)
         - [ ] repost in #fil-lotus in filecoin slack
         - [ ] Inform node provides (Protofire, Digital Ocean..)
 
 - [ ] **Post-Release**
-  - [ ] Merge the `releases` branch back into `master`, ignoring the changes to `version.go` (keep the `-dev` version from master).
-  - [ ] Create an issue using this release issue template for the _next_ release.
+  - [ ] Merge the `releases` branch back into `master`, ignoring the changes to `version.go` (keep the `-dev` version from master). Do NOT delete the `releases` branch when doing so!
+  - [ ] Update [RELEASE_ISSUE_TEMPLATE.md](https://github.com/filecoin-project/lotus/blob/master/documentation/misc/RELEASE_ISSUE_TEMPLATE.md) with any improvements determined from this latest release iteration.
+  - [ ] Create an issue using [RELEASE_ISSUE_TEMPLATE.md](https://github.com/filecoin-project/lotus/blob/master/documentation/misc/RELEASE_ISSUE_TEMPLATE.md) for the _next_ release.
 
 ## ❤️ Contributors
 

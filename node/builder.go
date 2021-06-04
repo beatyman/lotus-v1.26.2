@@ -335,6 +335,7 @@ var ChainNode = Options(
 
 	// Lite node API
 	ApplyIf(isLiteNode,
+		Override(new(messagepool.Provider), messagepool.NewProviderLite),
 		Override(new(messagesigner.MpoolNonceAPI), From(new(modules.MpoolNonceAPI))),
 		Override(new(full.ChainModuleAPI), From(new(api.Gateway))),
 		Override(new(full.GasModuleAPI), From(new(api.Gateway))),
@@ -345,6 +346,7 @@ var ChainNode = Options(
 
 	// Full node API / service startup
 	ApplyIf(isFullNode,
+		Override(new(messagepool.Provider), messagepool.NewProvider),
 		Override(new(messagesigner.MpoolNonceAPI), From(new(*messagepool.MessagePool))),
 		Override(new(full.ChainModuleAPI), From(new(full.ChainModule))),
 		Override(new(full.GasModuleAPI), From(new(full.GasModule))),
@@ -381,6 +383,7 @@ var MinerNode = Options(
 
 	// Sector storage: Proofs
 	Override(new(ffiwrapper.Verifier), ffiwrapper.ProofVerifier),
+	Override(new(ffiwrapper.Prover), ffiwrapper.ProofProver),
 	Override(new(storage2.Prover), From(new(sectorstorage.SectorManager))),
 
 	// Sealing

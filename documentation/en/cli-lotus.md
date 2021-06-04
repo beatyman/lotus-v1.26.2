@@ -15,11 +15,12 @@ COMMANDS:
    version  Print version
    help, h  Shows a list of commands or help for one command
    BASIC:
-     send    Send funds between accounts
-     wallet  Manage wallet
-     client  Make deals, store data, retrieve data
-     msig    Interact with a multisig wallet
-     paych   Manage payment channels
+     send     Send funds between accounts
+     wallet   Manage wallet
+     client   Make deals, store data, retrieve data
+     msig     Interact with a multisig wallet
+     filplus  Interact with the verified registry actor used by Filplus
+     paych    Manage payment channels
    DEVELOPER:
      auth          Manage RPC permissions
      mpool         Manage message pool
@@ -31,8 +32,12 @@ COMMANDS:
    NETWORK:
      net   Manage P2P Network
      sync  Inspect or interact with the chain syncer
+   STATUS:
+     status  Check node status
 
 GLOBAL OPTIONS:
+   --interactive  setting to false will disable interactive functionality of commands (default: false)
+   --force-send   if true, will ignore pre-send checks (default: false)
    --help, -h     show help (default: false)
    --version, -v  print the version (default: false)
 ```
@@ -136,7 +141,7 @@ OPTIONS:
    --method value       specify method to invoke (default: 0)
    --params-json value  specify invocation parameters in json
    --params-hex value   specify invocation parameters in hex
-   --force              must be specified for the action to take effect if maybe SysErrInsufficientFunds etc (default: false)
+   --force              Deprecated: use global 'force-send' (default: false)
    --help, -h           show help (default: false)
    
 ```
@@ -540,6 +545,7 @@ The minimum value is 518400 (6 months).
 OPTIONS:
    --manual-piece-cid value     manually specify piece commitment for data (dataCid must be to a car file)
    --manual-piece-size value    if manually specifying piece cid, used to specify size (dataCid must be to a car file) (default: 0)
+   --manual-stateless-deal      instructs the node to send an offline deal without registering it with the deallist/fsm (default: false)
    --from value                 specify address to fund the deal with
    --start-epoch value          specify the epoch that the deal should start at (default: -1)
    --fast-retrieval             indicates that data should be available for fast retrieval (default: true)
@@ -1029,6 +1035,94 @@ OPTIONS:
    
 ```
 
+## lotus filplus
+```
+NAME:
+   lotus filplus - Interact with the verified registry actor used by Filplus
+
+USAGE:
+   lotus filplus command [command options] [arguments...]
+
+COMMANDS:
+   grant-datacap           give allowance to the specified verified client address
+   list-notaries           list all notaries
+   list-clients            list all verified clients
+   check-client-datacap    check verified client remaining bytes
+   check-notaries-datacap  check notaries remaining bytes
+   help, h                 Shows a list of commands or help for one command
+
+OPTIONS:
+   --help, -h     show help (default: false)
+   --version, -v  print the version (default: false)
+   
+```
+
+### lotus filplus grant-datacap
+```
+NAME:
+   lotus filplus grant-datacap - give allowance to the specified verified client address
+
+USAGE:
+   lotus filplus grant-datacap [command options] [arguments...]
+
+OPTIONS:
+   --from value  specify your notary address to send the message from
+   --help, -h    show help (default: false)
+   
+```
+
+### lotus filplus list-notaries
+```
+NAME:
+   lotus filplus list-notaries - list all notaries
+
+USAGE:
+   lotus filplus list-notaries [command options] [arguments...]
+
+OPTIONS:
+   --help, -h  show help (default: false)
+   
+```
+
+### lotus filplus list-clients
+```
+NAME:
+   lotus filplus list-clients - list all verified clients
+
+USAGE:
+   lotus filplus list-clients [command options] [arguments...]
+
+OPTIONS:
+   --help, -h  show help (default: false)
+   
+```
+
+### lotus filplus check-client-datacap
+```
+NAME:
+   lotus filplus check-client-datacap - check verified client remaining bytes
+
+USAGE:
+   lotus filplus check-client-datacap [command options] [arguments...]
+
+OPTIONS:
+   --help, -h  show help (default: false)
+   
+```
+
+### lotus filplus check-notaries-datacap
+```
+NAME:
+   lotus filplus check-notaries-datacap - check notaries remaining bytes
+
+USAGE:
+   lotus filplus check-notaries-datacap [command options] [arguments...]
+
+OPTIONS:
+   --help, -h  show help (default: false)
+   
+```
+
 ## lotus paych
 ```
 NAME:
@@ -1299,6 +1393,7 @@ COMMANDS:
    find      find a message in the mempool
    config    get or set current mpool configuration
    gas-perf  Check gas performance of messages in mempool
+   manage    
    help, h   Shows a list of commands or help for one command
 
 OPTIONS:
@@ -1411,6 +1506,9 @@ OPTIONS:
    --all       print gas performance for all mempool messages (default only prints for local) (default: false)
    --help, -h  show help (default: false)
    
+```
+# nage
+```
 ```
 
 ## lotus state
@@ -1658,13 +1756,14 @@ NAME:
    lotus state call - Invoke a method on an actor locally
 
 USAGE:
-   lotus state call [command options] [toAddress methodId <param1 param2 ...> (optional)]
+   lotus state call [command options] [toAddress methodId params (optional)]
 
 OPTIONS:
-   --from value   (default: "f00")
-   --value value  specify value field for invocation (default: "0")
-   --ret value    specify how to parse output (auto, raw, addr, big) (default: "auto")
-   --help, -h     show help (default: false)
+   --from value      (default: "f00")
+   --value value     specify value field for invocation (default: "0")
+   --ret value       specify how to parse output (raw, decoded, base64, hex) (default: "decoded")
+   --encoding value  specify params encoding to parse (base64, hex) (default: "base64")
+   --help, -h        show help (default: false)
    
 ```
 
@@ -2669,5 +2768,22 @@ USAGE:
 OPTIONS:
    --epoch value  checkpoint the tipset at the given epoch (default: 0)
    --help, -h     show help (default: false)
+   
+```
+
+## lotus status
+```
+NAME:
+   lotus status - Check node status
+
+USAGE:
+   lotus status [command options] [arguments...]
+
+CATEGORY:
+   STATUS
+
+OPTIONS:
+   --chain     include chain health status (default: false)
+   --help, -h  show help (default: false)
    
 ```

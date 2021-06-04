@@ -5,12 +5,6 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/filecoin-project/specs-storage/storage"
-
-	"github.com/filecoin-project/go-state-types/network"
-
-	"github.com/filecoin-project/go-state-types/dline"
-
 	"github.com/filecoin-project/go-bitfield"
 
 	"github.com/ipfs/go-cid"
@@ -22,6 +16,11 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
+	"github.com/filecoin-project/go-state-types/dline"
+	"github.com/filecoin-project/go-state-types/network"
+
+	"github.com/filecoin-project/specs-storage/storage"
+
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
@@ -45,17 +44,26 @@ import (
 
 var log = logging.Logger("storageminer")
 
+// Miner is the central miner entrypoint object inside Lotus. It is
+// instantiated in the node builder, along with the WindowPoStScheduler.
+//
+// This object is the owner of the sealing pipeline. Most of the actual logic
+// lives in the storage-sealing module (sealing.Sealing), and the Miner object
+// exposes it to the rest of the system by proxying calls.
+//
+// Miner#Run starts the sealing FSM.
 type Miner struct {
 	// implement by hlm
 	fps *WindowPoStScheduler // SPEC: only for testing
 
-	api     storageMinerApi
+	api     fullNodeFilteredAPI
 	feeCfg  config.MinerFeeConfig
 	h       host.Host
 	sealer  sectorstorage.SectorManager
 	ds      datastore.Batching
 	sc      sealing.SectorIDCounter
 	verif   ffiwrapper.Verifier
+	prover  ffiwrapper.Prover
 	addrSel *AddressSelector
 
 	maddr address.Address
@@ -77,7 +85,9 @@ type SealingStateEvt struct {
 	Error        string
 }
 
-type storageMinerApi interface {
+// fullNodeFilteredAPI is the subset of the full node API the Miner needs from
+// a Lotus full node.
+type fullNodeFilteredAPI interface {
 	// Call a read only method on actors (no interaction with the chain required)
 	StateCall(context.Context, *types.Message, types.TipSetKey) (*api.InvocResult, error)
 	StateMinerSectors(context.Context, address.Address, *bitfield.BitField, types.TipSetKey) ([]*miner.SectorOnChainInfo, error)
@@ -130,7 +140,20 @@ type storageMinerApi interface {
 	MpoolPush(context.Context, *types.SignedMessage) (cid.Cid, error)
 }
 
-func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, journal journal.Journal, as *AddressSelector, fps *WindowPoStScheduler) (*Miner, error) {
+// NewMiner creates a new Miner object.
+func NewMiner(api fullNodeFilteredAPI,
+	maddr address.Address,
+	h host.Host,
+	ds datastore.Batching,
+	sealer sectorstorage.SectorManager,
+	sc sealing.SectorIDCounter,
+	verif ffiwrapper.Verifier,
+	prover ffiwrapper.Prover,
+	gsd dtypes.GetSealingConfigFunc,
+	feeCfg config.MinerFeeConfig,
+	journal journal.Journal,
+	as *AddressSelector,
+	fps *WindowPoStScheduler) (*Miner, error) {
 	m := &Miner{
 		fps: fps,
 
@@ -141,6 +164,7 @@ func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datast
 		ds:      ds,
 		sc:      sc,
 		verif:   verif,
+		prover:  prover,
 		addrSel: as,
 
 		maddr:          maddr,
@@ -152,6 +176,7 @@ func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datast
 	return m, nil
 }
 
+// Run starts the sealing FSM in the background, running preliminary checks first.
 func (m *Miner) Run(ctx context.Context) error {
 	if err := m.runPreflightChecks(ctx); err != nil {
 		return xerrors.Errorf("miner preflight checks failed: %w", err)
@@ -168,17 +193,37 @@ func (m *Miner) Run(ctx context.Context) error {
 		MaxTerminateGasFee: abi.TokenAmount(m.feeCfg.MaxTerminateGasFee),
 	}
 
-	evts := events.NewEvents(ctx, m.api)
-	adaptedAPI := NewSealingAPIAdapter(m.api)
-	// TODO: Maybe we update this policy after actor upgrades?
-	pcp := sealing.NewBasicPreCommitPolicy(adaptedAPI, policy.GetMaxSectorExpirationExtension()-(md.WPoStProvingPeriod*2), md.PeriodStart%md.WPoStProvingPeriod)
+	var (
+		// consumer of chain head changes.
+		evts        = events.NewEvents(ctx, m.api)
+		evtsAdapter = NewEventsAdapter(evts)
 
-	as := func(ctx context.Context, mi miner.MinerInfo, use api.AddrUse, goodFunds, minFunds abi.TokenAmount) (address.Address, abi.TokenAmount, error) {
-		return m.addrSel.AddressFor(ctx, m.api, mi, use, goodFunds, minFunds)
-	}
+		// Create a shim to glue the API required by the sealing component
+		// with the API that Lotus is capable of providing.
+		// The shim translates between "tipset tokens" and tipset keys, and
+		// provides extra methods.
+		adaptedAPI = NewSealingAPIAdapter(m.api)
 
-	m.sealing = sealing.New(adaptedAPI, fc, NewEventsAdapter(evts), m.maddr, m.ds, m.sealer, m.sc, m.verif, &pcp, sealing.GetSealingConfigFunc(m.getSealConfig), m.handleSealingNotifications, as)
+		// Instantiate a precommit policy.
+		defaultDuration = policy.GetMaxSectorExpirationExtension() - (md.WPoStProvingPeriod * 2)
+		provingBoundary = md.PeriodStart % md.WPoStProvingPeriod
 
+		// TODO: Maybe we update this policy after actor upgrades?
+		pcp = sealing.NewBasicPreCommitPolicy(adaptedAPI, defaultDuration, provingBoundary)
+
+		// address selector.
+		as = func(ctx context.Context, mi miner.MinerInfo, use api.AddrUse, goodFunds, minFunds abi.TokenAmount) (address.Address, abi.TokenAmount, error) {
+			return m.addrSel.AddressFor(ctx, m.api, mi, use, goodFunds, minFunds)
+		}
+
+		// sealing configuration.
+		cfg = sealing.GetSealingConfigFunc(m.getSealConfig)
+	)
+
+	// Instantiate the sealing FSM.
+	m.sealing = sealing.New(adaptedAPI, fc, evtsAdapter, m.maddr, m.ds, m.sealer, m.sc, m.verif, m.prover, &pcp, cfg, m.handleSealingNotifications, as)
+
+	// Run the sealing FSM.
 	go m.sealing.Run(ctx) //nolint:errcheck // logged intside the function
 
 	return nil
@@ -207,6 +252,7 @@ func (m *Miner) Maddr() string {
 	return string(m.maddr.String())
 }
 
+// runPreflightChecks verifies that preconditions to run the miner are satisfied.
 func (m *Miner) runPreflightChecks(ctx context.Context) error {
 	mi, err := m.api.StateMinerInfo(ctx, m.maddr, types.EmptyTSK)
 	if err != nil {

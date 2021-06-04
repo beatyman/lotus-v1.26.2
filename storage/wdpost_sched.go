@@ -26,8 +26,14 @@ import (
 	"go.opencensus.io/trace"
 )
 
+// WindowPoStScheduler is the coordinator for WindowPoSt submissions, fault
+// declaration, and recovery declarations. It watches the chain for reverts and
+// applies, and schedules/run those processes as partition deadlines arrive.
+//
+// WindowPoStScheduler watches the chain though the changeHandler, which in turn
+// turn calls the scheduler when the time arrives to do work.
 type WindowPoStScheduler struct {
-	api              storageMinerApi
+	api              fullNodeFilteredAPI
 	feeCfg           config.MinerFeeConfig
 	addrSel          *AddressSelector
 	prover           storage.Prover
@@ -50,11 +56,19 @@ type WindowPoStScheduler struct {
 	autoWithdrawRunning   bool
 }
 
-func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, as *AddressSelector, sb storage.Prover, verif ffiwrapper.Verifier, ft sectorstorage.FaultTracker, j journal.Journal, actor address.Address) (*WindowPoStScheduler, error) {
-	log.Info("lookup default config: EnableSeparatePartition::", fc.EnableSeparatePartition, "PartitionsPerMsg::", fc.PartitionsPerMsg)
-	EnableSeparatePartition = fc.EnableSeparatePartition
-	if EnableSeparatePartition && fc.PartitionsPerMsg != 0 {
-		PartitionsPerMsg = fc.PartitionsPerMsg
+// NewWindowedPoStScheduler creates a new WindowPoStScheduler scheduler.
+func NewWindowedPoStScheduler(api fullNodeFilteredAPI,
+	cfg config.MinerFeeConfig,
+	as *AddressSelector,
+	sp storage.Prover,
+	verif ffiwrapper.Verifier,
+	ft sectorstorage.FaultTracker,
+	j journal.Journal,
+	actor address.Address) (*WindowPoStScheduler, error) {
+	log.Info("lookup default config: EnableSeparatePartition::", cfg.EnableSeparatePartition, "PartitionsPerMsg::", cfg.PartitionsPerMsg)
+	EnableSeparatePartition = cfg.EnableSeparatePartition
+	if EnableSeparatePartition && cfg.PartitionsPerMsg != 0 {
+		PartitionsPerMsg = cfg.PartitionsPerMsg
 	}
 	mi, err := api.StateMinerInfo(context.TODO(), actor, types.EmptyTSK)
 	if err != nil {
@@ -63,9 +77,9 @@ func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, as 
 
 	return &WindowPoStScheduler{
 		api:              api,
-		feeCfg:           fc,
+		feeCfg:           cfg,
 		addrSel:          as,
-		prover:           sb,
+		prover:           sp,
 		verifier:         verif,
 		faultTracker:     ft,
 		proofType:        mi.WindowPoStProofType,
@@ -82,19 +96,20 @@ func NewWindowedPoStScheduler(api storageMinerApi, fc config.MinerFeeConfig, as 
 	}, nil
 }
 
-type changeHandlerAPIImpl struct {
-	storageMinerApi
-	*WindowPoStScheduler
-}
-
 func nextRoundTime(ts *types.TipSet) time.Time {
 	return time.Unix(int64(ts.MinTimestamp())+int64(build.BlockDelaySecs)+int64(build.PropagationDelaySecs), 0)
 }
 
 func (s *WindowPoStScheduler) Run(ctx context.Context) {
-	// Initialize change handler
-	chImpl := &changeHandlerAPIImpl{storageMinerApi: s.api, WindowPoStScheduler: s}
-	s.ch = newChangeHandler(chImpl, s.actor)
+	// Initialize change handler.
+
+	// callbacks is a union of the fullNodeFilteredAPI and ourselves.
+	callbacks := struct {
+		fullNodeFilteredAPI
+		*WindowPoStScheduler
+	}{s.api, s}
+
+	s.ch = newChangeHandler(callbacks, s.actor)
 	defer s.ch.shutdown()
 	s.ch.start()
 
@@ -121,6 +136,7 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 		case <-time.After(time.Until(nextRoundTime(bts))):
 			continue
 		case <-ctx.Done():
+			log.Info("wdpost ctx exit")
 			return
 		}
 	}
@@ -129,9 +145,11 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 	return
 	// end by hlm
 
-	var notifs <-chan []*api.HeadChange
-	var err error
-	var gotCur bool
+	var (
+		notifs <-chan []*api.HeadChange
+		err    error
+		gotCur bool
+	)
 
 	// not fine to panic after this point
 	for {

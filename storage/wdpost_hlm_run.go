@@ -71,7 +71,7 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 			}
 		)
 
-		if recoveries, sigmsg, err = s.checkNextRecoveries(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
+		if recoveries, sigmsg, err = s.declareRecoveries(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
 			log.Errorf("checking sector recoveries: %v", err)
 		}
@@ -90,7 +90,7 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 			return // FORK: declaring faults after ignition upgrade makes no sense
 		}
 
-		if faults, sigmsg, err = s.checkNextFaults(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
+		if faults, sigmsg, err = s.declareFaults(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is also potentially really bad, but we try to post anyways
 			log.Errorf("checking sector faults: %v", err)
 		}
@@ -127,9 +127,14 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 	}
 	log.Infof("DEBUG doPost StateMinerPartitions:%d,len:%d", di.Index, len(partitions))
 
+	nv, err := s.api.StateNetworkVersion(ctx, ts.Key())
+	if err != nil {
+		return nil, xerrors.Errorf("getting network version: %w", err)
+	}
+
 	// Split partitions into batches, so as not to exceed the number of sectors
 	// allowed in a single message
-	partitionBatches, err := s.batchPartitions(partitions)
+	partitionBatches, err := s.batchPartitions(partitions, nv)
 	if err != nil {
 		return nil, err
 	}
