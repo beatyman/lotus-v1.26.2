@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -40,18 +41,30 @@ func getAddr(target []byte) (*wallet.Key, error) {
 			//fmt.Println(err)
 		}
 	}()
-
-	var key *wallet.Key
-	var err error
-	for i := 0; i < 5; i++ {
-		kInfo := types.KeyInfo{Type: "bls", PrivateKey: target}
-		key, err = wallet.NewKey(context.TODO(), kInfo)
-		if err == nil {
-			return key, nil
-		}
-		target = append(target, 0)
+	ctx := context.TODO()
+	targetLen := len(target)
+	if targetLen > 32 {
+		return nil, errors.New("too long")
 	}
-	return key, err
+	if targetLen < 28 {
+		return nil, errors.New("too short")
+	}
+	kInfo := types.KeyInfo{Type: "bls", PrivateKey: target}
+	if targetLen == 32 {
+		return wallet.NewKey(ctx, kInfo)
+	}
+
+	// try fill the border
+	for i := 0; i < 32-targetLen; i++ {
+		newTarget := make([]byte, 32)
+		copy(newTarget[i:], target)
+		kInfo.PrivateKey = newTarget
+		k, err := wallet.NewKey(ctx, kInfo)
+		if err == nil {
+			return k, nil
+		}
+	}
+	return nil, errors.New("not match")
 }
 
 func outputKey(key *wallet.Key) {
@@ -85,8 +98,14 @@ func findKey(hexKey string) {
 			panic(err)
 		}
 
+		processPart := 0
 		foundIdx := 0
 	nextPos:
+		process := foundIdx / (1024 * 1024 * 1024)
+		if process != processPart {
+			processPart = process
+			fmt.Printf("%s [find] analysed %dGB\n", time.Now().Format(time.RFC3339), process)
+		}
 		found := bytes.Index(data[foundIdx:], target)
 		if found < 0 {
 			continue
