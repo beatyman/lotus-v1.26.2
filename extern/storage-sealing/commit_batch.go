@@ -112,6 +112,7 @@ func (b *CommitBatcher) run() {
 			sendAboveMax = true
 		case <-b.batchWait(cfg.CommitBatchWait, cfg.CommitBatchSlack):
 			sendAboveMin = true
+			log.Info("Commmit batch wait out")
 		case fr := <-b.force: // user triggered
 			forceRes = fr
 		}

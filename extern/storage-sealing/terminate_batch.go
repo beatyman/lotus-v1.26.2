@@ -96,6 +96,7 @@ func (b *TerminateBatcher) run() {
 			sendAboveMax = true
 		case <-time.After(cfg.TerminateBatchWait):
 			sendAboveMin = true
+			log.Info("Terminate batch wait out")
 		case fr := <-b.force: // user triggered
 			forceRes = fr
 		}

@@ -100,6 +100,7 @@ func (b *PreCommitBatcher) run() {
 			sendAboveMax = true
 		case <-b.batchWait(cfg.PreCommitBatchWait, cfg.PreCommitBatchSlack):
 			sendAboveMin = true
+			log.Info("PreCommmit batch wait out")
 		case fr := <-b.force: // user triggered
 			forceRes = fr
 		}
