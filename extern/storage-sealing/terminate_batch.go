@@ -92,6 +92,8 @@ func (b *TerminateBatcher) run() {
 			return
 		case <-b.notify:
 			sendAboveMax = true
+		case <-time.After(time.Minute): // fix bug of no notify event, example: restart the miner
+			sendAboveMax = true
 		case <-time.After(cfg.TerminateBatchWait):
 			sendAboveMin = true
 		case fr := <-b.force: // user triggered
