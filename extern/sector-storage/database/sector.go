@@ -241,6 +241,9 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 				file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%d", storageSealed))
 				file.SealedStorageId = storageSealed
 				file.SealedStorageType = sealedPoint.MountType
+				if sealedPoint.MountType == MOUNT_TYPE_OSS {
+					file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%s", sectorId))
+				}
 			}
 			unsealedPoint, ok := storages[storageUnsealed]
 			if ok {
@@ -248,6 +251,9 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 				file.UnsealedStorageId = storageUnsealed
 				file.UnsealedStorageType = unsealedPoint.MountType
 				file.IsMarketSector = true
+				if sealedPoint.MountType == MOUNT_TYPE_OSS {
+					file.UnsealedRepo = filepath.Join(unsealedPoint.MountDir, fmt.Sprintf("%s", sectorId))
+				}
 			}
 		}
 		result[sectorId] = *file

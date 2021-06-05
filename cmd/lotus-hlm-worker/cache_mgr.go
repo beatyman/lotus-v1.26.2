@@ -13,6 +13,10 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+const (
+	QINIU_VIRTUAL_MOUNTPOINT = "/data/oss/qiniu/"
+)
+
 // remove cache of the sector
 func (w *worker) RemoveRepoSector(ctx context.Context, repo, sid string) error {
 	w.workMu.Lock()
@@ -136,6 +140,21 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := api.DelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
 			log.Warn(errors.As(err))
 		}
+	case database.MOUNT_TYPE_OSS:
+		mountDir := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid)
+		// send the sealed
+		sealedFromPath := workerSB.SectorPath("sealed", sid)
+		sealedToPath := filepath.Join(mountDir, "sealed")
+		if err := w.upload(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+			return errors.As(err)
+		}
+
+		// send the cache
+		cacheFromPath := workerSB.SectorPath("cache", sid)
+		cacheToPath := filepath.Join(mountDir, "cache", sid)
+		if err := w.upload(ctx, cacheFromPath, cacheToPath); err != nil {
+			return errors.As(err)
+		}
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -214,6 +233,13 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if err := api.DelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
 			log.Warn(errors.As(err))
 		}
+	case database.MOUNT_TYPE_OSS:
+		mountDir := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid)
+		unsealedFromPath := workerSB.SectorPath("unsealed", sid)
+		unsealedToPath := filepath.Join(mountDir, "unsealed")
+		if err := w.upload(ctx, unsealedFromPath, filepath.Join(unsealedToPath, sid)); err != nil {
+			return errors.As(err)
+		}
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -277,6 +303,13 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		if err := api.DelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
 			log.Warn(errors.As(err))
 		}
+	case database.MOUNT_TYPE_OSS:
+		mountDir := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid)
+		unsealedFromPath := filepath.Join(mountDir, "unsealed")
+		unsealedToPath := workerSB.SectorPath("unsealed", sid)
+		if err := w.download(ctx, unsealedFromPath, filepath.Join(unsealedToPath, sid)); err != nil {
+			return errors.As(err)
+		}
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -339,6 +372,21 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		}
 		if err := api.DelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
 			log.Warn(errors.As(err))
+		}
+	case database.MOUNT_TYPE_OSS:
+		mountDir := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid)
+		// fetch the unsealed file
+		sealedFromPath := filepath.Join(mountDir, "sealed", sid)
+		sealedToPath := workerSB.SectorPath("sealed", sid)
+		if err := w.download(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+			return errors.As(err)
+		}
+
+		// fetch cache file
+		cacheFromPath := filepath.Join(mountDir, "cache", sid)
+		cacheToPath := workerSB.SectorPath("cache", sid)
+		if err := w.download(ctx, cacheFromPath, filepath.Join(cacheToPath, sid)); err != nil {
+			return errors.As(err)
 		}
 	default:
 		mountUri := ss.MountTransfUri

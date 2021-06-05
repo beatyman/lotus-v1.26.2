@@ -8,13 +8,17 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/bits"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/qiniupd/qiniu-go-sdk/syncdata/operation"
 	"golang.org/x/xerrors"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
@@ -451,7 +455,9 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 	//}
 	//defer srcDone()
 
-	sealed, err := os.OpenFile(sPath.Sealed, os.O_RDONLY, 0644) // nolint:gosec
+	//sealed, err := os.OpenFile(sPath.Sealed, os.O_RDONLY, 0644) // nolint:gosec
+	d := operation.NewDownloaderV2()
+	sealed, err := d.DownloadFile(sPath.Sealed, sPath.Sealed)
 	if err != nil {
 		return xerrors.Errorf("opening sealed file: %w", err)
 	}
@@ -562,6 +568,11 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 }
 
 func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {
+	up := os.Getenv("QINIU")
+	if up != "" {
+		return sb.ReadPieceQiniu(ctx, writer, sector, offset, size)
+	}
+
 	log.Infof("DEBUG:ReadPiece in, sector:%+v", sector)
 	defer log.Infof("DEBUG:ReadPiece out, sector:%+v", sector)
 
@@ -736,6 +747,91 @@ func (sb *Sealer) SealCommit2(ctx context.Context, sector storage.SectorRef, pha
 	return ffi.SealCommitPhase2(phase1Out, sector.ID.Number, sector.ID.Miner)
 }
 
+type req struct {
+	Path   string `json:"path"`
+	ToPath string `json:"topath"`
+}
+
+func newReq(s, s1 string) *req {
+	return &req{
+		Path:   s,
+		ToPath: s1,
+	}
+}
+
+func lastTreePaths(cacheDir string) []string {
+	var ret []string
+	paths, err := ioutil.ReadDir(cacheDir)
+	fmt.Println(err)
+	if err != nil {
+		return []string{}
+	}
+	fmt.Println(paths)
+	for _, v := range paths {
+		if !v.IsDir() {
+			if strings.Contains(v.Name(), "tree-r-last") ||
+				v.Name() == "p_aux" || v.Name() == "t_aux" {
+				ret = append(ret, path.Join(cacheDir, v.Name()))
+			}
+		}
+	}
+	return ret
+}
+
+func submitPaths(paths []*req) error {
+	up := os.Getenv("QINIU")
+	if up == "" {
+		return nil
+	}
+	uploader := operation.NewUploaderV2()
+	for _, v := range paths {
+		fmt.Println(*v)
+		err := uploader.Upload(v.Path, v.Path)
+		log.Infof("QINIU : submit path=%v err=%v\n", v.Path, err)
+		if err != nil {
+			return err
+		}
+
+		/*
+			   if !strings.Contains(v.Path, ".genesis-sectors") {
+						           os.Remove(v.Path)
+									   }
+		*/
+	}
+	return nil
+}
+
+func submitQ(paths storiface.SectorPaths, sector abi.SectorID) error {
+	fmt.Printf("submit path %#v sector %#v\n", paths, sector)
+	cache := paths.Cache
+	seal := paths.Sealed
+
+	pathList := lastTreePaths(cache)
+	pathList = append(pathList, seal, paths.Unsealed)
+	var reqs []*req
+	for _, path := range pathList {
+		fmt.Println("path ", path)
+		//reqs = append(reqs, newReq(path))
+		if -1 != strings.Index(path, "data/lotus-cache/") {
+			ss := strings.SplitN(path, "data/lotus-cache/", 2)
+			sss := strings.SplitN(ss[1], "/", 2)
+			//topath := "data/oss/qiniu/" + fmt.Sprintf("s-t0%d-%d", sector.Miner, sector.Number) + sss[1]
+			topath := filepath.Join("data/oss/qiniu/", fmt.Sprintf("s-t0%d-%d", sector.Miner, sector.Number), sss[1])
+			fmt.Println("topath=", topath)
+			reqs = append(reqs, newReq(path, topath))
+		} else if -1 != strings.Index(path, "data/cache/.lotusworker/") {
+			ss := strings.SplitN(path, "data/cache/.lotusworker/", 2)
+			//topath := "data/oss/qiniu/" + fmt.Sprintf("s-t0%d-%d/", sector.Miner, sector.Number) + ss[1]
+			topath := filepath.Join("data/oss/qiniu/", fmt.Sprintf("s-t0%d-%d/", sector.Miner, sector.Number), ss[1])
+			fmt.Println("topath=", topath)
+			reqs = append(reqs, newReq(path, topath))
+		} else {
+			reqs = append(reqs, newReq(path, path))
+		}
+	}
+	return submitPaths(reqs)
+}
+
 func (sb *Sealer) finalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {
 	ssize, err := sector.ProofType.SectorSize()
 	if err != nil {
@@ -800,6 +896,30 @@ func (sb *Sealer) finalizeSector(ctx context.Context, sector storage.SectorRef, 
 		return xerrors.Errorf("acquiring sector cache path: %w", err)
 	}
 	defer done()
+
+	sealPath, done1, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTSealed, 0, storiface.PathStorage)
+	if err != nil {
+		return xerrors.Errorf("acquiring sector seal path: %w", err)
+	}
+	defer done1()
+
+	unsealPath, done2, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, 0, storiface.PathStorage)
+	if err != nil {
+		return xerrors.Errorf("acquiring sector unseal path: %w", err)
+	}
+	defer done2()
+
+	pathNew := storiface.SectorPaths{
+		ID:       sector.ID,
+		Unsealed: unsealPath.Unsealed,
+		Sealed:   sealPath.Sealed,
+		Cache:    paths.Cache,
+	}
+
+	err = submitQ(pathNew, sector.ID)
+	if err != nil {
+		return xerrors.Errorf("QINIU Upload sector error: %w", err)
+	}
 
 	return ffi.ClearCache(uint64(ssize), paths.Cache)
 }

@@ -106,6 +106,8 @@ func Umount(mountPoint string) (bool, error) {
 // if the mountUri is local file, it would make a link.
 func Mount(ctx context.Context, mountType, mountUri, mountPoint, mountOpts string) error {
 	switch mountType {
+	case MOUNT_TYPE_OSS:
+		return nil
 	case MOUNT_TYPE_CUSTOM:
 		// close for customer protocal
 		return nil

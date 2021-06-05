@@ -12,6 +12,7 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
@@ -86,6 +87,13 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 			Cache:    sector.CachePath(),
 		}
 
+		if sectors[0].UnsealedStorageType == database.MOUNT_TYPE_OSS {
+			sp := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
+			lp.Cache = filepath.Join(sp, storiface.FTCache.String(), storiface.SectorName(sector.ID))
+			lp.Sealed = filepath.Join(sp, storiface.FTSealed.String(), storiface.SectorName(sector.ID))
+			lp.Unsealed = filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
+		}
+
 		if lp.Sealed == "" || lp.Cache == "" {
 			return errors.New("CheckProvable Sector FAULT: cache an/or sealed paths not found").As(sector, lp.Sealed, lp.Cache)
 		}
@@ -94,56 +102,60 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 		if err != nil {
 			return errors.As(err)
 		}
-		toCheck := map[string]int64{
-			lp.Sealed:                        int64(ssize),
-			filepath.Join(lp.Cache, "p_aux"): 0,
-		}
-		//filepath.Join(lp.Cache, "t_aux"): 0, // no check for fake
-		if _, ok := miner0.SupportedProofTypes[abi.RegisteredSealProof_StackedDrg2KiBV1]; !ok {
-			toCheck[filepath.Join(lp.Cache, "t_aux")] = 0
-		}
 
-		addCachePathsForSectorSize(toCheck, lp.Cache, ssize)
+		if sectors[0].UnsealedStorageType != database.MOUNT_TYPE_OSS {
+			toCheck := map[string]int64{
+				lp.Sealed:                        int64(ssize),
+				filepath.Join(lp.Cache, "p_aux"): 0,
+			}
+			//filepath.Join(lp.Cache, "t_aux"): 0, // no check for fake
+			if _, ok := miner0.SupportedProofTypes[abi.RegisteredSealProof_StackedDrg2KiBV1]; !ok {
+				toCheck[filepath.Join(lp.Cache, "t_aux")] = 0
+			}
 
-		for p, sz := range toCheck {
-			err := func() error {
-				// checking data
-				// TODO: beause the origin ctx has been cancaled by unknow reasons.
-				checkCtx, checkCancel := context.WithTimeout(context.TODO(), timeout)
-				defer checkCancel()
-				checkDone := make(chan error, 1)
-				go func() {
-					st, err := os.Stat(p)
-					if err != nil {
-						checkDone <- errors.As(err, p)
-						return
-					}
+			addCachePathsForSectorSize(toCheck, lp.Cache, ssize)
 
-					if sz != 0 {
-						if st.Size() < sz {
-							checkDone <- errors.New("CheckProvable Sector FAULT: sector file is wrong size").As(p, st.Size())
+			for p, sz := range toCheck {
+				err := func() error {
+					// checking data
+					// TODO: beause the origin ctx has been cancaled by unknow reasons.
+					checkCtx, checkCancel := context.WithTimeout(context.TODO(), timeout)
+					defer checkCancel()
+					checkDone := make(chan error, 1)
+					go func() {
+						st, err := os.Stat(p)
+						if err != nil {
+							checkDone <- errors.As(err, p)
 							return
 						}
-					}
-					checkDone <- nil
-					return
-				}()
 
-				select {
-				case <-checkCtx.Done():
-					return errors.New("check timeout").As(p)
-				case err := <-checkDone:
-					if err != nil {
-						return errors.As(err, p)
+						if sz != 0 {
+							if st.Size() < sz {
+								checkDone <- errors.New("CheckProvable Sector FAULT: sector file is wrong size").As(p, st.Size())
+								return
+							}
+						}
+						checkDone <- nil
+						return
+					}()
+
+					select {
+					case <-checkCtx.Done():
+						return errors.New("check timeout").As(p)
+					case err := <-checkDone:
+						if err != nil {
+							return errors.As(err, p)
+						}
 					}
+					return nil
+				}()
+				if err != nil {
+					return errors.As(err)
 				}
-				return nil
-			}()
-			if err != nil {
-				return errors.As(err)
+				// continue
 			}
-			// continue
 		}
+
 		if rg != nil {
 			wpp, err := sector.ProofType.RegisteredWindowPoStProof()
 			if err != nil {

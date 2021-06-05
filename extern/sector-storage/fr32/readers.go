@@ -7,13 +7,17 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/qiniupd/qiniu-go-sdk/syncdata/operation"
 )
 
 type unpadReader struct {
 	src io.Reader
 
-	left uint64
-	work []byte
+	left       uint64
+	work       []byte
+	offset     int64
+	path       string
+	downloader *operation.Downloader
 }
 
 func NewUnpadReader(src io.Reader, sz abi.PaddedPieceSize) (io.Reader, error) {
@@ -28,6 +32,23 @@ func NewUnpadReader(src io.Reader, sz abi.PaddedPieceSize) (io.Reader, error) {
 
 		left: uint64(sz),
 		work: buf,
+	}, nil
+}
+
+func NewUnpadReaderV2(sz abi.PaddedPieceSize, downloader *operation.Downloader, offset int64, path string) (io.Reader, error) {
+	if err := sz.Validate(); err != nil {
+		return nil, xerrors.Errorf("bad piece size: %w", err)
+	}
+
+	buf := make([]byte, MTTresh*mtChunkCount(sz))
+
+	return &unpadReader{
+		src:        nil,
+		left:       uint64(sz),
+		work:       buf,
+		offset:     offset,
+		path:       path,
+		downloader: downloader,
 	}, nil
 }
 

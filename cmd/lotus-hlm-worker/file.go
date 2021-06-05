@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gwaylib/errors"
+	"github.com/qiniupd/qiniu-go-sdk/syncdata/operation"
 )
 
 const (
@@ -243,7 +244,23 @@ func copyFile(ctx context.Context, from, to string) error {
 	}
 }
 
-func CopyFile(ctx context.Context, from, to string) error {
+type Transferer struct {
+	f func(ctx context.Context, from, to string) error
+}
+
+func NewTransferer(h func(ctx context.Context, from, to string) error) (t *Transferer) {
+	t = &Transferer{
+		f: h,
+	}
+	return
+}
+
+func CopyFile(ctx context.Context, from, to string, t ...*Transferer) error {
+	copyfunc := &Transferer{f: copyFile}
+	if len(t) != 0 {
+		copyfunc = t[0]
+	}
+
 	_, source, err := travelFile(from)
 	if err != nil {
 		return errors.As(err)
@@ -251,13 +268,13 @@ func CopyFile(ctx context.Context, from, to string) error {
 	for _, src := range source {
 		toFile := strings.Replace(src, from, to, 1)
 		tCtx, cancel := context.WithTimeout(ctx, time.Hour)
-		if err := copyFile(tCtx, src, toFile); err != nil {
+		if err := copyfunc.f(tCtx, src, toFile); err != nil {
 			cancel()
 			log.Warn(errors.As(err))
 
 			// try again
 			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
-			if err := copyFile(tCtx, src, toFile); err != nil {
+			if err := copyfunc.f(tCtx, src, toFile); err != nil {
 				cancel()
 				return errors.As(err)
 			}
@@ -265,4 +282,62 @@ func CopyFile(ctx context.Context, from, to string) error {
 		cancel()
 	}
 	return nil
+}
+
+// upload file from filesystem to qiniu oss cluster
+func uploadToOSS(ctx context.Context, from, to string) error {
+	up := os.Getenv("QINIU")
+
+	if up == "" {
+		fmt.Println("please set QINIU environment variable first!")
+		return errors.New("connot find QINIU environment variable")
+	}
+	conf2, err := operation.Load(up)
+	if err != nil {
+		log.Error("load config error", err)
+		return errors.As(err)
+	}
+	/*
+		if conf2.Sim {
+					submitPathOut(paths)
+							return
+									}
+	*/
+	uploader := operation.NewUploaderV2()
+	err = uploader.Upload(from, to)
+	fmt.Printf("submit path %s to %s err %v\n", from, to, err)
+	if conf2.Delete {
+		os.Remove(from)
+	}
+
+	return err
+}
+
+// download file from local to qiniu oss cluste
+func downloadFromOSS(ctx context.Context, from, to string) error {
+	up := os.Getenv("QINIU")
+
+	if up == "" {
+		fmt.Println("please set QINIU environment variable first!")
+		return errors.New("connot find QINIU environment variable")
+	}
+	conf2, err := operation.Load(up)
+	if err != nil {
+		log.Error("load config error", err)
+		return errors.As(err)
+	}
+	/*
+		if conf2.Sim {
+					submitPathOut(paths)
+							return
+									}
+	*/
+
+	downloader := operation.NewDownloader(conf2)
+	_, err = downloader.DownloadFile(from, to)
+	if err != nil {
+		fmt.Printf("downloadFileFromQiniu failed download file from %s to %s err %v\n", from, to, err)
+	}
+
+	return err
 }
