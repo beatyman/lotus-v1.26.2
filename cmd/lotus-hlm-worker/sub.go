@@ -436,6 +436,9 @@ reAllocate:
 			}
 			// no file to finalize, just return done.
 		} else {
+			if err := w.pushUnsealed(ctx, sealer, task); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
 			if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}

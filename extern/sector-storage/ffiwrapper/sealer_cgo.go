@@ -897,30 +897,6 @@ func (sb *Sealer) finalizeSector(ctx context.Context, sector storage.SectorRef, 
 	}
 	defer done()
 
-	sealPath, done1, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTSealed, 0, storiface.PathStorage)
-	if err != nil {
-		return xerrors.Errorf("acquiring sector seal path: %w", err)
-	}
-	defer done1()
-
-	unsealPath, done2, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, 0, storiface.PathStorage)
-	if err != nil {
-		return xerrors.Errorf("acquiring sector unseal path: %w", err)
-	}
-	defer done2()
-
-	pathNew := storiface.SectorPaths{
-		ID:       sector.ID,
-		Unsealed: unsealPath.Unsealed,
-		Sealed:   sealPath.Sealed,
-		Cache:    paths.Cache,
-	}
-
-	err = submitQ(pathNew, sector.ID)
-	if err != nil {
-		return xerrors.Errorf("QINIU Upload sector error: %w", err)
-	}
-
 	return ffi.ClearCache(uint64(ssize), paths.Cache)
 }
 
