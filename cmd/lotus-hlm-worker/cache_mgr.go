@@ -204,7 +204,15 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	log.Infof("pushUnsealed:%+v", sid)
 	defer log.Infof("pushUnsealed exit:%+v", sid)
 
-	ss := task.SectorStorage.UnsealedStorage
+	api, err := GetNodeApi()
+	if err != nil {
+		return errors.As(err)
+	}
+	ss, err := api.PreStorageNode(ctx, sid, w.workerCfg.IP, database.STORAGE_KIND_UNSEALED)
+	if err != nil {
+		return errors.As(err)
+	}
+	//ss := task.SectorStorage.UnsealedStorage
 	if ss.ID == 0 {
 		// no unsealed storage to mount
 		return nil
