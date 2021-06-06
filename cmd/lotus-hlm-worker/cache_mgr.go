@@ -13,10 +13,6 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-const (
-	QINIU_VIRTUAL_MOUNTPOINT = "/data/oss/qiniu/"
-)
-
 // remove cache of the sector
 func (w *worker) RemoveRepoSector(ctx context.Context, repo, sid string) error {
 	w.workMu.Lock()

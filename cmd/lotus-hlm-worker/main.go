@@ -32,6 +32,10 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+const (
+	QINIU_VIRTUAL_MOUNTPOINT = "/data/oss/qiniu/"
+)
+
 var log = logging.Logger("main")
 
 var (
@@ -259,10 +263,25 @@ var runCmd = &cli.Command{
 			return err
 		}
 
+		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
+		defer cancel()
+
+		apitemp, err := GetNodeApi()
+		if err != nil {
+			return errors.As(err)
+		}
+		ss, err := apitemp.PreStorageNode(ctx, "", "", database.STORAGE_KIND_SEALED)
+		if err != nil {
+			return errors.As(err)
+		}
+		if ss.MountType == database.MOUNT_TYPE_OSS {
+			cctx.Set("storage-repo", QINIU_VIRTUAL_MOUNTPOINT)
+		}
 		sealedRepo, err := homedir.Expand(cctx.String("storage-repo"))
 		if err != nil {
 			return err
 		}
+
 		idFile := cctx.String("id-file")
 		if len(idFile) == 0 {
 			idFile = "~/.lotusworker/worker.id"
@@ -271,9 +290,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-
-		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
-		defer cancel()
 
 		log.Infof("getting miner actor")
 		act, err := nodeApi.ActorAddress(ctx)
