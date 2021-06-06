@@ -108,8 +108,11 @@ func (b *CommitBatcher) run() {
 			return
 		case <-b.notify:
 			sendAboveMax = true
+		case <-time.After(time.Minute): // fix bug of no notify event, example: restart the miner
+			sendAboveMax = true
 		case <-b.batchWait(cfg.CommitBatchWait, cfg.CommitBatchSlack):
 			sendAboveMin = true
+			log.Info("Commmit batch wait out")
 		case fr := <-b.force: // user triggered
 			forceRes = fr
 		}

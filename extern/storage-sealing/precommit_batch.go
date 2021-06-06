@@ -96,8 +96,11 @@ func (b *PreCommitBatcher) run() {
 			return
 		case <-b.notify:
 			sendAboveMax = true
+		case <-time.After(time.Minute): // fix bug of no notify event, example: restart the miner
+			sendAboveMax = true
 		case <-b.batchWait(cfg.PreCommitBatchWait, cfg.PreCommitBatchSlack):
 			sendAboveMin = true
+			log.Info("PreCommmit batch wait out")
 		case fr := <-b.force: // user triggered
 			forceRes = fr
 		}
