@@ -87,7 +87,7 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 			Cache:    sector.CachePath(),
 		}
 
-		if sectors[0].UnsealedStorageType == database.MOUNT_TYPE_OSS {
+		if sectors[0].SealedStorageType == database.MOUNT_TYPE_OSS {
 			sp := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
 			lp.Cache = filepath.Join(sp, storiface.FTCache.String(), storiface.SectorName(sector.ID))
 			lp.Sealed = filepath.Join(sp, storiface.FTSealed.String(), storiface.SectorName(sector.ID))
@@ -103,7 +103,7 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 			return errors.As(err)
 		}
 
-		if sectors[0].UnsealedStorageType != database.MOUNT_TYPE_OSS {
+		if sectors[0].SealedStorageType != database.MOUNT_TYPE_OSS {
 			toCheck := map[string]int64{
 				lp.Sealed:                        int64(ssize),
 				filepath.Join(lp.Cache, "p_aux"): 0,
