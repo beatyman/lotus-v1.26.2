@@ -516,6 +516,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 	if EnableSeparatePartition {
 		return s.runHlmPoStCycle(ctx, di, ts)
 	}
+
 	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
 	defer span.End()
 
@@ -669,7 +670,6 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 
 				skipCount += sc
 
-				log.Infof("DEBUG: getSectorsForProof, partIdx:%d", partIdx)
 				ssi, err := s.sectorsForProof(ctx, good, partition.AllSectors, ts)
 				if err != nil {
 					return nil, xerrors.Errorf("getting sorted sector info: %w", err)
