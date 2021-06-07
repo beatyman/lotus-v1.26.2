@@ -148,6 +148,8 @@ sudo lotus sync status # 查看bootstrap节点的链状态
 ### 搭建存储节点
 重置存储节点删除所有配置文件后重新初始化即可。
 ```shell
+mkdir -p /data/zfs # 可不挂载、或挂载zfs，或挂载单盘，或某个支持mount的数据池
+sudo rm -rf auth.dat # 若启用了hlm-miner，需通过sudo rm -rf ~/hlm-miner/var/lotus-storage-0/auth 来重置接入的密钥
 sudo ./lotus-storage # 或者配置hlmd参数启动文件执行hlmd ctl start lotus-storage-0
 ```
 
@@ -190,6 +192,32 @@ cd ~/hlm-miner/script/lotus/lotus-user/
 # 运行刷密封扇区
 ./miner.sh pledge-sector start
 
+# 因在v1.10.0中使用批量提交消息的功能，在开发环境中默认很难达到默认配置要作，需要手动提交消息或修改配置文件
+./miner.sh sectors batching precommit --publish-now # 手动提交precommit消息
+./miner.sh sectors batching commit --publish-now # 手动提交commit消息
+或者修改配置文件(config.toml)
+[Sealing]
+#  MaxWaitDealsSectors = 2
+#  MaxSealingSectors = 0
+#  MaxSealingSectorsForDeals = 0
+#  MaxDealsPerSector = 0
+#  WaitDealsDelay = "6h0m0s"
+#  AlwaysKeepUnsealedCopy = true
+#  BatchPreCommits = true
+  MaxPreCommitBatch = 12
+  MinPreCommitBatch = 1
+  PreCommitBatchWait = "1h0m0s"
+#  PreCommitBatchSlack = "3h0m0s"
+#  AggregateCommits = true
+  MaxCommitBatch = 12
+  MinCommitBatch = 1
+  CommitBatchWait = "1h0m0s"
+#  CommitBatchSlack = "1h0m0s"
+#  TerminateBatchMax = 100
+#  TerminateBatchMin = 1
+#  TerminateBatchWait = "5m0s"
+#
+
 # miner的其他指令，参阅
 ./miner.sh --help
 ```
@@ -229,22 +257,12 @@ shell 5, 运行worker
 ```
 cd ~/hlm-miner/apps/lotus
 # 不同机器部署时运行前注意修改脚本中的netip地址段，默认只支持10段
-./worker.sh # 或者直接hlmd ctl start lotus-worker-1
-```
-shell 6，刷扇区
-```
-cd ~/hlm-miner/script/lotus/lotus-user/
-
-# 运行刷量
-./miner.sh pledge-sector start
-
-# miner的其他指令，参阅
-./miner.sh --help
+./worker.sh # 或者直接hlmd ctl start lotus-worker-1t(12任务)
 ```
 
 ## 启用链集群
 
-(此为开发可选项)
+(未完成，此为开发可选项)
 
 链接入etcd部署的图, etcd-gateway需要在链节点上启动, 同一个物理节点的进程共用一个gateway
 ```text
@@ -337,12 +355,6 @@ hlmd ctl restart lotus-user-1
 
 ```
 /data/zfs的目录自行挂载需要的盘
-
-```
-
-配置nfs的/etc/exports文件,进行nfs导出
-```
-/data/zfs/ *(rw,sync,insecure,no_root_squash)
 ```
 
 ### 链节点目录
@@ -385,7 +397,7 @@ hlmd ctl restart lotus-user-1
 /data/cache/.lotusworker
 ```
 
-密封结果推送目录
+密封结果推送目录(启用lotus-storage后此目录已不用，或用回nfs，则需要)
 ```text
 /data/lotus-push
 
