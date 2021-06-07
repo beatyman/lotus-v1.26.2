@@ -514,7 +514,7 @@ func (s *WindowPoStScheduler) declareFaults(ctx context.Context, dlIdx uint64, p
 //     don't exceed message capacity.
 func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
 	if EnableSeparatePartition {
-		return s.runHlmPost(ctx, di, ts)
+		return s.runHlmPoStCycle(ctx, di, ts)
 	}
 	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
 	defer span.End()
