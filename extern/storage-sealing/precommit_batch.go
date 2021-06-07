@@ -89,6 +89,7 @@ func (b *PreCommitBatcher) run() {
 		}
 		lastRes = nil
 
+		start := time.Now()
 		var sendAboveMax, sendAboveMin bool
 		select {
 		case <-b.stop:
@@ -96,11 +97,9 @@ func (b *PreCommitBatcher) run() {
 			return
 		case <-b.notify:
 			sendAboveMax = true
-		case <-time.After(time.Minute): // fix bug of no notify event, example: restart the miner
-			sendAboveMax = true
-		case <-b.batchWait(cfg.PreCommitBatchWait, cfg.PreCommitBatchSlack):
+		case waitOut := <-b.batchWait(cfg.PreCommitBatchWait, cfg.PreCommitBatchSlack):
 			sendAboveMin = true
-			log.Info("PreCommmit batch wait out")
+			log.Infof("DEBUG:PreCommmit batch wait out:%s", waitOut.Sub(start))
 		case fr := <-b.force: // user triggered
 			forceRes = fr
 		}
@@ -120,7 +119,7 @@ func (b *PreCommitBatcher) batchWait(maxWait, slack time.Duration) <-chan time.T
 	defer b.lk.Unlock()
 
 	if len(b.todo) == 0 {
-		return nil
+		return time.After(maxWait)
 	}
 
 	var deadline time.Time
