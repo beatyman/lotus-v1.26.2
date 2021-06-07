@@ -87,6 +87,10 @@ func canAppendFile(aFile, bFile *os.File, aStat, bStat os.FileInfo) (int, error)
 	return append_file_completed, nil
 }
 
+func travelFileEmpty(path string) (os.FileInfo, []string, error) {
+	return nil, []string{path}, nil
+}
+
 func travelFile(path string) (os.FileInfo, []string, error) {
 	fStat, err := os.Lstat(path)
 	if err != nil {
@@ -245,36 +249,38 @@ func copyFile(ctx context.Context, from, to string) error {
 }
 
 type Transferer struct {
-	f func(ctx context.Context, from, to string) error
+	travel func(path string) (os.FileInfo, []string, error)
+	copy   func(ctx context.Context, from, to string) error
 }
 
-func NewTransferer(h func(ctx context.Context, from, to string) error) (t *Transferer) {
-	t = &Transferer{
-		f: h,
+func NewTransferer(t func(path string) (os.FileInfo, []string, error), h func(ctx context.Context, from, to string) error) *Transferer {
+	tran := &Transferer{
+		travel: t,
+		copy:   h,
 	}
-	return
+	return tran
 }
 
 func CopyFile(ctx context.Context, from, to string, t ...*Transferer) error {
-	copyfunc := &Transferer{f: copyFile}
+	copyfunc := &Transferer{copy: copyFile, travel: travelFile}
 	if len(t) != 0 {
 		copyfunc = t[0]
 	}
-
-	_, source, err := travelFile(from)
+	_, source, err := copyfunc.travel(from)
 	if err != nil {
 		return errors.As(err)
 	}
+
 	for _, src := range source {
 		toFile := strings.Replace(src, from, to, 1)
 		tCtx, cancel := context.WithTimeout(ctx, time.Hour)
-		if err := copyfunc.f(tCtx, src, toFile); err != nil {
+		if err := copyfunc.copy(tCtx, src, toFile); err != nil {
 			cancel()
 			log.Warn(errors.As(err))
 
 			// try again
 			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
-			if err := copyfunc.f(tCtx, src, toFile); err != nil {
+			if err := copyfunc.copy(tCtx, src, toFile); err != nil {
 				cancel()
 				return errors.As(err)
 			}

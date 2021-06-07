@@ -240,8 +240,8 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	case database.MOUNT_TYPE_OSS:
 		mountDir := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid)
 		unsealedFromPath := workerSB.SectorPath("unsealed", sid)
-		unsealedToPath := filepath.Join(mountDir, "unsealed")
-		if err := w.upload(ctx, unsealedFromPath, filepath.Join(unsealedToPath, sid)); err != nil {
+		unsealedToPath := filepath.Join(mountDir, "unsealed", sid)
+		if err := w.upload(ctx, unsealedFromPath, unsealedToPath); err != nil {
 			return errors.As(err)
 		}
 	default:
@@ -309,9 +309,9 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		}
 	case database.MOUNT_TYPE_OSS:
 		mountDir := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid)
-		unsealedFromPath := filepath.Join(mountDir, "unsealed")
+		unsealedFromPath := filepath.Join(mountDir, "unsealed", sid)
 		unsealedToPath := workerSB.SectorPath("unsealed", sid)
-		if err := w.download(ctx, unsealedFromPath, filepath.Join(unsealedToPath, sid)); err != nil {
+		if err := w.download(ctx, unsealedFromPath, unsealedToPath); err != nil {
 			return errors.As(err)
 		}
 	default:
@@ -382,7 +382,7 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		// fetch the unsealed file
 		sealedFromPath := filepath.Join(mountDir, "sealed", sid)
 		sealedToPath := workerSB.SectorPath("sealed", sid)
-		if err := w.download(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+		if err := w.download(ctx, sealedFromPath, sealedToPath); err != nil {
 			return errors.As(err)
 		}
 

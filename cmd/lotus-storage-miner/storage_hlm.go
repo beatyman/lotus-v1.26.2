@@ -181,7 +181,7 @@ var addHLMStorageCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		kind := cctx.Int("kind")
 		switch kind {
-		case database.STORAGE_KIND_SEALED, database.STORAGE_KIND_UNSEALED:
+		case database.STORAGE_KIND_SEALED, database.STORAGE_KIND_UNSEALED, database.STORAGE_KIND_TRANSPORT:
 		default:
 			fmt.Printf("unknow kind:%d\n", kind)
 			return nil
