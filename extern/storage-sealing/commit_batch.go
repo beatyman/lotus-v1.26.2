@@ -101,6 +101,7 @@ func (b *CommitBatcher) run() {
 		}
 		lastMsg = nil
 
+		start := time.Now()
 		var sendAboveMax, sendAboveMin bool
 		select {
 		case <-b.stop:
@@ -108,11 +109,9 @@ func (b *CommitBatcher) run() {
 			return
 		case <-b.notify:
 			sendAboveMax = true
-		case <-time.After(time.Minute): // fix bug of no notify event, example: restart the miner
-			sendAboveMax = true
-		case <-b.batchWait(cfg.CommitBatchWait, cfg.CommitBatchSlack):
+		case waitOut := <-b.batchWait(cfg.CommitBatchWait, cfg.CommitBatchSlack):
 			sendAboveMin = true
-			log.Info("Commmit batch wait out")
+			log.Infof("DEBUG:Commmit batch wait out:%s", waitOut.Sub(start))
 		case fr := <-b.force: // user triggered
 			forceRes = fr
 		}
@@ -132,7 +131,7 @@ func (b *CommitBatcher) batchWait(maxWait, slack time.Duration) <-chan time.Time
 	defer b.lk.Unlock()
 
 	if len(b.todo) == 0 {
-		return nil
+		return time.After(maxWait)
 	}
 
 	var deadline time.Time

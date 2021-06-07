@@ -28,7 +28,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
-func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
+func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
 	log.Info("================================start generage wdpost========================================")
 	defer func() {
 		log.Info("================================End generage wdpost========================================")
@@ -43,7 +43,7 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 	log.Info("deadline info:  index=", di.Index, " current epoch=", di.CurrentEpoch, " Challenge epoch = ", di.Challenge, " PeriodStart=", di.PeriodStart, " Open epoch=", di.Open, " close epoch=", di.Close, " ")
 	log.Info("WPoStPeriodDeadlines:", di.WPoStPeriodDeadlines, "WPoStProvingPeriod=", di.WPoStPeriodDeadlines, "WPoStChallengeWindow=", di.WPoStChallengeWindow, "WPoStChallengeLookback=", di.WPoStChallengeLookback, "FaultDeclarationCutoff=", di.FaultDeclarationCutoff)
 	go func() {
-		// TODO: extract from runPost, run on fault cutoff boundaries
+		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
 
 		// check faults / recoveries for the *next* deadline. It's already too
 		// late to declare them for this deadline
