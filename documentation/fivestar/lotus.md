@@ -397,7 +397,7 @@ hlmd ctl restart lotus-user-1
 /data/cache/.lotusworker
 ```
 
-密封结果推送目录(启用lotus-storage后此目录已不用，或用回nfs，则需要)
+密封结果推送目录(启用lotus-storage后此目录已不用，若用回nfs，则需要)
 ```text
 /data/lotus-push
 
