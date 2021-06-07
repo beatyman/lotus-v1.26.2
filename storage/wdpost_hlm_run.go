@@ -29,12 +29,12 @@ import (
 )
 
 func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
-	log.Info("================================start generage wdpost========================================")
-	defer log.Info("================================End generage wdpost========================================")
+	log.Info("================================ DEBUG: Start generage wdpost========================================")
+	defer log.Info("================================DEBUG: End generage wdpost========================================")
 	epochTime := int64(build.BlockDelaySecs)
 	maxDelayEpoch := int64(di.Close - di.CurrentEpoch - 10)
 	maxDelayTime := maxDelayEpoch * epochTime
-	log.Infow("max delay time:", maxDelayTime, "max delay epoch:", maxDelayEpoch, "epoch time:", epochTime, "time now:", time.Now().Unix())
+	log.Infow("max delay time:", maxDelayTime, "max delay epoch:", maxDelayEpoch, "epoch time:", epochTime)
 	timech := time.After(time.Duration(maxDelayTime) * time.Second)
 	log.Infow("deadline info:  index=", di.Index, " current epoch=", di.CurrentEpoch, " Challenge epoch = ", di.Challenge, " PeriodStart=", di.PeriodStart, " Open epoch=", di.Open, " close epoch=", di.Close, " ")
 	log.Infow("WPoStPeriodDeadlines:", di.WPoStPeriodDeadlines, "WPoStProvingPeriod=", di.WPoStPeriodDeadlines, "WPoStChallengeWindow=", di.WPoStChallengeWindow, "WPoStChallengeLookback=", di.WPoStChallengeLookback, "FaultDeclarationCutoff=", di.FaultDeclarationCutoff)
