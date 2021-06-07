@@ -321,7 +321,8 @@ func (b *CommitBatcher) processIndividually() ([]sealiface.CommitBatchRes, error
 
 	for sn, info := range b.todo {
 		r := sealiface.CommitBatchRes{
-			Sectors: []abi.SectorNumber{sn},
+			Sectors:       []abi.SectorNumber{sn},
+			FailedSectors: map[abi.SectorNumber]string{},
 		}
 
 		mcid, err := b.processSingle(mi, sn, info, tok)
