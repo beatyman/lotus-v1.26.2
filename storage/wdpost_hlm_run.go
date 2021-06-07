@@ -34,10 +34,14 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 	epochTime := int64(build.BlockDelaySecs)
 	maxDelayEpoch := int64(di.Close - di.CurrentEpoch - 10)
 	maxDelayTime := maxDelayEpoch * epochTime
-	log.Infow("max delay time:", maxDelayTime, "max delay epoch:", maxDelayEpoch, "epoch time:", epochTime)
+	log.Infof("max delay time:%d, max delay epoch:%d, epoch time:%d",
+		maxDelayTime, maxDelayEpoch, epochTime)
 	timech := time.After(time.Duration(maxDelayTime) * time.Second)
-	log.Infow("deadline info:  index=", di.Index, " current epoch=", di.CurrentEpoch, " Challenge epoch = ", di.Challenge, " PeriodStart=", di.PeriodStart, " Open epoch=", di.Open, " close epoch=", di.Close, " ")
-	log.Infow("WPoStPeriodDeadlines:", di.WPoStPeriodDeadlines, "WPoStProvingPeriod=", di.WPoStPeriodDeadlines, "WPoStChallengeWindow=", di.WPoStChallengeWindow, "WPoStChallengeLookback=", di.WPoStChallengeLookback, "FaultDeclarationCutoff=", di.FaultDeclarationCutoff)
+	log.Infof("deadline info:  index=%d, current epoch=%d, Challenge epoch=%d, PeriodStart=%d, Open epoch=%d, close epoch=%d",
+		di.Index, di.CurrentEpoch, di.Challenge, di.PeriodStart, di.Open, di.Close)
+	log.Infof("WPoStPeriodDeadlines:%d, WPoStProvingPeriod=%d, WPoStChallengeWindow=%d, WPoStChallengeLookback=%d FaultDeclarationCutoff=%d",
+		di.WPoStPeriodDeadlines, di.WPoStPeriodDeadlines, di.WPoStChallengeWindow, di.WPoStChallengeLookback, di.FaultDeclarationCutoff,
+	)
 
 	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
 	defer span.End()
