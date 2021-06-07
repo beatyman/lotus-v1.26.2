@@ -199,6 +199,31 @@ shell 4, 运行wdpost
 cd ~/hlm-miner/apps/lotus
 ./worker-wdpost.sh # 或者直接hlmd ctl start lotus-worker-wdpost, hlmd ctl tail lotus-worker-wdpost stderr -f 看日志
 ```
+*注意，因默认配置文件可能已打开(默认已打开)强制使用wdpost worker的选项，此项在此版本标注后默认需要运行wdpost worker，否则无法完成wdpost证明*  
+请检查miner配置config.toml是否已打开以下开关，若已打开，将强制使用worker计算wdpost
+```
+[Storage]
+#  ParallelFetchLimit = 10
+#  AllowAddPiece = true
+#  AllowPreCommit1 = true
+#  AllowPreCommit2 = true
+#  AllowCommit = true
+#  AllowUnseal = true
+RemoteSeal = true
+RemoteWnPoSt = 2
+RemoteWdPoSt = 2
+EnableForceRemoteWindowPoSt = true
+#
+[Fees]
+#  MaxPreCommitGasFee = "0.025 FIL"
+#  MaxCommitGasFee = "0.05 FIL"
+#  MaxTerminateGasFee = "0.5 FIL"
+#  MaxWindowPoStGasFee = "5 FIL"
+#  MaxPublishDealsFee = "0.05 FIL"
+#  MaxMarketBalanceAddFee = "0.007 FIL"
+EnableSeparatePartition = true
+PartitionsPerMsg = 4
+```
 
 shell 5, 运行worker
 ```
