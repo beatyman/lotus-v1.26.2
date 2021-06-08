@@ -161,6 +161,19 @@ var walletNew = &cli.Command{
 				return err
 			}
 
+			// export to local for backup
+			keyInfo, err := api.WalletExport(ctx, nk)
+			if err != nil {
+				fmt.Println(err.Error())
+			} else {
+				b, err := json.Marshal(keyInfo)
+				if err != nil {
+					fmt.Println(err.Error())
+				} else if err := ioutil.WriteFile(nk.String()+".dat", []byte(hex.EncodeToString(b)), 0600); err != nil {
+					fmt.Println(err.Error())
+				}
+			}
+
 			fmt.Println(nk.String())
 		} else {
 			// by zhoushuyue
