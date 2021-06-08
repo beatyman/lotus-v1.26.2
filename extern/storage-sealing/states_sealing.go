@@ -107,7 +107,7 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 		log.Warnf("Creating %d filler pieces for sector %d", len(fillerSizes), sector.SectorNumber)
 	}
 
-	s, err := database.GetStorageInfo(database.STORAGE_KIND_SEALED)
+	_, s, err := database.PrepareStorage("", "", database.STORAGE_KIND_SEALED)
 	if err == nil {
 		if s.MountType == database.MOUNT_TYPE_OSS {
 			id := m.minerSectorID(sector.SectorNumber)
