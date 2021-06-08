@@ -111,8 +111,7 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 	if err == nil {
 		if s.MountType == database.MOUNT_TYPE_OSS {
 			id := m.minerSectorID(sector.SectorNumber)
-			sid := fmt.Sprintf("s-t%d-%d", id.Miner, id.Number)
-			log.Info("----------------------------handlePacking sid=%s", sid)
+			sid := fmt.Sprintf("s-t0%d-%d", id.Miner, id.Number)
 
 			fromPath := ""
 			filepath.Walk(QINIU_VIRTUAL_MOUNTPOINT,
@@ -121,13 +120,11 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 						return err
 					}
 					if f.IsDir() {
-						//fmt.Println("dir:", path, filepath.Base(path))
 						return nil
 					}
-					//fmt.Println("file:", path)
 					if filepath.Base(path) == sid {
 						fromPath = path
-						log.Info("----------------------------handlePacking fromPath=%s", fromPath)
+						log.Infof("----------------------------handlePacking fromPath=%s", fromPath)
 					}
 					return nil
 				})
