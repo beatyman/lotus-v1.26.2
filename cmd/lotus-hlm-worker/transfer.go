@@ -189,7 +189,7 @@ func (w *worker) upload(ctx context.Context, fromPath, toPath string) error {
 		return err
 	}
 
-	log.Infof("upload, from: %s, to: %s", fromPath, toPath)
+	log.Infof("upload from: %s, to: %s", fromPath, toPath)
 	if stat.IsDir() {
 		if err := CopyFile(ctx, fromPath+"/", toPath+"/", NewTransferer(travelFile, uploadToOSS)); err != nil {
 			return err
@@ -211,7 +211,7 @@ func (w *worker) download(ctx context.Context, fromPath, toPath string) error {
 		return err
 	}*/
 
-	log.Infof("upload, from: %s, to: %s", fromPath, toPath)
+	log.Infof("download from: %s, to: %s", fromPath, toPath)
 	/*if stat.IsDir() {
 		if err := CopyFile(ctx, fromPath+"/", toPath+"/", NewTransferer(downloadFromOSS)); err != nil {
 			return err
