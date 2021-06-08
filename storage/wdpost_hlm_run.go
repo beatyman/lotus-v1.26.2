@@ -145,7 +145,6 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 	// Generate proofs in batches
 	posts := make([]miner.SubmitWindowedPoStParams, 0, len(partitionBatches))
 	postChan := make(chan interface{}, 1)
-	defer close(postChan)
 
 	batchPoSt := func(batchIdx int, batch []api.Partition) ([]miner.SubmitWindowedPoStParams, error) {
 		batchPartitionStartIdx := 0
