@@ -33,11 +33,12 @@ type FullNodeStruct struct {
 	Internal struct {
 
 		//implement by hlm
-		ChainComputeBaseFee func(context.Context, types.TipSetKey) (types.BigInt, error) `perm:"read"`
-		SyncProgress        func(context.Context) (api.SyncProgress, error)              `perm:"read"`
-		InputWalletStatus   func(context.Context) (string, error)                        `perm:"admin"`
-		InputWalletPasswd   func(context.Context, string) error                          `perm:"admin"`
-		WalletEncode        func(context.Context, address.Address, string) error         `perm:"admin"`
+		MpoolSignMessage    func(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) `perm:"sign"`
+		ChainComputeBaseFee func(context.Context, types.TipSetKey) (types.BigInt, error)                                       `perm:"read"`
+		SyncProgress        func(context.Context) (api.SyncProgress, error)                                                    `perm:"read"`
+		InputWalletStatus   func(context.Context) (string, error)                                                              `perm:"admin"`
+		InputWalletPasswd   func(context.Context, string) error                                                                `perm:"admin"`
+		WalletEncode        func(context.Context, address.Address, string) error                                               `perm:"admin"`
 		//implement by hlm end
 
 		BeaconGetEntry func(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) `perm:"read"`
@@ -461,6 +462,12 @@ type GatewayStruct struct {
 type GatewayStub struct {
 }
 
+func (s *FullNodeStruct) MpoolSignMessage(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) {
+	return s.Internal.MpoolSignMessage(p0, p1, p2)
+}
+func (s *FullNodeStub) MpoolSignMessage(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) {
+	return nil, xerrors.New("method not supported")
+}
 func (c *FullNodeStruct) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
 	return c.Internal.ChainComputeBaseFee(ctx, tsk)
 }
