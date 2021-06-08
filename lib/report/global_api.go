@@ -3,8 +3,8 @@ package report
 var defaultReporter = NewReporter(1000)
 
 // set a report url, if noset, it will drop the data by sending.
-func SetReportUrl(url string) {
-	defaultReporter.SetUrl(url)
+func SetConfig(c *Config) {
+	defaultReporter.SetConfig(c)
 }
 
 // unblock and send to the report buffer

@@ -45,7 +45,7 @@ func (hs *HlmMinerScheduler) Version(context.Context) (api.APIVersion, error) {
 
 func (hs *HlmMinerScheduler) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 	var payload jwtPayload
-	if _, err := jwt.Verify([]byte(token), (*jwt.HMACSHA)(hs.sm.CommonAPI.WorkerAPISecret), &payload); err != nil {
+	if _, err := jwt.Verify([]byte(token), (*jwt.HMACSHA)(hs.sm.WorkerAPISecret), &payload); err != nil {
 		return nil, errors.As(err)
 	}
 
@@ -57,7 +57,7 @@ func (hs *HlmMinerScheduler) AuthNew(ctx context.Context, perms []auth.Permissio
 		Allow: perms, // TODO: consider checking validity
 	}
 
-	return jwt.Sign(&p, (*jwt.HMACSHA)(hs.sm.CommonAPI.WorkerAPISecret))
+	return jwt.Sign(&p, (*jwt.HMACSHA)(hs.sm.WorkerAPISecret))
 }
 
 func (hs *HlmMinerScheduler) ActorAddress(context.Context) (address.Address, error) {

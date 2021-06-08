@@ -4,20 +4,28 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/gwaylib/errors"
-	"github.com/gwaylib/log"
 	"net/http"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	"github.com/gwaylib/errors"
+	"github.com/gwaylib/log"
 )
+
+type Config struct {
+	Url        string
+	Interval   time.Duration
+	RetryTimes int
+}
 
 type Reporter struct {
 	lk               sync.Mutex
 	lkSurvivalServer sync.Mutex
-	serverUrl        string
 	survivalServer   bool
 	reports          chan []byte
+
+	cfg *Config
 
 	ctx     context.Context
 	cancel  func()
@@ -47,10 +55,10 @@ func (r *Reporter) send(data []byte) error {
 	r.lk.Lock()
 	defer r.lk.Unlock()
 
-	if len(r.serverUrl) == 0 || !r.GetSurvivalServer() {
+	if r.cfg == nil || len(r.cfg.Url) == 0 || !r.GetSurvivalServer() {
 		return nil
 	}
-	resp, err := http.Post(r.serverUrl, "application/vnd.kafka.json.v2+json", bytes.NewReader(data))
+	resp, err := http.Post(r.cfg.Url, "application/vnd.kafka.json.v2+json", bytes.NewReader(data))
 	if err != nil {
 		return errors.As(err)
 	}
@@ -111,9 +119,9 @@ func (r *Reporter) runTimerTestingServer() {
 			select {
 			case <-ticker.C:
 				//定义超时3s
-				if r.serverUrl != "" {
+				if r.cfg != nil && r.cfg.Url != "" {
 					client := &http.Client{Timeout: 3 * time.Second}
-					resp, err := client.Get(r.serverUrl)
+					resp, err := client.Get(r.cfg.Url)
 					if err != nil {
 						log.Errorf("report error is ", err)
 						//服务不可用
@@ -135,10 +143,11 @@ func (r *Reporter) runTimerTestingServer() {
 	}()
 
 }
-func (r *Reporter) SetUrl(url string) {
+
+func (r *Reporter) SetConfig(c *Config) {
 	r.lk.Lock()
 	defer r.lk.Unlock()
-	r.serverUrl = url
+	r.cfg = c
 }
 
 func (r *Reporter) SetSurvivalServer(surServer bool) {

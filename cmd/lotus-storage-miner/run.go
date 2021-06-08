@@ -31,7 +31,6 @@ import (
 	"github.com/filecoin-project/lotus/buried"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
-	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
@@ -56,7 +55,7 @@ var runCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "report-url",
 			Value: "",
-			Usage: "report url for state",
+			Usage: "report url for state. TODO: remove this argument",
 		},
 		&cli.BoolFlag{
 			Name:  "enable-gpu-proving",
@@ -289,10 +288,6 @@ var runCmd = &cli.Command{
 			}
 		}()
 		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
-
-		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
-			report.SetReportUrl(reportUrl)
-		}
 
 		log.Info("rebuild tls cert automatic")
 		certPath := filepath.Join(minerRepoPath, "miner_crt.pem")
