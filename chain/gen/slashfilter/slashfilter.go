@@ -27,6 +27,14 @@ func New(dstore ds.Batching) *SlashFilter {
 	}
 }
 
+func (f SlashFilter) CleanCache(bh *types.BlockHeader, parentEpoch abi.ChainEpoch) error {
+	epochKey := ds.NewKey(fmt.Sprintf("/%s/%d", bh.Miner, bh.Height))
+	parentsKey := ds.NewKey(fmt.Sprintf("/%s/%x", bh.Miner, types.NewTipSetKey(bh.Parents...).Bytes()))
+	f.byEpoch.Delete(epochKey)
+	f.byParents.Delete(parentsKey)
+	return nil
+}
+
 func (f *SlashFilter) MinedBlock(bh *types.BlockHeader, parentEpoch abi.ChainEpoch) error {
 	if build.IsNearUpgrade(bh.Height, build.UpgradeOrangeHeight) {
 		return nil
