@@ -631,3 +631,51 @@ func multiStateWaitMsg(p0 context.Context, p1 cid.Cid, p2 uint64, p3 abi.ChainEp
 	}
 	return nil, gErr
 }
+
+func closingAll(p0 context.Context) (<-chan struct{}, error) {
+	lotusNodesLk.RLock()
+	if !lotusProxyOn {
+		lotusNodesLk.RUnlock()
+		panic("lotus proxy not on")
+	}
+
+	result := make(chan interface{}, len(lotusNodes))
+	call := func(node *LotusNode) {
+		if !node.IsAlive() {
+			result <- errors.New("down").As(node.apiInfo.Addr)
+			return
+		}
+		apiConn, err := node.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+		if err != nil {
+			result <- errors.As(err, node.apiInfo.Addr)
+			return
+		}
+		nApi := apiConn.NodeApi
+		c, err := nApi.Closing(p0)
+		if err != nil {
+			result <- err
+			return
+		}
+		result <- (<-c)
+	}
+
+	// sync all the data to all node
+	for _, node := range lotusNodes {
+		go call(node)
+	}
+	lotusNodesLk.RUnlock()
+
+	done := make(chan struct{}, 1)
+	go func() {
+		for i := len(lotusNodes); i > 0; i-- {
+			r := <-result
+			err, ok := r.(error)
+			if ok {
+				log.Warn(errors.As(err))
+				continue
+			}
+		}
+		done <- struct{}{}
+	}()
+	return done, nil
+}

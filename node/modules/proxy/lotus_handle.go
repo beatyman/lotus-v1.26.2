@@ -51,6 +51,11 @@ type jwtPayload struct {
 }
 
 // rebuild by zhoushuyue
+
+func (s *LotusImpl) Closing(p0 context.Context) (<-chan struct{}, error) {
+	//return bestNodeApi().Closing(p0)
+	return closingAll(p0)
+}
 func (l *LotusImpl) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 	if token == l.token {
 		return api.AllPermissions, nil
@@ -84,14 +89,15 @@ func (s *LotusImpl) StateWaitMsg(p0 context.Context, p1 cid.Cid, p2 uint64, p3 a
 	return multiStateWaitMsg(p0, p1, p2, p3, p4)
 }
 
+func (s *LotusImpl) ChainNotify(p0 context.Context) (<-chan []*api.HeadChange, error) {
+	return bestNodeApi().ChainNotify(p0)
+	//return chainNotify(p0) // TODO: implement the chan, but we not use this yet. zhoushyue
+}
+
 // rebuild end
 
 func (s *LotusImpl) AuthNew(p0 context.Context, p1 []auth.Permission) ([]byte, error) {
 	return bestNodeApi().AuthNew(p0, p1)
-}
-
-func (s *LotusImpl) Closing(p0 context.Context) (<-chan struct{}, error) {
-	return bestNodeApi().Closing(p0)
 }
 
 func (s *LotusImpl) Discover(p0 context.Context) (apitypes.OpenRPCDocument, error) {
@@ -270,10 +276,6 @@ func (s *LotusImpl) ChainHasObj(p0 context.Context, p1 cid.Cid) (bool, error) {
 
 func (s *LotusImpl) ChainHead(p0 context.Context) (*types.TipSet, error) {
 	return bestNodeApi().ChainHead(p0)
-}
-
-func (s *LotusImpl) ChainNotify(p0 context.Context) (<-chan []*api.HeadChange, error) {
-	return bestNodeApi().ChainNotify(p0)
 }
 
 func (s *LotusImpl) ChainReadObj(p0 context.Context, p1 cid.Cid) ([]byte, error) {
