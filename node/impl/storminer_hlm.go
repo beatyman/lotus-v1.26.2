@@ -27,6 +27,14 @@ func (sm *StorageMinerAPI) StatisWins(ctx context.Context, now time.Time, limit 
 }
 
 func (sm *StorageMinerAPI) ProxyAutoSelect(ctx context.Context, on bool) error {
+	// save to db
+	b := []byte{0}
+	if on {
+		b[0] = 1
+	}
+	if err := sm.DS.Put(proxy.PROXY_AUTO, b); err != nil {
+		return errors.As(err)
+	}
 	return proxy.SetLotusAutoSelect(on)
 }
 func (sm *StorageMinerAPI) ProxyChange(ctx context.Context, idx int) error {

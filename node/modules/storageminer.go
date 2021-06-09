@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"go.uber.org/fx"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
@@ -225,6 +226,15 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 			j      = params.Journal
 			as     = params.AddrSel
 		)
+
+		// load the lotus proxy configratoin.
+		on, err := ds.Get(proxy.PROXY_AUTO)
+		if err == nil {
+			// no care about the err
+			if len(on) > 0 {
+				proxy.SetLotusAutoSelect(on[0] != 0)
+			}
+		}
 
 		maddr, err := minerAddrFromDS(ds)
 		if err != nil {
