@@ -559,6 +559,7 @@ func broadcastSignedMessage(ctx context.Context, sm *types.SignedMessage) (api.F
 		if result == nil {
 			result = nApi
 		}
+		// continue
 	}
 	if result == nil {
 		return nil, errors.ErrNoData.As("all nodes down")
