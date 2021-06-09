@@ -60,6 +60,7 @@ type FullNode interface {
 	Common
 
 	// implement by hlm
+	MpoolSignMessage(ctx context.Context, msg *types.Message, spec *MessageSendSpec) (*types.SignedMessage, error) // only sign the message in mpool
 	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
 	SyncProgress(context.Context) (SyncProgress, error)
 	InputWalletStatus(context.Context) (string, error)

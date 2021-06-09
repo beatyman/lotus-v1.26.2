@@ -381,13 +381,14 @@ func (w *LocalWallet) walletDelete(ctx context.Context, addr address.Address) er
 	w.lk.Lock()
 	defer w.lk.Unlock()
 
-	if err := w.keystore.Delete(KTrashPrefix + k.Address.String()); err != nil && !xerrors.Is(err, types.ErrKeyInfoNotFound) {
-		return xerrors.Errorf("failed to purge trashed key %s: %w", addr, err)
-	}
-
-	if err := w.keystore.Put(KTrashPrefix+k.Address.String(), k.KeyInfo); err != nil {
-		return xerrors.Errorf("failed to mark key %s as trashed: %w", addr, err)
-	}
+	// no trash because has backup when create the key. by zhoushuyue
+	//if err := w.keystore.Delete(KTrashPrefix + k.Address.String()); err != nil && !xerrors.Is(err, types.ErrKeyInfoNotFound) {
+	//	return xerrors.Errorf("failed to purge trashed key %s: %w", addr, err)
+	//}
+	//
+	//if err := w.keystore.Put(KTrashPrefix+k.Address.String(), k.KeyInfo); err != nil {
+	//	return xerrors.Errorf("failed to mark key %s as trashed: %w", addr, err)
+	//}
 
 	if err := w.keystore.Delete(KNamePrefix + k.Address.String()); err != nil {
 		return xerrors.Errorf("failed to delete key %s: %w", addr, err)

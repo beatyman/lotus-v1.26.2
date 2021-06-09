@@ -133,8 +133,7 @@ func (m *MpoolModule) MpoolPush(ctx context.Context, smsg *types.SignedMessage) 
 func (a *MpoolAPI) MpoolPushUntrusted(ctx context.Context, smsg *types.SignedMessage) (cid.Cid, error) {
 	return a.Mpool.PushUntrusted(smsg)
 }
-
-func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
+func (a *MpoolAPI) mpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec, cb func(smsg *types.SignedMessage) error) (*types.SignedMessage, error) {
 	cp := *msg
 	msg = &cp
 	inMsg := *msg
@@ -180,13 +179,26 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 		return nil, xerrors.Errorf("mpool push: not enough funds: %s < %s", b, msg.Value)
 	}
 
-	// Sign and push the message
-	return a.MessageSigner.SignMessage(ctx, msg, func(smsg *types.SignedMessage) error {
+	if cb == nil {
+		cb = func(*types.SignedMessage) error {
+			// ignore this
+			return nil
+		}
+	}
+	return a.MessageSigner.SignMessage(ctx, msg, cb)
+}
+
+func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
+	return a.mpoolSignMessage(ctx, msg, spec, func(smsg *types.SignedMessage) error {
 		if _, err := a.MpoolModuleAPI.MpoolPush(ctx, smsg); err != nil {
 			return xerrors.Errorf("mpool push: failed to push message: %w", err)
 		}
 		return nil
 	})
+}
+
+func (a *MpoolAPI) MpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
+	return a.mpoolSignMessage(ctx, msg, spec, nil)
 }
 
 func (a *MpoolAPI) MpoolBatchPush(ctx context.Context, smsgs []*types.SignedMessage) ([]cid.Cid, error) {

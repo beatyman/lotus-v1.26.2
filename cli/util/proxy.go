@@ -11,14 +11,18 @@ import (
 	"github.com/gwaylib/errors"
 )
 
-func UseLotusProxy(ctx *cli.Context) error {
+func ConnectLotusProxy(ctx *cli.Context) error {
 	repoFlag := FlagForRepo(repo.FullNode)
 	p, err := homedir.Expand(ctx.String(repoFlag))
 	if err != nil {
 		return errors.As(err, repoFlag)
 	}
+	addr, err := GetAPIInfo(ctx, repo.FullNode)
+	if err != nil {
+		return errors.As(err)
+	}
 	proxyFile := filepath.Join(p, proxy.PROXY_FILE)
-	return proxy.UseLotusProxy(ctx.Context, proxyFile)
+	return proxy.UseLotusProxy(ctx.Context, proxyFile, addr)
 }
 
 func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
@@ -33,17 +37,7 @@ func proxyAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
 		if proxyAddr != nil {
 			return *proxyAddr, nil
 		}
-
-		// log.Info("Get proxy api failed, using the default lotus api")
-
-		// using default
-		addr, err := getAPIInfo(ctx, t)
-		if err == nil {
-			proxy.UseLotusDefault(ctx.Context, addr)
-		}
-		return addr, err
-	default:
-		return getAPIInfo(ctx, t)
 	}
+	return getAPIInfo(ctx, t)
 	// hlm implement end
 }

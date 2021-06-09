@@ -4,24 +4,44 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
-	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
+	"github.com/filecoin-project/go-jsonrpc/auth"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/api/client"
+	"github.com/filecoin-project/lotus/api/v0api"
+	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/cli/util/apiaddr"
+	"github.com/filecoin-project/lotus/metrics"
+	nauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/repo"
-	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
+	"github.com/ipfs/go-cid"
+	"go.opencensus.io/tag"
 	"golang.org/x/xerrors"
 )
+
+const (
+	_NODE_ALIVE_CONN_KEY = "check"
+)
+
+type LotusNodeApiV1 struct {
+	NodeApi api.FullNode
+	Closer  jsonrpc.ClientCloser
+}
+type LotusNodeApiV0 struct {
+	NodeApi v0api.FullNode
+	Closer  jsonrpc.ClientCloser
+}
 
 type LotusNode struct {
 	ctx     context.Context
@@ -30,90 +50,113 @@ type LotusNode struct {
 	curHeight int64 // the current epoch of the chain
 	usedTimes int   // good times
 
-	lock sync.Mutex
-
-	nodeApi    api.FullNode
-	nodeCloser jsonrpc.ClientCloser
-
-	proxyConns map[net.Conn]bool
-}
-
-func (l *LotusNode) closeConn(conn net.Conn) error {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	delete(l.proxyConns, conn)
-	return conn.Close()
+	lock   sync.Mutex
+	v0conn map[string]LotusNodeApiV0
+	v1conn map[string]LotusNodeApiV1
 }
 
 func (l *LotusNode) CloseAll() error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
-	for conn, _ := range l.proxyConns {
-		database.Close(conn)
+	for _, napi := range l.v0conn {
+		napi.Closer()
 	}
-	l.proxyConns = nil
-
-	if l.nodeCloser != nil {
-		l.nodeCloser()
+	for _, napi := range l.v1conn {
+		napi.Closer()
 	}
-	l.nodeCloser = nil
-	l.nodeApi = nil
+	l.v0conn = nil
+	l.v1conn = nil
 
 	return nil
 }
 
 func (l *LotusNode) IsAlive() bool {
-	return l.nodeApi != nil
-}
-
-func (l *LotusNode) getNodeApi() (api.FullNode, error) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
-	if l.nodeApi == nil {
-		// only support for v0 to check the chain is it alive.
-		addr, err := l.apiInfo.DialArgs("v1", repo.FullNode)
-		if err != nil {
-			return nil, xerrors.Errorf("could not get DialArgs: %w", err)
-		}
-		headers := l.apiInfo.AuthHeader()
-		nApi, closer, err := client.NewFullNodeRPCV1(l.ctx, addr, headers)
-		if err != nil {
-			return nil, errors.As(err, addr)
-		}
-		l.nodeApi = nApi
-		l.nodeCloser = closer
-	}
-	return l.nodeApi, nil
+	return len(l.v0conn) > 0 || len(l.v1conn) > 0
 }
 
-func (l *LotusNode) newConn() (api.FullNode, net.Conn, error) {
-	_, err := l.getNodeApi()
-	if err != nil {
-		return nil, nil, errors.As(err)
-	}
-
+func (l *LotusNode) GetNodeApiV0(sessionId string) (*LotusNodeApiV0, error) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
+	conn, ok := l.v0conn[sessionId]
+	if ok {
+		return &conn, nil
+	}
 
-	host, err := l.apiInfo.Host()
+	// only support for v0 to check the chain is it alive.
+	addr, err := l.apiInfo.DialArgs("v0", repo.FullNode)
 	if err != nil {
-		return nil, nil, errors.As(err, host)
+		return nil, xerrors.Errorf("could not get DialArgs: %w", err)
 	}
-	conn, err := net.DialTimeout("tcp", host, 30e9)
+	headers := l.apiInfo.AuthHeader()
+
+	// see: github.com/filecoin-project/lotus/api/client/client.go#NewFullNodeRPCV0
+	var res v0api.FullNodeStruct
+	closer, err := jsonrpc.NewMergeClient(l.ctx, addr, "Filecoin",
+		[]interface{}{
+			&res.CommonStruct.Internal,
+			&res.Internal,
+		},
+		headers,
+	)
 	if err != nil {
-		return nil, nil, errors.As(err, host)
+		return nil, errors.As(err, addr)
 	}
-	if l.proxyConns == nil {
-		l.proxyConns = map[net.Conn]bool{}
+
+	conn = LotusNodeApiV0{
+		NodeApi: &res,
+		Closer:  closer,
 	}
-	l.proxyConns[conn] = true
-	return l.nodeApi, conn, nil
+	if l.v0conn == nil {
+		l.v0conn = map[string]LotusNodeApiV0{}
+	}
+	l.v0conn[sessionId] = conn
+	return &conn, nil
+}
+func (l *LotusNode) GetNodeApiV1(sessionId string) (*LotusNodeApiV1, error) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	conn, ok := l.v1conn[sessionId]
+	if ok {
+		return &conn, nil
+	}
+
+	// only support for v0 to check the chain is it alive.
+	addr, err := l.apiInfo.DialArgs("v1", repo.FullNode)
+	if err != nil {
+		return nil, xerrors.Errorf("could not get DialArgs: %w", err)
+	}
+	headers := l.apiInfo.AuthHeader()
+
+	// see: github.com/filecoin-project/lotus/api/client/client.go#NewFullNodeRPCV1
+	var res api.FullNodeStruct
+	closer, err := jsonrpc.NewMergeClient(l.ctx, addr, "Filecoin",
+		[]interface{}{
+			&res.CommonStruct.Internal,
+			&res.Internal,
+		},
+		headers,
+	)
+	if err != nil {
+		return nil, errors.As(err, addr)
+	}
+
+	conn = LotusNodeApiV1{
+		NodeApi: &res,
+		Closer:  closer,
+	}
+	if l.v1conn == nil {
+		l.v1conn = map[string]LotusNodeApiV1{}
+	}
+	l.v1conn[sessionId] = conn
+	return &conn, nil
 }
 
 var (
-	lotusNodesLock = sync.Mutex{}
+	lotusNodesLk = sync.RWMutex{}
 
 	lotusProxyCfg    string
 	lotusProxyOn     bool
@@ -121,10 +164,53 @@ var (
 	lotusProxyAddr   *apiaddr.APIInfo
 	lotusProxyCloser func() error
 	lotusNodes       = []*LotusNode{}
+	defLotusNode     *LotusNode
 	bestLotusNode    *LotusNode
 	lotusCheckOnce   sync.Once
 	minerp2p         NetConnect
 )
+
+func bestNodeApi() api.FullNode {
+	lotusNodesLk.Lock()
+	defer lotusNodesLk.Unlock()
+	if !lotusProxyOn {
+		node, err := defLotusNode.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+		if err != nil {
+			panic(err)
+		}
+		return node.NodeApi
+	}
+loop:
+	if !lotusAutoSelect {
+		if bestLotusNode == nil {
+			checkLotusEpoch()
+		}
+		api, err := bestLotusNode.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+		if err == nil {
+			return api.NodeApi
+		}
+		log.Warn(errors.As(err))
+		time.Sleep(1e9)
+		goto loop
+	}
+
+	for _, node := range lotusNodes {
+		if !node.IsAlive() {
+			continue
+		}
+		api, err := node.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
+		return api.NodeApi
+	}
+
+	// waitting
+	time.Sleep(1e9)
+	checkLotusEpoch()
+	goto loop
+}
 
 func checkLotusEpoch() {
 	defer func() {
@@ -139,12 +225,13 @@ func checkLotusEpoch() {
 				done <- true
 			}()
 			alive := c.IsAlive()
-			nApi, err := c.getNodeApi()
+			apiConn, err := c.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
 			if err != nil {
 				c.CloseAll()
 				log.Warnf("lotus node down:%s", errors.As(err).Error())
 				return
 			}
+			nApi := apiConn.NodeApi
 			ts, err := nApi.ChainHead(c.ctx)
 			if err != nil {
 				c.CloseAll()
@@ -166,7 +253,9 @@ func checkLotusEpoch() {
 				}
 				log.Infof("lotus node up:%s", c.apiInfo.Addr)
 			}
+			c.lock.Lock()
 			c.curHeight = int64(ts.Height())
+			c.lock.Unlock()
 		}(client)
 	}
 	for i := len(lotusNodes); i > 0; i-- {
@@ -185,32 +274,10 @@ func checkLotusEpoch() {
 		// inverted order
 		return lotusNodes[i].curHeight > lotusNodes[j].curHeight
 	})
-
 	// auto select the best one
-	if lotusAutoSelect {
-		selectBestNode(3)
-	}
-}
-
-func selectBestNode(diff int64) {
-	if bestLotusNode == nil {
-		changeLotusNode(0)
-		return
-	}
-	if len(lotusNodes) == 0 {
-		// no nodes to compare
-		return
-	}
-
-	// change the node
-	if lotusNodes[0].curHeight-bestLotusNode.curHeight > diff || !bestLotusNode.IsAlive() {
-		log.Warnf("the best lotus node %s(alive:%t, height:%d) is unavailable, best lotus node should change to:%s(alive:%t, height:%d)",
-			bestLotusNode.apiInfo.Addr, bestLotusNode.IsAlive(), bestLotusNode.curHeight,
-			lotusNodes[0].apiInfo.Addr, lotusNodes[0].IsAlive(), lotusNodes[0].curHeight,
-		)
+	if bestLotusNode == nil || lotusAutoSelect {
 		changeLotusNode(0)
 	}
-	return
 }
 
 func changeLotusNode(idx int) error {
@@ -218,13 +285,8 @@ func changeLotusNode(idx int) error {
 	if idx > len(lotusNodes)-1 || idx < 0 {
 		return errors.New("index not found")
 	}
-	if bestLotusNode != nil {
-		if bestLotusNode.apiInfo.Addr != lotusNodes[idx].apiInfo.Addr {
-			// close the connection and let the client do reconnect.
-			bestLotusNode.CloseAll()
-		} else {
-			return errors.New("no change")
-		}
+	if bestLotusNode != nil && bestLotusNode.apiInfo.Addr == lotusNodes[idx].apiInfo.Addr {
+		return errors.New("no change")
 	}
 	log.Infof("change lotus node: idx:%d, addr:%s", idx, lotusNodes[idx].apiInfo.Addr)
 	bestLotusNode = lotusNodes[idx]
@@ -232,90 +294,59 @@ func changeLotusNode(idx int) error {
 	return nil
 }
 
-func startLotusProxy(addr string) (string, func() error, error) {
+func startLotusProxy(addr string, a api.FullNode) (string, func() error, error) {
 	if len(addr) == 0 {
 		return "", nil, errors.New("not found addr")
+	}
+
+	// see: lotus/cmd/lotus/rpc.go
+	serverOptions := make([]jsonrpc.ServerOption, 0)
+	//if maxRequestSize != 0 { // config set
+	//	serverOptions = append(serverOptions, jsonrpc.WithMaxRequestSize(maxRequestSize))
+	//}
+	serveRpc := func(path string, hnd interface{}) {
+		rpcServer := jsonrpc.NewServer(serverOptions...)
+		rpcServer.Register("Filecoin", hnd)
+
+		ah := &auth.Handler{
+			Verify: a.AuthVerify,
+			Next:   rpcServer.ServeHTTP,
+		}
+
+		http.Handle(path, ah)
+	}
+
+	pma := api.PermissionedFullAPI(metrics.MetricedFullAPI(a))
+
+	serveRpc("/rpc/v1", pma)
+	serveRpc("/rpc/v0", &v0api.WrapperV1Full{FullNode: pma})
+	srv := &http.Server{
+		Handler: http.DefaultServeMux,
+		BaseContext: func(listener net.Listener) context.Context {
+			ctx, _ := tag.New(context.Background(), tag.Upsert(metrics.APIInterface, "lotus-proxy"))
+			return ctx
+		},
+	}
+	repo := filepath.Dir(lotusProxyCfg)
+	certPath := filepath.Join(repo, "lotus_proxy_crt.pem")
+	keyPath := filepath.Join(repo, "lotus_proxy_key.pem")
+	if err := nauth.CreateTLSCert(certPath, keyPath); err != nil {
+		return "", nil, errors.As(err)
 	}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return "", nil, errors.As(err, addr)
 	}
 	log.Infof("start lotus proxy : %s", ln.Addr())
-
-	exit := make(chan bool, 1)
-	go func() {
-		for {
-			select {
-			case <-exit:
-				break
-			default:
-				conn, err := ln.Accept()
-				if err != nil {
-					time.Sleep(1e9)
-					// handle error
-					log.Warn(errors.As(err))
-					continue
-				}
-				log.Info("DEBUG : accept new proxy conn")
-				go handleLotus(conn)
-			}
-		}
-	}()
 	arr := strings.Split(ln.Addr().String(), ":")
-	return arr[1],
-		func() error {
-			exit <- true
-			return ln.Close()
-		}, nil
-}
-
-func handleLotus(srcConn net.Conn) {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
-	if bestLotusNode == nil {
-		checkLotusEpoch()
-		selectBestNode(3)
-	}
-	if bestLotusNode == nil {
-		srcConn.Close()
-		return
-	}
-
-	_, targetConn, err := bestLotusNode.newConn()
-	if err != nil {
-		log.Warn(errors.As(err))
-		database.Close(srcConn)
-		return
-	}
-
-	// copy request.
-	// TODO: send the mpool message request to all client, so it will not miss the mpool message.
+	port := arr[1]
 	go func() {
-		if _, err := io.Copy(srcConn, targetConn); err != nil {
+		defer ln.Close()
+		if err := srv.ServeTLS(ln, certPath, keyPath); err != nil {
 			log.Warn(errors.As(err))
-
-			lotusNodesLock.Lock()
-			bestLotusNode.closeConn(targetConn)
-			checkLotusEpoch()
-			lotusNodesLock.Unlock()
-
-			srcConn.Close()
 		}
 	}()
-
-	// copy response.
-	go func() {
-		if _, err := io.Copy(targetConn, srcConn); err != nil {
-			log.Warn(errors.As(err))
-
-			lotusNodesLock.Lock()
-			bestLotusNode.closeConn(targetConn)
-			checkLotusEpoch()
-			lotusNodesLock.Unlock()
-
-			srcConn.Close()
-		}
-	}()
+	return port, ln.Close, nil
 }
 
 func loadLotusProxy(ctx context.Context, cfgFile string) error {
@@ -359,25 +390,20 @@ func loadLotusProxy(ctx context.Context, cfgFile string) error {
 			apiInfo: apiaddr.ParseApiInfo(records[i]),
 		})
 	}
-
-	// checksum the token
 	if len(nodes) == 0 {
 		return errors.New("client not found")
 	}
 
-	// TODO: support different token.
 	proxyAddr := apiaddr.ParseApiInfo(strings.TrimSpace(records[0]))
-	token := string(proxyAddr.Token)
-	for i := len(nodes) - 1; i > 0; i-- {
-		if token != string(nodes[i].apiInfo.Token) {
-			return errors.New("tokens are not same").As(nodes[i].apiInfo.Addr)
-		}
-	}
-
 	return reloadNodes(&proxyAddr, nodes)
 }
 
 func reloadNodes(proxyAddr *apiaddr.APIInfo, nodes []*LotusNode) error {
+	// no proxy
+	if proxyAddr == nil {
+		return errors.New("no proxy address to listen")
+	}
+
 	// clean nodes
 	removeNodes := []*LotusNode{}
 	for _, node := range lotusNodes {
@@ -401,20 +427,20 @@ func reloadNodes(proxyAddr *apiaddr.APIInfo, nodes []*LotusNode) error {
 		log.Infof("remove lotus node:%s", node.apiInfo.String())
 	}
 
-	if proxyAddr == nil {
-		return nil
-	}
 	// only support restart the miner to upgrade a new listen
 	if lotusProxyAddr != nil {
 		return nil
 	}
-
+	if !lotusProxyOn {
+		lotusProxyAddr = proxyAddr
+		return nil
+	}
 	// start a new proxy
 	host, err := proxyAddr.Host()
 	if err != nil {
 		return errors.As(err, proxyAddr.Addr)
 	}
-	port, closer, err := startLotusProxy(host)
+	port, closer, err := startLotusProxy(host, NewLotusProxy(string(proxyAddr.Token)))
 	if err != nil {
 		return errors.As(err, proxyAddr.Addr)
 	}
@@ -448,7 +474,13 @@ func lotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.Pr
 		var syncStat *api.SyncState
 		var mpStat []api.ProxyMpStat
 		if isAlive {
-			inputName, err := c.nodeApi.InputWalletStatus(ctx)
+			apiConn, err := c.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+			if err != nil {
+				log.Warn(errors.As(err))
+				continue
+			}
+			nApi := apiConn.NodeApi
+			inputName, err := nApi.InputWalletStatus(ctx)
 			if err != nil {
 				decoding = errors.As(err).Code()
 			} else if len(inputName) == 0 {
@@ -457,7 +489,7 @@ func lotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.Pr
 				decoding = inputName
 			}
 			if cond.ChainSync {
-				st, err := c.nodeApi.SyncState(ctx)
+				st, err := nApi.SyncState(ctx)
 				if err != nil {
 					log.Warn(errors.As(err))
 					continue
@@ -465,7 +497,7 @@ func lotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.Pr
 				syncStat = st
 			}
 			if cond.ChainMpool {
-				stats, err := lotusMpoolStat(ctx, c.nodeApi)
+				stats, err := lotusMpoolStat(ctx, nApi)
 				if err != nil {
 					log.Warn(errors.As(err))
 					continue
@@ -491,4 +523,159 @@ func lotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.Pr
 		Nodes:      nodes,
 	}
 	return stat, nil
+}
+
+func broadcastMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
+	sMsg, err := bestNodeApi().MpoolSignMessage(ctx, msg, spec)
+	if err != nil {
+		return nil, err
+	}
+	if err := broadcastSignedMessage(ctx, sMsg); err != nil {
+		return nil, err
+	}
+	return sMsg, nil
+}
+
+// return the api for wait
+func broadcastSignedMessage(ctx context.Context, sm *types.SignedMessage) error {
+	lotusNodesLk.RLock()
+	if !lotusProxyOn {
+		lotusNodesLk.RUnlock()
+		panic("lotus proxy not on")
+	}
+
+	result := make(chan error, len(lotusNodes))
+	call := func(node *LotusNode) {
+		if !node.IsAlive() {
+			result <- errors.New("down").As(node.apiInfo.Addr)
+			return
+		}
+		apiConn, err := node.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+		if err != nil {
+			result <- errors.As(err, node.apiInfo.Addr)
+			return
+		}
+		nApi := apiConn.NodeApi
+		if _, err := nApi.MpoolPush(ctx, sm); err != nil {
+			result <- err
+			return
+		}
+		result <- nil
+	}
+
+	// sync all the data to all node
+	for _, node := range lotusNodes {
+		go call(node)
+	}
+	lotusNodesLk.RUnlock()
+
+	done := 0
+	for i := len(lotusNodes); i > 0; i-- {
+		err := <-result
+		if err != nil {
+			log.Warn(errors.As(err))
+		} else {
+			done++
+		}
+	}
+	if done == 0 {
+		return errors.New("no node to sent")
+	}
+	return nil
+}
+
+func multiStateWaitMsg(p0 context.Context, p1 cid.Cid, p2 uint64, p3 abi.ChainEpoch, p4 bool) (*api.MsgLookup, error) {
+	lotusNodesLk.RLock()
+	if !lotusProxyOn {
+		lotusNodesLk.RUnlock()
+		panic("lotus proxy not on")
+	}
+
+	result := make(chan interface{}, len(lotusNodes))
+	call := func(node *LotusNode) {
+		if !node.IsAlive() {
+			result <- errors.New("down").As(node.apiInfo.Addr)
+			return
+		}
+		apiConn, err := node.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+		if err != nil {
+			result <- errors.As(err, node.apiInfo.Addr)
+			return
+		}
+		nApi := apiConn.NodeApi
+		lp, err := nApi.StateWaitMsg(p0, p1, p2, p3, p4)
+		if err != nil {
+			result <- err
+			return
+		}
+		result <- lp
+	}
+
+	// sync all the data to all node
+	for _, node := range lotusNodes {
+		go call(node)
+	}
+	lotusNodesLk.RUnlock()
+
+	var gErr error
+	for i := len(lotusNodes); i > 0; i-- {
+		r := <-result
+		err, ok := r.(error)
+		if ok {
+			log.Warn(errors.As(err))
+			gErr = err
+			continue
+		}
+		// return the fastest
+		return r.(*api.MsgLookup), nil
+	}
+	return nil, gErr
+}
+
+func closingAll(p0 context.Context) (<-chan struct{}, error) {
+	lotusNodesLk.RLock()
+	if !lotusProxyOn {
+		lotusNodesLk.RUnlock()
+		panic("lotus proxy not on")
+	}
+
+	result := make(chan interface{}, len(lotusNodes))
+	call := func(node *LotusNode) {
+		if !node.IsAlive() {
+			result <- errors.New("down").As(node.apiInfo.Addr)
+			return
+		}
+		apiConn, err := node.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+		if err != nil {
+			result <- errors.As(err, node.apiInfo.Addr)
+			return
+		}
+		nApi := apiConn.NodeApi
+		c, err := nApi.Closing(p0)
+		if err != nil {
+			result <- err
+			return
+		}
+		result <- (<-c)
+	}
+
+	// sync all the data to all node
+	for _, node := range lotusNodes {
+		go call(node)
+	}
+	lotusNodesLk.RUnlock()
+
+	done := make(chan struct{}, 1)
+	go func() {
+		for i := len(lotusNodes); i > 0; i-- {
+			r := <-result
+			err, ok := r.(error)
+			if ok {
+				log.Warn(errors.As(err))
+				continue
+			}
+		}
+		done <- struct{}{}
+	}()
+	return done, nil
 }

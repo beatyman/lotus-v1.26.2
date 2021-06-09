@@ -389,8 +389,9 @@ func (m *Miner) mine(ctx context.Context) {
 			}
 
 			if err := m.sf.MinedBlock(b.Header, lastBase.TipSet.Height()+lastBase.NullRounds); err != nil {
-				lastBase.TipSet = nil // clean the cache and redo the mining
+				m.sf.CleanCache(b.Header, lastBase.TipSet.Height()+lastBase.NullRounds)
 				log.Errorf("<!!> SLASH FILTER ERROR: %s", err)
+				lastBase.TipSet = nil // clean the cache and redo the mining
 				continue
 			}
 
