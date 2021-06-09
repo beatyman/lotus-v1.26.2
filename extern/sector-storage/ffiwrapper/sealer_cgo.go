@@ -8,13 +8,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/bits"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -757,79 +754,6 @@ func newReq(s, s1 string) *req {
 		Path:   s,
 		ToPath: s1,
 	}
-}
-
-func lastTreePaths(cacheDir string) []string {
-	var ret []string
-	paths, err := ioutil.ReadDir(cacheDir)
-	fmt.Println(err)
-	if err != nil {
-		return []string{}
-	}
-	fmt.Println(paths)
-	for _, v := range paths {
-		if !v.IsDir() {
-			if strings.Contains(v.Name(), "tree-r-last") ||
-				v.Name() == "p_aux" || v.Name() == "t_aux" {
-				ret = append(ret, path.Join(cacheDir, v.Name()))
-			}
-		}
-	}
-	return ret
-}
-
-func submitPaths(paths []*req) error {
-	up := os.Getenv("QINIU")
-	if up == "" {
-		return nil
-	}
-	uploader := operation.NewUploaderV2()
-	for _, v := range paths {
-		fmt.Println(*v)
-		err := uploader.Upload(v.Path, v.Path)
-		log.Infof("QINIU : submit path=%v err=%v\n", v.Path, err)
-		if err != nil {
-			return err
-		}
-
-		/*
-			   if !strings.Contains(v.Path, ".genesis-sectors") {
-						           os.Remove(v.Path)
-									   }
-		*/
-	}
-	return nil
-}
-
-func submitQ(paths storiface.SectorPaths, sector abi.SectorID) error {
-	fmt.Printf("submit path %#v sector %#v\n", paths, sector)
-	cache := paths.Cache
-	seal := paths.Sealed
-
-	pathList := lastTreePaths(cache)
-	pathList = append(pathList, seal, paths.Unsealed)
-	var reqs []*req
-	for _, path := range pathList {
-		fmt.Println("path ", path)
-		//reqs = append(reqs, newReq(path))
-		if -1 != strings.Index(path, "data/lotus-cache/") {
-			ss := strings.SplitN(path, "data/lotus-cache/", 2)
-			sss := strings.SplitN(ss[1], "/", 2)
-			//topath := "data/oss/qiniu/" + fmt.Sprintf("s-t0%d-%d", sector.Miner, sector.Number) + sss[1]
-			topath := filepath.Join("data/oss/qiniu/", fmt.Sprintf("s-t0%d-%d", sector.Miner, sector.Number), sss[1])
-			fmt.Println("topath=", topath)
-			reqs = append(reqs, newReq(path, topath))
-		} else if -1 != strings.Index(path, "data/cache/.lotusworker/") {
-			ss := strings.SplitN(path, "data/cache/.lotusworker/", 2)
-			//topath := "data/oss/qiniu/" + fmt.Sprintf("s-t0%d-%d/", sector.Miner, sector.Number) + ss[1]
-			topath := filepath.Join("data/oss/qiniu/", fmt.Sprintf("s-t0%d-%d/", sector.Miner, sector.Number), ss[1])
-			fmt.Println("topath=", topath)
-			reqs = append(reqs, newReq(path, topath))
-		} else {
-			reqs = append(reqs, newReq(path, path))
-		}
-	}
-	return submitPaths(reqs)
 }
 
 func (sb *Sealer) finalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {

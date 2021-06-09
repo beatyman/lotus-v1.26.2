@@ -208,9 +208,7 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	if err != nil {
 		return errors.As(err)
 	}
-	//ss := task.SectorStorage.UnsealedStorage
 	if ss.ID == 0 {
-		// no unsealed storage to mount
 		return nil
 	}
 
