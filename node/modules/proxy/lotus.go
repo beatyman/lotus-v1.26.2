@@ -16,6 +16,7 @@ import (
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -24,6 +25,7 @@ import (
 	nauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/gwaylib/errors"
+	"github.com/ipfs/go-cid"
 	"go.opencensus.io/tag"
 	"golang.org/x/xerrors"
 )
@@ -154,7 +156,7 @@ func (l *LotusNode) GetNodeApiV1(sessionId string) (*LotusNodeApiV1, error) {
 }
 
 var (
-	lotusNodesLock = sync.Mutex{}
+	lotusNodesLk = sync.RWMutex{}
 
 	lotusProxyCfg    string
 	lotusProxyOn     bool
@@ -169,8 +171,8 @@ var (
 )
 
 func bestNodeApi() api.FullNode {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
+	lotusNodesLk.Lock()
+	defer lotusNodesLk.Unlock()
 	if !lotusProxyOn {
 		node, err := defLotusNode.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
 		if err != nil {
@@ -523,46 +525,109 @@ func lotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.Pr
 	return stat, nil
 }
 
-func broadcastMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (api.FullNode, *types.SignedMessage, error) {
+func broadcastMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
 	sMsg, err := bestNodeApi().MpoolSignMessage(ctx, msg, spec)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	nApi, err := broadcastSignedMessage(ctx, sMsg)
-	return nApi, sMsg, err
+	if err := broadcastSignedMessage(ctx, sMsg); err != nil {
+		return nil, err
+	}
+	return sMsg, nil
 }
 
 // return the api for wait
-func broadcastSignedMessage(ctx context.Context, sm *types.SignedMessage) (api.FullNode, error) {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
+func broadcastSignedMessage(ctx context.Context, sm *types.SignedMessage) error {
+	lotusNodesLk.RLock()
 	if !lotusProxyOn {
+		lotusNodesLk.RUnlock()
 		panic("lotus proxy not on")
 	}
 
-	// sync all the data to all node
-	var result api.FullNode
-	for _, node := range lotusNodes {
+	result := make(chan error, len(lotusNodes))
+	call := func(node *LotusNode) {
 		if !node.IsAlive() {
-			continue
+			result <- errors.New("down").As(node.apiInfo.Addr)
+			return
 		}
 		apiConn, err := node.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
 		if err != nil {
-			log.Warn(errors.As(err))
-			continue
+			result <- errors.As(err, node.apiInfo.Addr)
+			return
 		}
 		nApi := apiConn.NodeApi
 		if _, err := nApi.MpoolPush(ctx, sm); err != nil {
+			result <- err
+			return
+		}
+		result <- nil
+	}
+
+	// sync all the data to all node
+	for _, node := range lotusNodes {
+		go call(node)
+	}
+	lotusNodesLk.RUnlock()
+
+	done := 0
+	for i := len(lotusNodes); i > 0; i-- {
+		err := <-result
+		if err != nil {
 			log.Warn(errors.As(err))
+		} else {
+			done++
+		}
+	}
+	if done == 0 {
+		return errors.New("no node to sent")
+	}
+	return nil
+}
+
+func multiStateWaitMsg(p0 context.Context, p1 cid.Cid, p2 uint64, p3 abi.ChainEpoch, p4 bool) (*api.MsgLookup, error) {
+	lotusNodesLk.RLock()
+	if !lotusProxyOn {
+		lotusNodesLk.RUnlock()
+		panic("lotus proxy not on")
+	}
+
+	result := make(chan interface{}, len(lotusNodes))
+	call := func(node *LotusNode) {
+		if !node.IsAlive() {
+			result <- errors.New("down").As(node.apiInfo.Addr)
+			return
+		}
+		apiConn, err := node.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+		if err != nil {
+			result <- errors.As(err, node.apiInfo.Addr)
+			return
+		}
+		nApi := apiConn.NodeApi
+		lp, err := nApi.StateWaitMsg(p0, p1, p2, p3, p4)
+		if err != nil {
+			result <- err
+			return
+		}
+		result <- lp
+	}
+
+	// sync all the data to all node
+	for _, node := range lotusNodes {
+		go call(node)
+	}
+	lotusNodesLk.RUnlock()
+
+	var gErr error
+	for i := len(lotusNodes); i > 0; i-- {
+		r := <-result
+		err, ok := r.(error)
+		if ok {
+			log.Warn(errors.As(err))
+			gErr = err
 			continue
 		}
-		if result == nil {
-			result = nApi
-		}
-		// continue
+		// return the fastest
+		return r.(*api.MsgLookup), nil
 	}
-	if result == nil {
-		return nil, errors.ErrNoData.As("all nodes down")
-	}
-	return result, nil
+	return nil, gErr
 }

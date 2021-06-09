@@ -50,8 +50,8 @@ func CreateLotusProxyFile(lotusRepo string) error {
 }
 
 func UseLotusProxy(ctx context.Context, cfgPath string, defAddr apiaddr.APIInfo) error {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
+	lotusNodesLk.Lock()
+	defer lotusNodesLk.Unlock()
 	lotusProxyOn = true
 	if err := loadLotusProxy(ctx, cfgPath); err != nil {
 		lotusProxyOn = false
@@ -70,9 +70,9 @@ func UseLotusProxy(ctx context.Context, cfgPath string, defAddr apiaddr.APIInfo)
 			lotusCheckOnce.Do(func() {
 				tick := time.Tick(time.Duration(build.BlockDelaySecs) * time.Second)
 				for {
-					lotusNodesLock.Lock()
+					lotusNodesLk.Lock()
 					checkLotusEpoch()
-					lotusNodesLock.Unlock()
+					lotusNodesLk.Unlock()
 					<-tick
 				}
 			})
@@ -83,8 +83,8 @@ func UseLotusProxy(ctx context.Context, cfgPath string, defAddr apiaddr.APIInfo)
 }
 
 func RealoadLotusProxy(ctx context.Context) error {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
+	lotusNodesLk.Lock()
+	defer lotusNodesLk.Unlock()
 
 	if len(lotusProxyCfg) == 0 {
 		return errors.New("no proxy in running")
@@ -97,8 +97,8 @@ func RealoadLotusProxy(ctx context.Context) error {
 }
 
 func SetLotusAutoSelect(on bool) error {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
+	lotusNodesLk.Lock()
+	defer lotusNodesLk.Unlock()
 	if !lotusProxyOn {
 		return errors.New("lotux proxy not on")
 	}
@@ -107,8 +107,8 @@ func SetLotusAutoSelect(on bool) error {
 }
 
 func LotusProxyChange(idx int) error {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
+	lotusNodesLk.Lock()
+	defer lotusNodesLk.Unlock()
 	if !lotusProxyOn {
 		return errors.New("lotux proxy not on")
 	}
@@ -119,14 +119,14 @@ func LotusProxyChange(idx int) error {
 // if the proxy on, it would be miner's proxy.
 // else it should be the origin api connection.
 func LotusProxyAddr() *apiaddr.APIInfo {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
+	lotusNodesLk.RLock()
+	defer lotusNodesLk.RUnlock()
 	return lotusProxyAddr
 }
 
 func LotusProxyNetConnect(mp2p NetConnect) (bool, error) {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
+	lotusNodesLk.RLock()
+	defer lotusNodesLk.RUnlock()
 	minerp2p = mp2p
 	connected := false
 	for _, node := range lotusNodes {
@@ -152,8 +152,8 @@ func LotusProxyNetConnect(mp2p NetConnect) (bool, error) {
 }
 
 func LotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.ProxyStatus, error) {
-	lotusNodesLock.Lock()
-	defer lotusNodesLock.Unlock()
+	lotusNodesLk.Lock()
+	defer lotusNodesLk.Unlock()
 	checkLotusEpoch()
 	return lotusProxyStatus(ctx, cond)
 }

@@ -50,6 +50,7 @@ type jwtPayload struct {
 	Allow []auth.Permission
 }
 
+// rebuild by zhoushuyue
 func (l *LotusImpl) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 	if token == l.token {
 		return api.AllPermissions, nil
@@ -64,6 +65,26 @@ func (l *LotusImpl) AuthVerify(ctx context.Context, token string) ([]auth.Permis
 
 	return payload.Allow, nil
 }
+
+func (s *LotusImpl) MpoolPush(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) {
+	//return bestNodeApi().MpoolPush(p0, p1)
+	cid := p1.Cid()
+	err := broadcastSignedMessage(p0, p1)
+	return cid, err
+}
+
+func (s *LotusImpl) MpoolPushMessage(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) {
+	//return bestNodeApi().MpoolPushMessage(p0, p1, p2)
+	smsg, err := broadcastMessage(p0, p1, p2)
+	return smsg, err
+}
+
+func (s *LotusImpl) StateWaitMsg(p0 context.Context, p1 cid.Cid, p2 uint64, p3 abi.ChainEpoch, p4 bool) (*api.MsgLookup, error) {
+	//return bestNodeApi().StateWaitMsg(p0, p1, p2, p3, p4)
+	return multiStateWaitMsg(p0, p1, p2, p3, p4)
+}
+
+// rebuild end
 
 func (s *LotusImpl) AuthNew(p0 context.Context, p1 []auth.Permission) ([]byte, error) {
 	return bestNodeApi().AuthNew(p0, p1)
@@ -459,19 +480,6 @@ func (s *LotusImpl) MpoolPending(p0 context.Context, p1 types.TipSetKey) ([]*typ
 	return bestNodeApi().MpoolPending(p0, p1)
 }
 
-func (s *LotusImpl) MpoolPush(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) {
-	//return bestNodeApi().MpoolPush(p0, p1)
-	cid := p1.Cid()
-	_, err := broadcastSignedMessage(p0, p1)
-	return cid, err
-}
-
-func (s *LotusImpl) MpoolPushMessage(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) {
-	//return bestNodeApi().MpoolPushMessage(p0, p1, p2)
-	_, smsg, err := broadcastMessage(p0, p1, p2)
-	return smsg, err
-}
-
 func (s *LotusImpl) MpoolPushUntrusted(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) {
 	return bestNodeApi().MpoolPushUntrusted(p0, p1)
 }
@@ -794,10 +802,6 @@ func (s *LotusImpl) StateVerifiedRegistryRootKey(p0 context.Context, p1 types.Ti
 
 func (s *LotusImpl) StateVerifierStatus(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*abi.StoragePower, error) {
 	return bestNodeApi().StateVerifierStatus(p0, p1, p2)
-}
-
-func (s *LotusImpl) StateWaitMsg(p0 context.Context, p1 cid.Cid, p2 uint64, p3 abi.ChainEpoch, p4 bool) (*api.MsgLookup, error) {
-	return bestNodeApi().StateWaitMsg(p0, p1, p2, p3, p4)
 }
 
 func (s *LotusImpl) SyncCheckBad(p0 context.Context, p1 cid.Cid) (string, error) {
