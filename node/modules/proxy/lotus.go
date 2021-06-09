@@ -18,6 +18,7 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/v0api"
+	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/cli/util/apiaddr"
 	"github.com/filecoin-project/lotus/metrics"
 	nauth "github.com/filecoin-project/lotus/node/modules/auth"
@@ -170,12 +171,19 @@ var (
 func bestNodeApi() api.FullNode {
 	lotusNodesLock.Lock()
 	defer lotusNodesLock.Unlock()
+	if !lotusProxyOn {
+		node, err := defLotusNode.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+		if err != nil {
+			panic(err)
+		}
+		return node.NodeApi
+	}
 loop:
 	if !lotusAutoSelect {
 		if bestLotusNode == nil {
 			checkLotusEpoch()
 		}
-		api, err := bestLotusNode.GetNodeApiV1("default")
+		api, err := bestLotusNode.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
 		if err == nil {
 			return api.NodeApi
 		}
@@ -188,7 +196,7 @@ loop:
 		if !node.IsAlive() {
 			continue
 		}
-		api, err := node.GetNodeApiV1("default")
+		api, err := node.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
 		if err != nil {
 			log.Warn(err)
 			continue
@@ -513,4 +521,47 @@ func lotusProxyStatus(ctx context.Context, cond api.ProxyStatCondition) (*api.Pr
 		Nodes:      nodes,
 	}
 	return stat, nil
+}
+
+func broadcastMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (api.FullNode, *types.SignedMessage, error) {
+	sMsg, err := bestNodeApi().MpoolSignMessage(ctx, msg, spec)
+	if err != nil {
+		return nil, nil, err
+	}
+	nApi, err := broadcastSignedMessage(ctx, sMsg)
+	return nApi, sMsg, err
+}
+
+// return the api for wait
+func broadcastSignedMessage(ctx context.Context, sm *types.SignedMessage) (api.FullNode, error) {
+	lotusNodesLock.Lock()
+	defer lotusNodesLock.Unlock()
+	if !lotusProxyOn {
+		panic("lotus proxy not on")
+	}
+
+	// sync all the data to all node
+	var result api.FullNode
+	for _, node := range lotusNodes {
+		if !node.IsAlive() {
+			continue
+		}
+		apiConn, err := node.GetNodeApiV1(_NODE_ALIVE_CONN_KEY)
+		if err != nil {
+			log.Warn(errors.As(err))
+			continue
+		}
+		nApi := apiConn.NodeApi
+		if _, err := nApi.MpoolPush(ctx, sm); err != nil {
+			log.Warn(errors.As(err))
+			continue
+		}
+		if result == nil {
+			result = nApi
+		}
+	}
+	if result == nil {
+		return nil, errors.ErrNoData.As("all nodes down")
+	}
+	return result, nil
 }

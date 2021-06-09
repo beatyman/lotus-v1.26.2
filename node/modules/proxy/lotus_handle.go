@@ -460,11 +460,16 @@ func (s *LotusImpl) MpoolPending(p0 context.Context, p1 types.TipSetKey) ([]*typ
 }
 
 func (s *LotusImpl) MpoolPush(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) {
-	return bestNodeApi().MpoolPush(p0, p1)
+	//return bestNodeApi().MpoolPush(p0, p1)
+	cid := p1.Cid()
+	_, err := broadcastSignedMessage(p0, p1)
+	return cid, err
 }
 
 func (s *LotusImpl) MpoolPushMessage(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) {
-	return bestNodeApi().MpoolPushMessage(p0, p1, p2)
+	//return bestNodeApi().MpoolPushMessage(p0, p1, p2)
+	_, smsg, err := broadcastMessage(p0, p1, p2)
+	return smsg, err
 }
 
 func (s *LotusImpl) MpoolPushUntrusted(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) {
