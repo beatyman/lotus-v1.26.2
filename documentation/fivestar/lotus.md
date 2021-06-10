@@ -2,7 +2,7 @@
 
 - [开发环境安装](#开发环境安装)
 - [国内安装技巧](#国内安装技巧)
-- [下载lotus源代码](#下载lotus源代码)
+- [lotus源码编译](#lotus源码编译)
 - [启动2k开发网络](#启动2k开发网络)
     - [搭建创世节点](#搭建创世节点)
     - [搭建存储节点](#搭建存储节点)
@@ -94,7 +94,7 @@ EOF
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-## 编译lotus源代码
+## lotus源码编译
 ```shell
 mkdir -p $HOME/go/src/github.com/filecoin-project
 cd $HOME/go/src/github.com/filecoin-project
