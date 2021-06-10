@@ -176,7 +176,7 @@ func DecodeData(ctx context.Context, key string, eData []byte) (*CryptoData, err
 	}
 
 	// try the last passwd
-	data, err := MixDecript(eData, inputLastPasswd)
+	data, err := MixDecrypt(eData, inputLastPasswd)
 	if err == nil {
 		wData := &CryptoData{Old: false, Passwd: inputLastPasswd, Data: data}
 		memCryptoCache[key] = wData
@@ -226,10 +226,10 @@ func DecodeData(ctx context.Context, key string, eData []byte) (*CryptoData, err
 			try++
 			passwd := req["Passwd"]
 			old := false
-			data, err := MixDecript(eData, passwd)
+			data, err := MixDecrypt(eData, passwd)
 			if err != nil {
 				// try the old, if it's success, do a upgrade.
-				data, err = OldMixDecript(eData, passwd)
+				data, err = OldMixDecrypt(eData, passwd)
 				if err != nil {
 					WriteSocketErrResp(conn, 401, errors.As(err))
 					continue
@@ -258,7 +258,7 @@ func DecodeData(ctx context.Context, key string, eData []byte) (*CryptoData, err
 }
 
 func EncodeData(key string, value []byte, passwd string) ([]byte, error) {
-	eData, err := MixEncript(value, passwd)
+	eData, err := MixEncrypt(value, passwd)
 	if err != nil {
 		return nil, errors.As(err)
 	}

@@ -43,9 +43,9 @@ func CreateLotusProxyFile(lotusRepo string) error {
 			return errors.As(err)
 		}
 		// is the next line '\n' or '\r\n'
-		output := fmt.Sprintf(`# the first line is for proxy addr
+		output := fmt.Sprintf(`# The first line is for proxy addr
 %s:/ip4/127.0.0.1/tcp/0/http
-# bellow is the cluster node.
+# When there are multiple nodes, separate each node in line
 %s:%s`, string(token), string(token), string(api))
 		if err := ioutil.WriteFile(proxyFile, []byte(output), 0600); err != nil {
 			return errors.As(err)
