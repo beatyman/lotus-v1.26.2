@@ -37,7 +37,7 @@ wget https://studygolang.com/dl/golang/go1.16.5.linux-amd64.tar.gz # 其他版�
 #wget https://golang.org/dl/go1.16.5.linux-amd64.tar.gz # 官方源
 #scp root@10.1.1.33:/root/rsync/go1.16.5.linux-amd64.tar.gz . #内网复制
 
-tar -xzf go1.15.5.linux-amd64.tar.gz
+tar -xzf go1.16.5.linux-amd64.tar.gz
 ### 配置/etc/profile环境变量(需要重新登录生效或source /etc/profile)
 export GOROOT=/usr/local/go
 export GOPROXY="https://goproxy.io,direct"
@@ -49,7 +49,7 @@ export FIL_PROOFS_PARENT_CACHE="/data/cache/filecoin-parents"
 export FIL_PROOFS_PARAMETER_CACHE="/data/cache/filecoin-proof-parameters/v28" 
 
 # 仅限开发环境配置, 开启后使官方默认兼容CPU的算法进行计算。
-# 或者通过hlmd ctl set-env FIL_PROOFS_GPU_MODE auto 设定, 设定后需重启worker程序, force值为须有GPU。
+# 或者通过hlmc set-env FIL_PROOFS_GPU_MODE auto 设定, 设定后需重启worker程序, force值为须有GPU。
 export FIL_PROOFS_GPU_MODE="auto" # 设定后需要重启系统, force值为须有GPU。
 exit # 退出sudo su -
 ```
@@ -129,7 +129,7 @@ cp -rf supervisord ~/hlm-miner/bin/hlmd
 cd ~/hlm-miner/
 git checkout testing # 检出最新代码
 . env.sh
-./install.sh install # hlmd ctl status # 有状态输出为成功
+./install.sh install # hlmc status # 有状态输出为成功
 ```
 
 ## 启动2k开发网络
@@ -172,7 +172,7 @@ sudo lotus sync status # 查看bootstrap节点的链状态
 sudo rm -rf ~/hlm-miner/var/lotus-storage-0/auth.dat # 重置原有的api密钥
 sudo mkdir -p /data/zfs # 可不挂载、或挂载zfs，或挂载单盘，或某个支持mount的数据池
 cp ~/hlm-miner/etc/hlmd/apps/tpl/lotus-storage-0.ini ~/hlm-miner/etc/hlmd/apps/ # 若原已存在，不需再复制过来
-hlmd reload
+hlmc reload
 hlmc start lotus-storage-0 
 ```
 
@@ -191,8 +191,8 @@ cd ~/hlm-miner/apps/lotus
 cp ~/hlm-miner/etc/hlmd/apps/tpl/lotus-daemon-0.ini ~/hlm-miner/etc/hlmd/apps/ # 若原已存在，不需再复制过来
 hlmc reload
 # 生产上运行前注意修改./daemon.sh脚本中的netip地址段，默认只支持10段
-hlmd ctl start lotus-daemon-1 # 或者可手动运行./daemon.sh进行调试
-hlmd ctl tail lotus-daemon-1 stderr -f # 看日志
+hlmc start lotus-daemon-1 # 或者可手动运行./daemon.sh进行调试
+hlmc tail lotus-daemon-1 stderr -f # 看日志
 ```
 
 shell 2, 创建2k私网矿工
@@ -211,12 +211,12 @@ cd ~/hlm-miner
 . env.sh
 cd ~/hlm-miner/apps/lotus
 cp ~/hlm-miner/etc/hlmd/apps/tpl/lotus-user-0.ini ~/hlm-miner/etc/hlmd/apps/ # 若原已存在，不需再复制过来
-hlmd ctl reload
-hlmd ctl start lotus-user-1 # 或者可手动运行./miner.sh进行调试
-hlmd ctl tail lotus-user-1 stderr -f #看日志
+hlmc reload
+hlmc start lotus-user-1 # 或者可手动运行./miner.sh进行调试
+hlmc tail lotus-user-1 stderr -f #看日志
 ```
 
-shell 4，导入存储节点
+shell 4，导入存储节点与密封扇区
 ```shell
 cd ~/hlm-miner
 . env.sh
