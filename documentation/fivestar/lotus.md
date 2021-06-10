@@ -376,7 +376,7 @@ cd ~/hlm-miner/scripts/lotus/lotus-user
 ```
 # the first line is for proxy addr
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.ONUWYvPk-nAgLXy-FeN-O-CoMeHIUGWrywC6QMdTjag:/ip4/127.0.0.1/tcp/0/http
-# bellow is the cluster node.
+# the following are the lotus nodes seperate with \n
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.ONUWYvPk-nAgLXy-FeN-O-CoMeHIUGWrywC6QMdTjag:/ip4/127.0.0.1/tcp/11234/http
 ```
 
