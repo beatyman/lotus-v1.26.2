@@ -34,6 +34,7 @@ var walletCmd = &cli.Command{
 		walletGenRootCert,
 		walletGenPasswd,
 		walletEncode,
+		walletChecksum,
 		walletNew,
 		walletList,
 		walletBalance,
@@ -112,6 +113,55 @@ var walletEncode = &cli.Command{
 			return err
 		}
 		fmt.Printf("Encode success, password: %s\n", passwd)
+		return nil
+	},
+}
+var walletChecksum = &cli.Command{
+	Name:      "checksum",
+	Usage:     "checksum the encrypt key",
+	ArgsUsage: "[file]",
+	Action: func(cctx *cli.Context) error {
+		ctx := ReqContext(cctx)
+
+		if !cctx.Args().Present() {
+			return fmt.Errorf("must specify key to export")
+		}
+
+		inpdata, err := ioutil.ReadFile(cctx.Args().First())
+		if err != nil {
+			return err
+		}
+		data, err := hex.DecodeString(strings.TrimSpace(string(inpdata)))
+		if err != nil {
+			return err
+		}
+
+		var ki types.KeyInfo
+		if err := json.Unmarshal(data, &ki); err != nil {
+			return err
+		}
+		if ki.Encrypted {
+			fmt.Println("Please input checksum password:")
+			passwd, err := gopass.GetPasswd()
+			if err != nil {
+				return err
+			}
+			cdata, err := encode.MixDecrypt(ki.PrivateKey, string(passwd))
+			if err != nil {
+				return err
+			}
+			ki.PrivateKey = cdata
+			ki.Encrypted = false
+			fmt.Println("Decode success!")
+		} else {
+			fmt.Println("WARNNING: the private key not in encrypted!!!!!")
+		}
+		key, err := wallet.NewKey(ctx, ki)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("checksum address: %s\n", key.Address)
 		return nil
 	},
 }
