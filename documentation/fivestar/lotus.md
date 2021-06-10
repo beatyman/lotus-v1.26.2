@@ -5,7 +5,9 @@
 - [下载lotus源代码](#下载lotus源代码)
 - [启动2k开发网络](#启动2k开发网络)
     - [搭建创世节点](#搭建创世节点)
-- [启用链集群](#启用链集群)
+    - [搭建存储节点](#搭建存储节点)
+    - [运行矿工程序](#运行矿工程序)
+- [启用链集群(可选)](#启用链集群(可选))
 - [目录规范](#目录规范)
     - [存储节点上的目录](#存储节点上的目录)
     - [链节点目录](#链节点目录)
@@ -174,7 +176,7 @@ hlmd reload
 hlmc start lotus-storage-0 
 ```
 
-### 生成开发版lotus程序
+### 运行矿工程序
 ```shell
 cd $HOME/go/src/github.com/filecoin-project/lotus
 ./install.sh debug # 若是使用正式，执行./install.sh进行编译, 编译完成后自动放在$FILECOIN_BIN下
