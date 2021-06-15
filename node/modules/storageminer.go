@@ -845,6 +845,7 @@ func NewSetSealConfigFunc(r repo.LockedRepo) (dtypes.SetSealingConfigFunc, error
 				MaxSealingSectorsForDeals: cfg.MaxSealingSectorsForDeals,
 				WaitDealsDelay:            config.Duration(cfg.WaitDealsDelay),
 				AlwaysKeepUnsealedCopy:    cfg.AlwaysKeepUnsealedCopy,
+				FinalizeEarly:             cfg.FinalizeEarly,
 
 				BatchPreCommits:     cfg.BatchPreCommits,
 				MinPreCommitBatch:   cfg.MinPreCommitBatch,
@@ -877,6 +878,7 @@ func NewGetSealConfigFunc(r repo.LockedRepo) (dtypes.GetSealingConfigFunc, error
 				MaxDealsPerSector:         cfg.Sealing.MaxDealsPerSector,
 				WaitDealsDelay:            time.Duration(cfg.Sealing.WaitDealsDelay),
 				AlwaysKeepUnsealedCopy:    cfg.Sealing.AlwaysKeepUnsealedCopy,
+				FinalizeEarly:             cfg.Sealing.FinalizeEarly,
 
 				BatchPreCommits:     cfg.Sealing.BatchPreCommits,
 				MinPreCommitBatch:   cfg.Sealing.MinPreCommitBatch,

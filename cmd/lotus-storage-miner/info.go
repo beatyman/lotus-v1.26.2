@@ -44,6 +44,11 @@ var infoCmd = &cli.Command{
 			Value: false,
 			Usage: "output the miner seal stats",
 		},
+		&cli.IntFlag{
+			Name:  "statis-win-limit",
+			Value: 7,
+			Usage: "limit of win statistics",
+		},
 	},
 	Action: infoCmdAct,
 }
@@ -176,7 +181,7 @@ func infoCmdAct(cctx *cli.Context) error {
 			color.Blue("%.4f blocks/day (every %s)", winPerDay, winRate.Truncate(time.Second))
 			fmt.Println()
 
-			limit := 7
+			limit := cctx.Int("statis-win-limit")
 			now := time.Unix(int64(head.MinTimestamp()), 0).UTC()
 			statisWins, err := nodeApi.StatisWins(ctx, now, limit)
 			if err != nil {
@@ -371,6 +376,7 @@ var stateList = []stateMeta{
 	{col: color.FgYellow, state: sealing.PreCommitBatchWait},
 	{col: color.FgYellow, state: sealing.WaitSeed},
 	{col: color.FgYellow, state: sealing.Committing},
+	{col: color.FgYellow, state: sealing.CommitFinalize},
 	{col: color.FgYellow, state: sealing.SubmitCommit},
 	{col: color.FgYellow, state: sealing.CommitWait},
 	{col: color.FgYellow, state: sealing.SubmitCommitAggregate},
@@ -391,6 +397,7 @@ var stateList = []stateMeta{
 	{col: color.FgRed, state: sealing.PreCommitFailed},
 	{col: color.FgRed, state: sealing.ComputeProofFailed},
 	{col: color.FgRed, state: sealing.CommitFailed},
+	{col: color.FgRed, state: sealing.CommitFinalizeFailed},
 	{col: color.FgRed, state: sealing.PackingFailed},
 	{col: color.FgRed, state: sealing.FinalizeFailed},
 	{col: color.FgRed, state: sealing.Faulty},
