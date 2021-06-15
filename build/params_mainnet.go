@@ -6,6 +6,7 @@
 // +build !calibnet
 // +build !nerpanet
 // +build !butterflynet
+// +build !interopnet
 
 package build
 

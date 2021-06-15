@@ -386,6 +386,15 @@ func (s *LotusImpl) ClientRetrieveWithEvents(p0 context.Context, p1 api.Retrieva
 	return bestNodeApi().ClientRetrieveWithEvents(p0, p1, p2)
 }
 
+// ClientListRetrievals returns information about retrievals made by the local client
+func (s *LotusImpl) ClientListRetrievals(p0 context.Context) ([]api.RetrievalInfo, error) {
+	return bestNodeApi().ClientListRetrievals(p0)
+}
+
+// ClientGetRetrievalUpdates returns status of updated retrieval deals
+func (s *LotusImpl) ClientGetRetrievalUpdates(p0 context.Context) (<-chan api.RetrievalInfo, error) {
+	return bestNodeApi().ClientGetRetrievalUpdates(p0)
+}
 func (s *LotusImpl) ClientStartDeal(p0 context.Context, p1 *api.StartDealParams) (*cid.Cid, error) {
 	return bestNodeApi().ClientStartDeal(p0, p1)
 }
