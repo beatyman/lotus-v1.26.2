@@ -83,6 +83,9 @@ nerpanet: build-devnets
 butterflynet: GOFLAGS+=-tags=butterflynet
 butterflynet: build-devnets
 
+interopnet: GOFLAGS+=-tags=interopnet
+interopnet: build-devnets
+
 etcd: $(BUILD_DEPS)
 	rm -f etcd
 	go build $(GOFLAGS) -o etcd ./cmd/etcd
@@ -94,6 +97,7 @@ etcdctl: $(BUILD_DEPS)
 	go build $(GOFLAGS) -o etcdctl ./cmd/etcdctl
 .PHONY: etcdctl
 BINS+=etcdctl
+
 lotus: $(BUILD_DEPS)
 	rm -f lotus
 	go build $(GOFLAGS) -o lotus ./cmd/lotus
