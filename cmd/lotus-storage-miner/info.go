@@ -44,6 +44,11 @@ var infoCmd = &cli.Command{
 			Value: false,
 			Usage: "output the miner seal stats",
 		},
+		&cli.IntFlag{
+			Name:  "statis-win-limit",
+			Value: 7,
+			Usage: "limit of win statistics",
+		},
 	},
 	Action: infoCmdAct,
 }
@@ -176,7 +181,7 @@ func infoCmdAct(cctx *cli.Context) error {
 			color.Blue("%.4f blocks/day (every %s)", winPerDay, winRate.Truncate(time.Second))
 			fmt.Println()
 
-			limit := 7
+			limit := cctx.Int("statis-win-limit")
 			now := time.Unix(int64(head.MinTimestamp()), 0).UTC()
 			statisWins, err := nodeApi.StatisWins(ctx, now, limit)
 			if err != nil {
