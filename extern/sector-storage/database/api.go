@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
+	fslock "github.com/ipfs/go-fs-lock"
 )
 
 func Symlink(oldname, newname string) error {
@@ -81,26 +83,16 @@ func DiskUsage(path string) (*DiskStatus, error) {
 	return disk, nil
 }
 
-func LockMount(id string) (*os.File, error) {
-	lockFile := filepath.Join(os.TempDir(), id)
-	f, err := os.Create(lockFile)
+func LockMount(repo string) (io.Closer, error) {
+	fsLock := "mount.lock"
+	locked, err := fslock.Locked(repo, fsLock)
 	if err != nil {
-		return nil, err
+		return nil, errors.As(err)
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		f.Close()
-		return nil, err
+	if locked {
+		return nil, errors.New("already locked by others")
 	}
-	return f, nil
-}
-
-func UnlockMount(f *os.File) error {
-	defer os.Remove(f.Name())
-	defer f.Close()
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_UN); err != nil {
-		return err
-	}
-	return nil
+	return fslock.Lock(repo, fsLock)
 }
 
 func Umount(mountPoint string) (bool, error) {
