@@ -81,6 +81,28 @@ func DiskUsage(path string) (*DiskStatus, error) {
 	return disk, nil
 }
 
+func LockMount(id string) (*os.File, error) {
+	lockFile := filepath.Join(os.TempDir(), id)
+	f, err := os.Create(lockFile)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		f.Close()
+		return nil, err
+	}
+	return f, nil
+}
+
+func UnlockMount(f *os.File) error {
+	defer os.Remove(f.Name())
+	defer f.Close()
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_UN); err != nil {
+		return err
+	}
+	return nil
+}
+
 func Umount(mountPoint string) (bool, error) {
 	log.Info("storage umount: ", mountPoint)
 	// umount

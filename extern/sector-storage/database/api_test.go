@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func TestDiskUsage(t *testing.T) {
@@ -137,4 +139,36 @@ func TestMountAllStorage(t *testing.T) {
 	}
 	// checksum the result by manu.
 	// it should have a link file with /data/testing/1, and mount point with /data/testing/2
+}
+
+func TestLockMount(t *testing.T) {
+	id := uuid.New().String()
+
+	// testing lock locked.
+	f, err := LockMount(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LockMount(id); err == nil {
+		t.Fatal("expect locked")
+	}
+
+	// testing relock
+	if err := UnlockMount(f); err != nil {
+		t.Fatal(err)
+	}
+	f, err = LockMount(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// testing unlock unloked.
+	if err := UnlockMount(f); err != nil {
+		t.Fatal(err)
+	}
+	if err := UnlockMount(f); err != nil {
+		if err.Error() != "bad file descriptor" {
+			t.Fatal(err)
+		}
+	}
 }
