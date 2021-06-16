@@ -9,6 +9,7 @@ Environment=GOLOG_FILE="/var/log/lotus/genesis-miner.log"
 Environment=GOLOG_LOG_FMT="json"
 Environment=RUST_LOG="info"
 Environment=RUST_BACKTRACE=1
+Environment=FIL_PROOFS_GPU_MODE="auto"
 ExecStart=/usr/local/bin/lotus-miner --repo=/data/lotus/dev/.ldt0111 --miner-repo=/data/lotus/dev/.mdt0111 run --nosync
 
 [Install]
