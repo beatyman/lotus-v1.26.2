@@ -7,14 +7,15 @@ import (
 
 func TestStatisWin(t *testing.T) {
 	InitDB("./")
-	id := time.Now().Format("20060102")
-	if err := AddWinTimes(id); err != nil {
+	now := time.Now()
+	id := now.Format("20060102")
+	if err := AddWinTimes(now, 1); err != nil {
 		t.Fatal(err)
 	}
-	if err := AddWinGen(id); err != nil {
+	if err := AddWinGen(now, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := AddWinSuc(id); err != nil {
+	if err := AddWinSuc(now); err != nil {
 		t.Fatal(err)
 	}
 	s, err := GetStatisWin(id)

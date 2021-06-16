@@ -335,6 +335,7 @@ var runCmd = &cli.Command{
 			WnPoStSrv:          cctx.Bool("wnpost-srv"),
 		}
 		workerApi := &rpcServer{
+			minerRepo:    minerRepo,
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}

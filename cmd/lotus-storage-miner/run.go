@@ -98,8 +98,8 @@ var runCmd = &cli.Command{
 
 		// implement by hlm
 		// use the cluster proxy if it's exist.
-		if err := cliutil.UseLotusProxy(cctx); err != nil {
-			log.Infof("lotus proxy is invalid:%+s", err.Error())
+		if err := cliutil.ConnectLotusProxy(cctx); err != nil {
+			log.Infof("lotus proxy is off:%s", err.Error())
 		}
 		// init storage database
 		// TODO: already implement in init.go, so remove this checking in running?
@@ -165,6 +165,9 @@ var runCmd = &cli.Command{
 		if err := r.IsLocked(); err != nil {
 			return err
 		}
+		if _, err := database.LockMount(minerRepoPath); err != nil {
+			return err
+		}
 		log.Info("Mount all storage")
 		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
 			return errors.As(err)
@@ -211,8 +214,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err)
 		}
-		// no proxy on, using the local
-		// TODO: fix in lotus-miner net connect
 		if !ok {
 			remoteAddrs, err := nodeApi.NetAddrsListen(ctx)
 			if err != nil {

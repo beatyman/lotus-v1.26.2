@@ -6,16 +6,23 @@ if [ ! -z "$FILECOIN_BIN" ]; then
 fi
 mkdir -p $install_path
 
+# set the build path for cert
+certfrom="scripts"
+if [ ! -z $FILECOIN_CERT ]; then
+    certfrom=$FILECOIN_CERT
+fi
+
 # env for build
 export RUSTFLAGS="-C target-cpu=native -g" 
 export CGO_CFLAGS="-D__BLST_PORTABLE__"
 export FFI_BUILD_FROM_SOURCE=1
 
-if [ -f scripts/root.key ]; then
-    cp -v scripts/root.key build/cert/root.key
+# copy the cert key for build
+if [ -f $certfrom/root.key ]; then
+    cp -v $certfrom/root.key build/cert/root.key
 fi
-if [ -f scripts/root-old.key ]; then
-    cp -v scripts/root-old.key build/cert/root-old.key
+if [ -f $certfrom/root-old.key ]; then
+    cp -v $certfrom/root-old.key build/cert/root-old.key
 fi
 
 echo "make "$1

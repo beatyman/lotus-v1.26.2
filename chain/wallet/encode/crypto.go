@@ -112,7 +112,7 @@ func DecodeRootKey(data []byte, passwd string) (*rsa.PrivateKey, error) {
 	return x509.ParsePKCS1PrivateKey(data)
 }
 
-func RSAEncript(src []byte, pub *rsa.PublicKey) (dst []byte, err error) {
+func RSAEncrypt(src []byte, pub *rsa.PublicKey) (dst []byte, err error) {
 	hash := sha512.New()
 	pLen := pub.Size() - 2*hash.Size() - 2
 	chunks := split(src, pLen)
@@ -128,7 +128,7 @@ func RSAEncript(src []byte, pub *rsa.PublicKey) (dst []byte, err error) {
 	return buffer, nil
 }
 
-func RSADecript(src []byte, priv *rsa.PrivateKey) (dst []byte, err error) {
+func RSADecrypt(src []byte, priv *rsa.PrivateKey) (dst []byte, err error) {
 	hash := sha512.New()
 	pLen := priv.PublicKey.Size()
 	chunks := split(src, pLen)
@@ -144,7 +144,7 @@ func RSADecript(src []byte, priv *rsa.PrivateKey) (dst []byte, err error) {
 }
 
 // https://docs.studygolang.com/src/crypto/x509/pem_decrypt.go?s=5819:5931#L186
-func AESEncript(data []byte, passwd string) (dst []byte, err error) {
+func AESEncrypt(data []byte, passwd string) (dst []byte, err error) {
 	keySize := 32 //AES-256-CBC
 	iv := make([]byte, aes.BlockSize)
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
@@ -167,7 +167,7 @@ func AESEncript(data []byte, passwd string) (dst []byte, err error) {
 }
 
 // https://docs.studygolang.com/src/crypto/x509/pem_decrypt.go?s=3636:3703#L114
-func AESDecript(src []byte, passwd string) (dst []byte, err error) {
+func AESDecrypt(src []byte, passwd string) (dst []byte, err error) {
 	keySize := 32 // AES-256-CBC
 	iv := src[:aes.BlockSize]
 	encrypted := src[aes.BlockSize:]
@@ -202,27 +202,27 @@ func AESDecript(src []byte, passwd string) (dst []byte, err error) {
 	return data[:dlen-last], nil
 }
 
-func MixEncript(data []byte, passwd string) ([]byte, error) {
-	e1Wallet, err := AESEncript(data, passwd)
+func MixEncrypt(data []byte, passwd string) ([]byte, error) {
+	e1Wallet, err := AESEncrypt(data, passwd)
 	if err != nil {
 		return nil, errors.As(err)
 	}
 	rootPriv, _ := getRootPriv()
-	e2Wallet, err := RSAEncript(e1Wallet, &rootPriv.PrivateKey.PublicKey)
+	e2Wallet, err := RSAEncrypt(e1Wallet, &rootPriv.PrivateKey.PublicKey)
 	if err != nil {
 		return nil, errors.As(err)
 	}
 	return e2Wallet, nil
 }
 
-func MixDecript(data []byte, passwd string) ([]byte, error) {
+func MixDecrypt(data []byte, passwd string) ([]byte, error) {
 	rootPriv, _ := getRootPriv()
-	e1Wallet, err := RSADecript(data, rootPriv.PrivateKey)
+	e1Wallet, err := RSADecrypt(data, rootPriv.PrivateKey)
 	if err != nil {
 		return nil, errors.As(err)
 	}
 
-	oWallet, err := AESDecript(e1Wallet, passwd)
+	oWallet, err := AESDecrypt(e1Wallet, passwd)
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -231,18 +231,18 @@ func MixDecript(data []byte, passwd string) ([]byte, error) {
 	return oWallet, nil
 }
 
-func OldMixDecript(data []byte, passwd string) ([]byte, error) {
+func OldMixDecrypt(data []byte, passwd string) ([]byte, error) {
 	_, oldRootPriv := getRootPriv()
 	if oldRootPriv == nil {
 		return nil, errors.New("no old root private key")
 	}
 
-	e1Wallet, err := RSADecript(data, oldRootPriv.PrivateKey)
+	e1Wallet, err := RSADecrypt(data, oldRootPriv.PrivateKey)
 	if err != nil {
 		return nil, errors.As(err)
 	}
 
-	oWallet, err := AESDecript(e1Wallet, passwd)
+	oWallet, err := AESDecrypt(e1Wallet, passwd)
 	if err != nil {
 		return nil, errors.As(err)
 	}

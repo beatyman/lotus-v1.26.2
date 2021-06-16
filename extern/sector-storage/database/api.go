@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
+	fslock "github.com/ipfs/go-fs-lock"
 )
 
 func Symlink(oldname, newname string) error {
@@ -79,6 +81,18 @@ func DiskUsage(path string) (*DiskStatus, error) {
 	disk.Free = fs.Bfree * uint64(fs.Bsize)
 	disk.Used = disk.All - disk.Free
 	return disk, nil
+}
+
+func LockMount(repo string) (io.Closer, error) {
+	fsLock := "mount.lock"
+	locked, err := fslock.Locked(repo, fsLock)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	if locked {
+		return nil, errors.New("already locked by others")
+	}
+	return fslock.Lock(repo, fsLock)
 }
 
 func Umount(mountPoint string) (bool, error) {
