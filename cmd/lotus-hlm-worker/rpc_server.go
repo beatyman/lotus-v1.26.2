@@ -17,7 +17,8 @@ import (
 )
 
 type rpcServer struct {
-	sb *ffiwrapper.Sealer
+	minerRepo string
+	sb        *ffiwrapper.Sealer
 
 	storageLk    sync.Mutex
 	storageVer   int64
@@ -61,6 +62,11 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSchedulerAPI) error {
 	w.storageLk.Lock()
 	defer w.storageLk.Unlock()
+
+	if _, err := database.LockMount(w.minerRepo); err != nil {
+		log.Warnf("mount lock failed, skip mount the storages:%s", errors.As(err, w.minerRepo))
+		return nil
+	}
 
 	// checksum
 	list, err := napi.ChecksumStorage(ctx, w.storageVer)
