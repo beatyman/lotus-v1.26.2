@@ -234,13 +234,14 @@ func infoCmdAct(cctx *cli.Context) error {
 				)
 
 				// sum for limit day
-				sumExpRounds := expDayRounds * len(statisWins)
-				sumExpWin := 0
-				sumDraw := 0
-				sumErr := 0
-				sumWin := 0
-				sumSuc := 0
-				for _, w := range statisWins {
+				sumExpRounds := expDayRounds*(len(statisWins)-1) + int(rounds)
+				sumExpWin := expectNum
+				sumDraw := statisWin.WinAll
+				sumErr := statisWin.WinErr
+				sumWin := statisWin.WinGen
+				sumSuc := statisWin.WinSuc
+				for i := 1; i < len(statisWins); i++ {
+					w := statisWins[i]
 					sumExpWin += w.WinExp
 					sumDraw += w.WinAll
 					sumErr += w.WinErr
