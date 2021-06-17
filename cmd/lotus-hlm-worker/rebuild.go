@@ -95,7 +95,7 @@ var rebuildCmd = &cli.Command{
 			return errors.As(err)
 		}
 		taskListLen := len(taskList)
-		log.Info("task len:%d", taskListLen)
+		log.Infof("task len:%d", taskListLen)
 
 		apOut := make(chan interface{}, taskListLen)
 		for _, task := range taskList {
@@ -117,7 +117,7 @@ var rebuildCmd = &cli.Command{
 				pieceInfo, err := sealer.PledgeSector(ctx,
 					sector,
 					[]abi.UnpaddedPieceSize{},
-					// TODO: set sizes
+					2032,
 				)
 				if err != nil {
 					apOut <- errors.As(err)
@@ -174,7 +174,7 @@ var rebuildCmd = &cli.Command{
 			// p2
 			sealer, err := getSealer(minerId, task.SectorNumber)
 			if err != nil {
-				p1Out <- errors.As(err)
+				p2Out <- errors.As(err)
 				continue
 			}
 			sector := storage.SectorRef{
@@ -186,16 +186,54 @@ var rebuildCmd = &cli.Command{
 			}
 			cids, err := sealer.SealPreCommit2(ctx, sector, task.p1Out)
 			if err != nil {
-				p1Out <- errors.As(err)
+				p2Out <- errors.As(err)
 				continue
 			}
 			task.p2Out = cids
-			p1Out <- cids
+			p2Out <- task
+		}
+
+		c1Out := make(chan interface{}, taskListLen)
+		for i := taskListLen; i > 0; i-- {
+			t := <-p2Out
+			err, ok := t.(error)
+			if ok {
+				c1Out <- errors.As(err)
+				continue
+			}
+			task := t.(*RebuildTask)
+
+			// c1
+			sealer, err := getSealer(minerId, task.SectorNumber)
+			if err != nil {
+				c1Out <- errors.As(err)
+				continue
+			}
+			sector := storage.SectorRef{
+				ID: abi.SectorID{
+					Miner:  abi.ActorID(minerId),
+					Number: task.SectorNumber,
+				},
+				ProofType: task.ProofType,
+			}
+			if _, err := sealer.SealCommit1(ctx, sector, task.TicketValue, task.SeedValue, task.apOut, task.p2Out); err != nil {
+				c1Out <- errors.As(err)
+				continue
+			}
+
+			// ignore c2
+
+			// do finalize
+			if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
+				c1Out <- errors.As(err)
+				continue
+			}
+			c1Out <- task
 		}
 
 		// waiting the result
 		for i := taskListLen; i > 0; i-- {
-			t := <-p2Out
+			t := <-c1Out
 			err, ok := t.(error)
 			if ok {
 				log.Error(err)
@@ -203,7 +241,7 @@ var rebuildCmd = &cli.Command{
 			}
 			task := t.(*RebuildTask)
 
-			log.Info("task %+v done", task.SectorNumber)
+			log.Infof("sector %+v done", task.SectorNumber)
 		}
 
 		return nil
