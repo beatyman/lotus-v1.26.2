@@ -38,7 +38,8 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 )
 
-func (s *WindowPoStScheduler) failPost(err error, ts *types.TipSet, deadline *dline.Info) {
+// recordPoStFailure records a failure in the journal.
+func (s *WindowPoStScheduler) recordPoStFailure(err error, ts *types.TipSet, deadline *dline.Info) {
 	s.journal.RecordEvent(s.evtTypes[evtTypeWdPoStScheduler], func() interface{} {
 		c := evtCommon{Error: err}
 		if ts != nil {
@@ -106,11 +107,11 @@ func (s *WindowPoStScheduler) runGeneratePoST(
 	ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.generatePoST")
 	defer span.End()
 
-	s.ResetLog(deadline.Index)
-
-	posts, err := s.runPost(ctx, *deadline, ts)
+  s.ResetLog(deadline.Index)
+    
+	posts, err := s.runPoStCycle(ctx, *deadline, ts)
 	if err != nil {
-		log.Error(s.PutLogf(deadline.Index, "runPost failed: %+v", err))
+    log.Error(s.PutLogf(deadline.Index, "runPoStCycle failed: %+v", err))
 		return nil, err
 	}
 
@@ -176,7 +177,7 @@ func (s *WindowPoStScheduler) runSubmitPoST(
 	commRand, err := s.api.ChainGetRandomnessFromTickets(ctx, ts.Key(), crypto.DomainSeparationTag_PoStChainCommit, commEpoch, nil)
 	if err != nil {
 		err = xerrors.Errorf("failed to get chain randomness from tickets for windowPost (ts=%d; deadline=%d): %w", ts.Height(), commEpoch, err)
-		log.Errorf("submitPost failed: %+v", err)
+		log.Errorf("submitPoStMessage failed: %+v", err)
 
 		return err
 	}
@@ -191,7 +192,7 @@ func (s *WindowPoStScheduler) runSubmitPoST(
 		// Submit PoST
 		leftRetryTimes := 5
 	retry:
-		sm, submitErr := s.submitPost(ctx, post)
+		sm, submitErr := s.submitPoStMessage(ctx, post)
 		if submitErr != nil {
 			log.Errorf("submit window post failed, retry left:%d,: %+v", leftRetryTimes, submitErr)
 
@@ -297,8 +298,25 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	return sbf, nil
 }
 
-func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uint64, partitions []api.Partition, tsk types.TipSetKey) ([]miner.RecoveryDeclaration, *types.SignedMessage, error) {
-	ctx, span := trace.StartSpan(ctx, "storage.checkNextRecoveries")
+// declareRecoveries identifies sectors that were previously marked as faulty
+// for our miner, but are now recovered (i.e. are now provable again) and
+// still not reported as such.
+//
+// It then reports the recovery on chain via a `DeclareFaultsRecovered`
+// message to our miner actor.
+//
+// This is always invoked ahead of time, before the deadline for the evaluated
+// sectors arrives. That way, recoveries are declared in preparation for those
+// sectors to be proven.
+//
+// If a declaration is made, it awaits for build.MessageConfidence confirmations
+// on chain before returning.
+//
+// TODO: the waiting should happen in the background. Right now this
+//  is blocking/delaying the actual generation and submission of WindowPoSts in
+//  this deadline!
+func (s *WindowPoStScheduler) declareRecoveries(ctx context.Context, dlIdx uint64, partitions []api.Partition, tsk types.TipSetKey) ([]miner.RecoveryDeclaration, *types.SignedMessage, error) {
+	ctx, span := trace.StartSpan(ctx, "storage.declareRecoveries")
 	defer span.End()
 
 	faulty := uint64(0)
@@ -366,7 +384,7 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 		Value:  types.NewInt(0),
 	}
 	spec := &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)}
-	if err := s.setSender(ctx, msg, spec); err != nil {
+	if err := s.prepareMessage(ctx, msg, spec); err != nil {
 		return recoveries, nil, err
 	}
 
@@ -391,8 +409,21 @@ func (s *WindowPoStScheduler) checkNextRecoveries(ctx context.Context, dlIdx uin
 	return recoveries, sm, nil
 }
 
-func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64, partitions []api.Partition, tsk types.TipSetKey) ([]miner.FaultDeclaration, *types.SignedMessage, error) {
-	ctx, span := trace.StartSpan(ctx, "storage.checkNextFaults")
+// declareFaults identifies the sectors on the specified proving deadline that
+// are faulty, and reports the faults on chain via the `DeclareFaults` message
+// to our miner actor.
+//
+// This is always invoked ahead of time, before the deadline for the evaluated
+// sectors arrives. That way, faults are declared before a penalty is accrued.
+//
+// If a declaration is made, it awaits for build.MessageConfidence confirmations
+// on chain before returning.
+//
+// TODO: the waiting should happen in the background. Right now this
+//  is blocking/delaying the actual generation and submission of WindowPoSts in
+//  this deadline!
+func (s *WindowPoStScheduler) declareFaults(ctx context.Context, dlIdx uint64, partitions []api.Partition, tsk types.TipSetKey) ([]miner.FaultDeclaration, *types.SignedMessage, error) {
+	ctx, span := trace.StartSpan(ctx, "storage.declareFaults")
 	defer span.End()
 
 	bad := uint64(0)
@@ -453,7 +484,7 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 		Value:  types.NewInt(0), // TODO: Is there a fee?
 	}
 	spec := &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)}
-	if err := s.setSender(ctx, msg, spec); err != nil {
+	if err := s.prepareMessage(ctx, msg, spec); err != nil {
 		return faults, nil, err
 	}
 
@@ -477,15 +508,22 @@ func (s *WindowPoStScheduler) checkNextFaults(ctx context.Context, dlIdx uint64,
 	return faults, sm, nil
 }
 
-func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
+// runPoStCycle runs a full cycle of the PoSt process:
+//
+//  1. performs recovery declarations for the next deadline.
+//  2. performs fault declarations for the next deadline.
+//  3. computes and submits proofs, batching partitions and making sure they
+//     don't exceed message capacity.
+func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
 	if EnableSeparatePartition {
-		return s.runHlmPost(ctx, di, ts)
+		return s.runHlmPoStCycle(ctx, di, ts)
 	}
-	ctx, span := trace.StartSpan(ctx, "storage.runPost")
+
+	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
 	defer span.End()
 
 	go func() {
-		// TODO: extract from runPost, run on fault cutoff boundaries
+		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
 
 		// check faults / recoveries for the *next* deadline. It's already too
 		// late to declare them for this deadline
@@ -513,7 +551,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 			}
 		)
 
-		if recoveries, sigmsg, err = s.checkNextRecoveries(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
+		if recoveries, sigmsg, err = s.declareRecoveries(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
 			log.Error(s.PutLogf(di.Index, "checking sector recoveries: %v", err))
 		}
@@ -532,7 +570,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 			return // FORK: declaring faults after ignition upgrade makes no sense
 		}
 
-		if faults, sigmsg, err = s.checkNextFaults(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
+		if faults, sigmsg, err = s.declareFaults(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is also potentially really bad, but we try to post anyways
 			log.Error(s.PutLogf(di.Index, "checking sector faults: %v", err))
 		}
@@ -567,9 +605,14 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 		return nil, xerrors.Errorf("getting partitions: %w", err)
 	}
 
+	nv, err := s.api.StateNetworkVersion(ctx, ts.Key())
+	if err != nil {
+		return nil, xerrors.Errorf("getting network version: %w", err)
+	}
+
 	// Split partitions into batches, so as not to exceed the number of sectors
 	// allowed in a single message
-	partitionBatches, err := s.batchPartitions(partitions)
+	partitionBatches, err := s.batchPartitions(partitions, nv)
 	if err != nil {
 		return nil, err
 	}
@@ -762,7 +805,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 var PartitionsPerMsg int = 1
 var EnableSeparatePartition bool = false
 
-func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]api.Partition, error) {
+func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition, nv network.Version) ([][]api.Partition, error) {
 	// We don't want to exceed the number of sectors allowed in a message.
 	// So given the number of sectors in a partition, work out the number of
 	// partitions that can be in a message without exceeding sectors per
@@ -773,7 +816,7 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]a
 	// sectors per partition    3:  ooo
 	// partitions per message   2:  oooOOO
 	//                              <1><2> (3rd doesn't fit)
-	partitionsPerMsg, err := policy.GetMaxPoStPartitions(s.proofType)
+	partitionsPerMsg, err := policy.GetMaxPoStPartitions(nv, s.proofType)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sectors per partition: %w", err)
 	}
@@ -786,6 +829,11 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition) ([][]a
 		"enableSeparate", EnableSeparatePartition,
 		"partitionsPerMsg:", partitionsPerMsg,
 	)
+
+	// Also respect the AddressedPartitionsMax (which is the same as DeclarationsMax (which is all really just MaxPartitionsPerDeadline))
+	if partitionsPerMsg > policy.GetDeclarationsMax(nv) {
+		partitionsPerMsg = policy.GetDeclarationsMax(nv)
+	}
 
 	// The number of messages will be:
 	// ceiling(number of partitions / partitions per message)
@@ -875,7 +923,10 @@ func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, 
 	return proofSectors, nil
 }
 
-func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.SubmitWindowedPoStParams) (*types.SignedMessage, error) {
+// submitPoStMessage builds a SubmitWindowedPoSt message and submits it to
+// the mpool. It doesn't synchronously block on confirmations, but it does
+// monitor in the background simply for the purposes of logging.
+func (s *WindowPoStScheduler) submitPoStMessage(ctx context.Context, proof *miner.SubmitWindowedPoStParams) (*types.SignedMessage, error) {
 	ctx, span := trace.StartSpan(ctx, "storage.commitPost")
 	defer span.End()
 
@@ -893,13 +944,11 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 		Value:  types.NewInt(0),
 	}
 	spec := &api.MessageSendSpec{MaxFee: abi.TokenAmount(s.feeCfg.MaxWindowPoStGasFee)}
-	if err := s.setSender(ctx, msg, spec); err != nil {
+	if err := s.prepareMessage(ctx, msg, spec); err != nil {
 		return nil, err
 	}
 
-	// TODO: consider maybe caring about the output
 	sm, err := s.api.MpoolPushMessage(ctx, msg, spec)
-
 	if err != nil {
 		return nil, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
@@ -924,14 +973,20 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 	return sm, nil
 }
 
-func (s *WindowPoStScheduler) setSender(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) error {
+// prepareMessage prepares a message before sending it, setting:
+//
+// * the sender (from the AddressSelector, falling back to the worker address if none set)
+// * the right gas parameters
+func (s *WindowPoStScheduler) prepareMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) error {
 	mi, err := s.api.StateMinerInfo(ctx, s.actor, types.EmptyTSK)
 	if err != nil {
 		return xerrors.Errorf("error getting miner info: %w", err)
 	}
-	// use the worker as a fallback
+	// set the worker as a fallback
 	msg.From = mi.Worker
 
+	// (optimal) initial estimation with some overestimation that guarantees
+	// block inclusion within the next 20 tipsets.
 	gm, err := s.api.GasEstimateMessageGas(ctx, msg, spec, types.EmptyTSK)
 	if err != nil {
 		log.Errorw("estimating gas", "error", err)
@@ -939,7 +994,9 @@ func (s *WindowPoStScheduler) setSender(ctx context.Context, msg *types.Message,
 	}
 	*msg = *gm
 
-	// estimate
+	// calculate a more frugal estimation; premium is estimated to guarantee
+	// inclusion within 5 tipsets, and fee cap is estimated for inclusion
+	// within 4 tipsets.
 	minGasFeeMsg := *msg
 
 	minGasFeeMsg.GasPremium, err = s.api.GasEstimateGasPremium(ctx, 5, msg.From, msg.GasLimit, types.EmptyTSK)
@@ -954,6 +1011,8 @@ func (s *WindowPoStScheduler) setSender(ctx context.Context, msg *types.Message,
 		minGasFeeMsg.GasFeeCap = msg.GasFeeCap
 	}
 
+	// goodFunds = funds needed for optimal inclusion probability.
+	// minFunds  = funds needed for more speculative inclusion probability.
 	goodFunds := big.Add(msg.RequiredFunds(), msg.Value)
 	minFunds := big.Min(big.Add(minGasFeeMsg.RequiredFunds(), minGasFeeMsg.Value), goodFunds)
 

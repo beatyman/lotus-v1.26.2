@@ -57,6 +57,7 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 	AddPiece: planOne(
 		on(SectorPieceAdded{}, WaitDeals),
 		apply(SectorStartPacking{}),
+		apply(SectorAddPiece{}),
 		on(SectorAddPieceFailed{}, AddPieceFailed),
 	),
 	Packing: planOne(on(SectorPacked{}, GetTicket)),
@@ -77,12 +78,26 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 		on(SectorSealPreCommit1Failed{}, SealPreCommit1Failed),
 	),
 	PreCommitting: planOne(
-		on(SectorSealPreCommit1Failed{}, SealPreCommit1Failed),
+		on(SectorPreCommitBatch{}, SubmitPreCommitBatch),
 		on(SectorPreCommitted{}, PreCommitWait),
+		on(SectorSealPreCommit1Failed{}, SealPreCommit1Failed),
 		on(SectorChainPreCommitFailed{}, PreCommitFailed),
 		on(SectorPreCommitLanded{}, WaitSeed),
 		on(SectorDealsExpired{}, DealsExpired),
 		on(SectorInvalidDealIDs{}, RecoverDealIDs),
+	),
+	SubmitPreCommitBatch: planOne(
+		on(SectorPreCommitBatchSent{}, PreCommitBatchWait),
+		on(SectorSealPreCommit1Failed{}, SealPreCommit1Failed),
+		on(SectorChainPreCommitFailed{}, PreCommitFailed),
+		on(SectorPreCommitLanded{}, WaitSeed),
+		on(SectorDealsExpired{}, DealsExpired),
+		on(SectorInvalidDealIDs{}, RecoverDealIDs),
+	),
+	PreCommitBatchWait: planOne(
+		on(SectorChainPreCommitFailed{}, PreCommitFailed),
+		on(SectorPreCommitLanded{}, WaitSeed),
+		on(SectorRetryPreCommit{}, PreCommitting),
 	),
 	PreCommitWait: planOne(
 		on(SectorChainPreCommitFailed{}, PreCommitFailed),
@@ -94,11 +109,25 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 		on(SectorChainPreCommitFailed{}, PreCommitFailed),
 	),
 	Committing: planCommitting,
+	CommitFinalize: planOne(
+		on(SectorFinalized{}, SubmitCommit),
+		on(SectorFinalizeFailed{}, CommitFinalizeFailed),
+	),
 	SubmitCommit: planOne(
 		on(SectorCommitSubmitted{}, CommitWait),
+		on(SectorSubmitCommitAggregate{}, SubmitCommitAggregate),
+		on(SectorCommitFailed{}, CommitFailed),
+	),
+	SubmitCommitAggregate: planOne(
+		on(SectorCommitAggregateSent{}, CommitWait),
 		on(SectorCommitFailed{}, CommitFailed),
 	),
 	CommitWait: planOne(
+		on(SectorProving{}, FinalizeSector),
+		on(SectorCommitFailed{}, CommitFailed),
+		on(SectorRetrySubmitCommit{}, SubmitCommit),
+	),
+	CommitAggregateWait: planOne(
 		on(SectorProving{}, FinalizeSector),
 		on(SectorCommitFailed{}, CommitFailed),
 		on(SectorRetrySubmitCommit{}, SubmitCommit),
@@ -131,6 +160,9 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 	ComputeProofFailed: planOne(
 		on(SectorRetryComputeProof{}, Committing),
 		on(SectorSealPreCommit1Failed{}, SealPreCommit1Failed),
+	),
+	CommitFinalizeFailed: planOne(
+		on(SectorRetryFinalize{}, CommitFinalizeFailed),
 	),
 	CommitFailed: planOne(
 		on(SectorSealPreCommit1Failed{}, SealPreCommit1Failed),
@@ -199,6 +231,8 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 
 func (m *Sealing) logEvents(events []statemachine.Event, state *SectorInfo) {
 	for _, event := range events {
+		log.Debugw("sector event", "sector", state.SectorNumber, "type", fmt.Sprintf("%T", event.User), "event", event.User)
+
 		e, err := json.Marshal(event)
 		if err != nil {
 			log.Errorf("marshaling event for logging: %+v", err)
@@ -207,6 +241,10 @@ func (m *Sealing) logEvents(events []statemachine.Event, state *SectorInfo) {
 
 		if event.User == (SectorRestart{}) {
 			continue // don't log on every fsm restart
+		}
+
+		if len(e) > 8000 {
+			e = []byte(string(e[:8000]) + "... truncated")
 		}
 
 		l := Log{
@@ -373,6 +411,10 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 		return m.handlePreCommit2, processed, nil
 	case PreCommitting:
 		return m.handlePreCommitting, processed, nil
+	case SubmitPreCommitBatch:
+		return m.handleSubmitPreCommitBatch, processed, nil
+	case PreCommitBatchWait:
+		fallthrough
 	case PreCommitWait:
 		return m.handlePreCommitWait, processed, nil
 	case WaitSeed:
@@ -381,8 +423,14 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 		return m.handleCommitting, processed, nil
 	case SubmitCommit:
 		return m.handleSubmitCommit, processed, nil
+	case SubmitCommitAggregate:
+		return m.handleSubmitCommitAggregate, processed, nil
+	case CommitAggregateWait:
+		fallthrough
 	case CommitWait:
 		return m.handleCommitWait, processed, nil
+	case CommitFinalize:
+		fallthrough
 	case FinalizeSector:
 		return m.handleFinalizeSector, processed, nil
 
@@ -397,6 +445,8 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 		return m.handleComputeProofFailed, processed, nil
 	case CommitFailed:
 		return m.handleCommitFailed, processed, nil
+	case CommitFinalizeFailed:
+		fallthrough
 	case FinalizeFailed:
 		return m.handleFinalizeFailed, processed, nil
 	case PackingFailed: // DEPRECATED: remove this for the next reset
@@ -454,15 +504,16 @@ func (m *Sealing) onUpdateSector(ctx context.Context, state *SectorInfo) error {
 	if err != nil {
 		return xerrors.Errorf("getting config: %w", err)
 	}
-	sp, err := m.currentSealProof(ctx)
-	if err != nil {
-		return xerrors.Errorf("getting seal proof type: %w", err)
-	}
 
 	shouldUpdateInput := m.stats.updateSector(cfg, m.minerSectorID(state.SectorNumber), state.State)
 
 	// trigger more input processing when we've dipped below max sealing limits
 	if shouldUpdateInput {
+		sp, err := m.currentSealProof(ctx)
+		if err != nil {
+			return xerrors.Errorf("getting seal proof type: %w", err)
+		}
+
 		go func() {
 			m.inputLk.Lock()
 			defer m.inputLk.Unlock()
@@ -486,6 +537,9 @@ func planCommitting(events []statemachine.Event, state *SectorInfo) (uint64, err
 		case SectorCommitted: // the normal case
 			e.apply(state)
 			state.State = SubmitCommit
+		case SectorProofReady: // early finalize
+			e.apply(state)
+			state.State = CommitFinalize
 		case SectorSeedReady: // seed changed :/
 			if e.SeedEpoch == state.SeedEpoch && bytes.Equal(e.SeedValue, state.SeedValue) {
 				log.Warnf("planCommitting: got SectorSeedReady, but the seed didn't change")
@@ -512,6 +566,8 @@ func planCommitting(events []statemachine.Event, state *SectorInfo) (uint64, err
 }
 
 func (m *Sealing) restartSectors(ctx context.Context) error {
+	defer m.startupWait.Done()
+
 	trackedSectors, err := m.ListSectors()
 	if err != nil {
 		log.Errorf("loading sector list: %+v", err)
@@ -529,6 +585,7 @@ func (m *Sealing) restartSectors(ctx context.Context) error {
 }
 
 func (m *Sealing) ForceSectorState(ctx context.Context, id abi.SectorNumber, state SectorState) error {
+	m.startupWait.Wait()
 	return m.sectors.Send(id, SectorForceState{state})
 }
 
@@ -577,6 +634,7 @@ func onReturning(mut mutator) func() (mutator, func(*SectorInfo) (bool, error)) 
 
 func planOne(ts ...func() (mut mutator, next func(*SectorInfo) (more bool, err error))) func(events []statemachine.Event, state *SectorInfo) (uint64, error) {
 	return func(events []statemachine.Event, state *SectorInfo) (uint64, error) {
+	eloop:
 		for i, event := range events {
 			if gm, ok := event.User.(globalMutator); ok {
 				gm.applyGlobal(state)
@@ -599,6 +657,8 @@ func planOne(ts ...func() (mut mutator, next func(*SectorInfo) (more bool, err e
 				if err != nil || !more {
 					return uint64(i + 1), err
 				}
+
+				continue eloop
 			}
 
 			_, ok := event.User.(Ignorable)
