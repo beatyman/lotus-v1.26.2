@@ -96,7 +96,7 @@ var rebuildCmd = &cli.Command{
 		}
 		taskListLen := len(taskList)
 		log.Infof("task len:%d", taskListLen)
-
+		ssize := cctx.Uint64("sector-size")
 		apOut := make(chan interface{}, taskListLen)
 		for _, task := range taskList {
 			// parallel number is taskListLen
@@ -117,7 +117,7 @@ var rebuildCmd = &cli.Command{
 				pieceInfo, err := sealer.PledgeSector(ctx,
 					sector,
 					[]abi.UnpaddedPieceSize{},
-					2032,
+					abi.PaddedPieceSize(ssize).Unpadded(),
 				)
 				if err != nil {
 					apOut <- errors.As(err)
