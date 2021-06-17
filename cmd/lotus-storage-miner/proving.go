@@ -349,6 +349,21 @@ var provingDeadlineInfoCmd = &cli.Command{
 			fmt.Printf("Faults:                   %d\n", faultsCount)
 			fmt.Printf("Faulty Sectors:           %d\n", fn)
 		}
+
+		mApi, mCloser, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer mCloser()
+		logs, err := mApi.WdPostGetLog(ctx, dlIdx)
+		if err != nil {
+			return err
+		}
+		fmt.Println("Logs:")
+		for _, l := range logs {
+			fmt.Printf("%s > %s\n", l.Time.Format("2006-01-02T15:04:05.000Z07:00"), l.Log)
+		}
+
 		return nil
 	},
 }
