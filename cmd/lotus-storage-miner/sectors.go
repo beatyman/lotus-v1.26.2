@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -83,6 +84,11 @@ var sectorsStatusCmd = &cli.Command{
 			Name:  "on-chain-info",
 			Usage: "show sector on chain info",
 		},
+		&cli.BoolFlag{
+			Name:  "json",
+			Usage: "output json format",
+			Value: false,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
@@ -105,6 +111,21 @@ var sectorsStatusCmd = &cli.Command{
 		status, err := nodeApi.SectorsStatus(ctx, abi.SectorNumber(id), onChainInfo)
 		if err != nil {
 			return err
+		}
+		if cctx.Bool("json") {
+			result := map[string]interface{}{
+				"Status":       status.State,
+				"SectorNumber": status.SectorID,
+				"ProofType":    5, // TODO: fix this
+				"TicketValue":  status.Ticket.Value,
+				"SeedValue":    status.Seed.Value,
+			}
+			jData, err := json.Marshal(result)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(jData))
+			return nil
 		}
 
 		fmt.Printf("SectorID:\t%d\n", status.SectorID)
