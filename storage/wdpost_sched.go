@@ -99,7 +99,21 @@ func (s *WindowPoStScheduler) GetLog(index uint64) []fapi.WdPoStLog {
 	l, _ := s.wdpostLogs[index]
 	return l
 }
-func (s *WindowPoStScheduler) PutLog(index uint64, format string, args ...interface{}) string {
+func (s *WindowPoStScheduler) PutLogw(index uint64, args ...interface{}) string {
+	s.wdpostLogsLk.Lock()
+	defer s.wdpostLogsLk.Unlock()
+	src := []byte(fmt.Sprintln(args...))
+	output := fapi.WdPoStLog{Time: time.Now(), Log: string(src[:len(src)-1])}
+	l, ok := s.wdpostLogs[index]
+	if !ok {
+		l = []fapi.WdPoStLog{output}
+	} else {
+		l = append(l, output)
+	}
+	s.wdpostLogs[index] = l
+	return output.Log
+}
+func (s *WindowPoStScheduler) PutLogf(index uint64, format string, args ...interface{}) string {
 	s.wdpostLogsLk.Lock()
 	defer s.wdpostLogsLk.Unlock()
 	output := fapi.WdPoStLog{Time: time.Now(), Log: fmt.Sprintf(format, args...)}
