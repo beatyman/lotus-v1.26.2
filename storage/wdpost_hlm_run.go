@@ -55,7 +55,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 
 		partitions, err := s.api.StateMinerPartitions(context.TODO(), s.actor, declDeadline, ts.Key())
 		if err != nil {
-			log.Errorf("getting partitions: %v", err)
+			log.Error(s.PutLogf(di.Index, "getting partitions: %v", err))
 			return
 		}
 
@@ -77,7 +77,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 
 		if recoveries, sigmsg, err = s.declareRecoveries(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
-			log.Errorf("checking sector recoveries: %v", err)
+			log.Error(s.PutLogf(di.Index, "checking sector recoveries: %v", err))
 		}
 
 		s.journal.RecordEvent(s.evtTypes[evtTypeWdPoStRecoveries], func() interface{} {
@@ -96,7 +96,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 
 		if faults, sigmsg, err = s.declareFaults(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is also potentially really bad, but we try to post anyways
-			log.Errorf("checking sector faults: %v", err)
+			log.Error(s.PutLogf(di.Index, "checking sector faults: %v", err))
 		}
 
 		s.journal.RecordEvent(s.evtTypes[evtTypeWdPoStFaults], func() interface{} {
@@ -118,7 +118,6 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 		return nil, xerrors.Errorf("getting current head: %w", err)
 	}
 
-	// TODO: 重新测试以便确认是否每一个单独的分区证明都需要一个不同的随机数
 	rand, err := s.api.ChainGetRandomnessFromBeacon(ctx, headTs.Key(), crypto.DomainSeparationTag_WindowedPoStChallengeSeed, di.Challenge, buf.Bytes())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get chain randomness from beacon for window post (ts=%d; deadline=%d): %w", ts.Height(), di, err)
@@ -217,16 +216,16 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 
 			if len(sinfos) == 0 {
 				// nothing to prove for this batch
-				log.Infof("no sector info for deadline:%d", di.Index)
+				log.Info(s.PutLogf(di.Index, "no sector info for deadline:%d", di.Index))
 				break
 			}
 
 			// Generate proof
-			log.Infow("running window post",
+			log.Info(s.PutLogw(di.Index, "running window post",
 				"chain-random", rand,
 				"deadline", di,
 				"height", ts.Height(),
-				"skipped", skipCount)
+				"skipped", skipCount))
 
 			tsStart := build.Clock.Now()
 
@@ -238,7 +237,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, append(abi.PoStRandomness{}, rand...))
 			elapsed := time.Since(tsStart)
 
-			log.Infow("computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand)
+			log.Info(s.PutLogw(di.Index, "computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand))
 
 			if err == nil {
 				// If we proved nothing, something is very wrong.
@@ -266,7 +265,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 				}
 
 				if !bytes.Equal(checkRand, rand) {
-					log.Warnw("windowpost randomness changed", "old", rand, "new", checkRand, "ts-height", ts.Height(), "challenge-height", di.Challenge, "tsk", ts.Key())
+					log.Warn(s.PutLogw(di.Index, "windowpost randomness changed", "old", rand, "new", checkRand, "ts-height", ts.Height(), "challenge-height", di.Challenge, "tsk", ts.Key()))
 					continue
 				}
 
@@ -277,11 +276,11 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 					ChallengedSectors: clSectors,
 					Prover:            abi.ActorID(mid),
 				}); err != nil {
-					log.Errorw("window post verification failed", "post", postOut, "error", err)
+					log.Error(s.PutLogw(di.Index, "window post verification failed", "post", postOut, "error", err))
 					time.Sleep(5 * time.Second)
 					continue
 				} else if !correct {
-					log.Errorw("generated incorrect window post proof", "post", postOut, "error", err)
+					log.Error(s.PutLogw(di.Index, "generated incorrect window post proof", "post", postOut, "error", err))
 					continue
 				}
 
@@ -301,14 +300,14 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 			}
 			// TODO: maybe mark these as faulty somewhere?
 
-			log.Warnw("generate window post skipped sectors", "sectors", ps, "error", err, "try", retries)
+			log.Warn(s.PutLogw(di.Index, "generate window post skipped sectors", "sectors", ps, "error", err, "try", retries))
 
 			// Explicitly make sure we haven't aborted this PoSt
 			// (GenerateWindowPoSt may or may not check this).
 			// Otherwise, we could try to continue proving a
 			// deadline after the deadline has ended.
 			if ctx.Err() != nil {
-				log.Warnw("aborting PoSt due to context cancellation", "error", ctx.Err(), "deadline", di.Index)
+				log.Warn(s.PutLogw(di.Index, "aborting PoSt due to context cancellation", "error", ctx.Err(), "deadline", di.Index))
 				return nil, ctx.Err()
 			}
 
@@ -351,7 +350,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 			continue
 
 		case <-timech:
-			log.Errorf("timeout for wdpost, index:%d, all:%d, success:%d", di.Index, len(partitionBatches), len(posts))
+			log.Error(s.PutLogf(di.Index, "timeout for wdpost, index:%d, all:%d, success:%d", di.Index, len(partitionBatches), len(posts)))
 			break
 		}
 	}

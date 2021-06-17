@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/filecoin-project/go-state-types/dline"
 	"github.com/filecoin-project/specs-storage/storage"
 
-	"github.com/filecoin-project/lotus/api"
+	fapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -54,6 +55,9 @@ type WindowPoStScheduler struct {
 	autoWithdrawLk        sync.Mutex
 	autoWithdrawLastEpoch int64
 	autoWithdrawRunning   bool
+
+	wdpostLogsLk sync.Mutex
+	wdpostLogs   map[uint64][]fapi.WdPoStLog // log the process of wdpost, dealine:logs
 }
 
 // NewWindowedPoStScheduler creates a new WindowPoStScheduler scheduler.
@@ -93,7 +97,53 @@ func NewWindowedPoStScheduler(api fullNodeFilteredAPI,
 			evtTypeWdPoStFaults:     j.RegisterEventType("wdpost", "faults_processed"),
 		},
 		journal: j,
+
+		wdpostLogs: map[uint64][]fapi.WdPoStLog{},
 	}, nil
+}
+
+func (s *WindowPoStScheduler) ResetLog(index uint64) {
+	s.wdpostLogsLk.Lock()
+	defer s.wdpostLogsLk.Unlock()
+	delete(s.wdpostLogs, index)
+}
+func (s *WindowPoStScheduler) GetLog(index uint64) []fapi.WdPoStLog {
+	s.wdpostLogsLk.Lock()
+	defer s.wdpostLogsLk.Unlock()
+	l, _ := s.wdpostLogs[index]
+	return l
+}
+func (s *WindowPoStScheduler) PutLogw(index uint64, args ...interface{}) string {
+	s.wdpostLogsLk.Lock()
+	defer s.wdpostLogsLk.Unlock()
+	src := []byte(fmt.Sprintln(args...))
+	output := fapi.WdPoStLog{Time: time.Now(), Log: string(src[:len(src)-1])}
+	l, ok := s.wdpostLogs[index]
+	if !ok {
+		l = []fapi.WdPoStLog{output}
+	} else {
+		l = append(l, output)
+	}
+	s.wdpostLogs[index] = l
+	return output.Log
+}
+func (s *WindowPoStScheduler) PutLogf(index uint64, format string, args ...interface{}) string {
+	s.wdpostLogsLk.Lock()
+	defer s.wdpostLogsLk.Unlock()
+	output := fapi.WdPoStLog{Time: time.Now(), Log: fmt.Sprintf(format, args...)}
+	l, ok := s.wdpostLogs[index]
+	if !ok {
+		l = []fapi.WdPoStLog{output}
+	} else {
+		l = append(l, output)
+	}
+	s.wdpostLogs[index] = l
+	return output.Log
+}
+
+type changeHandlerAPIImpl struct {
+	storageMinerApi
+	*WindowPoStScheduler
 }
 
 func nextRoundTime(ts *types.TipSet) time.Time {
@@ -145,11 +195,9 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 	return
 	// end by hlm
 
-	var (
-		notifs <-chan []*api.HeadChange
-		err    error
-		gotCur bool
-	)
+	var notifs <-chan []*fapi.HeadChange
+	var err error
+	var gotCur bool
 
 	// not fine to panic after this point
 	for {

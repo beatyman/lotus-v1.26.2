@@ -53,6 +53,9 @@ func (sm *StorageMinerAPI) WdpostEnablePartitionSeparate(ctx context.Context, en
 func (sm *StorageMinerAPI) WdpostSetPartitionNumber(ctx context.Context, number int) error {
 	return sm.Miner.WdpostSetPartitionNumber(number)
 }
+func (sm *StorageMinerAPI) WdPostGetLog(ctx context.Context, index uint64) ([]api.WdPoStLog, error) {
+	return sm.Miner.GetWdPoStLog(ctx, index)
+}
 
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
 	return sm.Miner.RunPledgeSector()
