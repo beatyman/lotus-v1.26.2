@@ -192,13 +192,13 @@ func (m *Sealing) Stop(ctx context.Context) error {
 }
 
 func (m *Sealing) Remove(ctx context.Context, id abi.SectorNumber) error {
+	m.startupWait.Wait()
 	// release the remote worker
 	sid := storage.SectorName(m.minerSectorID(id))
 	memo := "sectors remove"
 	if _, err := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, 500, true, false); err != nil {
 		return errors.As(err)
 	}
-	m.startupWait.Wait()
 
 	return m.sectors.Send(uint64(id), SectorRemove{})
 }
