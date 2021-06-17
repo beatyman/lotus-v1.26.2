@@ -43,7 +43,7 @@ func (sb *Sealer) pledgeSector(ctx context.Context, sectorID storage.SectorRef, 
 		return nil, nil
 	}
 
-	log.Infof("Pledge %+v, contains %+v", storage.SectorName(sectorID.ID), existingPieceSizes)
+	log.Infof("Pledge %+v, contains %+v, sizes %+v", storage.SectorName(sectorID.ID), existingPieceSizes, sizes)
 
 	out := make([]abi.PieceInfo, len(sizes))
 	for i, size := range sizes {

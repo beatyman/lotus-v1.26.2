@@ -95,7 +95,7 @@ var rebuildCmd = &cli.Command{
 			return errors.As(err)
 		}
 		taskListLen := len(taskList)
-		log.Info("task len:%d", taskListLen)
+		log.Infof("task len:%d", taskListLen)
 
 		apOut := make(chan interface{}, taskListLen)
 		for _, task := range taskList {
@@ -117,7 +117,7 @@ var rebuildCmd = &cli.Command{
 				pieceInfo, err := sealer.PledgeSector(ctx,
 					sector,
 					[]abi.UnpaddedPieceSize{},
-					// TODO: set sizes
+					2032,
 				)
 				if err != nil {
 					apOut <- errors.As(err)
@@ -190,7 +190,7 @@ var rebuildCmd = &cli.Command{
 				continue
 			}
 			task.p2Out = cids
-			p1Out <- cids
+			p2Out <- task
 		}
 
 		// waiting the result
@@ -203,7 +203,7 @@ var rebuildCmd = &cli.Command{
 			}
 			task := t.(*RebuildTask)
 
-			log.Info("task %+v done", task.SectorNumber)
+			log.Infof("sector %+v done", task.SectorNumber)
 		}
 
 		return nil
