@@ -32,6 +32,7 @@ type HlmMinerProvingStruct struct {
 		StatisWins                    func(ctx context.Context, now time.Time, limit int) ([]database.StatisWin, error) `perm:"read"`
 		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                      `perm:"admin"`
 		WdpostSetPartitionNumber      func(ctx context.Context, number int) error                                       `perm:"admin"`
+		WdPostGetLog                  func(ctx context.Context, index uint64) ([]WdPoStLog, error)                      `perm:"read"`
 	}
 }
 
@@ -113,6 +114,9 @@ func (c *HlmMinerProvingStruct) WdpostEnablePartitionSeparate(ctx context.Contex
 }
 func (c *HlmMinerProvingStruct) WdpostSetPartitionNumber(ctx context.Context, number int) error {
 	return c.Internal.WdpostSetPartitionNumber(ctx, number)
+}
+func (c *HlmMinerProvingStruct) WdPostGetLog(ctx context.Context, index uint64) ([]WdPoStLog, error) {
+	return c.Internal.WdPostGetLog(ctx, index)
 }
 
 func (c *HlmMinerSectorStruct) RunPledgeSector(ctx context.Context) error {

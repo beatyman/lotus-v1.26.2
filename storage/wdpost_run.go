@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -106,9 +107,11 @@ func (s *WindowPoStScheduler) runGeneratePoST(
 	ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.generatePoST")
 	defer span.End()
 
+	s.ResetLog(deadline.Index)
+
 	posts, err := s.runPost(ctx, *deadline, ts)
 	if err != nil {
-		log.Errorf("runPost failed: %+v", err)
+		log.Error(s.PutLog(deadline.Index, "runPost failed: %+v", err))
 		return nil, err
 	}
 
@@ -491,7 +494,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 		partitions, err := s.api.StateMinerPartitions(context.TODO(), s.actor, declDeadline, ts.Key())
 		if err != nil {
-			log.Errorf("getting partitions: %v", err)
+			log.Error(s.PutLog(di.Index, "getting partitions: %v", err))
 			return
 		}
 
@@ -513,7 +516,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 		if recoveries, sigmsg, err = s.checkNextRecoveries(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
-			log.Errorf("checking sector recoveries: %v", err)
+			log.Error(s.PutLog(di.Index, "checking sector recoveries: %v", err))
 		}
 
 		s.journal.RecordEvent(s.evtTypes[evtTypeWdPoStRecoveries], func() interface{} {
@@ -532,7 +535,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 		if faults, sigmsg, err = s.checkNextFaults(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is also potentially really bad, but we try to post anyways
-			log.Errorf("checking sector faults: %v", err)
+			log.Error(s.PutLog(di.Index, "checking sector faults: %v", err))
 		}
 
 		s.journal.RecordEvent(s.evtTypes[evtTypeWdPoStFaults], func() interface{} {
@@ -645,16 +648,16 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 
 			if len(sinfos) == 0 {
 				// nothing to prove for this batch
-				log.Infof("no sector info for deadline:%d", di.Index)
+				log.Info(s.PutLog(di.Index, "no sector info for deadline:%d", di.Index))
 				break
 			}
 
 			// Generate proof
-			log.Infow("running window post",
+			log.Info(s.PutLog(di.Index, fmt.Sprint("running window post",
 				"chain-random", rand,
 				"deadline", di,
 				"height", ts.Height(),
-				"skipped", skipCount)
+				"skipped", skipCount)))
 
 			tsStart := build.Clock.Now()
 
@@ -666,7 +669,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, append(abi.PoStRandomness{}, rand...))
 			elapsed := time.Since(tsStart)
 
-			log.Infow("computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand)
+			log.Info(s.PutLog(di.Index, fmt.Sprint("computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand)))
 
 			if err == nil {
 				// If we proved nothing, something is very wrong.
@@ -694,7 +697,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 				}
 
 				if !bytes.Equal(checkRand, rand) {
-					log.Warnw("windowpost randomness changed", "old", rand, "new", checkRand, "ts-height", ts.Height(), "challenge-height", di.Challenge, "tsk", ts.Key())
+					log.Warn(s.PutLog(di.Index, fmt.Sprint("windowpost randomness changed", "old", rand, "new", checkRand, "ts-height", ts.Height(), "challenge-height", di.Challenge, "tsk", ts.Key())))
 					continue
 				}
 
@@ -705,11 +708,11 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 					ChallengedSectors: clSectors,
 					Prover:            abi.ActorID(mid),
 				}); err != nil {
-					log.Errorw("window post verification failed", "post", postOut, "error", err)
+					log.Error(s.PutLog(di.Index, fmt.Sprint("window post verification failed", "post", postOut, "error", err)))
 					time.Sleep(5 * time.Second)
 					continue
 				} else if !correct {
-					log.Errorw("generated incorrect window post proof", "post", postOut, "error", err)
+					log.Error(s.PutLog(di.Index, fmt.Sprint("generated incorrect window post proof", "post", postOut, "error", err)))
 					continue
 				}
 
@@ -729,14 +732,14 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di dline.Info, ts *ty
 			}
 			// TODO: maybe mark these as faulty somewhere?
 
-			log.Warnw("generate window post skipped sectors", "sectors", ps, "error", err, "try", retries)
+			log.Warn(s.PutLog(di.Index, fmt.Sprint("generate window post skipped sectors", "sectors", ps, "error", err, "try", retries)))
 
 			// Explicitly make sure we haven't aborted this PoSt
 			// (GenerateWindowPoSt may or may not check this).
 			// Otherwise, we could try to continue proving a
 			// deadline after the deadline has ended.
 			if ctx.Err() != nil {
-				log.Warnw("aborting PoSt due to context cancellation", "error", ctx.Err(), "deadline", di.Index)
+				log.Warn(s.PutLog(di.Index, fmt.Sprint("aborting PoSt due to context cancellation", "error", ctx.Err(), "deadline", di.Index)))
 				return nil, ctx.Err()
 			}
 
@@ -902,7 +905,7 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 		return nil, xerrors.Errorf("pushing message to mpool: %w", err)
 	}
 
-	log.Infof("Submitting window post %d: %s", proof.Deadline, sm.Cid())
+	log.Info(s.PutLog(proof.Deadline, "Submitting window post %d: %s", proof.Deadline, sm.Cid()))
 
 	go func() {
 		rec, err := s.api.StateWaitMsg(context.TODO(), sm.Cid(), build.MessageConfidence, api.LookbackNoLimit, true)
@@ -912,11 +915,11 @@ func (s *WindowPoStScheduler) submitPost(ctx context.Context, proof *miner.Submi
 		}
 
 		if rec.Receipt.ExitCode == 0 {
-			log.Infof("Submitting window post %d, %s success.", proof.Deadline, sm.Cid())
+			log.Info(s.PutLog(proof.Deadline, "Submitting window post %d, %s success.", proof.Deadline, sm.Cid()))
 			return
 		}
 
-		log.Errorf("Submitting window post %d, %s failed: exit %d", proof.Deadline, sm.Cid(), rec.Receipt.ExitCode)
+		log.Error(s.PutLog(proof.Deadline, "Submitting window post %d, %s failed: exit %d", proof.Deadline, sm.Cid(), rec.Receipt.ExitCode))
 	}()
 
 	return sm, nil

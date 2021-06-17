@@ -5,9 +5,14 @@ import (
 	"strconv"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	fapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/gwaylib/errors"
 )
+
+func (m *Miner) GetWdPoStLog(ctx context.Context, index uint64) ([]fapi.WdPoStLog, error) {
+	return m.fps.GetLog(index), nil
+}
 
 func (m *Miner) Testing(ctx context.Context, fnName string, args []string) error {
 	switch fnName {
