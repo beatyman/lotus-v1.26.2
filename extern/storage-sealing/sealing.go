@@ -83,6 +83,8 @@ type Sealing struct {
 	feeCfg config.MinerFeeConfig
 	events Events
 
+	startupWait sync.WaitGroup
+
 	maddr address.Address
 
 	sealer  sectorstorage.SectorManager
@@ -162,6 +164,7 @@ func New(api SealingAPI, fc config.MinerFeeConfig, events Events, maddr address.
 			bySector: map[abi.SectorID]statSectorState{},
 		},
 	}
+	s.startupWait.Add(1)
 
 	s.sectors = statemachine.New(namespace.Wrap(ds, datastore.NewKey(SectorStorePrefix)), s, SectorInfo{})
 
@@ -195,10 +198,14 @@ func (m *Sealing) Remove(ctx context.Context, id abi.SectorNumber) error {
 	if _, err := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, 500, true, false); err != nil {
 		return errors.As(err)
 	}
+	m.startupWait.Wait()
+
 	return m.sectors.Send(uint64(id), SectorRemove{})
 }
 
 func (m *Sealing) Terminate(ctx context.Context, sid abi.SectorNumber) error {
+	m.startupWait.Wait()
+
 	return m.sectors.Send(uint64(sid), SectorTerminate{})
 }
 
