@@ -142,7 +142,7 @@ func (s *WindowPoStScheduler) PutLogf(index uint64, format string, args ...inter
 }
 
 type changeHandlerAPIImpl struct {
-	storageMinerApi
+	fullNodeFilteredAPI
 	*WindowPoStScheduler
 }
 
