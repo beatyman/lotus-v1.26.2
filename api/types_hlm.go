@@ -1,6 +1,8 @@
 package api
 
 import (
+	"time"
+
 	"github.com/filecoin-project/go-state-types/big"
 )
 
@@ -37,4 +39,9 @@ type ProxyStatus struct {
 	ProxyOn    bool
 	AutoSelect bool
 	Nodes      []ProxyNode
+}
+
+type WdPoStLog struct {
+	Time time.Time
+	Log  string
 }
