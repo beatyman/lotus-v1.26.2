@@ -490,6 +490,10 @@ func (r *Remote) readRemote(ctx context.Context, url string, offset, size abi.Pa
 // either locally or on any of the workers.
 // Returns true if we have the unsealed piece, false otherwise.
 func (r *Remote) CheckIsUnsealed(ctx context.Context, s storage.SectorRef, offset, size abi.PaddedPieceSize) (bool, error) {
+	sector, err := database.FillSectorFile(s, "TODO")
+	if err != nil {
+		return false, errors.As(err)
+	}
 	ft := storiface.FTUnsealed
 
 	paths, _, err := r.local.AcquireSector(ctx, s, ft, storiface.FTNone, storiface.PathStorage, storiface.AcquireMove)
@@ -507,7 +511,7 @@ func (r *Remote) CheckIsUnsealed(ctx context.Context, s storage.SectorRef, offse
 		}
 
 		// open the unsealed sector file for the given sector size located at the given path.
-		pf, err := r.pfHandler.OpenPartialFile(abi.PaddedPieceSize(ssize), path)
+		pf, err := r.pfHandler.OpenPartialFile(abi.PaddedPieceSize(ssize), sector)
 		if err != nil {
 			return false, xerrors.Errorf("opening partial file: %w", err)
 		}
