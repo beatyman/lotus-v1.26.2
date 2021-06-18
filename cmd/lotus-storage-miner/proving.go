@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -36,6 +37,13 @@ var provingCmd = &cli.Command{
 var provingFaultsCmd = &cli.Command{
 	Name:  "faults",
 	Usage: "View the currently known proving faulty sectors information",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "json",
+			Usage: "output json format",
+			Value: false,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		color.NoColor = !cctx.Bool("color")
 
@@ -64,6 +72,12 @@ var provingFaultsCmd = &cli.Command{
 			return err
 		}
 
+		mApi, mCloser, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer mCloser()
+		jsonFmt := cctx.Bool("json")
 		fmt.Printf("Miner: %s\n", color.BlueString("%s", maddr))
 
 		tw := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
@@ -75,6 +89,25 @@ var provingFaultsCmd = &cli.Command{
 					return err
 				}
 				return faults.ForEach(func(num uint64) error {
+					if jsonFmt {
+						status, err := mApi.SectorsStatus(ctx, abi.SectorNumber(num), false)
+						if err != nil {
+							return err
+						}
+						result := map[string]interface{}{
+							"Status":       status.State,
+							"SectorNumber": status.SectorID,
+							"ProofType":    5, // TODO: fix this
+							"TicketValue":  status.Ticket.Value,
+							"SeedValue":    status.Seed.Value,
+						}
+						jData, err := json.Marshal(result)
+						if err != nil {
+							return err
+						}
+						fmt.Println(string(jData))
+						return nil
+					}
 					_, _ = fmt.Fprintf(tw, "%d\t%d\t%d\n", dlIdx, partIdx, num)
 					return nil
 				})
@@ -82,6 +115,9 @@ var provingFaultsCmd = &cli.Command{
 		})
 		if err != nil {
 			return err
+		}
+		if jsonFmt {
+			return nil
 		}
 		return tw.Flush()
 	},
@@ -349,6 +385,21 @@ var provingDeadlineInfoCmd = &cli.Command{
 			fmt.Printf("Faults:                   %d\n", faultsCount)
 			fmt.Printf("Faulty Sectors:           %d\n", fn)
 		}
+
+		mApi, mCloser, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer mCloser()
+		logs, err := mApi.WdPostGetLog(ctx, dlIdx)
+		if err != nil {
+			return err
+		}
+		fmt.Println("Logs:")
+		for _, l := range logs {
+			fmt.Printf("%s > %s\n", l.Time.Format("2006-01-02T15:04:05.000Z07:00"), l.Log)
+		}
+
 		return nil
 	},
 }
