@@ -83,7 +83,12 @@ func DiskUsage(path string) (*DiskStatus, error) {
 	return disk, nil
 }
 
+var isMountOwner = false
+
 func LockMount(repo string) (io.Closer, error) {
+	if isMountOwner {
+		return nil, nil
+	}
 	fsLock := "mount.lock"
 	locked, err := fslock.Locked(repo, fsLock)
 	if err != nil {
@@ -92,7 +97,11 @@ func LockMount(repo string) (io.Closer, error) {
 	if locked {
 		return nil, errors.New("already locked by others")
 	}
-	return fslock.Lock(repo, fsLock)
+	closer, err := fslock.Lock(repo, fsLock)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	return closer, nil
 }
 
 func Umount(mountPoint string) (bool, error) {
