@@ -65,6 +65,9 @@ func (f *FUseClient) Mount(ctx context.Context, mountPoint string) error {
 	server, err := fuse.NewServer(conn.RawFS(), mountPoint, &fuse.MountOptions{
 		Name:  f.uri,
 		Debug: os.Getenv("LOTUS_FUSE_DEBUG") == "1",
+
+		// Options are passed as -o string to fusermount.
+		Options: []string{"nonempty"},
 	})
 	if err != nil {
 		return errors.As(err)
