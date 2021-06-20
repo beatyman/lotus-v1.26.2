@@ -63,11 +63,6 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSched
 	w.storageLk.Lock()
 	defer w.storageLk.Unlock()
 
-	if _, err := database.LockMount(w.minerRepo); err != nil {
-		log.Warnf("mount lock failed, skip mount the storages:%s", errors.As(err, w.minerRepo))
-		return nil
-	}
-
 	// checksum
 	list, err := napi.ChecksumStorage(ctx, w.storageVer)
 	if err != nil {
@@ -75,6 +70,11 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSched
 	}
 	// no storage to mount
 	if len(list) == 0 {
+		return nil
+	}
+
+	if _, err := database.LockMount(w.minerRepo); err != nil {
+		log.Warnf("mount lock failed, skip mount the storages:%s", errors.As(err, w.minerRepo))
 		return nil
 	}
 
