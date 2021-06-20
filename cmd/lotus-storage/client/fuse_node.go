@@ -17,6 +17,10 @@ const (
 	_rootPath = "/data/zfs"
 )
 
+var (
+	fuseSysPools = NewFUsePools()
+)
+
 func NewFUseRootFs(uri, token string) (nodefs.Node, error) {
 	fs := &FUseNodeFs{
 		host: uri,
@@ -43,20 +47,20 @@ type FUseNodeFs struct {
 }
 
 func (fs FUseNodeFs) FileList(relativePath string) ([]os.FileInfo, error) {
-	conn, err := GetFUseConn(fs.host, true)
+	conn, err := fuseSysPools.GetFUseConn(fs.host, true)
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	defer ReturnFUseConn(fs.host, conn)
+	defer fuseSysPools.ReturnFUseConn(fs.host, conn)
 
 	params := []byte(fmt.Sprintf(`{"Method":"List","Path":"%s"}`, relativePath))
 	if err := utils.WriteFUseTextReq(conn, params); err != nil {
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return nil, errors.As(err)
 	}
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return nil, errors.As(err)
 	}
 	switch resp["Code"] {
@@ -65,24 +69,24 @@ func (fs FUseNodeFs) FileList(relativePath string) ([]os.FileInfo, error) {
 	case "404":
 		return nil, &os.PathError{"FUseNodeFs.Stat", relativePath, _errNotExist}
 	default:
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return nil, errors.Parse(resp["Err"].(string))
 	}
 	files, ok := resp["Data"].([]interface{})
 	if !ok {
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return nil, errors.New("error protocol").As(resp)
 	}
 	result := []os.FileInfo{}
 	for _, file := range files {
 		stat, ok := file.(map[string]interface{})
 		if !ok {
-			CloseFUseConn(fs.host, conn)
+			fuseSysPools.CloseFUseConn(fs.host, conn)
 			return nil, errors.New("error protocol").As(resp)
 		}
 		mTime, err := time.Parse(time.RFC3339Nano, stat["FileModTime"].(string))
 		if err != nil {
-			CloseFUseConn(fs.host, conn)
+			fuseSysPools.CloseFUseConn(fs.host, conn)
 			return nil, errors.As(err)
 		}
 		result = append(result, &utils.ServerFileStat{
@@ -95,19 +99,19 @@ func (fs FUseNodeFs) FileList(relativePath string) ([]os.FileInfo, error) {
 	return result, nil
 }
 func (fs FUseNodeFs) FileStat(relativePath string) (os.FileInfo, error) {
-	conn, err := GetFUseConn(fs.host, true)
+	conn, err := fuseSysPools.GetFUseConn(fs.host, true)
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	defer ReturnFUseConn(fs.host, conn)
+	defer fuseSysPools.ReturnFUseConn(fs.host, conn)
 	params := []byte(fmt.Sprintf(`{"Method":"Stat","Path":"%s"}`, relativePath))
 	if err := utils.WriteFUseTextReq(conn, params); err != nil {
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return nil, errors.As(err)
 	}
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return nil, errors.As(err)
 	}
 	switch resp["Code"] {
@@ -116,17 +120,17 @@ func (fs FUseNodeFs) FileStat(relativePath string) (os.FileInfo, error) {
 	case "404":
 		return nil, &os.PathError{"FUseNodeFs.Stat", relativePath, _errNotExist}
 	default:
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return nil, errors.Parse(resp["Err"].(string))
 	}
 	stat, ok := resp["Data"].(map[string]interface{})
 	if !ok {
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return nil, errors.New("error protocol").As(resp)
 	}
 	mTime, err := time.Parse(time.RFC3339Nano, stat["FileModTime"].(string))
 	if err != nil {
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return nil, errors.As(err)
 	}
 	return &utils.ServerFileStat{
@@ -137,23 +141,23 @@ func (fs FUseNodeFs) FileStat(relativePath string) (os.FileInfo, error) {
 	}, nil
 }
 func (fs FUseNodeFs) StatFs() *fuse.StatfsOut {
-	conn, err := GetFUseConn(fs.host, true)
+	conn, err := fuseSysPools.GetFUseConn(fs.host, true)
 	if err != nil {
 		log.Error(errors.As(err))
 		return &fuse.StatfsOut{}
 	}
-	defer ReturnFUseConn(fs.host, conn)
+	defer fuseSysPools.ReturnFUseConn(fs.host, conn)
 
 	params := []byte(fmt.Sprintf(`{"Method":"Cap"}`))
 	if err := utils.WriteFUseTextReq(conn, params); err != nil {
 		log.Error(errors.As(err))
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return &fuse.StatfsOut{}
 	}
 	resp, err := utils.ReadFUseTextResp(conn)
 	if err != nil {
 		log.Error(errors.As(err))
-		CloseFUseConn(fs.host, conn)
+		fuseSysPools.CloseFUseConn(fs.host, conn)
 		return &fuse.StatfsOut{}
 	}
 	if resp["Code"] != "200" {
@@ -189,7 +193,8 @@ func (fs *FUseNodeFs) OnMount(*nodefs.FileSystemConnector) {
 
 func (fs *FUseNodeFs) OnUnmount() {
 	log.Infof("umount the conntion pool: %s", fs.host)
-	CloseAllFUseConn(fs.host)
+	fuseFilePool.CloseAllFUseConn(fs.host)
+	fuseSysPools.CloseAllFUseConn(fs.host)
 }
 
 func (fs *FUseNodeFs) newNode(relativePath string) *FUseNode {

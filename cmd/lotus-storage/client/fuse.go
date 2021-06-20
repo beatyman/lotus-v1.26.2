@@ -82,7 +82,7 @@ func (f *FUseClient) Mount(ctx context.Context, mountPoint string) error {
 	go func() {
 		signal.Notify(end, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGINT)
 		if s := <-end; s != nil {
-			log.Infof("auto umount fuse(%s) by kill signal", mountPoint)
+			log.Infof("auto umount fuse(%s) by kill signal(%d)", mountPoint, s)
 			f.Umount(ctx, mountPoint)
 		}
 	}()
