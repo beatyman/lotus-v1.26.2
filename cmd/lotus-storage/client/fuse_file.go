@@ -16,7 +16,7 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse/nodefs"
 )
 
-var fuseFilePool = NewFUsePools()
+var fuseFilePools = NewFUsePools()
 
 type FUseNodeFile struct {
 	File   *FUseFile
@@ -171,13 +171,13 @@ func (f *FUseFile) Name() string {
 }
 
 func (f FUseFile) closeErrConn(conn *FUseConn) {
-	fuseFilePool.CloseFUseConn(f.host, conn)
+	fuseFilePools.CloseFUseConn(f.host, conn)
 	f.opened = false
 
 }
 func (f *FUseFile) connect() (*FUseConn, error) {
 	// get from pool, and return when the file closed
-	conn, err := fuseFilePool.GetFUseConn(f.host, (f.flag&os.O_RDWR) == os.O_RDWR)
+	conn, err := fuseFilePools.GetFUseConn(f.host, (f.flag&os.O_RDWR) == os.O_RDWR)
 	if err != nil {
 		return nil, errors.As(err)
 	}
@@ -202,12 +202,12 @@ func (f *FUseFile) connect() (*FUseConn, error) {
 		data := resp["Data"].(map[string]interface{})
 		fileId, err := uuid.Parse(data["Id"].(string))
 		if err != nil {
-			fuseFilePool.ReturnFUseConn(f.host, conn)
+			fuseFilePools.ReturnFUseConn(f.host, conn)
 			return nil, errors.New("error response format").As(resp)
 		}
 		f.fileId = fileId
 	case "404":
-		fuseFilePool.ReturnFUseConn(f.host, conn)
+		fuseFilePools.ReturnFUseConn(f.host, conn)
 		return nil, &os.PathError{"readRemote", f.remotePath, _errNotExist}
 	default:
 		f.closeErrConn(conn)
@@ -241,7 +241,7 @@ func (f *FUseFile) readRemote(b []byte, off, fileSize int64) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer fuseFilePool.ReturnFUseConn(f.host, conn)
+	defer fuseFilePools.ReturnFUseConn(f.host, conn)
 
 	// request read data
 	if err := utils.WriteFUseReqFileHeader(conn, utils.FUSE_REQ_CONTROL_FILE_READ, uint32(buffLen), f.fileId); err != nil {
@@ -301,7 +301,7 @@ func (f *FUseFile) writeRemote(b []byte, off int64) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer fuseFilePool.ReturnFUseConn(f.host, conn)
+	defer fuseFilePools.ReturnFUseConn(f.host, conn)
 
 	// prepare write
 	if err := utils.WriteFUseReqFileHeader(conn, utils.FUSE_REQ_CONTROL_FILE_WRITE, uint32(len(b)), f.fileId); err != nil {
@@ -340,7 +340,7 @@ func (f *FUseFile) Close() error {
 	if err != nil {
 		return err
 	}
-	defer fuseFilePool.ReturnFUseConn(f.host, conn)
+	defer fuseFilePools.ReturnFUseConn(f.host, conn)
 
 	log.Debugf("Close %s", f.remotePath)
 	utils.WriteFUseReqFileHeader(conn, utils.FUSE_REQ_CONTROL_FILE_CLOSE, 0, f.fileId)
@@ -369,7 +369,7 @@ func (f *FUseFile) stat() (os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer fuseFilePool.ReturnFUseConn(f.host, conn)
+	defer fuseFilePools.ReturnFUseConn(f.host, conn)
 
 	// request read data
 	if err := utils.WriteFUseReqFileHeader(conn, utils.FUSE_REQ_CONTROL_FILE_STAT, 0, f.fileId); err != nil {
@@ -477,7 +477,7 @@ func (f *FUseFile) Truncate(size int64) error {
 	if err != nil {
 		return err
 	}
-	defer fuseFilePool.ReturnFUseConn(f.host, conn)
+	defer fuseFilePools.ReturnFUseConn(f.host, conn)
 
 	// request read data
 	if err := utils.WriteFUseReqFileHeader(conn, utils.FUSE_REQ_CONTROL_FILE_TRUNC, 0, f.fileId); err != nil {

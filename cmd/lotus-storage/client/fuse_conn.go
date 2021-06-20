@@ -76,6 +76,12 @@ func (p *FUsePool) CloseAll() {
 	log.Infof("close all fuse connection:%s", p.host)
 }
 
+func (p *FUsePool) Size() int {
+	p.lk.Lock()
+	defer p.lk.Unlock()
+	return p.size
+}
+
 func (p *FUsePool) Borrow(force bool) (*FUseConn, error) {
 	select {
 	case conn := <-p.queue:
