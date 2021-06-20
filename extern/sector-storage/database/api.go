@@ -89,6 +89,7 @@ func LockMount(repo string) (io.Closer, error) {
 	if isMountOwner {
 		return nil, nil
 	}
+	isMountOwner = true
 	fsLock := "mount.lock"
 	locked, err := fslock.Locked(repo, fsLock)
 	if err != nil {
