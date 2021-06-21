@@ -60,13 +60,13 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 }
 
 func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSchedulerAPI) error {
-	w.storageLk.Lock()
-	defer w.storageLk.Unlock()
-
-	if _, err := database.LockMount(w.minerRepo); err != nil {
-		log.Warnf("mount lock failed, skip mount the storages:%s", errors.As(err, w.minerRepo))
+	if err := database.LockMount(w.minerRepo); err != nil {
+		log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, w.minerRepo).Code())
 		return nil
 	}
+
+	w.storageLk.Lock()
+	defer w.storageLk.Unlock()
 
 	// checksum
 	list, err := napi.ChecksumStorage(ctx, w.storageVer)

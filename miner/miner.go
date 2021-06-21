@@ -353,7 +353,7 @@ func (m *Miner) mine(ctx context.Context) {
 			b = bl.(*types.BlockMsg)
 		case <-build.Clock.After(time.Duration(build.BlockDelaySecs) * time.Second):
 			mineCtxCancel()
-			log.Error("mining block failed by timeout, does the wallet undecode?")
+			log.Error("mining block failed by timeout, does the wallet undecode or compute timeout?")
 			continue
 		}
 		//lastBase = *base

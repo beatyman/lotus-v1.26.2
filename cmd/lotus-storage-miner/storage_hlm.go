@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -11,6 +10,7 @@ import (
 
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/gwaylib/errors"
 )
 
 var hlmStorageCmd = &cli.Command{
@@ -553,7 +553,7 @@ var statusHLMStorageCmd = &cli.Command{
 				continue
 			}
 			if len(stat.Err) > 0 {
-				fmt.Printf("bad node,     id:%d, uri:%s, used:%s, err:\n%s\n", stat.StorageId, stat.MountUri, stat.Used, stat.Err)
+				fmt.Printf("bad node,     id:%d, uri:%s, used:%s, err:\n%s\n", stat.StorageId, stat.MountUri, stat.Used, errors.Parse(stat.Err).Code())
 				bad = append(bad, stat)
 				continue
 			}

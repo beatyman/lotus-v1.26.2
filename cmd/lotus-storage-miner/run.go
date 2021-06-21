@@ -143,9 +143,11 @@ var runCmd = &cli.Command{
 		if err := r.IsLocked(); err != nil {
 			return err
 		}
-		if _, err := database.LockMount(minerRepoPath); err != nil {
+		if err := database.LockMount(minerRepoPath); err != nil {
 			return err
 		}
+		defer database.UnlockMount(minerRepoPath)
+
 		log.Info("Mount all storage")
 		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
 			return errors.As(err)

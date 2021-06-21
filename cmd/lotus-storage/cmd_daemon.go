@@ -44,19 +44,11 @@ var daemonCmd = &cli.Command{
 			log.Fatal(errors.As(err, repo))
 		}
 
-		// for read export
-		go func() {
-			log.Infof("pxfs-api:%s", _posixFsApiFlag)
-			log.Fatal(FUseFileServer(_posixFsApiFlag))
-
-			// using nfs for posix file, but there are bug in concurency.
-			//listener, err := net.Listen("tcp", *_signalApiFlag)
-			//if err != nil {
-			//	panic(err)
-			//}
-			//handler := NewNFSAuthHandler()
-			//log.Fatal(nfs.Serve(listener, handler))
-		}()
+		// export nfs for read
+		// need install nfs-server
+		if err := ExportToNFS(_repoFlag); err != nil {
+			return errors.As(err)
+		}
 
 		// for http download and upload
 		go func() {
