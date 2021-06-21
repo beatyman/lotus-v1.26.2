@@ -141,10 +141,6 @@ func (s *WindowPoStScheduler) PutLogf(index uint64, format string, args ...inter
 	return output.Log
 }
 
-type changeHandlerAPIImpl struct {
-	storageMinerApi
-	*WindowPoStScheduler
-}
 
 func nextRoundTime(ts *types.TipSet) time.Time {
 	return time.Unix(int64(ts.MinTimestamp())+int64(build.BlockDelaySecs)+int64(build.PropagationDelaySecs), 0)
