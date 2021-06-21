@@ -155,10 +155,6 @@ func OpenUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.Se
 		if err != nil {
 			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
 		}
-		if _, err := osfile.Stat(); err != nil {
-			log.Warn(errors.As(err))
-			return nil, xerrors.Errorf("openning partial file '%s': %w", path, errors.As(err).Code())
-		}
 		f = osfile
 	}
 
