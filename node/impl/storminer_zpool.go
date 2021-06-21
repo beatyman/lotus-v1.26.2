@@ -23,7 +23,7 @@ func (sm *StorageMinerAPI) StatusMinerStorage(ctx context.Context) ([]byte, erro
 	zpoolLk.Lock()
 	defer zpoolLk.Unlock()
 	now := time.Now()
-	if zpoolCache != nil && now.Sub(zpoolCache.createTime) < 5*time.Minute {
+	if zpoolCache != nil && now.Sub(zpoolCache.createTime) < time.Minute {
 		return zpoolCache.out, nil
 	}
 

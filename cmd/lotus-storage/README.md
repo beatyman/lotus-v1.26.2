@@ -11,8 +11,9 @@
     - [TokenAuth协议接口](#TokenAuth协议接口)
     - [PosixAuth协议接口](#PosixAuth协议接口)
 - [调用用例](#调用用例)
-    - [环境变量](#环境变量)
     - [测试指令](#测试指令)
+    - [状态检测](#状态检测)
+    - [重置存储节点接口密码](#重置存储节点接口密码)
 
 
 ## 前言
@@ -36,7 +37,7 @@ BasicAuth 基本鉴权，需要通过https接入, 在miner机上进行管理。
 TokenAuth 会话授权，通过BasicAuth换取每一次会话授权所需要的token，
           此权限可以通过http进行文件的增、删、查、改功能。 
 PosixAuth Posix接口，因Filecoin需要Posix文件访问，
-          此授权通过BasicAuth生成只读的token仅授权给miner、wdpost访问，此访问受BasicAuth管理。
+          此授权通过BasicAuth生成只读的token仅授权给miner、wdpost访问，此访问应受BasicAuth管理。
 ```
 
 ### BasicAuth
@@ -68,17 +69,7 @@ miner需要被视为可信的物理节点，当miner节点不可信时，应及�
 
 ### PosixAuth
 ```
-因filecoin本身是基于Posix的文件系统设计，涉及范围较广，不易修改源码，
-故基于go-fuse开源库改造了文件的访问方式，但文件访问难以控制每一个扇区的权限。
-
-授权后默认为只读功能，打开写功能时，应只能授权给miner节点全用，
-关闭其他不可信节点的改写存储节点的能力。
-
-PosixAuth的授权码基于BasicAuth生成，因此当PosixAuth不可信时，应及时变更BasicAuth，
-默认情况下重启miner即可，不需人工介入。
-
-小文件读取会带来大量的上下文切换从而产生系统开销。
-此设计专为高并发小读取而设计，适用于多并发的小文件读取。
+go-nfs, go-fuse在golang的文件大规模读挂载中测试未通过，因此仍采用原生nfs做为挂载接口，但为只读。
 ```
 
 ## 协议设计
@@ -104,130 +95,21 @@ PosixAuth的授权码基于BasicAuth生成，因此当PosixAuth不可信时，�
 ```
 
 ### PosixAuth协议接口
-```
-基于TCP实现的FUSE接口，支持通过fuse挂载为posix文接口。
-本实现分两部分，底层与应用层
-底层为tcp接口操作;
-应用层支持库接入与fuse接入
-```
 
-#### PosixAuth TCP底层接口设计
-请求协议分为两种，一种为文本协议，一种为文件传输协议。
-
-*TCP文本请求协议* 
-```
-支持以下功能
-List -- 列出文件夹内容，用于实现fuse的目录查询
-Stat -- 查询文件的属性
-Cap  -- 查询挂载目录的大小，用于实现df功能
-Open -- 打开一个文件，转入到文件传输模式
-
-文本请求协议
-byte[0]   -- 信令控制符
-byte[1:5] -- 数据区长度
-byte[5:n] -- 序列化的json文本
-请求的json文本协议如下
-{
-   "Method":"方法",
-   "参数1":"内容1",
-   ...
-}
-
-文本响应协议
-byte[0]   -- 信令控制符
-byte[1:5] -- 数据区长度
-byte[5:n] -- 序列化的json文本
-响应的json文本协议如下
-{
-  "Code":"200", -- 响应码，200为成功
-  "Data":{}, -- 响应的数据
-  "Err":"", -- 错误信息补充
-}
-
-```
-
-*TCP文件传输协议*
-
-当进行Open打开文件模式时，客户端的请求会转入到此模式，用于传输文件。
-
-文件传输模式下，最大支持并发数(client/fuse_conn.go#FUSE_CONN_POOL_SIZE_MAX)为15个文件打开;
-
-文件传输模式下，因频繁读写触发TCP的切换，会降低传输速率，提高读写的buffer值可提高传输速率。
-
-基于lotus-storage支持http接口上传与下载，在千兆口的32GB数据下载测试中，
-
-http(100+MB/s)>nfs(80+MB/s)>fuse(70+MB/s)。
-
-基于lotus-storage支持fuse文件系统
-
-wdpost 32GB测试中(nfs 12+分钟, fuse 8+分钟
-```
-支持以下功能：
-Tuncate -- 文件的Truncate功能，用于兼容官方存储市场的存储实现
-Stat    -- 文件属性功能
-Write   -- 文件写入功能，需要写入权限(GetAuthRW)
-Read    -- 文件读取功能
-ReadAt  -- 文件指定位置读取功能
-Seek    -- 文件读写指针位置设定
-Close   -- 文件关闭功能，在服务器端，若10分无文件操作，会自动关闭已打开的文件，转入缓存状态，缓存状态在权限变化时会被清空，该缓存的设计为可删除设计。
-
-文件传输请求协议
-byte[0]   -- 信令控制符
-byte[1:5] -- 数据区长度
-byte[5:5+16] -- 文件ID
-byte[21:n] -- 二进制数据区
-
-文件传输响应协议
-byte[0]   -- 信令控制任
-byte[1:5] -- 数据区长度
-byte[5:n] -- 二进制数据区
-```
-
-#### PosixAuth 应用层接口设计
-应用分为库应用与fuse挂载应用
-
-库应用为构建FUseFile实例进行应用，详见client/fuse_file_test.go
-
-fuse挂载应用, 挂载为fuse后，通过标准文件进行读取，当前只支持只读。
-
-系统需要安装fuse库(apt-get install fuse)
-
-```
-import "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
-
-func main() {
-	authData := GetAuthRO()
-	fuc := client.NewFUseClient(_posixFsApiFlag, authData)
-	if err := fuc.Mount(cctx.Context, mountPoint); err != nil {
-        panic(err)
-	}
-	end := make(chan os.Signal, 2)
-	signal.Notify(end, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGINT)
-	<-end
-}
-```
+go-nfs, go-fuse在golang的文件大规模读挂载中测试未通过，因此仍采用原生nfs做为挂载接口，但为只读。
 
 
 ## 调用用例
 
-### 环境变量
-```
-LOTUS_FUSE_DEBUG=1 # 开启FUSE调试日志，适用于服务端与客户端
-# 设定客户端可以连接服务端的连接池大小, 此值越大，支持并发连接越多，但当存在大量存储服务器时，需要注意客户端端口上限的问题。
-# POOL_SIZE=30，实际连接数约为60左右，即miner默认的可用端口数(约30000个)可支持500台左右的存储节点。
-LOTUS_FUSE_POOL_SIZE=30 
-```
-
 ### 测试指令
 将auth.dat复制到lotus-storage同一目录下，或自行通过lotus-storage --storage-root指定
 ```
-LOTUS_FUSE_DEBUG=1 lotus-storage daemon # 运行存储服务程序
-LOTUS_FUSE_DEBUG=1 LOTUS_FUSE_POOL_SIZE=15 lotus-storage mount [mountpoint] # 通过fuse挂载到本地目录
+lotus-storage daemon # 运行存储服务程序
 lotus-storage download [remote path] [local path] 下载文件到本地
 lotus-storage upload [local path] [remote path] 上传本地文件到服务器
 ```
 
-## 状态检测
+### 状态检测
 ```shell
 curl -k "https://127.0.0.1:1330/check"
 #返回all pools are healthy
@@ -238,7 +120,7 @@ curl -k "https://127.0.0.1:1340/check" # 对应lotus-storage-1
 curl -k "https://127.0.0.1:1350/check" # 对应lotus-storage-2
 ```
 
-## 重置存储节点接口密码
+### 重置存储节点接口密码
 ```
 rm $storage-root/auth.dat
 # 删除以上配置文件后会重置lotus-storage的接入密码
