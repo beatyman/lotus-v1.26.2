@@ -236,12 +236,16 @@ func (l *hlmWorker) ReadPiece(ctx context.Context, sector storage.SectorRef, ind
 		if err := l.sb.UnsealPiece(ctx, sector, index, size, ticket, unsealed); err != nil {
 			return nil, false, errors.As(err, sector, index, size, unsealed)
 		}
-		return l.sb.PieceReader(ctx, sector, index, size)
+		return nil, false, errors.As(err)
 	} else if done {
 		return r, true, nil
-	}else {
-		return nil, false, errors.New("unknown")
 	}
+
+	// unsealed not found, do unseal and then read it.
+	if err := l.sb.UnsealPiece(ctx, sector, index, size, ticket, unsealed); err != nil {
+		return nil, false, errors.As(err, sector, index, size, unsealed)
+	}
+	return l.sb.PieceReader(ctx, sector, index, size)
 }
 
 func (l *hlmWorker) TaskTypes(context.Context) (map[sealtasks.TaskType]struct{}, error) {
