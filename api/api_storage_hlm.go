@@ -42,9 +42,6 @@ type HlmMinerStorage interface {
 	// for miner
 	StatusMinerStorage(ctx context.Context) ([]byte, error)
 
-	// for lotus-storage status
-	StatisLotusStorage(ctx context.Context, host string) (map[string]string, error)
-
 	// for storage nodes
 	VerHLMStorage(ctx context.Context) (int64, error)
 	GetHLMStorage(ctx context.Context, id int64) (*database.StorageInfo, error)

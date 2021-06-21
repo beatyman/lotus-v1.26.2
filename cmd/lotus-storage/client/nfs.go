@@ -1,12 +1,9 @@
-// BUG: can not support file concurrency.
 package client
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,19 +11,12 @@ import (
 )
 
 type NFSClient struct {
-	Host  string
-	Port  int
+	Uri   string
 	Token string
 }
 
 func NewNFSClient(uri, token string) *NFSClient {
-	hosts := strings.Split(uri, "/")
-	hosts = strings.Split(hosts[0], ":")
-	port := 0
-	if len(hosts) > 1 {
-		port, _ = strconv.Atoi(hosts[1])
-	}
-	return &NFSClient{Host: hosts[0], Port: port, Token: token}
+	return &NFSClient{Uri: uri, Token: token}
 }
 
 func (n *NFSClient) Umount(ctx context.Context, mountPoint string) error {
@@ -77,9 +67,8 @@ func (n *NFSClient) Mount(ctx context.Context, mountPoint string) error {
 	if out, err := exec.CommandContext(timeoutCtx,
 		"mount",
 		"-t", "nfs",
-		"-o", fmt.Sprintf("port=%d,mountport=%d,nfsvers=3,noacl,tcp,rsize=1048576", n.Port, n.Port),
-		//"-o", fmt.Sprintf("port=%d,mountport=%d,nfsvers=3,nolock,intr,proto=tcp,rsize=1048576,wsize=1048576,hard,timeo=7,retrans=10,actimeo=10,retry=5", n.Port, n.Port),
-		fmt.Sprintf("%s:/%s", n.Host, n.Token),
+		"-o", "vers=3,rw,nolock,intr,proto=tcp,rsize=1048576,wsize=1048576,hard,timeo=7,retrans=10,actimeo=10,retry=5",
+		n.Uri,
 		mountPoint,
 	).CombinedOutput(); err != nil {
 		cancel()

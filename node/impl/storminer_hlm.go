@@ -9,7 +9,6 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
-	hclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/node/modules/proxy"
@@ -165,14 +164,6 @@ func (sm *StorageMinerAPI) WorkerDisable(ctx context.Context, wid string, disabl
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).DisableWorker(ctx, wid, disable)
 }
 
-func (sm *StorageMinerAPI) StatisLotusStorage(ctx context.Context, host string) (map[string]string, error) {
-	switch host {
-	case "all":
-		return hclient.StatisFUseAll(), nil
-	default:
-		return hclient.StatisFUse(host), nil
-	}
-}
 func (sm *StorageMinerAPI) VerHLMStorage(ctx context.Context) (int64, error) {
 	return database.StorageMaxVer()
 }

@@ -306,6 +306,7 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 	checkFn := func(c *database.StorageStatus) error {
 		switch c.MountType {
 		case database.MOUNT_TYPE_HLM:
+			// check the zpool system
 			data, err := hlmclient.NewAuthClient(c.MountAuthUri, "").Check(ctx)
 			if err != nil {
 				return errors.As(err)
@@ -313,6 +314,8 @@ func (sb *Sealer) StorageStatus(ctx context.Context, id int64, timeout time.Dura
 			if !strings.Contains(string(data), "all pools are healthy") {
 				return errors.New(string(data))
 			}
+
+			// check the mount system
 			mountPath := filepath.Join(c.MountDir, fmt.Sprintf("%d", c.StorageId))
 			checkPath := filepath.Join(mountPath, "miner-check.dat")
 			output, err := ioutil.ReadFile(checkPath)

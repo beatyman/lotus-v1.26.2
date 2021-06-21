@@ -30,8 +30,6 @@ var hlmStorageCmd = &cli.Command{
 		scaleHLMStorageCmd,
 		setHLMStorageTimeoutCmd,
 		getHLMStorageTimeoutCmd,
-
-		statisHLMStorageConnCmd,
 	},
 }
 var verHLMStorageCmd = &cli.Command{
@@ -636,34 +634,6 @@ var getHLMStorageTimeoutCmd = &cli.Command{
 			return err
 		}
 		fmt.Printf("proving check:%s, fault declare:%s\n", pTimeout.String(), fTimeout.String())
-		return nil
-	},
-}
-var statisHLMStorageConnCmd = &cli.Command{
-	Name:  "statis-conn",
-	Usage: "statistics connections of lotu-storage",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "host",
-			Usage: "'all' for statistics all, host for a singal node, example host: 127.0.0.1:1332",
-			Value: "all",
-		},
-	},
-	Action: func(cctx *cli.Context) error {
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-		ctx := lcli.ReqContext(cctx)
-
-		output, err := nodeApi.StatisLotusStorage(ctx, cctx.String("host"))
-		if err != nil {
-			return err
-		}
-		for key, val := range output {
-			fmt.Printf("%s:%s\n", key, val)
-		}
 		return nil
 	},
 }

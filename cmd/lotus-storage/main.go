@@ -24,10 +24,9 @@ const (
 
 var (
 	// common flag
-	_rootFlag       = ""
-	_authApiFlag    = ""
-	_httpApiFlag    = ""
-	_posixFsApiFlag = ""
+	_rootFlag    = ""
+	_authApiFlag = ""
+	_httpApiFlag = ""
 
 	_md5auth = ""
 
@@ -52,7 +51,6 @@ func GetAuthRW() string {
 func main() {
 	commands := []*cli.Command{
 		daemonCmd,
-		mountCmd,
 		downloadCmd,
 		uploadCmd,
 		//authCmd,
@@ -79,7 +77,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:  "addr-pxfs",
-				Usage: "posix fs api listen at",
+				Usage: "TODO: remove this",
 				Value: "127.0.0.1:1332",
 			},
 		},
@@ -88,7 +86,6 @@ func main() {
 			_rootFlag = cctx.String("storage-root")
 			_authApiFlag = cctx.String("addr-auth")
 			_httpApiFlag = cctx.String("addr-http")
-			_posixFsApiFlag = cctx.String("addr-pxfs")
 			authFile := filepath.Join(_rootFlag, _authFile)
 			if err := os.MkdirAll(filepath.Dir(authFile), 0755); err != nil {
 				log.Fatal(errors.As(err))

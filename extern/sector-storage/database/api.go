@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,9 +11,10 @@ import (
 	"time"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database/lock"
+
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
-	fslock "github.com/ipfs/go-fs-lock"
 )
 
 func Symlink(oldname, newname string) error {
@@ -83,26 +83,21 @@ func DiskUsage(path string) (*DiskStatus, error) {
 	return disk, nil
 }
 
-var isMountOwner = false
+var (
+	fsLock = "mount.lock"
+)
 
-func LockMount(repo string) (io.Closer, error) {
-	if isMountOwner {
-		return nil, nil
+func LockMount(repo string) error {
+	_, err := lock.Lock(filepath.Join(repo, fsLock))
+	switch {
+	case lock.ErrLockedBySelf.Equal(err):
+		return nil
 	}
-	fsLock := "mount.lock"
-	locked, err := fslock.Locked(repo, fsLock)
-	if err != nil {
-		return nil, errors.As(err)
-	}
-	if locked {
-		return nil, errors.New("already locked by others")
-	}
-	closer, err := fslock.Lock(repo, fsLock)
-	if err != nil {
-		return nil, errors.As(err)
-	}
-	isMountOwner = true
-	return closer, nil
+	return errors.As(err)
+}
+
+func UnlockMount(repo string) error {
+	return lock.Unlock(filepath.Join(repo, fsLock))
 }
 
 func Umount(mountPoint string) (bool, error) {
@@ -162,7 +157,7 @@ func Mount(ctx context.Context, mountType, mountUri, mountPoint, mountOpts strin
 
 	switch mountType {
 	case MOUNT_TYPE_HLM:
-		nfsClient := hlmclient.NewFUseClient(mountUri, mountOpts)
+		nfsClient := hlmclient.NewNFSClient(mountUri, mountOpts)
 		//nfsClient := hlmclient.NewNFSClient(mountUri, mountOpts)
 		if err := nfsClient.Mount(ctx, mountPoint); err != nil {
 			return errors.As(err, mountPoint)
