@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	FUSE_CONN_POOL_SIZE_MAX = 30
+	FUSE_CONN_POOL_SIZE_MAX = 32
 )
 
 func init() {
@@ -76,40 +76,47 @@ func (p *FUsePool) CloseAll() {
 	log.Infof("close all fuse connection:%s", p.host)
 }
 
-func (p *FUsePool) Borrow(force bool) (*FUseConn, error) {
+func (p *FUsePool) Size() int {
 	p.lk.Lock()
-	if len(p.queue) == 0 && (force || p.size < FUSE_CONN_POOL_SIZE_MAX) {
-		conn, err := p.new(force)
-		if err != nil {
-			p.lk.Unlock()
-			return nil, errors.As(err)
-		}
-		p.lk.Unlock()
+	defer p.lk.Unlock()
+	return p.size
+}
 
-		if force {
+func (p *FUsePool) Borrow(force bool) (*FUseConn, error) {
+	select {
+	case conn := <-p.queue:
+		if conn == nil {
+			return nil, errors.New("the connection pool has closed")
+		}
+		return conn, nil
+	default:
+		p.lk.Lock()
+
+		if !force && p.size > FUSE_CONN_POOL_SIZE_MAX {
+			p.lk.Unlock()
+
+			// waiting return the connection.
+			conn := <-p.queue
+			if conn == nil {
+				return nil, errors.New("the connection pool has closed")
+			}
 			return conn, nil
 		}
 
-		p.queue <- conn
-	} else {
-		// waiting others return to the pool.
-		p.lk.Unlock()
+		// make a new connection
+		defer p.lk.Unlock()
+		return p.new(force)
 	}
-
-	conn := <-p.queue
-	if conn == nil {
-		return nil, errors.New("the connection pool has closed")
-	}
-	return conn, nil
 }
 func (p *FUsePool) Return(conn *FUseConn) {
 	p.lk.Lock()
 	if _, ok := p.owner[conn]; !ok {
+		conn.Close()
 		p.lk.Unlock()
 		return
 	}
 	// keep the pool size
-	if len(p.queue) == FUSE_CONN_POOL_SIZE_MAX {
+	if p.size > FUSE_CONN_POOL_SIZE_MAX && conn.forceAllocate {
 		p.close(conn)
 		p.lk.Unlock()
 		return
@@ -119,34 +126,40 @@ func (p *FUsePool) Return(conn *FUseConn) {
 	p.queue <- conn
 }
 
-var (
-	FUseConnPoolLk = sync.Mutex{}
-	FUseConnPools  = map[string]*FUsePool{}
-)
+type FUsePools struct {
+	poolsLk sync.Mutex
+	pools   map[string]*FUsePool
+}
 
-func GetFUseConn(host string, forceAllocate bool) (*FUseConn, error) {
+func NewFUsePools() *FUsePools {
+	return &FUsePools{
+		pools: map[string]*FUsePool{},
+	}
+}
+
+func (ps *FUsePools) GetFUseConn(host string, isForce bool) (*FUseConn, error) {
 	var pool *FUsePool
 
-	FUseConnPoolLk.Lock()
-	pool, _ = FUseConnPools[host]
+	ps.poolsLk.Lock()
+	pool, _ = ps.pools[host]
 	if pool == nil {
 		pool = &FUsePool{
 			host:  host,
-			queue: make(chan *FUseConn, FUSE_CONN_POOL_SIZE_MAX),
+			queue: make(chan *FUseConn, FUSE_CONN_POOL_SIZE_MAX*2),
 			owner: map[*FUseConn]bool{},
 		}
-		FUseConnPools[host] = pool
+		ps.pools[host] = pool
 	}
-	FUseConnPoolLk.Unlock()
+	ps.poolsLk.Unlock()
 
-	return pool.Borrow(forceAllocate)
+	return pool.Borrow(isForce)
 }
-func ReturnFUseConn(host string, conn *FUseConn) {
+func (ps *FUsePools) ReturnFUseConn(host string, conn *FUseConn) {
 	var pool *FUsePool
 
-	FUseConnPoolLk.Lock()
-	pool, _ = FUseConnPools[host]
-	FUseConnPoolLk.Unlock()
+	ps.poolsLk.Lock()
+	pool, _ = ps.pools[host]
+	ps.poolsLk.Unlock()
 
 	if pool == nil {
 		log.Error(errors.ErrNoData.As(host))
@@ -156,25 +169,25 @@ func ReturnFUseConn(host string, conn *FUseConn) {
 	pool.Return(conn)
 	return
 }
-func CloseFUseConn(host string, conn *FUseConn) error {
+func (ps *FUsePools) CloseFUseConn(host string, conn *FUseConn) error {
 	var pool *FUsePool
 
-	FUseConnPoolLk.Lock()
-	pool, _ = FUseConnPools[host]
-	FUseConnPoolLk.Unlock()
+	ps.poolsLk.Lock()
+	pool, _ = ps.pools[host]
+	ps.poolsLk.Unlock()
 
 	if pool == nil {
 		return errors.ErrNoData.As(host)
 	}
 	return pool.Close(conn)
 }
-func CloseAllFUseConn(host string) {
+func (ps *FUsePools) CloseAllFUseConn(host string) {
 	var pool *FUsePool
 
-	FUseConnPoolLk.Lock()
-	pool, _ = FUseConnPools[host]
-	delete(FUseConnPools, host)
-	FUseConnPoolLk.Unlock()
+	ps.poolsLk.Lock()
+	pool, _ = ps.pools[host]
+	delete(ps.pools, host)
+	ps.poolsLk.Unlock()
 
 	if pool != nil {
 		pool.CloseAll()

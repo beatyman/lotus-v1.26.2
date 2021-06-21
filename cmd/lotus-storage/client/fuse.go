@@ -65,6 +65,9 @@ func (f *FUseClient) Mount(ctx context.Context, mountPoint string) error {
 	server, err := fuse.NewServer(conn.RawFS(), mountPoint, &fuse.MountOptions{
 		Name:  f.uri,
 		Debug: os.Getenv("LOTUS_FUSE_DEBUG") == "1",
+
+		// Options are passed as -o string to fusermount.
+		Options: []string{"nonempty"},
 	})
 	if err != nil {
 		return errors.As(err)
@@ -79,7 +82,7 @@ func (f *FUseClient) Mount(ctx context.Context, mountPoint string) error {
 	go func() {
 		signal.Notify(end, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGINT)
 		if s := <-end; s != nil {
-			log.Infof("auto umount fuse(%s) by kill signal", mountPoint)
+			log.Infof("auto umount fuse(%s) by kill signal(%d)", mountPoint, s)
 			f.Umount(ctx, mountPoint)
 		}
 	}()

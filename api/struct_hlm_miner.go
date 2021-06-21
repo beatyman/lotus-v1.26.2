@@ -54,6 +54,9 @@ type HlmMinerStorageStruct struct {
 		// for miner node
 		StatusMinerStorage func(ctx context.Context) ([]byte, error) `perm:"read"`
 
+		// for lotus-storage status
+		StatisLotusStorage func(ctx context.Context, host string) (map[string]string, error) `perm:"read"`
+
 		// for storage nodes
 		VerHLMStorage          func(ctx context.Context) (int64, error)                                                     `perm:"read"`
 		GetHLMStorage          func(ctx context.Context, id int64) (*database.StorageInfo, error)                           `perm:"read"`
@@ -147,6 +150,10 @@ func (c *HlmMinerSectorStruct) HlmSectorCheck(ctx context.Context, sid string, t
 // HlmMinerStorageStruct
 func (c *HlmMinerStorageStruct) StatusMinerStorage(ctx context.Context) ([]byte, error) {
 	return c.Internal.StatusMinerStorage(ctx)
+}
+
+func (c *HlmMinerStorageStruct) StatisLotusStorage(ctx context.Context, host string) (map[string]string, error) {
+	return c.Internal.StatisLotusStorage(ctx, host)
 }
 
 func (c *HlmMinerStorageStruct) VerHLMStorage(ctx context.Context) (int64, error) {
