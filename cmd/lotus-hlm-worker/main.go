@@ -340,6 +340,12 @@ var runCmd = &cli.Command{
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}
+
+		if err := database.LockMount(minerRepo); err != nil {
+			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())
+		}
+		defer database.UnlockMount(minerRepo)
+
 		if workerCfg.WdPoStSrv || workerCfg.WnPoStSrv {
 			if err := workerApi.loadMinerStorage(ctx, nodeApi); err != nil {
 				return errors.As(err)

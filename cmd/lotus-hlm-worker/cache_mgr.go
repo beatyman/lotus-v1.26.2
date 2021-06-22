@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -270,6 +271,12 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 
 		toFilePath := workerSB.SectorPath("unsealed", sid)
 		if err := fc.Download(ctx, toFilePath, filepath.Join("unsealed", sid)); err != nil {
+			if errors.As(io.EOF).Equal(err) {
+				// remove local file
+				if err := os.Remove(toFilePath); err != nil {
+					log.Error(errors.As(err))
+				}
+			}
 			if !os.IsNotExist(err) {
 				return errors.As(err)
 			}

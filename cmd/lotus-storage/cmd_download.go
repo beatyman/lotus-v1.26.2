@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -56,44 +55,6 @@ var downloadCmd = &cli.Command{
 				fc := client.NewHttpClient(_httpApiFlag, sid, string(newToken))
 				if err := fc.Download(ctx, localPath, remotePath); err != nil {
 					panic(err)
-				}
-				log.Infof("end download: %s->%s, took:%s", remotePath, localPath, time.Now().Sub(startTime))
-				end <- os.Kill
-			}()
-		case "tcp":
-			go func() {
-				f := client.OpenROFUseFile(_posixFsApiFlag, remotePath, remotePath, GetAuthRO())
-				defer f.Close()
-
-				localF, err := os.OpenFile(localPath, os.O_RDWR|os.O_CREATE, 0644)
-				if err != nil {
-					panic(err)
-				}
-				defer localF.Close()
-
-				fStat, err := f.Stat()
-				if err != nil {
-					panic(err)
-				}
-
-				log.Infof("start download: %s->%s", remotePath, localPath)
-				startTime := time.Now()
-				buf := make([]byte, cctx.Int("read-size"))
-				size := fStat.Size()
-				for {
-					n, err := f.Read(buf)
-					if err != nil {
-						if err != io.EOF {
-							panic(err)
-						}
-					}
-					if _, err := localF.Write(buf[:n]); err != nil {
-						panic(err)
-					}
-					size -= int64(n)
-					if size <= 0 {
-						break
-					}
 				}
 				log.Infof("end download: %s->%s, took:%s", remotePath, localPath, time.Now().Sub(startTime))
 				end <- os.Kill

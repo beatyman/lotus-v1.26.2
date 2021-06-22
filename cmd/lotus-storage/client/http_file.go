@@ -442,12 +442,14 @@ func (f *HttpClient) download(ctx context.Context, localPath, remotePath string)
 		// continue
 	case 404:
 		return 0, &os.PathError{"download", remotePath, _errNotExist}
+	case 416:
+		return 0, io.EOF
 	default:
 		respBody, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return 0, errors.As(err)
 		}
-		return 0, errors.Parse(string(respBody)).As(resp.StatusCode)
+		return 0, errors.New(resp.Status).As(resp.StatusCode, pos, string(respBody))
 	}
 
 	if _, err := toFile.Seek(pos, 0); err != nil {
@@ -543,6 +545,8 @@ func (f *HttpFile) readRemote(b []byte, off int64) (int, error) {
 		// continue
 	case 404:
 		return 0, &os.PathError{"readRemote", f.remotePath, _errNotExist}
+	case 416:
+		return 0, io.EOF
 	default:
 		respBody, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
