@@ -88,18 +88,18 @@ var lockFn = lockPortable
 // lockPortable is a portable version not using fcntl. Doesn't handle crashes as gracefully,
 // since it can leave stale lock files.
 func lockPortable(name string) (io.Closer, error) {
-	fi, err := os.Stat(name)
-	if err == nil && fi.Size() > 0 {
-		st := portableLockStatus(name)
-		switch st {
-		case statusLocked:
-			return nil, ErrLockedByOther.As(name)
-		case statusStale:
-			os.Remove(name)
-		case statusInvalid:
-			return nil, fmt.Errorf("can't Lock file %q: has invalid contents", name)
-		}
+	st := portableLockStatus(name)
+	switch st {
+	case statusLocked:
+		return nil, ErrLockedByOther.As(name)
+	case statusStale:
+		os.Remove(name)
+	case statusInvalid:
+		return nil, fmt.Errorf("can't Lock file %q: has invalid contents", name)
+
+		// default is unlocked
 	}
+
 	f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_EXCL|os.O_SYNC, 0666)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create lock file %s %v", name, err)
@@ -133,6 +133,15 @@ func portableLockStatus(path string) lockStatus {
 		return statusUnlocked
 	}
 	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return statusInvalid
+	}
+	if stat.Size() == 0 {
+		return statusStale
+	}
+
 	var meta pidLockMeta
 	if json.NewDecoder(f).Decode(&meta) != nil {
 		return statusInvalid
