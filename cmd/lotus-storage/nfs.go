@@ -7,12 +7,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/gwaylib/errors"
 )
 
 func ExportToNFS(repo string) error {
+	repoAbs, err := filepath.Abs(repo)
+	if err != nil {
+		return errors.As(err, repo)
+	}
 	exportsData, err := ioutil.ReadFile("/etc/exports")
 	if err != nil {
 		return errors.As(err)
@@ -26,14 +31,24 @@ func ExportToNFS(repo string) error {
 	}
 	exist := ""
 	for _, line := range oriRecords {
-		info := strings.TrimSpace(line[0])
-		if strings.Index(info, repo+" ") < 0 {
+		if len(line) == 0 {
 			continue
 		}
-		exist = info
+		exports := strings.Split(strings.TrimSpace(line[0]), " ")
+		if len(exports) == 0 {
+			continue
+		}
+		exportPath, err := filepath.Abs(exports[0])
+		if err != nil {
+			return errors.As(err, repo)
+		}
+		if exportPath != repoAbs {
+			continue
+		}
+		exist = exportPath
 	}
-	export := fmt.Sprintf("%s *(ro,sync,insecure,no_root_squash)", repo)
 	if len(exist) == 0 {
+		export := fmt.Sprintf("%s *(ro,sync,insecure,no_root_squash)", repoAbs)
 		exportsData = append(exportsData, []byte(export)...)
 		exportsData = append(exportsData, []byte("\n")...)
 		if err := ioutil.WriteFile("/etc/exports", exportsData, 0600); err != nil {
