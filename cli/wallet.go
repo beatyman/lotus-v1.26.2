@@ -183,13 +183,6 @@ var walletNew = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		api, closer, err := GetFullNodeAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-		ctx := ReqContext(cctx)
-
 		t := cctx.Args().First()
 		if t == "" {
 			t = "secp256k1"
@@ -205,27 +198,7 @@ var walletNew = &cli.Command{
 		}
 
 		typ := types.KeyType(t)
-		if !cctx.Bool("local") {
-			nk, err := api.WalletNew(ctx, typ, passwd)
-			if err != nil {
-				return err
-			}
-
-			// export to local for backup
-			keyInfo, err := api.WalletExport(ctx, nk)
-			if err != nil {
-				fmt.Println(err.Error())
-			} else {
-				b, err := json.Marshal(keyInfo)
-				if err != nil {
-					fmt.Println(err.Error())
-				} else if err := ioutil.WriteFile(nk.String()+".dat", []byte(hex.EncodeToString(b)), 0600); err != nil {
-					fmt.Println(err.Error())
-				}
-			}
-
-			fmt.Println(nk.String())
-		} else {
+		if cctx.Bool("local") {
 			// by zhoushuyue
 			k, err := wallet.GenerateKey(typ)
 			if err != nil {
@@ -254,8 +227,21 @@ var walletNew = &cli.Command{
 			// end by zhoushuyue
 
 			fmt.Println(k.Address.String())
+			return nil
 		}
 
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := ReqContext(cctx)
+		nk, err := api.WalletNew(ctx, typ, passwd)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(nk.String())
 		return nil
 	},
 }
