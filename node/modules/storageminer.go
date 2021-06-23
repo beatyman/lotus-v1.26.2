@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/filecoin-project/lotus/markets/pricing"
 	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"go.uber.org/fx"
 	"go.uber.org/multierr"
@@ -101,7 +102,7 @@ func GetParams(spt abi.RegisteredSealProof) error {
 	}
 
 	// TODO: We should fetch the params for the actual proof type, not just based on the size.
-	if err := paramfetch.GetParams(context.TODO(), build.ParametersJSON(), uint64(ssize)); err != nil {
+	if err := paramfetch.GetParams(context.TODO(), build.ParametersJSON(), build.SrsJSON(), uint64(ssize)); err != nil {
 		return xerrors.Errorf("fetching proof parameters: %w", err)
 	}
 
@@ -204,6 +205,7 @@ type StorageMinerParams struct {
 	Sealer             sectorstorage.SectorManager
 	SectorIDCounter    sealing.SectorIDCounter
 	Verifier           ffiwrapper.Verifier
+	Prover             ffiwrapper.Prover
 	GetSealingConfigFn dtypes.GetSealingConfigFunc
 	Journal            journal.Journal
 	AddrSel            *storage.AddressSelector
@@ -220,6 +222,7 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 			h      = params.Host
 			sc     = params.SectorIDCounter
 			verif  = params.Verifier
+			prover = params.Prover
 			gsd    = params.GetSealingConfigFn
 			j      = params.Journal
 			as     = params.AddrSel
@@ -246,7 +249,7 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 			return nil, err
 		}
 
-		sm, err := storage.NewMiner(api, maddr, h, ds, sealer, sc, verif, gsd, fc, j, as, fps)
+		sm, err := storage.NewMiner(api, maddr, h, ds, sealer, sc, verif, prover, gsd, fc, j, as, fps)
 		if err != nil {
 			return nil, err
 		}
@@ -642,20 +645,33 @@ func RetrievalDealFilter(userFilter dtypes.RetrievalDealFilter) func(onlineOk dt
 	}
 }
 
+// RetrievalPricingFunc configures the pricing function to use for retrieval deals.
+func RetrievalPricingFunc(cfg config.DealmakingConfig) func(_ dtypes.ConsiderOnlineRetrievalDealsConfigFunc,
+	_ dtypes.ConsiderOfflineRetrievalDealsConfigFunc) dtypes.RetrievalPricingFunc {
+
+	return func(_ dtypes.ConsiderOnlineRetrievalDealsConfigFunc,
+		_ dtypes.ConsiderOfflineRetrievalDealsConfigFunc) dtypes.RetrievalPricingFunc {
+		if cfg.RetrievalPricing.Strategy == config.RetrievalPricingExternalMode {
+			return pricing.ExternalRetrievalPricingFunc(cfg.RetrievalPricing.External.Path)
+		}
+
+		return retrievalimpl.DefaultPricingFunc(cfg.RetrievalPricing.Default.VerifiedDealsFreeTransfer)
+	}
+}
+
 // RetrievalProvider creates a new retrieval provider attached to the provider blockstore
 func RetrievalProvider(h host.Host,
 	miner *storage.Miner,
-	sealer sectorstorage.SectorManager,
 	full v1api.FullNode,
 	ds dtypes.MetadataDS,
 	pieceStore dtypes.ProviderPieceStore,
 	mds dtypes.StagingMultiDstore,
 	dt dtypes.ProviderDataTransfer,
-	onlineOk dtypes.ConsiderOnlineRetrievalDealsConfigFunc,
-	offlineOk dtypes.ConsiderOfflineRetrievalDealsConfigFunc,
+	pieceProvider sectorstorage.PieceProvider,
+	pricingFnc dtypes.RetrievalPricingFunc,
 	userFilter dtypes.RetrievalDealFilter,
 ) (retrievalmarket.RetrievalProvider, error) {
-	adapter := retrievaladapter.NewRetrievalProviderNode(miner, sealer, full)
+	adapter := retrievaladapter.NewRetrievalProviderNode(miner, pieceProvider, full)
 
 	maddr, err := minerAddrFromDS(ds)
 	if err != nil {
@@ -665,19 +681,29 @@ func RetrievalProvider(h host.Host,
 	netwk := rmnet.NewFromLibp2pHost(h)
 	opt := retrievalimpl.DealDeciderOpt(retrievalimpl.DealDecider(userFilter))
 
-	return retrievalimpl.NewProvider(maddr, adapter, netwk, pieceStore, mds, dt, namespace.Wrap(ds, datastore.NewKey("/retrievals/provider")), opt)
+	return retrievalimpl.NewProvider(maddr, adapter, netwk, pieceStore, mds, dt, namespace.Wrap(ds, datastore.NewKey("/retrievals/provider")),
+		retrievalimpl.RetrievalPricingFunc(pricingFnc), opt)
 }
 
 var WorkerCallsPrefix = datastore.NewKey("/worker/calls")
 var ManagerWorkPrefix = datastore.NewKey("/stmgr/calls")
 
-func SectorStorage(mctx helpers.MetricsCtx, lc fx.Lifecycle, ls stores.LocalStorage, si stores.SectorIndex, sc sectorstorage.SealerConfig, urls sectorstorage.URLs, sa sectorstorage.StorageAuth, ds dtypes.MetadataDS) (*sectorstorage.Manager, error) {
+func LocalStorage(mctx helpers.MetricsCtx, lc fx.Lifecycle, ls stores.LocalStorage, si stores.SectorIndex, urls sectorstorage.URLs) (*stores.Local, error) {
+	ctx := helpers.LifecycleCtx(mctx, lc)
+	return stores.NewLocal(ctx, ls, si, urls)
+}
+
+func RemoteStorage(lstor *stores.Local, si stores.SectorIndex, sa sectorstorage.StorageAuth, sc sectorstorage.SealerConfig) *stores.Remote {
+	return stores.NewRemote(lstor, si, http.Header(sa), sc.ParallelFetchLimit, &stores.DefaultPartialFileHandler{})
+}
+
+func SectorStorage(mctx helpers.MetricsCtx, lc fx.Lifecycle, lstor *stores.Local, stor *stores.Remote, ls stores.LocalStorage, si stores.SectorIndex, sc sectorstorage.SealerConfig, ds dtypes.MetadataDS) (*sectorstorage.Manager, error) {
 	ctx := helpers.LifecycleCtx(mctx, lc)
 
 	wsts := statestore.New(namespace.Wrap(ds, WorkerCallsPrefix))
 	smsts := statestore.New(namespace.Wrap(ds, ManagerWorkPrefix))
 
-	sst, err := sectorstorage.New(ctx, ls, si, sc, urls, sa, wsts, smsts)
+	sst, err := sectorstorage.New(ctx, lstor, stor, ls, si, sc, wsts, smsts)
 	if err != nil {
 		return nil, err
 	}
@@ -836,6 +862,23 @@ func NewSetSealConfigFunc(r repo.LockedRepo) (dtypes.SetSealingConfigFunc, error
 				MaxSealingSectorsForDeals: cfg.MaxSealingSectorsForDeals,
 				WaitDealsDelay:            config.Duration(cfg.WaitDealsDelay),
 				AlwaysKeepUnsealedCopy:    cfg.AlwaysKeepUnsealedCopy,
+				FinalizeEarly:             cfg.FinalizeEarly,
+
+				BatchPreCommits:     cfg.BatchPreCommits,
+				MinPreCommitBatch:   cfg.MinPreCommitBatch,
+				MaxPreCommitBatch:   cfg.MaxPreCommitBatch,
+				PreCommitBatchWait:  config.Duration(cfg.PreCommitBatchWait),
+				PreCommitBatchSlack: config.Duration(cfg.PreCommitBatchSlack),
+
+				AggregateCommits: cfg.AggregateCommits,
+				MinCommitBatch:   cfg.MinCommitBatch,
+				MaxCommitBatch:   cfg.MaxCommitBatch,
+				CommitBatchWait:  config.Duration(cfg.CommitBatchWait),
+				CommitBatchSlack: config.Duration(cfg.CommitBatchSlack),
+
+				TerminateBatchMax:  cfg.TerminateBatchMax,
+				TerminateBatchMin:  cfg.TerminateBatchMin,
+				TerminateBatchWait: config.Duration(cfg.TerminateBatchWait),
 			}
 		})
 		return
@@ -852,6 +895,23 @@ func NewGetSealConfigFunc(r repo.LockedRepo) (dtypes.GetSealingConfigFunc, error
 				MaxDealsPerSector:         cfg.Sealing.MaxDealsPerSector,
 				WaitDealsDelay:            time.Duration(cfg.Sealing.WaitDealsDelay),
 				AlwaysKeepUnsealedCopy:    cfg.Sealing.AlwaysKeepUnsealedCopy,
+				FinalizeEarly:             cfg.Sealing.FinalizeEarly,
+
+				BatchPreCommits:     cfg.Sealing.BatchPreCommits,
+				MinPreCommitBatch:   cfg.Sealing.MinPreCommitBatch,
+				MaxPreCommitBatch:   cfg.Sealing.MaxPreCommitBatch,
+				PreCommitBatchWait:  time.Duration(cfg.Sealing.PreCommitBatchWait),
+				PreCommitBatchSlack: time.Duration(cfg.Sealing.PreCommitBatchSlack),
+
+				AggregateCommits: cfg.Sealing.AggregateCommits,
+				MinCommitBatch:   cfg.Sealing.MinCommitBatch,
+				MaxCommitBatch:   cfg.Sealing.MaxCommitBatch,
+				CommitBatchWait:  time.Duration(cfg.Sealing.CommitBatchWait),
+				CommitBatchSlack: time.Duration(cfg.Sealing.CommitBatchSlack),
+
+				TerminateBatchMax:  cfg.Sealing.TerminateBatchMax,
+				TerminateBatchMin:  cfg.Sealing.TerminateBatchMin,
+				TerminateBatchWait: time.Duration(cfg.Sealing.TerminateBatchWait),
 			}
 		})
 		return

@@ -24,6 +24,8 @@ type mockMpool struct {
 	nonces map[address.Address]uint64
 }
 
+var _ MpoolNonceAPI = (*mockMpool)(nil)
+
 func newMockMpool() *mockMpool {
 	return &mockMpool{nonces: make(map[address.Address]uint64)}
 }
@@ -40,6 +42,9 @@ func (mp *mockMpool) GetNonce(_ context.Context, addr address.Address, _ types.T
 	defer mp.lk.RUnlock()
 
 	return mp.nonces[addr], nil
+}
+func (mp *mockMpool) GetActor(_ context.Context, addr address.Address, _ types.TipSetKey) (*types.Actor, error) {
+	panic("don't use it")
 }
 
 func TestMessageSignerSignMessage(t *testing.T) {

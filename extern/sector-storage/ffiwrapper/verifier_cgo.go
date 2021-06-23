@@ -6,18 +6,17 @@ import (
 	"context"
 
 	"go.opencensus.io/trace"
-
 	"golang.org/x/xerrors"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
-	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
+	proof5 "github.com/filecoin-project/specs-actors/v5/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 )
 
-func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, error) {
+func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof5.PoStProof, error) {
 	randomness[31] &= 0x3f
 	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
 	if err != nil {
@@ -26,7 +25,7 @@ func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	return ffi.GenerateWinningPoSt(minerID, privsectors, randomness)
 }
 
-func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof2.PoStProof, []abi.SectorID, error) {
+func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof5.PoStProof, []abi.SectorID, error) {
 	sb.postLk.Lock()
 	defer sb.postLk.Unlock()
 
@@ -86,7 +85,7 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 			CacheDirPath:     paths.Cache,
 			PoStProofType:    postProofType,
 			SealedSectorPath: paths.Sealed,
-			SectorInfo: proof2.SectorInfo{
+			SectorInfo: proof5.SectorInfo{
 				SealProof:    s.ProofType,
 				SectorNumber: s.ID.Number,
 				SealedCID:    s.SealedCID,
@@ -103,11 +102,15 @@ type proofVerifier struct{}
 
 var ProofVerifier = proofVerifier{}
 
-func (proofVerifier) VerifySeal(info proof2.SealVerifyInfo) (bool, error) {
+func (proofVerifier) VerifySeal(info proof5.SealVerifyInfo) (bool, error) {
 	return ffi.VerifySeal(info)
 }
 
-func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info proof2.WinningPoStVerifyInfo) (bool, error) {
+func (proofVerifier) VerifyAggregateSeals(aggregate proof5.AggregateSealVerifyProofAndInfos) (bool, error) {
+	return ffi.VerifyAggregateSeals(aggregate)
+}
+
+func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info proof5.WinningPoStVerifyInfo) (bool, error) {
 	info.Randomness[31] &= 0x3f
 	_, span := trace.StartSpan(ctx, "VerifyWinningPoSt")
 	defer span.End()
@@ -115,7 +118,7 @@ func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info proof2.WinningP
 	return ffi.VerifyWinningPoSt(info)
 }
 
-func (proofVerifier) VerifyWindowPoSt(ctx context.Context, info proof2.WindowPoStVerifyInfo) (bool, error) {
+func (proofVerifier) VerifyWindowPoSt(ctx context.Context, info proof5.WindowPoStVerifyInfo) (bool, error) {
 	info.Randomness[31] &= 0x3f
 	_, span := trace.StartSpan(ctx, "VerifyWindowPoSt")
 	defer span.End()
