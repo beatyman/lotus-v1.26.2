@@ -1,3 +1,4 @@
+#!/bin/zsh
 set -x
 set -euo pipefail
 export GO111MODULE=on

@@ -111,7 +111,7 @@ func (b *PreCommitBatcher) run() {
 		}
 
 		var err error
-		lastRes, err = b.maybeStartBatch(sendAboveMax)
+		lastRes, err = b.maybeStartBatch(sendAboveMax, sendAboveMin)
 		if err != nil {
 			log.Warnw("PreCommitBatcher processBatch error", "error", err)
 		}
@@ -159,7 +159,7 @@ func (b *PreCommitBatcher) batchWait(maxWait, slack time.Duration) <-chan time.T
 	return time.After(wait)
 }
 
-func (b *PreCommitBatcher) maybeStartBatch(notif bool) ([]sealiface.PreCommitBatchRes, error) {
+func (b *PreCommitBatcher) maybeStartBatch(notif, after bool) ([]sealiface.PreCommitBatchRes, error) {
 	b.lk.Lock()
 	defer b.lk.Unlock()
 
@@ -174,6 +174,10 @@ func (b *PreCommitBatcher) maybeStartBatch(notif bool) ([]sealiface.PreCommitBat
 	}
 
 	if notif && total < cfg.MaxPreCommitBatch {
+		return nil, nil
+	}
+
+	if after && total < cfg.MinPreCommitBatch {
 		return nil, nil
 	}
 

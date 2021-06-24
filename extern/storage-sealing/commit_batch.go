@@ -126,7 +126,7 @@ func (b *CommitBatcher) run() {
 		}
 
 		var err error
-		lastMsg, err = b.maybeStartBatch(sendAboveMax)
+		lastMsg, err = b.maybeStartBatch(sendAboveMax, sendAboveMin)
 		if err != nil {
 			log.Warnw("CommitBatcher processBatch error", "error", err)
 		}
@@ -189,6 +189,10 @@ func (b *CommitBatcher) maybeStartBatch(notif bool) ([]sealiface.CommitBatchRes,
 	}
 
 	if notif && total < cfg.MaxCommitBatch {
+		return nil, nil
+	}
+
+	if after && total < cfg.MinCommitBatch {
 		return nil, nil
 	}
 
