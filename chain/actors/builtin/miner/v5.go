@@ -443,3 +443,12 @@ func fromV5SectorPreCommitOnChainInfo(v5 miner5.SectorPreCommitOnChainInfo) Sect
 	}
 
 }
+
+func (s *state5) GetAllocatedSectors() (*bitfield.BitField, error) {
+	var allocatedSectors bitfield.BitField
+	if err := s.store.Get(s.store.Context(), s.State.AllocatedSectors, &allocatedSectors); err != nil {
+		return nil, err
+	}
+
+	return &allocatedSectors, nil
+}
