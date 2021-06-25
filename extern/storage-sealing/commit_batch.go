@@ -32,6 +32,8 @@ import (
 
 const arp = abi.RegisteredAggregationProof_SnarkPackV1
 
+//go:generate go run github.com/golang/mock/mockgen -destination=mocks/mock_commit_batcher.go -package=mocks . CommitBatcherApi
+
 type CommitBatcherApi interface {
 	SendMsg(ctx context.Context, from, to address.Address, method abi.MethodNum, value, maxFee abi.TokenAmount, params []byte) (cid.Cid, error)
 	StateMinerInfo(context.Context, address.Address, TipSetToken) (miner.MinerInfo, error)
@@ -44,9 +46,9 @@ type CommitBatcherApi interface {
 }
 
 type AggregateInput struct {
-	spt   abi.RegisteredSealProof
-	info  proof5.AggregateSealVerifyInfo
-	proof []byte
+	Spt   abi.RegisteredSealProof
+	Info  proof5.AggregateSealVerifyInfo
+	Proof []byte
 }
 
 type CommitBatcher struct {
@@ -108,22 +110,23 @@ func (b *CommitBatcher) run() {
 		}
 		lastMsg = nil
 
-		// indicates whether we should only start a batch if we have reached or exceeded cfg.MaxCommitBatch
-		var sendAboveMax bool
+		start := time.Now()
+		var sendAboveMax, sendAboveMin bool
 		select {
 		case <-b.stop:
 			close(b.stopped)
 			return
 		case <-b.notify:
 			sendAboveMax = true
-		case <-b.batchWait(cfg.CommitBatchWait, cfg.CommitBatchSlack):
-			// do nothing
+		case waitOut := <-b.batchWait(cfg.CommitBatchWait, cfg.CommitBatchSlack):
+			sendAboveMin = true
+			log.Infof("DEBUG:Commmit batch wait out:%s", waitOut.Sub(start))
 		case fr := <-b.force: // user triggered
 			forceRes = fr
 		}
 
 		var err error
-		lastMsg, err = b.maybeStartBatch(sendAboveMax)
+		lastMsg, err = b.maybeStartBatch(sendAboveMax, sendAboveMin)
 		if err != nil {
 			log.Warnw("CommitBatcher processBatch error", "error", err)
 		}
@@ -137,7 +140,7 @@ func (b *CommitBatcher) batchWait(maxWait, slack time.Duration) <-chan time.Time
 	defer b.lk.Unlock()
 
 	if len(b.todo) == 0 {
-		return nil
+		return time.After(maxWait)
 	}
 
 	var cutoff time.Time
@@ -171,7 +174,7 @@ func (b *CommitBatcher) batchWait(maxWait, slack time.Duration) <-chan time.Time
 	return time.After(wait)
 }
 
-func (b *CommitBatcher) maybeStartBatch(notif bool) ([]sealiface.CommitBatchRes, error) {
+func (b *CommitBatcher) maybeStartBatch(notif, after bool) ([]sealiface.CommitBatchRes, error) {
 	b.lk.Lock()
 	defer b.lk.Unlock()
 
@@ -186,6 +189,10 @@ func (b *CommitBatcher) maybeStartBatch(notif bool) ([]sealiface.CommitBatchRes,
 	}
 
 	if notif && total < cfg.MaxCommitBatch {
+		return nil, nil
+	}
+
+	if after && total < cfg.MinCommitBatch {
 		return nil, nil
 	}
 
@@ -254,7 +261,7 @@ func (b *CommitBatcher) processBatch(cfg sealiface.Config) ([]sealiface.CommitBa
 		collateral = big.Add(collateral, sc)
 
 		params.SectorNumbers.Set(uint64(id))
-		infos = append(infos, p.info)
+		infos = append(infos, p.Info)
 	}
 
 	sort.Slice(infos, func(i, j int) bool {
@@ -262,7 +269,7 @@ func (b *CommitBatcher) processBatch(cfg sealiface.Config) ([]sealiface.CommitBa
 	})
 
 	for _, info := range infos {
-		proofs = append(proofs, b.todo[info.Number].proof)
+		proofs = append(proofs, b.todo[info.Number].Proof)
 	}
 
 	mid, err := address.IDFromAddress(b.maddr)
@@ -272,7 +279,7 @@ func (b *CommitBatcher) processBatch(cfg sealiface.Config) ([]sealiface.CommitBa
 
 	params.AggregateProof, err = b.prover.AggregateSealProofs(proof5.AggregateSealVerifyProofAndInfos{
 		Miner:          abi.ActorID(mid),
-		SealProof:      b.todo[infos[0].Number].spt,
+		SealProof:      b.todo[infos[0].Number].Spt,
 		AggregateProof: arp,
 		Infos:          infos,
 	}, proofs)
@@ -339,7 +346,8 @@ func (b *CommitBatcher) processIndividually() ([]sealiface.CommitBatchRes, error
 
 	for sn, info := range b.todo {
 		r := sealiface.CommitBatchRes{
-			Sectors: []abi.SectorNumber{sn},
+			Sectors:       []abi.SectorNumber{sn},
+			FailedSectors: map[abi.SectorNumber]string{},
 		}
 
 		mcid, err := b.processSingle(mi, sn, info, tok)
@@ -360,7 +368,7 @@ func (b *CommitBatcher) processSingle(mi miner.MinerInfo, sn abi.SectorNumber, i
 	enc := new(bytes.Buffer)
 	params := &miner.ProveCommitSectorParams{
 		SectorNumber: sn,
-		Proof:        info.proof,
+		Proof:        info.Proof,
 	}
 
 	if err := params.MarshalCBOR(enc); err != nil {
@@ -445,7 +453,7 @@ func (b *CommitBatcher) Pending(ctx context.Context) ([]abi.SectorID, error) {
 	for _, s := range b.todo {
 		res = append(res, abi.SectorID{
 			Miner:  abi.ActorID(mid),
-			Number: s.info.Number,
+			Number: s.Info.Number,
 		})
 	}
 

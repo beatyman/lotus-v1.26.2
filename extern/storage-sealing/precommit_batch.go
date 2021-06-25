@@ -25,6 +25,8 @@ import (
 	"github.com/filecoin-project/lotus/node/config"
 )
 
+//go:generate go run github.com/golang/mock/mockgen -destination=mocks/mock_precommit_batcher.go -package=mocks . PreCommitBatcherApi
+
 type PreCommitBatcherApi interface {
 	SendMsg(ctx context.Context, from, to address.Address, method abi.MethodNum, value, maxFee abi.TokenAmount, params []byte) (cid.Cid, error)
 	StateMinerInfo(context.Context, address.Address, TipSetToken) (miner.MinerInfo, error)
@@ -93,21 +95,23 @@ func (b *PreCommitBatcher) run() {
 		}
 		lastRes = nil
 
-		var sendAboveMax bool
+		start := time.Now()
+		var sendAboveMax, sendAboveMin bool
 		select {
 		case <-b.stop:
 			close(b.stopped)
 			return
 		case <-b.notify:
 			sendAboveMax = true
-		case <-b.batchWait(cfg.PreCommitBatchWait, cfg.PreCommitBatchSlack):
-			// do nothing
+		case waitOut := <-b.batchWait(cfg.PreCommitBatchWait, cfg.PreCommitBatchSlack):
+			sendAboveMin = true
+			log.Infof("DEBUG:PreCommmit batch wait out:%s", waitOut.Sub(start))
 		case fr := <-b.force: // user triggered
 			forceRes = fr
 		}
 
 		var err error
-		lastRes, err = b.maybeStartBatch(sendAboveMax)
+		lastRes, err = b.maybeStartBatch(sendAboveMax, sendAboveMin)
 		if err != nil {
 			log.Warnw("PreCommitBatcher processBatch error", "error", err)
 		}
@@ -121,7 +125,7 @@ func (b *PreCommitBatcher) batchWait(maxWait, slack time.Duration) <-chan time.T
 	defer b.lk.Unlock()
 
 	if len(b.todo) == 0 {
-		return nil
+		return time.After(maxWait)
 	}
 
 	var cutoff time.Time
@@ -155,7 +159,7 @@ func (b *PreCommitBatcher) batchWait(maxWait, slack time.Duration) <-chan time.T
 	return time.After(wait)
 }
 
-func (b *PreCommitBatcher) maybeStartBatch(notif bool) ([]sealiface.PreCommitBatchRes, error) {
+func (b *PreCommitBatcher) maybeStartBatch(notif, after bool) ([]sealiface.PreCommitBatchRes, error) {
 	b.lk.Lock()
 	defer b.lk.Unlock()
 
@@ -170,6 +174,10 @@ func (b *PreCommitBatcher) maybeStartBatch(notif bool) ([]sealiface.PreCommitBat
 	}
 
 	if notif && total < cfg.MaxPreCommitBatch {
+		return nil, nil
+	}
+
+	if after && total < cfg.MinPreCommitBatch {
 		return nil, nil
 	}
 
@@ -239,7 +247,7 @@ func (b *PreCommitBatcher) processBatch(cfg sealiface.Config) ([]sealiface.PreCo
 
 	res.Msg = &mcid
 
-	log.Infow("Sent ProveCommitAggregate message", "cid", mcid, "from", from, "sectors", len(b.todo))
+	log.Infow("Sent PreCommitSectorBatch message", "cid", mcid, "from", from, "sectors", len(b.todo))
 
 	return []sealiface.PreCommitBatchRes{res}, nil
 }
