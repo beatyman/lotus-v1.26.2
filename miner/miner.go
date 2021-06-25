@@ -493,7 +493,7 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 // This method does the following:
 //
 //  1.
-func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTime time.Time) (time.Duration, *types.BlockMsg, error) {
+func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTime time.Time) (dur time.Duration, minedBlock *types.BlockMsg, err error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	start := build.Clock.Now()
 
@@ -545,7 +545,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	mbi, err = m.api.MinerGetBaseInfo(ctx, m.address, round, base.TipSet.Key())
 	if err != nil {
 		err = xerrors.Errorf("failed to get mining base info: %w", err)
-		return nil, err
+		return 0, nil, err
 	}
 
 	// log mineOne statis
@@ -658,18 +658,18 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	}
 
 	tCreateBlock := build.Clock.Now()
-	dur := tCreateBlock.Sub(start)
+	dur = tCreateBlock.Sub(start)
 	parentMiners := make([]address.Address, len(base.TipSet.Blocks()))
 	for i, header := range base.TipSet.Blocks() {
 		parentMiners[i] = header.Miner
 	}
 	log.Infow("mined new block",
-		"cid", b.Cid(),
-		"height", b.Header.Height,
-		"weight", b.Header.ParentWeight,
+		"cid", minedBlock.Cid(),
+		"height", minedBlock.Header.Height,
+		"weight", minedBlock.Header.ParentWeight,
 		"rounds", base.NullRounds,
 		"took", dur,
-		"miner", b.Header.Miner,
+		"miner", minedBlock.Header.Miner,
 		"parents", parentMiners,
 		"submit", time.Unix(int64(base.TipSet.MinTimestamp()+(uint64(base.NullRounds)+1)*build.BlockDelaySecs), 0).Format(time.RFC3339))
 	if dur > time.Second*time.Duration(build.BlockDelaySecs) {

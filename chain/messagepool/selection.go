@@ -11,7 +11,9 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	tbig "github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/specs-actors/v3/actors/builtin"
 
+	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/messagepool/gasguess"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -772,6 +774,10 @@ func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint6
 
 		required := m.Message.RequiredFunds().Int
 		if balance.Cmp(required) < 0 {
+			break
+		}
+
+		if isMessageMute(&m.Message, ts) {
 			break
 		}
 

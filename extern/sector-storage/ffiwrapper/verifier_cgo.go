@@ -86,7 +86,7 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 			CacheDirPath:     paths.Cache,
 			PoStProofType:    postProofType,
 			SealedSectorPath: paths.Sealed,
-			SectorInfo: proof2.SectorInfo{
+			SectorInfo: proof5.SectorInfo{
 				SealProof:    s.ProofType,
 				SectorNumber: s.ID.Number,
 				SealedCID:    s.SealedCID,

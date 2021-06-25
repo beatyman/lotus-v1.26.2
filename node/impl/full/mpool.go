@@ -133,6 +133,7 @@ func (m *MpoolModule) MpoolPush(ctx context.Context, smsg *types.SignedMessage) 
 func (a *MpoolAPI) MpoolPushUntrusted(ctx context.Context, smsg *types.SignedMessage) (cid.Cid, error) {
 	return a.Mpool.PushUntrusted(ctx, smsg)
 }
+
 func (a *MpoolAPI) mpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec, cb func(smsg *types.SignedMessage) error) (*types.SignedMessage, error) {
 	cp := *msg
 	msg = &cp
@@ -246,7 +247,7 @@ func (a *MpoolAPI) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, error)
 }
 
 func (a *MpoolAPI) MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error {
-	a.Mpool.Remove(from, nonce, false)
+	a.Mpool.Remove(ctx, from, nonce, false)
 	return nil
 }
 
