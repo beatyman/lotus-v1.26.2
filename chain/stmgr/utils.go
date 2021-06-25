@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 
+	exported5 "github.com/filecoin-project/specs-actors/v5/actors/builtin/exported"
+
 	"github.com/filecoin-project/go-state-types/big"
 
 	"github.com/filecoin-project/go-state-types/network"
@@ -105,7 +107,8 @@ func GetPowerRaw(ctx context.Context, sm *StateManager, st cid.Cid, maddr addres
 		var found bool
 		mpow, found, err = pas.MinerPower(maddr)
 		if err != nil || !found {
-			return power.Claim{}, tpow, false, err
+			// TODO: return an error when not found?
+			return power.Claim{}, power.Claim{}, false, err
 		}
 
 		minpow, err = pas.MinerNominalPowerMeetsConsensusMinimum(maddr)
@@ -549,6 +552,7 @@ func init() {
 	actors = append(actors, exported2.BuiltinActors()...)
 	actors = append(actors, exported3.BuiltinActors()...)
 	actors = append(actors, exported4.BuiltinActors()...)
+	actors = append(actors, exported5.BuiltinActors()...)
 
 	for _, actor := range actors {
 		exports := actor.Exports()

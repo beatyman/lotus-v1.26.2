@@ -381,6 +381,7 @@ var MinerNode = Options(
 
 	// Sector storage: Proofs
 	Override(new(ffiwrapper.Verifier), ffiwrapper.ProofVerifier),
+	Override(new(ffiwrapper.Prover), ffiwrapper.ProofProver),
 	Override(new(storage2.Prover), From(new(sectorstorage.SectorManager))),
 
 	// Sealing
@@ -437,6 +438,8 @@ var MinerNode = Options(
 	Override(new(dtypes.GetSealingConfigFunc), modules.NewGetSealConfigFunc),
 	Override(new(dtypes.SetExpectedSealDurationFunc), modules.NewSetExpectedSealDurationFunc),
 	Override(new(dtypes.GetExpectedSealDurationFunc), modules.NewGetExpectedSealDurationFunc),
+	Override(new(dtypes.SetMaxDealStartDelayFunc), modules.NewSetMaxDealStartDelayFunc),
+	Override(new(dtypes.GetMaxDealStartDelayFunc), modules.NewGetMaxDealStartDelayFunc),
 )
 
 // Online sets up basic libp2p node

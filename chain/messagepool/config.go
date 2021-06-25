@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-//	logging "github.com/ipfs/go-log/v2"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/ipfs/go-datastore"
