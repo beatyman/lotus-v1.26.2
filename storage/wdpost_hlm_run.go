@@ -129,9 +129,14 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 		return nil, xerrors.Errorf("getting partitions: %w", err)
 	}
 
+	nv, err := s.api.StateNetworkVersion(ctx, ts.Key())
+	if err != nil {
+		return nil, xerrors.Errorf("getting network version: %w", err)
+	}
+
 	// Split partitions into batches, so as not to exceed the number of sectors
 	// allowed in a single message
-	partitionBatches, err := s.batchPartitions(partitions)
+	partitionBatches, err := s.batchPartitions(partitions, nv)
 	if err != nil {
 		return nil, err
 	}

@@ -60,7 +60,7 @@ func (a *MpoolAPI) MpoolSelect(ctx context.Context, tsk types.TipSetKey, ticketQ
 		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
 	}
 
-	return a.Mpool.SelectMessages(ts, ticketQuality)
+	return a.Mpool.SelectMessages(ctx, ts, ticketQuality)
 }
 
 func (a *MpoolAPI) MpoolPending(ctx context.Context, tsk types.TipSetKey) ([]*types.SignedMessage, error) {
@@ -68,7 +68,7 @@ func (a *MpoolAPI) MpoolPending(ctx context.Context, tsk types.TipSetKey) ([]*ty
 	if err != nil {
 		return nil, xerrors.Errorf("loading tipset %s: %w", tsk, err)
 	}
-	pending, mpts := a.Mpool.Pending()
+	pending, mpts := a.Mpool.Pending(ctx)
 
 	haveCids := map[cid.Cid]struct{}{}
 	for _, m := range pending {
@@ -122,17 +122,18 @@ func (a *MpoolAPI) MpoolPending(ctx context.Context, tsk types.TipSetKey) ([]*ty
 }
 
 func (a *MpoolAPI) MpoolClear(ctx context.Context, local bool) error {
-	a.Mpool.Clear(local)
+	a.Mpool.Clear(ctx, local)
 	return nil
 }
 
 func (m *MpoolModule) MpoolPush(ctx context.Context, smsg *types.SignedMessage) (cid.Cid, error) {
-	return m.Mpool.Push(smsg)
+	return m.Mpool.Push(ctx, smsg)
 }
 
 func (a *MpoolAPI) MpoolPushUntrusted(ctx context.Context, smsg *types.SignedMessage) (cid.Cid, error) {
-	return a.Mpool.PushUntrusted(smsg)
+	return a.Mpool.PushUntrusted(ctx, smsg)
 }
+
 func (a *MpoolAPI) mpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec, cb func(smsg *types.SignedMessage) error) (*types.SignedMessage, error) {
 	cp := *msg
 	msg = &cp
@@ -204,7 +205,7 @@ func (a *MpoolAPI) MpoolSignMessage(ctx context.Context, msg *types.Message, spe
 func (a *MpoolAPI) MpoolBatchPush(ctx context.Context, smsgs []*types.SignedMessage) ([]cid.Cid, error) {
 	var messageCids []cid.Cid
 	for _, smsg := range smsgs {
-		smsgCid, err := a.Mpool.Push(smsg)
+		smsgCid, err := a.Mpool.Push(ctx, smsg)
 		if err != nil {
 			return messageCids, err
 		}
@@ -216,7 +217,7 @@ func (a *MpoolAPI) MpoolBatchPush(ctx context.Context, smsgs []*types.SignedMess
 func (a *MpoolAPI) MpoolBatchPushUntrusted(ctx context.Context, smsgs []*types.SignedMessage) ([]cid.Cid, error) {
 	var messageCids []cid.Cid
 	for _, smsg := range smsgs {
-		smsgCid, err := a.Mpool.PushUntrusted(smsg)
+		smsgCid, err := a.Mpool.PushUntrusted(ctx, smsg)
 		if err != nil {
 			return messageCids, err
 		}
@@ -246,7 +247,7 @@ func (a *MpoolAPI) MpoolSub(ctx context.Context) (<-chan api.MpoolUpdate, error)
 }
 
 func (a *MpoolAPI) MpoolRemove(ctx context.Context, from address.Address, nonce uint64) error {
-	a.Mpool.Remove(from, nonce, false)
+	a.Mpool.Remove(ctx, from, nonce, false)
 	return nil
 }
 

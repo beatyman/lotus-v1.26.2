@@ -142,7 +142,7 @@ func (w *worker) CheckParams(ctx context.Context, endpoint, paramsDir string, ss
 
 		// get from the offical source
 		if ErrMinerDone.Equal(err) {
-			if err := paramfetch.GetParams(ctx, build.ParametersJSON(), uint64(ssize)); err != nil {
+			if err := paramfetch.GetParams(ctx, build.ParametersJSON(), build.SrsJSON(), uint64(ssize)); err != nil {
 				return errors.As(err)
 			}
 			return nil

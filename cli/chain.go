@@ -723,6 +723,12 @@ var ChainGetCmd = &cli.Command{
 				return err
 			}
 
+			if ts == nil {
+				ts, err = api.ChainHead(ctx)
+				if err != nil {
+					return err
+				}
+			}
 			p = "/ipfs/" + ts.ParentState().String() + p
 			if cctx.Bool("verbose") {
 				fmt.Println(p)
