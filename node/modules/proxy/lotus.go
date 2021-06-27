@@ -231,13 +231,17 @@ func checkLotusEpoch() {
 				log.Warnf("lotus node down:%s", errors.As(err).Error())
 				return
 			}
+
 			nApi := apiConn.NodeApi
-			ts, err := nApi.ChainHead(c.ctx)
+			timeoutCtx, timeoutCancelFunc := context.WithTimeout(c.ctx, 30*time.Second)
+			defer timeoutCancelFunc()
+			ts, err := nApi.ChainHead(timeoutCtx)
 			if err != nil {
 				c.CloseAll()
 				log.Warnf("lotus node down:%s", errors.As(err).Error())
 				return
 			}
+
 			if !alive {
 				if minerp2p != nil {
 					remoteAddrs, err := nApi.NetAddrsListen(c.ctx)
