@@ -419,7 +419,7 @@ var replaceHLMStorageCmd = &cli.Command{
 		mountSignalUri := cctx.String("mount-signal-uri")
 		mountTransfUri := cctx.String("mount-transf-uri")
 		mountAuthUri := cctx.String("mount-auth-uri")
-		switch mountType {
+		switch info.MountType {
 		case database.MOUNT_TYPE_HLM:
 			if len(mountSignalUri) == 0 {
 				return errors.New("need mount-signal-uri")
