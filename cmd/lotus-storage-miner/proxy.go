@@ -124,8 +124,8 @@ var proxyStatusCmd = &cli.Command{
 		fmt.Println("lotus nodes:")
 		for i := 0; i < len(nodes); i++ {
 			fmt.Printf(
-				"idx:%d, addr:%s, alive:%t, leader:%t, height:%d, used-times:%d, decoding:%s\n",
-				i, nodes[i].Addr, nodes[i].Alive, nodes[i].Using, nodes[i].Height, nodes[i].UsedTimes, nodes[i].Decoding,
+				"idx:%d, addr:%s, alive:%t, height:%d, leader:%t, leader-times:%d, decoding:%s\n",
+				i, nodes[i].Addr, nodes[i].Alive, nodes[i].Height, nodes[i].Using, nodes[i].UsedTimes, nodes[i].Decoding,
 			)
 		}
 		if cond.ChainMpool {
