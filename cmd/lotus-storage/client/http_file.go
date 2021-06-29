@@ -245,6 +245,13 @@ func (f *HttpClient) upload(ctx context.Context, localPath, remotePath string, a
 	if _, err := localFile.Seek(pos, 0); err != nil {
 		return 0, errors.As(err)
 	}
+	localStat, err := localFile.Stat()
+	if err != nil {
+		return 0, errors.As(err)
+	}
+	if err := f.Truncate(ctx, remotePath, localStat.Size()); err != nil {
+		return 0, errors.As(err)
+	}
 
 	// get remote io
 	params := url.Values{}
@@ -295,10 +302,6 @@ func (f *HttpClient) upload(ctx context.Context, localPath, remotePath string, a
 		return f.upload(ctx, localPath, remotePath, false)
 	}
 
-	localStat, err := localFile.Stat()
-	if err != nil {
-		return 0, err
-	}
 	if append {
 		return localStat.Size() - (pos + 1), nil
 	}
