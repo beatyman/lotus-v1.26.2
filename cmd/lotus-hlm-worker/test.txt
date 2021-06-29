@@ -1,0 +1,10 @@
+{
+    "AuthUri":"127.0.0.1:1330",
+    "AuthMd5":"99dd08e623fc299548dbf2a119fa58c0",
+    "TransfUri":"127.0.0.1:1331",
+    "Parallel":12,
+    "Tasks":[
+        {"ProofType":5,"SectorNumber":0,"SeedValue":"fKxb7UqiXHU4SNl42wvYutVs6SIoim61FRiWITxRWpg=","Status":"Proving","TicketValue":"scsLY+MflC5KIUz6lfjW+1D+qNWWMZHzLlJf/t4I7xU="},
+        {"ProofType":5,"SectorNumber":1,"SeedValue":"fKxb7UqiXHU4SNl42wvYutVs6SIoim61FRiWITxRWpg=","Status":"Proving","TicketValue":"+z2FXOy8ObIBjB+/4hezWfaj/dl05oAprMImLvnFEcE="}
+    ]
+}
