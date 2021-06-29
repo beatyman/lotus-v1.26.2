@@ -226,6 +226,9 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 			as     = params.AddrSel
 		)
 
+		log.Info("Init StorageMiner")
+		defer log.Info("Init StorageMiner done")
+
 		// load the lotus proxy configratoin.
 		on, err := ds.Get(proxy.PROXY_AUTO)
 		if err == nil {
