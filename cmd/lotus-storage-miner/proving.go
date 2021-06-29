@@ -90,14 +90,14 @@ var provingFaultsCmd = &cli.Command{
 				}
 				return faults.ForEach(func(num uint64) error {
 					if jsonFmt {
-						status, err := mApi.SectorsStatus(ctx, abi.SectorNumber(num), false)
+						status, err := mApi.SectorsStatus(ctx, abi.SectorNumber(num), true)
 						if err != nil {
 							return err
 						}
 						result := map[string]interface{}{
 							"Status":       status.State,
 							"SectorNumber": status.SectorID,
-							"ProofType":    5, // TODO: fix this
+							"ProofType":    status.SealProof, // need onChainInfo is true
 							"TicketValue":  status.Ticket.Value,
 							"SeedValue":    status.Seed.Value,
 						}
