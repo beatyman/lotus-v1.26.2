@@ -58,10 +58,6 @@ var rebuildCmd = &cli.Command{
 			Name:  "miner-id",
 			Value: 0,
 		},
-		&cli.Uint64Flag{
-			Name:  "sector-size",
-			Value: 32 * 1024 * 1024 * 1024,
-		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := cctx.Context
@@ -77,7 +73,8 @@ var rebuildCmd = &cli.Command{
 		if minerId == 0 {
 			return errors.New("need input miner id")
 		}
-		diskPool := NewDiskPool(abi.SectorSize(cctx.Uint64("sector-size")), ffiwrapper.WorkerCfg{}, workerRepo)
+		// TODO: sector size
+		diskPool := NewDiskPool(abi.SectorSize(2048), ffiwrapper.WorkerCfg{}, workerRepo)
 		mapstr, err := diskPool.ShowExt()
 		if err != nil {
 			return err
@@ -120,7 +117,6 @@ var rebuildCmd = &cli.Command{
 		}
 		taskListLen := len(taskList.Tasks)
 		log.Infof("task len:%d", taskListLen)
-		ssize := cctx.Uint64("sector-size")
 
 		totalTask := make(chan *RebuildTask, taskListLen)
 		for i := 0; i < taskListLen; i++ {
@@ -155,6 +151,11 @@ var rebuildCmd = &cli.Command{
 							Number: task.SectorNumber,
 						},
 						ProofType: task.ProofType,
+					}
+					ssize, err := task.ProofType.SectorSize()
+					if err != nil {
+						apOut <- errors.As(err)
+						continue
 					}
 					// addpiece
 					pieceInfo, err := sealer.PledgeSector(ctx,
