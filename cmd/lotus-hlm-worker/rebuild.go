@@ -282,52 +282,54 @@ var rebuildCmd = &cli.Command{
 				}
 
 				// TODO: transfer the data
-				for {
-					time.Sleep(1e9)
+				if len(taskList.TransfUri) > 0 {
+					for {
+						time.Sleep(1e9)
 
-					sid := storage.SectorName(sector.ID)
-					auth := hlmclient.NewAuthClient(taskList.AuthUri, taskList.AuthMd5)
-					token, err := auth.NewFileToken(ctx, sid)
-					if err != nil {
-						log.Error(errors.As(err, sid))
-						continue
-					}
-					defer auth.DeleteFileToken(ctx, sid)
+						sid := storage.SectorName(sector.ID)
+						auth := hlmclient.NewAuthClient(taskList.AuthUri, taskList.AuthMd5)
+						token, err := auth.NewFileToken(ctx, sid)
+						if err != nil {
+							log.Error(errors.As(err, sid))
+							continue
+						}
+						defer auth.DeleteFileToken(ctx, sid)
 
-					fc := hlmclient.NewHttpClient(taskList.TransfUri, sid, string(token))
+						fc := hlmclient.NewHttpClient(taskList.TransfUri, sid, string(token))
 
-					// send the cache
-					log.Infof("upload cache of %s", sid)
-					cacheFromPath := sealer.SectorPath("cache", sid)
-					if err := fc.Upload(ctx, cacheFromPath, filepath.Join("cache", sid)); err != nil {
-						log.Error(errors.As(err))
-						continue
-					}
+						// send the cache
+						log.Infof("upload cache of %s", sid)
+						cacheFromPath := sealer.SectorPath("cache", sid)
+						if err := fc.Upload(ctx, cacheFromPath, filepath.Join("cache", sid)); err != nil {
+							log.Error(errors.As(err))
+							continue
+						}
 
-					// send the sealed
-					log.Infof("upload sealed of %s", sid)
-					sealedFromPath := sealer.SectorPath("sealed", sid)
-					if err := fc.Upload(ctx, sealedFromPath, filepath.Join("sealed", sid)); err != nil {
-						log.Error(errors.As(err))
-						continue
-					}
+						// send the sealed
+						log.Infof("upload sealed of %s", sid)
+						sealedFromPath := sealer.SectorPath("sealed", sid)
+						if err := fc.Upload(ctx, sealedFromPath, filepath.Join("sealed", sid)); err != nil {
+							log.Error(errors.As(err))
+							continue
+						}
 
-					// delete
-					repo := sealer.RepoPath()
-					log.Infof("Remove sector:%s,%s", repo, sid)
-					if err := os.Remove(filepath.Join(repo, "sealed", sid)); err != nil {
-						log.Error(errors.As(err, sid))
+						// delete
+						repo := sealer.RepoPath()
+						log.Infof("Remove sector:%s,%s", repo, sid)
+						if err := os.Remove(filepath.Join(repo, "sealed", sid)); err != nil {
+							log.Error(errors.As(err, sid))
+						}
+						if err := os.RemoveAll(filepath.Join(repo, "cache", sid)); err != nil {
+							log.Error(errors.As(err, sid))
+						}
+						if err := os.Remove(filepath.Join(repo, "unsealed", sid)); err != nil {
+							log.Error(errors.As(err, sid))
+						}
+						if err := diskPool.Delete(sid); err != nil {
+							log.Error(errors.As(err))
+						}
+						break
 					}
-					if err := os.RemoveAll(filepath.Join(repo, "cache", sid)); err != nil {
-						log.Error(errors.As(err, sid))
-					}
-					if err := os.Remove(filepath.Join(repo, "unsealed", sid)); err != nil {
-						log.Error(errors.As(err, sid))
-					}
-					if err := diskPool.Delete(sid); err != nil {
-						log.Error(errors.As(err))
-					}
-					break
 				}
 
 				result <- task
@@ -337,9 +339,8 @@ var rebuildCmd = &cli.Command{
 		// waiting the result
 		for i := 0; i < taskListLen; i++ {
 			t := <-result
-			if i >= parallel {
-				producer <- (<-totalTask) // add the next addpiece
-			}
+
+			producer <- (<-totalTask) // add the next addpiece
 
 			err, ok := t.(error)
 			if ok {
