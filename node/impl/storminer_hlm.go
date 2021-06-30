@@ -66,6 +66,10 @@ func (sm *StorageMinerAPI) StatusPledgeSector(ctx context.Context) (int, error) 
 func (sm *StorageMinerAPI) StopPledgeSector(ctx context.Context) error {
 	return sm.Miner.ExitPledgeSector()
 }
+func (sm *StorageMinerAPI) RebuildPledgeSector(ctx context.Context, sid string, storage uint64) error {
+	return sm.Miner.RebuildSector(context.TODO(), sid, storage)
+}
+
 func (sm *StorageMinerAPI) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
 	return database.GetSectorInfo(sid)
 }
