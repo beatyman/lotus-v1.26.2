@@ -27,6 +27,8 @@ const UpgradeRefuelHeight = -3
 
 var UpgradeActorsV2Height = abi.ChainEpoch(10)
 
+var UpgradeAssemblyHeight = abi.ChainEpoch(30)
+
 const UpgradeTapeHeight = -4
 
 const UpgradeLiftoffHeight = -5
@@ -40,10 +42,18 @@ const UpgradeClausHeight = 30
 
 const UpgradeOrangeHeight = 27
 
-const UpgradeActorsV3Height = 69135   // ~2021-02-23 16:56:00.000+0800
-const UpgradeNorwegianHeight = 177580 // ~2021-04-02 08:45:00.000+0800
+const UpgradeActorsV3Height = 99999999999 // ~2021-02-23 16:56:00.000+0800
+//const UpgradeNorwegianHeight = 177580 // ~2021-04-02 08:45:00.000+0800
 
 const UpgradeActorsV4Height = 99999999999 // TODO: upgrade to v4
+
+const UpgradeTrustHeight = 330
+
+const UpgradeNorwegianHeight = 360
+
+const UpgradeTurboHeight = 390
+
+const UpgradeHyperdriveHeight = 420
 
 func init() {
 	policy.SetSupportedProofTypes(
