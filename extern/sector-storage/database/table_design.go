@@ -68,6 +68,15 @@ CREATE INDEX IF NOT EXISTS sector_info_idx2 ON sector_info(state,state_time);
 CREATE INDEX IF NOT EXISTS sector_info_idx3 ON sector_info(storage_sealed,state);
 CREATE INDEX IF NOT EXISTS sector_info_idx4 ON sector_info(storage_unsealed,state);
 `
+	tb_sector_rebuild_sql = `
+CREATE TABLE IF NOT EXISTS sector_rebuild (
+	id TEXT NOT NULL PRIMARY KEY, /* s-t01001-1 */
+	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
+	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
+	storage_sealed INTEGER DEFAULT 0
+);
+`
+
 	tb_market_sql = `
 CREATE TABLE IF NOT EXISTS market_retrieve (
 	sid TEXT NOT NULL PRIMARY KEY, /* s-t01001-1 */

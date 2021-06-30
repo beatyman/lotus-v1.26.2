@@ -31,6 +31,19 @@ var (
 )
 
 func PrepareStorage(sectorId, fromIp string, kind int) (*StorageTx, *StorageInfo, error) {
+	_, storage, _ := RebuildSectorProcess(sectorId)
+	if storage > 0 {
+		tx := &StorageTx{SectorId: sectorId, Kind: STORAGE_KIND_SEALED}
+		// force for rebuild storage
+		tx.storageId = int64(storage)
+
+		storageInfo, err := GetStorageInfo(tx.storageId)
+		if err != nil {
+			return nil, nil, errors.As(err, sectorId)
+		}
+		return tx, storageInfo, nil
+	}
+
 	ssInfo, err := GetSectorStorage(sectorId)
 	if err != nil {
 		return nil, nil, errors.As(err, sectorId)

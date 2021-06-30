@@ -234,6 +234,10 @@ func (f *HttpClient) upload(ctx context.Context, localPath, remotePath string, a
 		if info.Size() > 0 {
 			pos = info.Size() - 1
 		}
+	} else {
+		if err := f.Truncate(ctx, remotePath, 0); err != nil {
+			return 0, errors.As(err)
+		}
 	}
 
 	localFile, err := os.Open(localPath)
@@ -247,9 +251,6 @@ func (f *HttpClient) upload(ctx context.Context, localPath, remotePath string, a
 	}
 	localStat, err := localFile.Stat()
 	if err != nil {
-		return 0, errors.As(err)
-	}
-	if err := f.Truncate(ctx, remotePath, localStat.Size()); err != nil {
 		return 0, errors.As(err)
 	}
 

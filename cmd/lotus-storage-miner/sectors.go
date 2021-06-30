@@ -117,7 +117,7 @@ var sectorsStatusCmd = &cli.Command{
 			result := map[string]interface{}{
 				"Status":       status.State,
 				"SectorNumber": status.SectorID,
-				"ProofType":    5, // TODO: fix this
+				"ProofType":    status.SealProof, // need onChainInfo is true
 				"TicketValue":  status.Ticket.Value,
 				"SeedValue":    status.Seed.Value,
 			}
