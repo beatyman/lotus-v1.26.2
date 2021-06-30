@@ -392,7 +392,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		}
 		if wTask.State <= WorkerFinalize {
 			// maxTaskNum has changed to less, so only load a part
-			if wTask.State < WorkerFinalize && r.fakeFullTask() {
+			if wTask.State < WorkerFinalize  {//启动load全部任务
 				break
 			}
 			r.lock.Lock()
