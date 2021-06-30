@@ -123,12 +123,13 @@ type storageMinerApi interface {
 	WalletBalance(context.Context, address.Address) (types.BigInt, error)
 	WalletHas(context.Context, address.Address) (bool, error)
 
-	// implememt by hlm
+	// implememt by zhoushuyue
 	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)
 	SyncProgress(context.Context) (api.SyncProgress, error)
 	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
 	WalletSignMessage(context.Context, address.Address, *types.Message) (*types.SignedMessage, error)
 	MpoolPush(context.Context, *types.SignedMessage) (cid.Cid, error)
+	// end by zhoushuyue
 }
 
 func NewMiner(api storageMinerApi, maddr address.Address, h host.Host, ds datastore.Batching, sealer sectorstorage.SectorManager, sc sealing.SectorIDCounter, verif ffiwrapper.Verifier, prover ffiwrapper.Prover, gsd dtypes.GetSealingConfigFunc, feeCfg config.MinerFeeConfig, journal journal.Journal, as *AddressSelector, fps *WindowPoStScheduler) (*Miner, error) {

@@ -30,6 +30,7 @@ type HlmMinerSector interface {
 	RunPledgeSector(context.Context) error
 	StatusPledgeSector(context.Context) (int, error)
 	StopPledgeSector(context.Context) error
+	RebuildPledgeSector(context.Context, string, uint64) error
 
 	HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error)
 	HlmSectorSetState(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)

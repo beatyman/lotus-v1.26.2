@@ -18,6 +18,7 @@ var pledgeSectorCmd = &cli.Command{
 		startPledgeSectorCmd,
 		statusPledgeSectorCmd,
 		stopPledgeSectorCmd,
+		rebuildPledgeSectorCmd,
 	},
 }
 
@@ -79,6 +80,38 @@ var stopPledgeSectorCmd = &cli.Command{
 		ctx := lcli.ReqContext(cctx)
 
 		return mApi.StopPledgeSector(ctx)
+	},
+}
+var rebuildPledgeSectorCmd = &cli.Command{
+	Name:  "rebuild",
+	Usage: "will rebuild the garbage sector",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "sector-id",
+			Usage: "sector id which want to set",
+		},
+		&cli.Uint64Flag{
+			Name:  "storage-id",
+			Usage: "storage id which want to replaced",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+
+		sid := cctx.String("sector-id")
+		if len(sid) == 0 {
+			return errors.New("need input --sector-id=s-t0xxxx-xxx")
+		}
+		storage := cctx.Uint64("storage-id")
+		if storage == 0 {
+			return errors.New("need input --storage-id=x")
+		}
+		return mApi.RebuildPledgeSector(ctx, sid, storage)
 	},
 }
 

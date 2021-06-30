@@ -268,10 +268,10 @@ var rebuildCmd = &cli.Command{
 					},
 					ProofType: task.ProofType,
 				}
-				if _, err := sealer.SealCommit1(ctx, sector, task.TicketValue, task.SeedValue, task.apOut, task.p2Out); err != nil {
-					result <- errors.As(err)
-					continue
-				}
+				//if _, err := sealer.SealCommit1(ctx, sector, task.TicketValue, task.SeedValue, task.apOut, task.p2Out); err != nil {
+				//	result <- errors.As(err)
+				//	continue
+				//}
 
 				// ignore c2
 

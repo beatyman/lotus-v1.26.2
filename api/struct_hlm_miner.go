@@ -38,14 +38,16 @@ type HlmMinerProvingStruct struct {
 
 type HlmMinerSectorStruct struct {
 	Internal struct {
-		RunPledgeSector    func(context.Context) error                                                             `perm:"admin"`
-		StatusPledgeSector func(context.Context) (int, error)                                                      `perm:"read"`
-		StopPledgeSector   func(context.Context) error                                                             `perm:"admin"`
-		HlmSectorGetState  func(ctx context.Context, sid string) (*database.SectorInfo, error)                     `perm:"read"`
-		HlmSectorSetState  func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) `perm:"admin"`
-		HlmSectorListAll   func(context.Context) ([]SectorInfo, error)                                             `perm:"read"`
-		HlmSectorFile      func(ctx context.Context, sid string) (*storage.SectorFile, error)                      `perm:"read"`
-		HlmSectorCheck     func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)     `perm:"read"`
+		RunPledgeSector     func(context.Context) error                 `perm:"admin"`
+		StatusPledgeSector  func(context.Context) (int, error)          `perm:"read"`
+		StopPledgeSector    func(context.Context) error                 `perm:"admin"`
+		RebuildPledgeSector func(context.Context, string, uint64) error `perm:"admin"`
+
+		HlmSectorGetState func(ctx context.Context, sid string) (*database.SectorInfo, error)                     `perm:"read"`
+		HlmSectorSetState func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) `perm:"admin"`
+		HlmSectorListAll  func(context.Context) ([]SectorInfo, error)                                             `perm:"read"`
+		HlmSectorFile     func(ctx context.Context, sid string) (*storage.SectorFile, error)                      `perm:"read"`
+		HlmSectorCheck    func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)     `perm:"read"`
 	}
 }
 
@@ -127,6 +129,9 @@ func (c *HlmMinerSectorStruct) StatusPledgeSector(ctx context.Context) (int, err
 }
 func (c *HlmMinerSectorStruct) StopPledgeSector(ctx context.Context) error {
 	return c.Internal.StopPledgeSector(ctx)
+}
+func (c *HlmMinerSectorStruct) RebuildPledgeSector(ctx context.Context, sectorId string, storageId uint64) error {
+	return c.Internal.RebuildPledgeSector(ctx, sectorId, storageId)
 }
 func (c *HlmMinerSectorStruct) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
 	return c.Internal.HlmSectorGetState(ctx, sid)
