@@ -154,15 +154,10 @@ func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64
 		if err != nil {
 			return errors.As(err)
 		}
-		p2out, err := sealer.SealPreCommit2(ctx, sector, rspco)
+		_, err = sealer.SealPreCommit2(ctx, sector, rspco)
 		if err != nil {
 			return errors.As(err)
 		}
-		// special: the worker need this event.
-		if _, err := sealer.SealCommit1(ctx, sector, sectorInfo.TicketValue, sectorInfo.SeedValue, pieceInfo, p2out); err != nil {
-			return errors.As(err)
-		}
-
 		// update storage
 		if err := database.SetSectorSealedStorage(sid, storageId); err != nil {
 			return errors.As(err)
