@@ -480,6 +480,7 @@ reAllocate:
 	case ffiwrapper.WorkerFinalize:
 		//fix sector rebuild tool : disk space full
 		w.removeDataLayer(ctx, sector.CachePath())
+		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerFinalize)
 		sealedFile := sealer.SectorPath("sealed", task.SectorName())
 		_, err := os.Stat(string(sealedFile))
 		if err != nil {
