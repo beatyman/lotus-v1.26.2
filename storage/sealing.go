@@ -129,6 +129,11 @@ func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64
 
 	sealer := sm.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
 
+	// reset state
+	if _, err := sealer.UpdateSectorState(sid, "rebuild sector", 200, true, true); err != nil {
+		return errors.As(err)
+	}
+
 	rebuild := func() error {
 		if err := database.RebuildSector(sid, storageId); err != nil {
 			return errors.As(err)
@@ -149,10 +154,15 @@ func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64
 		if err != nil {
 			return errors.As(err)
 		}
-		_, err = sealer.SealPreCommit2(ctx, sector, rspco)
+		p2out, err := sealer.SealPreCommit2(ctx, sector, rspco)
 		if err != nil {
 			return errors.As(err)
 		}
+		// special: the worker need this event.
+		if _, err := sealer.SealCommit1(ctx, sector, sectorInfo.TicketValue, sectorInfo.SeedValue, pieceInfo, p2out); err != nil {
+			return errors.As(err)
+		}
+
 		// update storage
 		if err := database.SetSectorSealedStorage(sid, storageId); err != nil {
 			return errors.As(err)
