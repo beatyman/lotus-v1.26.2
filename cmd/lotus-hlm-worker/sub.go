@@ -478,6 +478,8 @@ reAllocate:
 	// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
+		//fix sector rebuild tool : disk space full
+		w.removeDataLayer(ctx, sector.CachePath())
 		sealedFile := sealer.SectorPath("sealed", task.SectorName())
 		_, err := os.Stat(string(sealedFile))
 		if err != nil {
