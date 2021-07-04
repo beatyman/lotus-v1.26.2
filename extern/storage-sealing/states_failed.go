@@ -185,7 +185,7 @@ func (m *Sealing) handleComputeProofFailed(ctx statemachine.Context, sector Sect
 
 func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo) error {
 errApiLoop:
-	tok, height, err := m.api.ChainHead(ctx.Context())
+	tok, _, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
 		log.Errorf("handleCommitting: api error, not proceeding: %+v, %+v", sector.SectorNumber, err)
 		time.Sleep(10e9)
