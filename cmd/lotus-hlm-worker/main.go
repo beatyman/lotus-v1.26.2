@@ -396,6 +396,7 @@ var runCmd = &cli.Command{
 			ReleaseNodeApi(true)
 		}
 		log.Info("worker exit")
+		os.Exit(1)
 		return nil
 	},
 }
