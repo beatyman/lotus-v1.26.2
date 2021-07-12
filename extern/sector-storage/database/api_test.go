@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 )
@@ -137,4 +138,17 @@ func TestMountAllStorage(t *testing.T) {
 	}
 	// checksum the result by manu.
 	// it should have a link file with /data/testing/1, and mount point with /data/testing/2
+}
+
+func TestLockMount(t *testing.T) {
+	repo := os.TempDir()
+
+	// testing lock locked.
+	_, err := LockMount(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LockMount(repo); err == nil {
+		t.Fatal("expect locked")
+	}
 }

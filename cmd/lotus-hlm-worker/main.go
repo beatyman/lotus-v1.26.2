@@ -26,7 +26,6 @@ import (
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/lib/lotuslog"
-	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/gwaylib/errors"
@@ -119,6 +118,7 @@ func main() {
 
 	local := []*cli.Command{
 		runCmd,
+		rebuildCmd,
 		ffiwrapper.P1Cmd,
 		ffiwrapper.P2Cmd,
 	}
@@ -168,7 +168,7 @@ var runCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "report-url",
 			Value: "",
-			Usage: "report url for state",
+			Usage: "report url for state, TODO: remove this field",
 		},
 		&cli.StringFlag{
 			Name:  "listen-addr",
@@ -352,9 +352,16 @@ var runCmd = &cli.Command{
 			WnPoStSrv:          cctx.Bool("wnpost-srv"),
 		}
 		workerApi := &rpcServer{
+			minerRepo:    minerRepo,
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}
+
+		if err := database.LockMount(minerRepo); err != nil {
+			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())
+		}
+		defer database.UnlockMount(minerRepo)
+
 		if workerCfg.WdPoStSrv || workerCfg.WnPoStSrv {
 			if err := workerApi.loadMinerStorage(ctx, nodeApi); err != nil {
 				return errors.As(err)
@@ -388,11 +395,6 @@ var runCmd = &cli.Command{
 				os.Exit(1)
 			}
 		}()
-
-		// set report url
-		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
-			report.SetReportUrl(reportUrl)
-		}
 
 		log.Info("starting acceptJobs")
 		if err := acceptJobs(ctx,

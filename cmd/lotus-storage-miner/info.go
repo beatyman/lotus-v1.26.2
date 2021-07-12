@@ -44,6 +44,11 @@ var infoCmd = &cli.Command{
 			Value: false,
 			Usage: "output the miner seal stats",
 		},
+		&cli.IntFlag{
+			Name:  "statis-win-limit",
+			Value: 7,
+			Usage: "limit of win statistics",
+		},
 	},
 	Action: infoCmdAct,
 }
@@ -176,7 +181,7 @@ func infoCmdAct(cctx *cli.Context) error {
 			color.Blue("%.4f blocks/day (every %s)", winPerDay, winRate.Truncate(time.Second))
 			fmt.Println()
 
-			limit := 7
+			limit := cctx.Int("statis-win-limit")
 			now := time.Unix(int64(head.MinTimestamp()), 0).UTC()
 			statisWins, err := nodeApi.StatisWins(ctx, now, limit)
 			if err != nil {
@@ -197,6 +202,16 @@ func infoCmdAct(cctx *cli.Context) error {
 				if statisWin.WinGen > 0 {
 					avgUsed = time.Duration(statisWin.WinUsed / int64(statisWin.WinGen))
 				}
+				pDrawRate := float64(0)
+				if rounds > 0 {
+					pDrawRate = float64(statisWin.WinAll*100) / float64(rounds)
+				}
+				pWinRate := float64(0)
+				pSucRate := float64(0)
+				if expectNum > 0 {
+					pWinRate = float64(statisWin.WinGen*100) / float64(expectNum)
+					pSucRate = float64(statisWin.WinSuc*100) / float64(expectNum)
+				}
 				fmt.Printf(
 					`Statis Win %s(UTC): 
 	expect day:  rounds:%d, win:%d 
@@ -213,35 +228,48 @@ func infoCmdAct(cctx *cli.Context) error {
 					statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
 					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
 
-					float64(statisWin.WinAll*100)/float64(rounds), float64(statisWin.WinGen*100)/float64(expectNum), float64(statisWin.WinSuc*100)/float64(expectNum),
+					pDrawRate, pWinRate, pSucRate,
 
 					avgUsed,
 				)
 
 				// sum for limit day
-				sumExpRounds := expDayRounds * limit
-				sumExpWin := 0
-				sumDraw := 0
-				sumErr := 0
-				sumWin := 0
-				sumSuc := 0
-				for _, w := range statisWins {
+				sumExpRounds := expDayRounds*(len(statisWins)-1) + int(rounds)
+				sumExpWin := expectNum
+				sumDraw := statisWin.WinAll
+				sumErr := statisWin.WinErr
+				sumWin := statisWin.WinGen
+				sumSuc := statisWin.WinSuc
+				for i := 1; i < len(statisWins); i++ {
+					w := statisWins[i]
 					sumExpWin += w.WinExp
 					sumDraw += w.WinAll
 					sumErr += w.WinErr
 					sumWin += w.WinGen
 					sumSuc += w.WinSuc
 				}
+				sumDrawRate := float64(0)
+				if sumExpRounds > 0 {
+					sumDrawRate = float64(sumDraw*100) / float64(sumExpRounds)
+				}
+				sumWinRate := float64(0)
+				if sumExpWin > 0 {
+					sumWinRate = float64(sumWin*100) / float64(sumExpWin)
+				}
+				sumSucRate := float64(0)
+				if sumExpWin > 0 {
+					sumSucRate = float64(sumSuc*100) / float64(sumExpWin)
+				}
 				fmt.Printf(
 					`Statis %d days win:
-	expect day:  rounds:%d, win:%d 
+	expect all:  rounds:%d, win:%d 
 	actual run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d,
 	actual rate: draw rate:%.2f%%, win rate:%.2f%%, suc rate:%.2f%%
 `,
 					len(statisWins),
 					sumExpRounds, sumExpWin,
 					sumDraw, sumErr, sumWin, sumSuc, sumErr+sumWin-sumSuc,
-					float64(sumDraw*100)/float64(sumExpRounds), float64(sumWin*100)/float64(sumExpWin), float64(sumSuc*100)/float64(sumExpWin),
+					sumDrawRate, sumWinRate, sumSucRate,
 				)
 			}
 		}
@@ -367,10 +395,15 @@ var stateList = []stateMeta{
 	{col: color.FgYellow, state: sealing.PreCommit2},
 	{col: color.FgYellow, state: sealing.PreCommitting},
 	{col: color.FgYellow, state: sealing.PreCommitWait},
+	{col: color.FgYellow, state: sealing.SubmitPreCommitBatch},
+	{col: color.FgYellow, state: sealing.PreCommitBatchWait},
 	{col: color.FgYellow, state: sealing.WaitSeed},
 	{col: color.FgYellow, state: sealing.Committing},
+	{col: color.FgYellow, state: sealing.CommitFinalize},
 	{col: color.FgYellow, state: sealing.SubmitCommit},
 	{col: color.FgYellow, state: sealing.CommitWait},
+	{col: color.FgYellow, state: sealing.SubmitCommitAggregate},
+	{col: color.FgYellow, state: sealing.CommitAggregateWait},
 	{col: color.FgYellow, state: sealing.FinalizeSector},
 
 	{col: color.FgCyan, state: sealing.Terminating},
@@ -387,6 +420,7 @@ var stateList = []stateMeta{
 	{col: color.FgRed, state: sealing.PreCommitFailed},
 	{col: color.FgRed, state: sealing.ComputeProofFailed},
 	{col: color.FgRed, state: sealing.CommitFailed},
+	{col: color.FgRed, state: sealing.CommitFinalizeFailed},
 	{col: color.FgRed, state: sealing.PackingFailed},
 	{col: color.FgRed, state: sealing.FinalizeFailed},
 	{col: color.FgRed, state: sealing.Faulty},

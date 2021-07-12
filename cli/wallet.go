@@ -34,6 +34,7 @@ var walletCmd = &cli.Command{
 		walletGenRootCert,
 		walletGenPasswd,
 		walletEncode,
+		walletChecksum,
 		walletNew,
 		walletList,
 		walletBalance,
@@ -115,6 +116,55 @@ var walletEncode = &cli.Command{
 		return nil
 	},
 }
+var walletChecksum = &cli.Command{
+	Name:      "checksum",
+	Usage:     "checksum the encrypt key",
+	ArgsUsage: "[file]",
+	Action: func(cctx *cli.Context) error {
+		ctx := ReqContext(cctx)
+
+		if !cctx.Args().Present() {
+			return fmt.Errorf("must specify key to export")
+		}
+
+		inpdata, err := ioutil.ReadFile(cctx.Args().First())
+		if err != nil {
+			return err
+		}
+		data, err := hex.DecodeString(strings.TrimSpace(string(inpdata)))
+		if err != nil {
+			return err
+		}
+
+		var ki types.KeyInfo
+		if err := json.Unmarshal(data, &ki); err != nil {
+			return err
+		}
+		if ki.Encrypted {
+			fmt.Println("Please input checksum password:")
+			passwd, err := gopass.GetPasswd()
+			if err != nil {
+				return err
+			}
+			cdata, err := encode.MixDecrypt(ki.PrivateKey, string(passwd))
+			if err != nil {
+				return err
+			}
+			ki.PrivateKey = cdata
+			ki.Encrypted = false
+			fmt.Println("Decode success!")
+		} else {
+			fmt.Println("WARNNING: the private key not in encrypted!!!!!")
+		}
+		key, err := wallet.NewKey(ctx, ki)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("checksum address: %s\n", key.Address)
+		return nil
+	},
+}
 
 var walletNew = &cli.Command{
 	Name:      "new",
@@ -133,13 +183,6 @@ var walletNew = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		api, closer, err := GetFullNodeAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-		ctx := ReqContext(cctx)
-
 		t := cctx.Args().First()
 		if t == "" {
 			t = "secp256k1"
@@ -155,14 +198,7 @@ var walletNew = &cli.Command{
 		}
 
 		typ := types.KeyType(t)
-		if !cctx.Bool("local") {
-			nk, err := api.WalletNew(ctx, typ, passwd)
-			if err != nil {
-				return err
-			}
-
-			fmt.Println(nk.String())
-		} else {
+		if cctx.Bool("local") {
 			// by zhoushuyue
 			k, err := wallet.GenerateKey(typ)
 			if err != nil {
@@ -191,8 +227,21 @@ var walletNew = &cli.Command{
 			// end by zhoushuyue
 
 			fmt.Println(k.Address.String())
+			return nil
 		}
 
+		api, closer, err := GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := ReqContext(cctx)
+		nk, err := api.WalletNew(ctx, typ, passwd)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(nk.String())
 		return nil
 	},
 }

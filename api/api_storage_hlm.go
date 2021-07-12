@@ -23,12 +23,14 @@ type HlmMinerProving interface {
 	StatisWins(ctx context.Context, now time.Time, limit int) ([]database.StatisWin, error)
 	WdpostEnablePartitionSeparate(ctx context.Context, enable bool) error
 	WdpostSetPartitionNumber(ctx context.Context, number int) error
+	WdPostGetLog(ctx context.Context, index uint64) ([]WdPoStLog, error)
 }
 
 type HlmMinerSector interface {
 	RunPledgeSector(context.Context) error
 	StatusPledgeSector(context.Context) (int, error)
 	StopPledgeSector(context.Context) error
+	RebuildPledgeSector(context.Context, string, uint64) error
 
 	HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error)
 	HlmSectorSetState(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)

@@ -18,7 +18,7 @@
 # 安装依赖(需要ubuntu 18.04)
 apt-get update
 apt-get install aptitude
-aptitude install rsync chrony fuse make mesa-opencl-icd ocl-icd-opencl-dev gcc git bzr jq pkg-config curl clang build-essential libhwloc-dev
+aptitude install rsync chrony nfs-server make mesa-opencl-icd ocl-icd-opencl-dev gcc git bzr jq pkg-config curl clang build-essential libhwloc-dev
 ```
 
 ## 国内安装技巧 

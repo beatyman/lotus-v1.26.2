@@ -27,6 +27,14 @@ func (sm *StorageMinerAPI) StatisWins(ctx context.Context, now time.Time, limit 
 }
 
 func (sm *StorageMinerAPI) ProxyAutoSelect(ctx context.Context, on bool) error {
+	// save to db
+	b := []byte{0}
+	if on {
+		b[0] = 1
+	}
+	if err := sm.DS.Put(proxy.PROXY_AUTO, b); err != nil {
+		return errors.As(err)
+	}
 	return proxy.SetLotusAutoSelect(on)
 }
 func (sm *StorageMinerAPI) ProxyChange(ctx context.Context, idx int) error {
@@ -45,6 +53,9 @@ func (sm *StorageMinerAPI) WdpostEnablePartitionSeparate(ctx context.Context, en
 func (sm *StorageMinerAPI) WdpostSetPartitionNumber(ctx context.Context, number int) error {
 	return sm.Miner.WdpostSetPartitionNumber(number)
 }
+func (sm *StorageMinerAPI) WdPostGetLog(ctx context.Context, index uint64) ([]api.WdPoStLog, error) {
+	return sm.Miner.GetWdPoStLog(ctx, index)
+}
 
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
 	return sm.Miner.RunPledgeSector()
@@ -55,6 +66,10 @@ func (sm *StorageMinerAPI) StatusPledgeSector(ctx context.Context) (int, error) 
 func (sm *StorageMinerAPI) StopPledgeSector(ctx context.Context) error {
 	return sm.Miner.ExitPledgeSector()
 }
+func (sm *StorageMinerAPI) RebuildPledgeSector(ctx context.Context, sid string, storage uint64) error {
+	return sm.Miner.RebuildSector(context.TODO(), sid, storage)
+}
+
 func (sm *StorageMinerAPI) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
 	return database.GetSectorInfo(sid)
 }

@@ -37,7 +37,6 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/lib/peermgr"
-	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
@@ -89,7 +88,7 @@ var DaemonCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "report-url",
 			Value: "",
-			Usage: "report url for state",
+			Usage: "report url for state. TODO: remove this field",
 		},
 		&cli.StringFlag{
 			Name:   makeGenFlag,
@@ -244,7 +243,7 @@ var DaemonCmd = &cli.Command{
 		freshRepo := err != repo.ErrRepoExists
 
 		if !isLite {
-			if err := paramfetch.GetParams(lcli.ReqContext(cctx), build.ParametersJSON(), 0); err != nil {
+			if err := paramfetch.GetParams(lcli.ReqContext(cctx), build.ParametersJSON(), build.SrsJSON(), 0); err != nil {
 				return xerrors.Errorf("fetching proof parameters: %w", err)
 			}
 		}
@@ -362,10 +361,6 @@ var DaemonCmd = &cli.Command{
 		endpoint, err := r.APIEndpoint()
 		if err != nil {
 			return xerrors.Errorf("getting api endpoint: %w", err)
-		}
-
-		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
-			report.SetReportUrl(reportUrl)
 		}
 
 		// TODO: properly parse api endpoint (or make it a URL)

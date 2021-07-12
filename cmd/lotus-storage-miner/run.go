@@ -30,7 +30,6 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
-	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
@@ -55,7 +54,7 @@ var runCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "report-url",
 			Value: "",
-			Usage: "report url for state",
+			Usage: "report url for state. TODO: remove this argument",
 		},
 		&cli.BoolFlag{
 			Name:  "enable-gpu-proving",
@@ -88,8 +87,8 @@ var runCmd = &cli.Command{
 
 		// implement by hlm
 		// use the cluster proxy if it's exist.
-		if err := cliutil.UseLotusProxy(cctx); err != nil {
-			log.Infof("lotus proxy is invalid:%+s", err.Error())
+		if err := cliutil.ConnectLotusProxy(cctx); err != nil {
+			log.Infof("lotus proxy is off:%s", err.Error())
 		}
 		// init storage database
 		// TODO: already implement in init.go, so remove this checking in running?
@@ -155,6 +154,11 @@ var runCmd = &cli.Command{
 		if err := r.IsLocked(); err != nil {
 			return err
 		}
+		if err := database.LockMount(minerRepoPath); err != nil {
+			return err
+		}
+		defer database.UnlockMount(minerRepoPath)
+
 		log.Info("Mount all storage")
 		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
 			return errors.As(err)
@@ -201,8 +205,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return errors.As(err)
 		}
-		// no proxy on, using the local
-		// TODO: fix in lotus-miner net connect
 		if !ok {
 			remoteAddrs, err := nodeApi.NetAddrsListen(ctx)
 			if err != nil {
@@ -278,10 +280,6 @@ var runCmd = &cli.Command{
 			}
 		}()
 		signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
-
-		if reportUrl := cctx.String("report-url"); len(reportUrl) > 0 {
-			report.SetReportUrl(reportUrl)
-		}
 
 		log.Info("rebuild tls cert automatic")
 		certPath := filepath.Join(minerRepoPath, "miner_crt.pem")

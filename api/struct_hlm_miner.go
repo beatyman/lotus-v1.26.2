@@ -32,19 +32,22 @@ type HlmMinerProvingStruct struct {
 		StatisWins                    func(ctx context.Context, now time.Time, limit int) ([]database.StatisWin, error) `perm:"read"`
 		WdpostEnablePartitionSeparate func(ctx context.Context, enable bool) error                                      `perm:"admin"`
 		WdpostSetPartitionNumber      func(ctx context.Context, number int) error                                       `perm:"admin"`
+		WdPostGetLog                  func(ctx context.Context, index uint64) ([]WdPoStLog, error)                      `perm:"read"`
 	}
 }
 
 type HlmMinerSectorStruct struct {
 	Internal struct {
-		RunPledgeSector    func(context.Context) error                                                             `perm:"admin"`
-		StatusPledgeSector func(context.Context) (int, error)                                                      `perm:"read"`
-		StopPledgeSector   func(context.Context) error                                                             `perm:"admin"`
-		HlmSectorGetState  func(ctx context.Context, sid string) (*database.SectorInfo, error)                     `perm:"read"`
-		HlmSectorSetState  func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) `perm:"admin"`
-		HlmSectorListAll   func(context.Context) ([]SectorInfo, error)                                             `perm:"read"`
-		HlmSectorFile      func(ctx context.Context, sid string) (*storage.SectorFile, error)                      `perm:"read"`
-		HlmSectorCheck     func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)     `perm:"read"`
+		RunPledgeSector     func(context.Context) error                 `perm:"admin"`
+		StatusPledgeSector  func(context.Context) (int, error)          `perm:"read"`
+		StopPledgeSector    func(context.Context) error                 `perm:"admin"`
+		RebuildPledgeSector func(context.Context, string, uint64) error `perm:"admin"`
+
+		HlmSectorGetState func(ctx context.Context, sid string) (*database.SectorInfo, error)                     `perm:"read"`
+		HlmSectorSetState func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) `perm:"admin"`
+		HlmSectorListAll  func(context.Context) ([]SectorInfo, error)                                             `perm:"read"`
+		HlmSectorFile     func(ctx context.Context, sid string) (*storage.SectorFile, error)                      `perm:"read"`
+		HlmSectorCheck    func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)     `perm:"read"`
 	}
 }
 
@@ -114,6 +117,9 @@ func (c *HlmMinerProvingStruct) WdpostEnablePartitionSeparate(ctx context.Contex
 func (c *HlmMinerProvingStruct) WdpostSetPartitionNumber(ctx context.Context, number int) error {
 	return c.Internal.WdpostSetPartitionNumber(ctx, number)
 }
+func (c *HlmMinerProvingStruct) WdPostGetLog(ctx context.Context, index uint64) ([]WdPoStLog, error) {
+	return c.Internal.WdPostGetLog(ctx, index)
+}
 
 func (c *HlmMinerSectorStruct) RunPledgeSector(ctx context.Context) error {
 	return c.Internal.RunPledgeSector(ctx)
@@ -123,6 +129,9 @@ func (c *HlmMinerSectorStruct) StatusPledgeSector(ctx context.Context) (int, err
 }
 func (c *HlmMinerSectorStruct) StopPledgeSector(ctx context.Context) error {
 	return c.Internal.StopPledgeSector(ctx)
+}
+func (c *HlmMinerSectorStruct) RebuildPledgeSector(ctx context.Context, sectorId string, storageId uint64) error {
+	return c.Internal.RebuildPledgeSector(ctx, sectorId, storageId)
 }
 func (c *HlmMinerSectorStruct) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
 	return c.Internal.HlmSectorGetState(ctx, sid)

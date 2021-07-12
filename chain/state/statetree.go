@@ -25,6 +25,7 @@ import (
 	states2 "github.com/filecoin-project/specs-actors/v2/actors/states"
 	states3 "github.com/filecoin-project/specs-actors/v3/actors/states"
 	states4 "github.com/filecoin-project/specs-actors/v4/actors/states"
+	states5 "github.com/filecoin-project/specs-actors/v5/actors/states"
 )
 
 var log = logging.Logger("statetree")
@@ -154,7 +155,7 @@ func NewStateTree(cst cbor.IpldStore, ver types.StateTreeVersion) (*StateTree, e
 	switch ver {
 	case types.StateTreeVersion0:
 		// info is undefined
-	case types.StateTreeVersion1, types.StateTreeVersion2, types.StateTreeVersion3:
+	case types.StateTreeVersion1, types.StateTreeVersion2:
 		var err error
 		info, err = cst.Put(context.TODO(), new(types.StateInfo0))
 		if err != nil {
@@ -187,6 +188,12 @@ func NewStateTree(cst cbor.IpldStore, ver types.StateTreeVersion) (*StateTree, e
 		hamt = tree.Map
 	case types.StateTreeVersion3:
 		tree, err := states4.NewTree(store)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to create state tree: %w", err)
+		}
+		hamt = tree.Map
+	case types.StateTreeVersion4:
+		tree, err := states5.NewTree(store)
 		if err != nil {
 			return nil, xerrors.Errorf("failed to create state tree: %w", err)
 		}
@@ -243,6 +250,12 @@ func LoadStateTree(cst cbor.IpldStore, c cid.Cid) (*StateTree, error) {
 	case types.StateTreeVersion3:
 		var tree *states4.Tree
 		tree, err = states4.LoadTree(store, root.Actors)
+		if tree != nil {
+			hamt = tree.Map
+		}
+	case types.StateTreeVersion4:
+		var tree *states5.Tree
+		tree, err = states5.LoadTree(store, root.Actors)
 		if tree != nil {
 			hamt = tree.Map
 		}

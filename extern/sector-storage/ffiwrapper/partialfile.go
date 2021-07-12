@@ -82,7 +82,7 @@ func createUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.
 			log.Warn(errors.As(err))
 			return nil, errors.New(errors.As(err).Code())
 		}
-		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, string(token), os.O_RDWR|os.O_CREATE)
+		f = hlmclient.OpenHttpFile(ctx, stor.MountTransfUri, filepath.Join("unsealed", sid), sid, string(token))
 	default:
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return nil, xerrors.Errorf("creating file '%s': %w", path, err)
@@ -142,11 +142,11 @@ func openUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.Se
 			log.Warn(errors.As(err))
 			return nil, errors.New(errors.As(err).Code())
 		}
-		f = hlmclient.OpenFUseFile(stor.MountSignalUri, filepath.Join("unsealed", sid), sid, string(token), os.O_RDWR)
+		f = hlmclient.OpenHttpFile(ctx, stor.MountTransfUri, filepath.Join("unsealed", sid), sid, string(token))
 		// need the file has exist.
 		if _, err := f.Stat(); err != nil {
 			log.Warn(errors.As(err))
-			return nil, xerrors.Errorf("openning partial file '%s': %w", path, errors.As(err).Code())
+			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
 		}
 	case database.MOUNT_TYPE_OSS:
 		fileExist := func(filename string) bool {

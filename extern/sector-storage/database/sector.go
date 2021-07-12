@@ -516,3 +516,52 @@ func CheckWorkingById(sid []string) (WorkingSectors, error) {
 	}
 	return sectors, nil
 }
+
+func RebuildSector(sid string, storage uint64) error {
+	mdb := GetDB()
+	result, err := mdb.Exec("UPDATE sector_rebuild SET storage_sealed=? WHERE id=?", storage, sid)
+	if err != nil {
+		return errors.As(err, sid, storage)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return errors.As(err, sid, storage)
+	}
+	if rows == 0 {
+		if _, err := mdb.Exec("INSERT INTO sector_rebuild(id,storage_sealed)VALUES(?,?)", sid, storage); err != nil {
+			return errors.As(err, sid, storage)
+		}
+	}
+	return nil
+}
+func RebuildSectorProcess(sid string) (int, uint64, error) {
+	mdb := GetDB()
+	state := -1
+	storage := uint64(0)
+	if err := mdb.QueryRow("SELECT tb1.state, tb2.storage_sealed FROM sector_info tb1 INNER JOIN sector_rebuild tb2 ON tb1.id=tb2.id WHERE tb1.id=?", sid).Scan(&state, &storage); err != nil {
+		if sql.ErrNoRows == err {
+			return state, storage, errors.ErrNoData.As(sid)
+		}
+		return state, storage, errors.As(err, sid)
+	}
+	return state, storage, nil
+}
+
+func RebuildSectorDone(sid string) error {
+	mdb := GetDB()
+	if _, err := mdb.Exec("DELETE FROM sector_rebuild WHERE id=?", sid); err != nil {
+		return errors.As(err)
+	}
+	return nil
+}
+
+func SetSectorSealedStorage(sid string, storage uint64) error {
+	mdb := GetDB()
+	if _, err := mdb.Exec("UPDATE sector_info SET storage_sealed=? WHERE id=?", storage, sid); err != nil {
+		return errors.As(err, sid, storage)
+	}
+	sectorFileCacheLk.Lock()
+	delete(sectorFileCaches,sid)
+	sectorFileCacheLk.Unlock()
+	return nil
+}

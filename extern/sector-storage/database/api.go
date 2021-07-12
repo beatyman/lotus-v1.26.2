@@ -11,6 +11,8 @@ import (
 	"time"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database/lock"
+
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
 )
@@ -81,6 +83,23 @@ func DiskUsage(path string) (*DiskStatus, error) {
 	return disk, nil
 }
 
+var (
+	fsLock = "mount.lock"
+)
+
+func LockMount(repo string) error {
+	_, err := lock.Lock(filepath.Join(repo, fsLock))
+	switch {
+	case lock.ErrLockedBySelf.Equal(err):
+		return nil
+	}
+	return errors.As(err)
+}
+
+func UnlockMount(repo string) error {
+	return lock.Unlock(filepath.Join(repo, fsLock))
+}
+
 func Umount(mountPoint string) (bool, error) {
 	log.Info("storage umount: ", mountPoint)
 	// umount
@@ -140,7 +159,7 @@ func Mount(ctx context.Context, mountType, mountUri, mountPoint, mountOpts strin
 
 	switch mountType {
 	case MOUNT_TYPE_HLM:
-		nfsClient := hlmclient.NewFUseClient(mountUri, mountOpts)
+		nfsClient := hlmclient.NewNFSClient(mountUri, mountOpts)
 		//nfsClient := hlmclient.NewNFSClient(mountUri, mountOpts)
 		if err := nfsClient.Mount(ctx, mountPoint); err != nil {
 			return errors.As(err, mountPoint)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -45,6 +46,7 @@ var sectorsCmd = &cli.Command{
 		sectorsStartSealCmd,
 		sectorsSealDelayCmd,
 		sectorsCapacityCollateralCmd,
+		sectorsBatching,
 	},
 }
 
@@ -83,6 +85,11 @@ var sectorsStatusCmd = &cli.Command{
 			Name:  "on-chain-info",
 			Usage: "show sector on chain info",
 		},
+		&cli.BoolFlag{
+			Name:  "json",
+			Usage: "output json format",
+			Value: false,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
@@ -105,6 +112,21 @@ var sectorsStatusCmd = &cli.Command{
 		status, err := nodeApi.SectorsStatus(ctx, abi.SectorNumber(id), onChainInfo)
 		if err != nil {
 			return err
+		}
+		if cctx.Bool("json") {
+			result := map[string]interface{}{
+				"Status":       status.State,
+				"SectorNumber": status.SectorID,
+				"ProofType":    status.SealProof, // need onChainInfo is true
+				"TicketValue":  status.Ticket.Value,
+				"SeedValue":    status.Seed.Value,
+			}
+			jData, err := json.Marshal(result)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(jData))
+			return nil
 		}
 
 		fmt.Printf("SectorID:\t%d\n", status.SectorID)
@@ -974,6 +996,135 @@ var sectorsUpdateCmd = &cli.Command{
 		}
 
 		return nodeApi.SectorsUpdate(ctx, abi.SectorNumber(id), api.SectorState(cctx.Args().Get(1)))
+	},
+}
+
+var sectorsBatching = &cli.Command{
+	Name:  "batching",
+	Usage: "manage batch sector operations",
+	Subcommands: []*cli.Command{
+		sectorsBatchingPendingCommit,
+		sectorsBatchingPendingPreCommit,
+	},
+}
+
+var sectorsBatchingPendingCommit = &cli.Command{
+	Name:  "commit",
+	Usage: "list sectors waiting in commit batch queue",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "publish-now",
+			Usage: "send a batch now",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+
+		if cctx.Bool("publish-now") {
+			res, err := api.SectorCommitFlush(ctx)
+			if err != nil {
+				return xerrors.Errorf("flush: %w", err)
+			}
+			if res == nil {
+				return xerrors.Errorf("no sectors to publish")
+			}
+
+			for i, re := range res {
+				fmt.Printf("Batch %d:\n", i)
+				if re.Error != "" {
+					fmt.Printf("\tError: %s\n", re.Error)
+				} else {
+					fmt.Printf("\tMessage: %s\n", re.Msg)
+				}
+				fmt.Printf("\tSectors:\n")
+				for _, sector := range re.Sectors {
+					if e, found := re.FailedSectors[sector]; found {
+						fmt.Printf("\t\t%d\tERROR %s\n", sector, e)
+					} else {
+						fmt.Printf("\t\t%d\tOK\n", sector)
+					}
+				}
+			}
+			return nil
+		}
+
+		pending, err := api.SectorCommitPending(ctx)
+		if err != nil {
+			return xerrors.Errorf("getting pending deals: %w", err)
+		}
+
+		if len(pending) > 0 {
+			for _, sector := range pending {
+				fmt.Println(sector.Number)
+			}
+			return nil
+		}
+
+		fmt.Println("No sectors queued to be committed")
+		return nil
+	},
+}
+
+var sectorsBatchingPendingPreCommit = &cli.Command{
+	Name:  "precommit",
+	Usage: "list sectors waiting in precommit batch queue",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "publish-now",
+			Usage: "send a batch now",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		api, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+
+		if cctx.Bool("publish-now") {
+			res, err := api.SectorPreCommitFlush(ctx)
+			if err != nil {
+				return xerrors.Errorf("flush: %w", err)
+			}
+			if res == nil {
+				return xerrors.Errorf("no sectors to publish")
+			}
+
+			for i, re := range res {
+				fmt.Printf("Batch %d:\n", i)
+				if re.Error != "" {
+					fmt.Printf("\tError: %s\n", re.Error)
+				} else {
+					fmt.Printf("\tMessage: %s\n", re.Msg)
+				}
+				fmt.Printf("\tSectors:\n")
+				for _, sector := range re.Sectors {
+					fmt.Printf("\t\t%d\tOK\n", sector)
+				}
+			}
+			return nil
+		}
+
+		pending, err := api.SectorPreCommitPending(ctx)
+		if err != nil {
+			return xerrors.Errorf("getting pending deals: %w", err)
+		}
+
+		if len(pending) > 0 {
+			for _, sector := range pending {
+				fmt.Println(sector.Number)
+			}
+			return nil
+		}
+
+		fmt.Println("No sectors queued to be committed")
+		return nil
 	},
 }
 

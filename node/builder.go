@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/filecoin-project/lotus/lib/report"
+
 	metricsi "github.com/ipfs/go-metrics-interface"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -379,6 +381,7 @@ var MinerNode = Options(
 
 	// Sector storage: Proofs
 	Override(new(ffiwrapper.Verifier), ffiwrapper.ProofVerifier),
+	Override(new(ffiwrapper.Prover), ffiwrapper.ProofProver),
 	Override(new(storage2.Prover), From(new(sectorstorage.SectorManager))),
 
 	// Sealing
@@ -435,6 +438,8 @@ var MinerNode = Options(
 	Override(new(dtypes.GetSealingConfigFunc), modules.NewGetSealConfigFunc),
 	Override(new(dtypes.SetExpectedSealDurationFunc), modules.NewSetExpectedSealDurationFunc),
 	Override(new(dtypes.GetExpectedSealDurationFunc), modules.NewGetExpectedSealDurationFunc),
+	Override(new(dtypes.SetMaxDealStartDelayFunc), modules.NewSetMaxDealStartDelayFunc),
+	Override(new(dtypes.GetMaxDealStartDelayFunc), modules.NewGetMaxDealStartDelayFunc),
 )
 
 // Online sets up basic libp2p node
@@ -480,6 +485,12 @@ func StorageMiner(out *api.StorageMiner) Option {
 
 // Config sets up constructors based on the provided Config
 func ConfigCommon(cfg *config.Common) Option {
+	report.SetConfig(
+		&report.Config{
+			Url:        cfg.Collector.ReportUrl,
+			Interval:   time.Duration(cfg.Collector.Interval),
+			RetryTimes: cfg.Collector.RetryTimes,
+		})
 	return Options(
 		func(s *Settings) error { s.Config = true; return nil },
 		Override(new(dtypes.APIEndpoint), func() (dtypes.APIEndpoint, error) {
@@ -574,6 +585,7 @@ func ConfigStorageMiner(c interface{}) Option {
 		})),
 		Override(new(storagemarket.StorageProviderNode), storageadapter.NewProviderNodeAdapter(&cfg.Fees, &cfg.Dealmaking)),
 
+		Override(new(*dtypes.WorkerAPIAlg), modules.WorkerAPISecret),
 		Override(new(sectorstorage.SealerConfig), cfg.Storage),
 		Override(new(*storage.AddressSelector), modules.AddressSelector(&cfg.Addresses)),
 		Override(new(*storage.Miner), modules.StorageMiner(cfg.Fees)),
@@ -644,7 +656,6 @@ func Repo(r repo.Repo) Option {
 
 			Override(new(types.KeyStore), modules.KeyStore),
 
-			Override(new(*dtypes.WorkerAPIAlg), modules.WorkerAPISecret),
 			Override(new(*dtypes.APIAlg), modules.APISecret),
 
 			ApplyIf(isType(repo.FullNode), ConfigFullNode(c)),
