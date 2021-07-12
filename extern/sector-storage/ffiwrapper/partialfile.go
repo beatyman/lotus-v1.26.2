@@ -163,6 +163,10 @@ func openUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.Se
 			}
 			f = f2
 		} else {
+			dir, _ := filepath.Split(path)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				log.Warnf("MkdirAll err: %s", err)
+			}
 			d := operation.NewDownloaderV2()
 			f2, err := d.DownloadFile(path, path)
 			if err != nil {
