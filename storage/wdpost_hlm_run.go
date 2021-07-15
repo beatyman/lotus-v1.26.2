@@ -325,14 +325,14 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 	}
 
 	for batchIdx_p, batch_p := range partitionBatches {
-		go func() {
-			params, err := batchPoSt(batchIdx_p, batch_p)
+		go func(batchIdx int, batch []api.Partition) {
+			params, err := batchPoSt(batchIdx, batch)
 			if err != nil {
 				postChan <- errors.As(err)
 			} else {
 				postChan <- params
 			}
-		}()
+		}(batchIdx_p, batch_p)
 	}
 	for i := len(partitionBatches); i > 0; i-- {
 		select {
