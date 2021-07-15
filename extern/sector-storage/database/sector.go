@@ -554,5 +554,8 @@ func SetSectorSealedStorage(sid string, storage uint64) error {
 	if _, err := mdb.Exec("UPDATE sector_info SET storage_sealed=? WHERE id=?", storage, sid); err != nil {
 		return errors.As(err, sid, storage)
 	}
+	sectorFileCacheLk.Lock()
+	delete(sectorFileCaches,sid)
+	sectorFileCacheLk.Unlock()
 	return nil
 }
