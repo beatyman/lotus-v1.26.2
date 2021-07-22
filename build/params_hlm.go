@@ -45,7 +45,7 @@ const UpgradeNorwegianHeight = 177580 // ~2021-04-02 08:45:00.000+0800
 
 const UpgradeActorsV4Height = 99999999999 // TODO: upgrade to v4
 // 2021-06-30T22:00:00Z
-const UpgradeHyperdriveHeight = 30
+const UpgradeHyperdriveHeight = 420
 func init() {
 	policy.SetSupportedProofTypes(
 		abi.RegisteredSealProof_StackedDrg2KiBV1,
