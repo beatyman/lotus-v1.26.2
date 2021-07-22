@@ -18,33 +18,34 @@ const BootstrappersFile = "devnet.pi"
 const GenesisFile = "devnet.car"
 
 const UpgradeBreezeHeight = -1
-const BreezeGasTampingDuration = 0
+const BreezeGasTampingDuration = 120
 
-const UpgradeSmokeHeight = -1
+const UpgradeSmokeHeight = -2
 
-const UpgradeIgnitionHeight = -2
-const UpgradeRefuelHeight = -3
+const UpgradeIgnitionHeight = -3
+const UpgradeRefuelHeight = -4
 
-var UpgradeActorsV2Height = abi.ChainEpoch(10)
+var UpgradeAssemblyHeight = abi.ChainEpoch(30)
 
-const UpgradeTapeHeight = -4
+const UpgradeTapeHeight = 60
 
 const UpgradeLiftoffHeight = -5
 
-const UpgradeKumquatHeight = 15
+const UpgradeKumquatHeight = 90
 
-const UpgradeCalicoHeight = 20
-const UpgradePersianHeight = 25
+const UpgradeCalicoHeight = 120
+const UpgradePersianHeight = UpgradeCalicoHeight + (builtin2.EpochsInHour * 1)
 
-const UpgradeClausHeight = 30
+const UpgradeClausHeight = 270
 
-const UpgradeOrangeHeight = 27
+const UpgradeOrangeHeight = 300
 
-const UpgradeActorsV3Height = 69135   // ~2021-02-23 16:56:00.000+0800
-const UpgradeNorwegianHeight = 177580 // ~2021-04-02 08:45:00.000+0800
+const UpgradeTrustHeight = 330
 
-const UpgradeActorsV4Height = 99999999999 // TODO: upgrade to v4
-// 2021-06-30T22:00:00Z
+const UpgradeNorwegianHeight = 360
+
+const UpgradeTurboHeight = 390
+
 const UpgradeHyperdriveHeight = 420
 func init() {
 	policy.SetSupportedProofTypes(
