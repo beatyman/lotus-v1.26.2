@@ -19,7 +19,7 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/specs-storage/storage"
-	"github.com/qiniupd/qiniu-go-sdk/syncdata/operation"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
@@ -287,16 +287,15 @@ func (st *Local) Redeclare(ctx context.Context) error {
 
 	return nil
 }
-
+func loadSectors(prefix string) []string {
+	fmt.Println("prefix", prefix)
+	lister := operation.NewListerV2()
+	files := lister.ListPrefix(strings.TrimLeft(prefix, "/"))
+	fmt.Println(files)
+	return files
+}
 func (st *Local) declareSectors(ctx context.Context, p string, id ID, primary bool) error {
-	if os.Getenv("QINIU") != "" {
-		loadSectors := func(prefix string) []string {
-			fmt.Println("prefix", prefix)
-			lister := operation.NewListerV2()
-			files := lister.ListPrefix(strings.TrimLeft(prefix, "/"))
-			fmt.Println(files)
-			return files
-		}
+	if os.Getenv("US3") != "" {
 		sectors := loadSectors(p)
 		for _, v := range sectors {
 			if strings.Contains(v, storiface.FTSealed.String()) {
@@ -323,7 +322,7 @@ func (st *Local) declareSectors(ctx context.Context, p string, id ID, primary bo
 				}
 
 				if err := st.index.StorageDeclareSector(ctx, id, sector, storiface.FTUnsealed, primary); err != nil {
-					return xerrors.Errorf("declare sector %d(t:%d) -> %s: %w", v, storiface.FTUnsealed, id, err)
+					return xerrors.Errorf("dfaults.go:135eclare sector %d(t:%d) -> %s: %w", v, storiface.FTUnsealed, id, err)
 				}
 			}
 		}

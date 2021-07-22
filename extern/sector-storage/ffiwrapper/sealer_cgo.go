@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/qiniupd/qiniu-go-sdk/syncdata/operation"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"golang.org/x/xerrors"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
@@ -565,9 +565,9 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 }
 
 func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {
-	up := os.Getenv("QINIU")
+	up := os.Getenv("US3")
 	if up != "" {
-		//return sb.ReadPieceQiniu(ctx, writer, sector, offset, size)
+		return sb.ReadPieceQiniu(ctx, writer, sector, offset, size)
 	}
 
 	log.Infof("DEBUG:ReadPiece in, sector:%+v", sector)

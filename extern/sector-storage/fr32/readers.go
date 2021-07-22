@@ -7,7 +7,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/qiniupd/qiniu-go-sdk/syncdata/operation"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 )
 
 type unpadReader struct {
@@ -71,8 +71,19 @@ func (r *unpadReader) Read(out []byte) (int, error) {
 	}
 
 	r.left -= uint64(todo)
-
-	n, err := r.src.Read(r.work[:todo])
+	var n int
+	var err error
+	if r.path != "" {
+		size := len(r.work[:todo])
+		var data []byte
+		_, data, err = r.downloader.DownloadRangeBytes(r.path, r.offset, int64(size))
+		if err == nil {
+			n = copy(r.work[:todo], data)
+		}
+		r.offset += int64(n)
+	} else {
+		n, err = r.src.Read(r.work[:todo])
+	}
 	if err != nil && err != io.EOF {
 		return n, err
 	}

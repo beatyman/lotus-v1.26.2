@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/filecoin-project/specs-storage/storage"
-	"github.com/qiniupd/qiniu-go-sdk/syncdata/operation"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"golang.org/x/xerrors"
 
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"

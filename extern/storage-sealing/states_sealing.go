@@ -9,7 +9,7 @@ import (
 
 	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
-	"github.com/qiniupd/qiniu-go-sdk/syncdata/operation"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -36,11 +36,11 @@ var DealSectorPriority = 1024
 var MaxTicketAge = policy.MaxPreCommitRandomnessLookback
 
 func uploadToOSS(ctx context.Context, from, to string) error {
-	up := os.Getenv("QINIU")
+	up := os.Getenv("US3")
 
 	if up == "" {
-		fmt.Println("please set QINIU environment variable first!")
-		return errors.New("connot find QINIU environment variable")
+		fmt.Println("please set US3 environment variable first!")
+		return errors.New("connot find US3 environment variable")
 	}
 	conf2, err := operation.Load(up)
 	if err != nil {

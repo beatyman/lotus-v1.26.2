@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	ffi "github.com/filecoin-project/filecoin-ffi"
+	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/ipfs/go-cid"
 	"os"
@@ -14,7 +16,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 
-	"github.com/qiniupd/qiniu-go-sdk/syncdata/operation"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 )
 
 type SectorFile struct {
@@ -109,7 +111,7 @@ func checkBad(bad map[abi.SectorID]string, checkList map[string]SectorFile) erro
 	if len(list) == 0 {
 		return nil
 	}
-	conf_file := os.Getenv("QINIU")
+	conf_file := os.Getenv("US3")
 	if conf_file == "" {
 		return nil
 	}
@@ -130,16 +132,17 @@ func checkBad(bad map[abi.SectorID]string, checkList map[string]SectorFile) erro
 		//log.Info("file in list", v.Name, v.Size)
 		p, ok := checkList["/"+v.Name]
 		if !ok {
-			fmt.Println("no file!!!", "/"+v.Name)
+			log.Warn("no file!!!", "/"+v.Name)
 			continue
 		}
 
 		if v.Size == -1 { // not found
-			fmt.Println("file is not exist", "/"+v.Name, p.Sid.Number, p.Sid.Miner)
-			insert(bad, p.Sid, "file is not exist " + v.Name)
+			log.Warn("file is not exist", "/"+v.Name, p.Sid.Number, p.Sid.Miner)
+			insert(bad, p.Sid, "file is not exist "+v.Name)
 		} else if p.Size != 0 && p.Size != v.Size {
-			fmt.Println("file size is wrong", p.Size, v.Size, "/"+v.Name, p.Sid.Number, p.Sid.Miner)
-			insert(bad, p.Sid, "file size is wrong " + v.Name + "-" + strconv.FormatInt(v.Size, 10))
+			log.Warn(p.Size, v.Size)
+			log.Warn("file size is wrong", p.Size, v.Size, "/"+v.Name, p.Sid.Number, p.Sid.Miner)
+			insert(bad, p.Sid, "file size is wrong "+v.Name+"-"+strconv.FormatInt(v.Size, 10))
 		}
 	}
 	return nil
@@ -183,7 +186,7 @@ func getKeys(m map[string]SectorFile) []string {
 	return keys
 }
 
-func checkProof(sectorId abi.SectorID, proofType abi.RegisteredSealProof, commr cid.Cid, cachePath, sealedPath string) (desc *string, err error){
+func checkProof(sectorId abi.SectorID, proofType abi.RegisteredSealProof, commr cid.Cid, cachePath, sealedPath string) (desc *string, err error) {
 	wpp, err := proofType.RegisteredWindowPoStProof()
 	if err != nil {
 		return nil, err
@@ -221,14 +224,10 @@ func checkProof(sectorId abi.SectorID, proofType abi.RegisteredSealProof, commr 
 	return nil, nil
 }
 
-func getProofType(size int64) abi.RegisteredSealProof{
-	switch size {
-	case 2 << 10:
-		return abi.RegisteredSealProof_StackedDrg2KiBV1_1
-	case 512 << 20:
-		return abi.RegisteredSealProof_StackedDrg512MiBV1_1
-	case 32 << 30:
-		return abi.RegisteredSealProof_StackedDrg32GiBV1_1
+func getProofType(size int64) abi.RegisteredSealProof {
+	spt, err := miner.SealProofTypeFromSectorSize(abi.SectorSize(size), build.NewestNetworkVersion)
+	if err != nil {
+		panic(err)
 	}
-	return abi.RegisteredSealProof_StackedDrg32GiBV1_1
+	return spt
 }
