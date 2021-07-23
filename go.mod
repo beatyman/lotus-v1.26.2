@@ -45,10 +45,10 @@ require (
 	github.com/filecoin-project/go-statemachine v0.0.0-20200925024713-05bd7c71fbfe
 	github.com/filecoin-project/go-statestore v0.1.1
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
-	github.com/filecoin-project/specs-actors v0.9.13
-	github.com/filecoin-project/specs-actors/v2 v2.3.5-0.20210114162132-5b58b773f4fb
-	github.com/filecoin-project/specs-actors/v3 v3.1.0
-	github.com/filecoin-project/specs-actors/v4 v4.0.0
+	github.com/filecoin-project/specs-actors v0.9.14
+	github.com/filecoin-project/specs-actors/v2 v2.3.5
+	github.com/filecoin-project/specs-actors/v3 v3.1.1
+	github.com/filecoin-project/specs-actors/v4 v4.0.1
 	github.com/filecoin-project/specs-actors/v5 v5.0.1
 	github.com/filecoin-project/specs-storage v0.1.1-0.20201105051918-5188d9774506
 	github.com/filecoin-project/test-vectors/schema v0.0.5
@@ -147,6 +147,7 @@ require (
 	github.com/prometheus/client_golang v1.6.0
 	github.com/raulk/clock v1.1.0
 	github.com/raulk/go-watchdog v1.0.1
+	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.0
@@ -175,6 +176,8 @@ require (
 	gotest.tools v2.2.0+incompatible
 	honnef.co/go/tools v0.0.1-2020.1.3 // indirect
 )
+
+replace github.com/libp2p/go-libp2p-yamux => github.com/libp2p/go-libp2p-yamux v0.5.1
 
 replace github.com/filecoin-project/lotus => ./
 

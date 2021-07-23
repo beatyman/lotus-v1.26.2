@@ -187,7 +187,7 @@ func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo
 errApiLoop:
 	tok, height, err := m.api.ChainHead(ctx.Context())
 	if err != nil {
-		log.Errorf("handleCommitting: api error, not proceeding: %+v, %+v", sector.SectorNumber, err)
+		log.Errorf("handleCommitting: api error, not proceeding: %+v, %+v , height:%+v ", sector.SectorNumber, err,height)
 		time.Sleep(10e9)
 		goto errApiLoop
 	}
@@ -217,33 +217,6 @@ errApiLoop:
 			return ctx.Send(SectorRetrySubmitCommit{})
 		default:
 			// something else went wrong
-		}
-	}
-
-	if err := checkPrecommit(ctx.Context(), m.maddr, sector, tok, height, m.api); err != nil {
-		switch err.(type) {
-		case *ErrApi:
-			log.Errorf("handleCommitFailed: api error, not proceeding: %+v", err)
-			return nil
-		case *ErrBadCommD:
-			return ctx.Send(SectorSealPreCommit1Failed{xerrors.Errorf("bad CommD error: %w", err)})
-		case *ErrExpiredTicket:
-			return ctx.Send(SectorTicketExpired{xerrors.Errorf("ticket expired error, removing sector: %w", err)})
-		case *ErrBadTicket:
-			return ctx.Send(SectorTicketExpired{xerrors.Errorf("expired ticket, removing sector: %w", err)})
-		case *ErrInvalidDeals:
-			log.Warnf("invalid deals in sector %d: %v", sector.SectorNumber, err)
-			return ctx.Send(SectorInvalidDealIDs{Return: RetCommitFailed})
-		case *ErrExpiredDeals:
-			return ctx.Send(SectorDealsExpired{xerrors.Errorf("sector deals expired: %w", err)})
-		case nil:
-			return ctx.Send(SectorChainPreCommitFailed{xerrors.Errorf("no precommit: %w", err)})
-		case *ErrPrecommitOnChain:
-			// noop, this is expected
-		case *ErrSectorNumberAllocated:
-			// noop, already committed?
-		default:
-			return xerrors.Errorf("checkPrecommit sanity check error (%T): %w", err, err)
 		}
 	}
 
