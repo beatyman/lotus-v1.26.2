@@ -97,10 +97,10 @@ etcdctl: $(BUILD_DEPS)
 	go build $(GOFLAGS) -o etcdctl ./cmd/etcdctl
 .PHONY: etcdctl
 BINS+=etcdctl
+
 lotus: $(BUILD_DEPS)
 	rm -f lotus
 	go build $(GOFLAGS) -o lotus ./cmd/lotus
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus -i ./build
 
 .PHONY: lotus
 BINS+=lotus
@@ -108,21 +108,18 @@ BINS+=lotus
 lotus-miner: $(BUILD_DEPS)
 	rm -f lotus-miner
 	go build $(GOFLAGS) -o lotus-miner ./cmd/lotus-storage-miner
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-miner -i ./build
 .PHONY: lotus-miner
 BINS+=lotus-miner
 
 lotus-worker: $(BUILD_DEPS)
 	rm -f lotus-worker
 	go build $(GOFLAGS) -o lotus-worker ./cmd/lotus-hlm-worker
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-worker -i ./build
 .PHONY: lotus-worker
 BINS+=lotus-worker
 
 chain-watch: $(BUILD_DEPS)
 	rm -f lotus-chain-watch
 	go build $(GOFLAGS) -o lotus-chain-watch ./cmd/chain-watch
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-chain-watch -i ./build
 .PHONY: lotus-chain-watch
 BINS+=lotus-chain-watch
 
@@ -130,7 +127,6 @@ BINS+=lotus-chain-watch
 lotus-shed: $(BUILD_DEPS)
 	rm -f lotus-shed
 	go build $(GOFLAGS) -o lotus-shed ./cmd/lotus-shed
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-shed -i ./build
 .PHONY: lotus-shed
 BINS+=lotus-shed
 
@@ -162,7 +158,6 @@ install-worker:
 lotus-seed: $(BUILD_DEPS)
 	rm -f lotus-seed
 	go build $(GOFLAGS) -o lotus-seed ./cmd/lotus-seed
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-seed -i ./build
 
 .PHONY: lotus-seed
 BINS+=lotus-seed
@@ -196,13 +191,11 @@ lotus-townhall-front:
 .PHONY: lotus-townhall-front
 
 lotus-townhall-app: lotus-touch lotus-townhall-front
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-townhall -i ./cmd/lotus-townhall -i ./build
 .PHONY: lotus-townhall-app
 
 lotus-fountain:
 	rm -f lotus-fountain
 	go build -o lotus-fountain ./cmd/lotus-fountain
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-fountain -i ./cmd/lotus-fountain -i ./build
 .PHONY: lotus-fountain
 BINS+=lotus-fountain
 
@@ -215,33 +208,29 @@ BINS+=lotus-chainwatch
 lotus-bench:
 	rm -f lotus-bench
 	go build -o lotus-bench ./cmd/lotus-bench
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-bench -i ./build
 .PHONY: lotus-bench
 BINS+=lotus-bench
 
 lotus-stats:
 	rm -f lotus-stats
 	go build $(GOFLAGS) -o lotus-stats ./cmd/lotus-stats
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-stats -i ./build
 .PHONY: lotus-stats
 BINS+=lotus-stats
 
 lotus-pcr:
 	rm -f lotus-pcr
 	go build $(GOFLAGS) -o lotus-pcr ./cmd/lotus-pcr
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-pcr -i ./build
 .PHONY: lotus-pcr
 BINS+=lotus-pcr
 
 lotus-health:
 	rm -f lotus-health
 	go build -o lotus-health ./cmd/lotus-health
-	go run github.com/GeertJohan/go.rice/rice append --exec lotus-health -i ./build
 .PHONY: lotus-health
 BINS+=lotus-health
 
 leveldb-tools:
-	rm -f leveldb-tools 
+	rm -f leveldb-tools
 	go build -o leveldb-tools ./cmd/tools/leveldb-tools
 .PHONY: leveldb-tools
 BINS+=leveldb-tools
@@ -345,17 +334,10 @@ clean-services: clean-all-services
 
 buildall: $(BINS)
 
-completions:
-	./scripts/make-completions.sh lotus
-	./scripts/make-completions.sh lotus-miner
-.PHONY: completions
-
 install-completions:
 	mkdir -p /usr/share/bash-completion/completions /usr/local/share/zsh/site-functions/
 	install -C ./scripts/bash-completion/lotus /usr/share/bash-completion/completions/lotus
-	install -C ./scripts/bash-completion/lotus-miner /usr/share/bash-completion/completions/lotus-miner
 	install -C ./scripts/zsh-completion/lotus /usr/local/share/zsh/site-functions/_lotus
-	install -C ./scripts/zsh-completion/lotus-miner /usr/local/share/zsh/site-functions/_lotus-miner
 
 clean:
 	rm -rf $(CLEAN) $(BINS)
@@ -385,17 +367,15 @@ api-gen:
 	goimports -w api
 .PHONY: api-gen
 
-appimage: $(BUILD_DEPS)
+appimage: lotus
 	rm -rf appimage-builder-cache || true
 	rm AppDir/io.filecoin.lotus.desktop || true
 	rm AppDir/icon.svg || true
 	rm Appdir/AppRun || true
 	mkdir -p AppDir/usr/bin
-	rm -rf lotus
-	go run github.com/GeertJohan/go.rice/rice embed-go -i ./build
-	go build $(GOFLAGS) -o lotus ./cmd/lotus
 	cp ./lotus AppDir/usr/bin/
 	appimage-builder
+
 docsgen: docsgen-md docsgen-openrpc
 
 docsgen-md-bin: api-gen actors-gen
