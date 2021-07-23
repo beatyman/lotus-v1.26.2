@@ -217,31 +217,31 @@ func (l *hlmWorker) UnsealPiece(ctx context.Context, sector storage.SectorRef, i
 	return l.sb.UnsealPiece(ctx, sector, index, size, randomness, cid)
 }
 
-func (l *hlmWorker) ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (bool, error) {
+func (l *hlmWorker) ReadPiece(ctx context.Context, sector storage.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error) {
 	var err error
 	sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
 	if err != nil {
-		return false, errors.As(err)
+		return nil, false, errors.As(err)
 	}
 	if err := database.AddMarketRetrieve(storage.SectorName(sector.ID)); err != nil {
-		return false, errors.As(err)
+		return nil, false, errors.As(err)
 	}
 	// unseal data will expire by 30 days if no visitor.
 	l.sb.ExpireAllMarketRetrieve()
 
 	// try read the exist unsealed.
-	done, err := l.sb.ReadPiece(ctx, writer, sector, index, size)
+	r, done, err := l.sb.PieceReader(ctx, sector, index, size)
 	if err != nil {
-		return false, errors.As(err)
+		return nil, false, errors.As(err)
 	} else if done {
-		return true, nil
+		return r, true, nil
 	}
 
 	// unsealed not found, do unseal and then read it.
 	if err := l.sb.UnsealPiece(ctx, sector, index, size, ticket, unsealed); err != nil {
-		return false, errors.As(err, sector, index, size, unsealed)
+		return nil, false, errors.As(err, sector, index, size, unsealed)
 	}
-	return l.sb.ReadPiece(ctx, writer, sector, index, size)
+	return l.sb.PieceReader(ctx, sector, index, size)
 }
 
 func (l *hlmWorker) TaskTypes(context.Context) (map[sealtasks.TaskType]struct{}, error) {

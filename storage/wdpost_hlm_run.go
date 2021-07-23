@@ -28,7 +28,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
-func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
+func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
 	log.Info("================================ DEBUG: Start generage wdpost========================================")
 	defer log.Info("================================DEBUG: End generage wdpost========================================")
 	epochTime := int64(build.BlockDelaySecs)
@@ -47,7 +47,7 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 	defer span.End()
 
 	go func() {
-		// TODO: extract from runPost, run on fault cutoff boundaries
+		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
 
 		// check faults / recoveries for the *next* deadline. It's already too
 		// late to declare them for this deadline
@@ -75,7 +75,7 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 			}
 		)
 
-		if recoveries, sigmsg, err = s.checkNextRecoveries(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
+		if recoveries, sigmsg, err = s.declareRecoveries(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
 			log.Error(s.PutLogf(di.Index, "checking sector recoveries: %v", err))
 		}
@@ -94,7 +94,7 @@ func (s *WindowPoStScheduler) runHlmPost(ctx context.Context, di dline.Info, ts 
 			return // FORK: declaring faults after ignition upgrade makes no sense
 		}
 
-		if faults, sigmsg, err = s.checkNextFaults(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
+		if faults, sigmsg, err = s.declareFaults(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
 			// TODO: This is also potentially really bad, but we try to post anyways
 			log.Error(s.PutLogf(di.Index, "checking sector faults: %v", err))
 		}

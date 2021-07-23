@@ -10,13 +10,13 @@ import (
 )
 
 type unpadReader struct {
-	src io.Reader
+	src io.ReadCloser
 
 	left uint64
 	work []byte
 }
 
-func NewUnpadReader(src io.Reader, sz abi.PaddedPieceSize) (io.Reader, error) {
+func NewUnpadReader(src io.ReadCloser, sz abi.PaddedPieceSize) (io.ReadCloser, error) {
 	if err := sz.Validate(); err != nil {
 		return nil, xerrors.Errorf("bad piece size: %w", err)
 	}
@@ -29,6 +29,9 @@ func NewUnpadReader(src io.Reader, sz abi.PaddedPieceSize) (io.Reader, error) {
 		left: uint64(sz),
 		work: buf,
 	}, nil
+}
+func (r *unpadReader) Close() error {
+	return r.src.Close()
 }
 
 func (r *unpadReader) Read(out []byte) (int, error) {
@@ -51,13 +54,12 @@ func (r *unpadReader) Read(out []byte) (int, error) {
 
 	r.left -= uint64(todo)
 
-	n, err := r.src.Read(r.work[:todo])
+	n, err := io.ReadAtLeast(r.src, r.work[:todo], int(todo))
 	if err != nil && err != io.EOF {
 		return n, err
 	}
-
-	if n != int(todo) {
-		return 0, xerrors.Errorf("didn't read enough: %w", err)
+	if n < int(todo) {
+		return 0, xerrors.Errorf("didn't read enough: %d / %d, left %d, out %d", n, todo, r.left, len(out))
 	}
 
 	Unpad(r.work[:todo], out[:todo.Unpadded()])

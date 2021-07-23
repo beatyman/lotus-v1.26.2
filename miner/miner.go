@@ -495,7 +495,7 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 //  1.
 func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTime time.Time) (dur time.Duration, minedBlock *types.BlockMsg, err error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
-	start := build.Clock.Now()
+	tStart := build.Clock.Now()
 
 	round := base.TipSet.Height() + base.NullRounds + 1
 
@@ -504,6 +504,9 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	var mbi *api.MiningBaseInfo
 	var rbase types.BeaconEntry
 	defer func() {
+
+		var hasMinPower bool
+
 		// mbi can be nil if we are deep in penalty and there are 0 eligible sectors
 		// in the current deadline. If this case - put together a dummy one for reporting
 		// https://github.com/filecoin-project/lotus/blob/v1.9.0/chain/stmgr/utils.go#L500-L502
@@ -511,17 +514,24 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 			mbi = &api.MiningBaseInfo{
 				NetworkPower:      big.NewInt(-1), // we do not know how big the network is at this point
 				EligibleForMining: false,
-				MinerPower:        big.NewInt(0), // but we do know we do not have anything
+				MinerPower:        big.NewInt(0), // but we do know we do not have anything eligible
+			}
+
+			// try to opportunistically pull actual power and plug it into the fake mbi
+			if pow, err := m.api.StateMinerPower(ctx, m.address, base.TipSet.Key()); err == nil && pow != nil {
+				hasMinPower = pow.HasMinPower
+				mbi.MinerPower = pow.MinerPower.QualityAdjPower
+				mbi.NetworkPower = pow.TotalPower.QualityAdjPower
 			}
 		}
 
-		isLate := uint64(start.Unix()) > (base.TipSet.MinTimestamp() + uint64(base.NullRounds*builtin.EpochDurationSeconds) + build.PropagationDelaySecs)
+		isLate := uint64(tStart.Unix()) > (base.TipSet.MinTimestamp() + uint64(base.NullRounds*builtin.EpochDurationSeconds) + build.PropagationDelaySecs)
 
 		logStruct := []interface{}{
-			"tookMilliseconds", (build.Clock.Now().UnixNano() - start.UnixNano()) / 1_000_000,
+			"tookMilliseconds", (build.Clock.Now().UnixNano() - tStart.UnixNano()) / 1_000_000,
 			"forRound", int64(round),
 			"baseEpoch", int64(base.TipSet.Height()),
-			"baseDeltaSeconds", uint64(start.Unix()) - base.TipSet.MinTimestamp(),
+			"baseDeltaSeconds", uint64(tStart.Unix()) - base.TipSet.MinTimestamp(),
 			"nullRounds", int64(base.NullRounds),
 			"lateStart", isLate,
 			"beaconEpoch", rbase.Round,
@@ -535,7 +545,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 
 		if err != nil {
 			log.Errorw("completed mineOne", logStruct...)
-		} else if isLate {
+		} else if isLate || (hasMinPower && !mbi.EligibleForMining) {
 			log.Warnw("completed mineOne", logStruct...)
 		} else {
 			log.Infow("completed mineOne", logStruct...)
@@ -549,7 +559,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	}
 
 	// log mineOne statis
-	// implement by zhoushuyue
 	expNum := 0
 	if mbi != nil {
 		qpercI := types.BigDiv(types.BigMul(mbi.MinerPower, types.NewInt(1000000)), mbi.NetworkPower)
@@ -562,10 +571,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	if err := database.AddWinTimes(submitTime, expNum); err != nil {
 		log.Warn(errors.As(err))
 	}
-	// implement by zhoushuyue
-
 	if mbi == nil {
-		log.Infof("No MiningBaseInfo for round %d, off tipset %d/%s", round, base.TipSet.Height(), base.TipSet.Key().String())
 		return 0, nil, nil
 	}
 
@@ -573,13 +579,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		// slashed or just have no power yet
 		return 0, nil, nil
 	}
-
-	tMBI := build.Clock.Now()
-
-	beaconPrev := mbi.PrevBeaconEntry
-
-	tDrand := build.Clock.Now()
-	bvals := mbi.BeaconEntries
 
 	tPowercheck := build.Clock.Now()
 
@@ -594,7 +593,8 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		mbi.MinerPower, mbi.NetworkPower,
 	)
 
-	rbase = beaconPrev
+	bvals := mbi.BeaconEntries
+	rbase = mbi.PrevBeaconEntry
 	if len(bvals) > 0 {
 		rbase = bvals[len(bvals)-1]
 	}
@@ -635,6 +635,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 
 	postProof, err := m.epp.ComputeProof(ctx, mbi.Sectors, prand)
 	if err != nil {
+		log.Warn(errors.As(err, mbi.Sectors, prand))
 		err = xerrors.Errorf("failed to compute winning post proof: %w", err)
 		return 0, nil, err
 	}
@@ -658,7 +659,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	}
 
 	tCreateBlock := build.Clock.Now()
-	dur = tCreateBlock.Sub(start)
+	dur = tCreateBlock.Sub(tStart)
 	parentMiners := make([]address.Address, len(base.TipSet.Blocks()))
 	for i, header := range base.TipSet.Blocks() {
 		parentMiners[i] = header.Miner
@@ -674,9 +675,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		"submit", time.Unix(int64(base.TipSet.MinTimestamp()+(uint64(base.NullRounds)+1)*build.BlockDelaySecs), 0).Format(time.RFC3339))
 	if dur > time.Second*time.Duration(build.BlockDelaySecs) {
 		log.Warnw("CAUTION: block production took longer than the block delay. Your computer may not be fast enough to keep up",
-			"tMinerBaseInfo ", tMBI.Sub(start),
-			"tDrand ", tDrand.Sub(tMBI),
-			"tPowercheck ", tPowercheck.Sub(tDrand),
+			"tPowercheck ", tPowercheck.Sub(tStart),
 			"tTicket ", tTicket.Sub(tPowercheck),
 			"tSeed ", tSeed.Sub(tTicket),
 			"tProof ", tProof.Sub(tSeed),
