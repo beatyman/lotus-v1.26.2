@@ -386,8 +386,21 @@ func (s *LotusImpl) ClientRetrieveWithEvents(p0 context.Context, p1 api.Retrieva
 	return bestNodeApi().ClientRetrieveWithEvents(p0, p1, p2)
 }
 
+// ClientListRetrievals returns information about retrievals made by the local client
+func (s *LotusImpl) ClientListRetrievals(p0 context.Context) ([]api.RetrievalInfo, error) {
+	return bestNodeApi().ClientListRetrievals(p0)
+}
+
+// ClientGetRetrievalUpdates returns status of updated retrieval deals
+func (s *LotusImpl) ClientGetRetrievalUpdates(p0 context.Context) (<-chan api.RetrievalInfo, error) {
+	return bestNodeApi().ClientGetRetrievalUpdates(p0)
+}
 func (s *LotusImpl) ClientStartDeal(p0 context.Context, p1 *api.StartDealParams) (*cid.Cid, error) {
 	return bestNodeApi().ClientStartDeal(p0, p1)
+}
+
+func (s *LotusImpl) ClientStatelessDeal(p0 context.Context, p1 *api.StartDealParams) (*cid.Cid, error) {
+	return bestNodeApi().ClientStatelessDeal(p0, p1)
 }
 
 func (s *LotusImpl) CreateBackup(p0 context.Context, p1 string) error {
@@ -450,6 +463,18 @@ func (s *LotusImpl) MpoolBatchPushUntrusted(p0 context.Context, p1 []*types.Sign
 	return bestNodeApi().MpoolBatchPushUntrusted(p0, p1)
 }
 
+func (s *LotusImpl) MpoolCheckMessages(p0 context.Context, p1 []*api.MessagePrototype) ([][]api.MessageCheckStatus, error) {
+	return bestNodeApi().MpoolCheckMessages(p0, p1)
+}
+
+func (s *LotusImpl) MpoolCheckPendingMessages(p0 context.Context, p1 address.Address) ([][]api.MessageCheckStatus, error) {
+	return bestNodeApi().MpoolCheckPendingMessages(p0, p1)
+}
+
+func (s *LotusImpl) MpoolCheckReplaceMessages(p0 context.Context, p1 []*types.Message) ([][]api.MessageCheckStatus, error) {
+	return bestNodeApi().MpoolCheckReplaceMessages(p0, p1)
+}
+
 func (s *LotusImpl) MpoolClear(p0 context.Context, p1 bool) error {
 	return bestNodeApi().MpoolClear(p0, p1)
 }
@@ -482,31 +507,31 @@ func (s *LotusImpl) MpoolSub(p0 context.Context) (<-chan api.MpoolUpdate, error)
 	return bestNodeApi().MpoolSub(p0)
 }
 
-func (s *LotusImpl) MsigAddApprove(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address, p6 bool) (cid.Cid, error) {
+func (s *LotusImpl) MsigAddApprove(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address, p6 bool) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigAddApprove(p0, p1, p2, p3, p4, p5, p6)
 }
 
-func (s *LotusImpl) MsigAddCancel(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 bool) (cid.Cid, error) {
+func (s *LotusImpl) MsigAddCancel(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 bool) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigAddCancel(p0, p1, p2, p3, p4, p5)
 }
 
-func (s *LotusImpl) MsigAddPropose(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 bool) (cid.Cid, error) {
+func (s *LotusImpl) MsigAddPropose(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 bool) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigAddPropose(p0, p1, p2, p3, p4)
 }
 
-func (s *LotusImpl) MsigApprove(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address) (cid.Cid, error) {
+func (s *LotusImpl) MsigApprove(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigApprove(p0, p1, p2, p3)
 }
 
-func (s *LotusImpl) MsigApproveTxnHash(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 address.Address, p5 types.BigInt, p6 address.Address, p7 uint64, p8 []byte) (cid.Cid, error) {
+func (s *LotusImpl) MsigApproveTxnHash(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 address.Address, p5 types.BigInt, p6 address.Address, p7 uint64, p8 []byte) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigApproveTxnHash(p0, p1, p2, p3, p4, p5, p6, p7, p8)
 }
 
-func (s *LotusImpl) MsigCancel(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 types.BigInt, p5 address.Address, p6 uint64, p7 []byte) (cid.Cid, error) {
+func (s *LotusImpl) MsigCancel(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 types.BigInt, p5 address.Address, p6 uint64, p7 []byte) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigCancel(p0, p1, p2, p3, p4, p5, p6, p7)
 }
 
-func (s *LotusImpl) MsigCreate(p0 context.Context, p1 uint64, p2 []address.Address, p3 abi.ChainEpoch, p4 types.BigInt, p5 address.Address, p6 types.BigInt) (cid.Cid, error) {
+func (s *LotusImpl) MsigCreate(p0 context.Context, p1 uint64, p2 []address.Address, p3 abi.ChainEpoch, p4 types.BigInt, p5 address.Address, p6 types.BigInt) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigCreate(p0, p1, p2, p3, p4, p5, p6)
 }
 
@@ -526,24 +551,28 @@ func (s *LotusImpl) MsigGetVestingSchedule(p0 context.Context, p1 address.Addres
 	return bestNodeApi().MsigGetVestingSchedule(p0, p1, p2)
 }
 
-func (s *LotusImpl) MsigPropose(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt, p4 address.Address, p5 uint64, p6 []byte) (cid.Cid, error) {
+func (s *LotusImpl) MsigPropose(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt, p4 address.Address, p5 uint64, p6 []byte) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigPropose(p0, p1, p2, p3, p4, p5, p6)
 }
 
-func (s *LotusImpl) MsigRemoveSigner(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 bool) (cid.Cid, error) {
+func (s *LotusImpl) MsigRemoveSigner(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 bool) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigRemoveSigner(p0, p1, p2, p3, p4)
 }
 
-func (s *LotusImpl) MsigSwapApprove(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address, p6 address.Address) (cid.Cid, error) {
+func (s *LotusImpl) MsigSwapApprove(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address, p6 address.Address) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigSwapApprove(p0, p1, p2, p3, p4, p5, p6)
 }
 
-func (s *LotusImpl) MsigSwapCancel(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address) (cid.Cid, error) {
+func (s *LotusImpl) MsigSwapCancel(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigSwapCancel(p0, p1, p2, p3, p4, p5)
 }
 
-func (s *LotusImpl) MsigSwapPropose(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 address.Address) (cid.Cid, error) {
+func (s *LotusImpl) MsigSwapPropose(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 address.Address) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigSwapPropose(p0, p1, p2, p3, p4)
+}
+
+func (s *LotusImpl) NodeStatus(p0 context.Context, p1 bool) (api.NodeStatus, error) {
+	return bestNodeApi().NodeStatus(p0, p1)
 }
 
 func (s *LotusImpl) PaychAllocateLane(p0 context.Context, p1 address.Address) (uint64, error) {

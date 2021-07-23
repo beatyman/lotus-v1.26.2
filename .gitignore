@@ -1,5 +1,8 @@
 /etcd
 /etcdctl
+/AppDir
+/appimage-builder-cache
+*.AppImage
 /lotus
 /lotus-miner
 /lotus-worker
@@ -8,6 +11,7 @@
 /lotus-health
 /lotus-chainwatch
 /lotus-shed
+/lotus-sim
 /lotus-pond
 /lotus-townhall
 /lotus-fountain

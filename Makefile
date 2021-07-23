@@ -6,9 +6,9 @@ all: build
 unexport GOFLAGS
 
 GOVERSION:=$(shell go version | cut -d' ' -f 3 | sed 's/^go//' | awk -F. '{printf "%d%03d%03d", $$1, $$2, $$3}')
-ifeq ($(shell expr $(GOVERSION) \< 1015005), 1)
+ifeq ($(shell expr $(GOVERSION) \< 1016000), 1)
 $(warning Your Golang version is go$(shell expr $(GOVERSION) / 1000000).$(shell expr $(GOVERSION) % 1000000 / 1000).$(shell expr $(GOVERSION) % 1000))
-$(error Update Golang to version to at least 1.15.5)
+$(error Update Golang to version to at least 1.16.0)
 endif
 
 # git modules that need to be loaded
@@ -47,7 +47,6 @@ BUILD_DEPS+=ffi-version-check
 
 .PHONY: ffi-version-check
 
-
 $(MODULES): build/.update-modules ;
 # dummy file that marks the last time modules were updated
 build/.update-modules:
@@ -83,6 +82,9 @@ nerpanet: build-devnets
 
 butterflynet: GOFLAGS+=-tags=butterflynet
 butterflynet: build-devnets
+
+interopnet: GOFLAGS+=-tags=interopnet
+interopnet: build-devnets
 
 etcd: $(BUILD_DEPS)
 	rm -f etcd
@@ -277,6 +279,12 @@ BINS+=tvx
 install-chainwatch: lotus-chainwatch
 	install -C ./lotus-chainwatch /usr/local/bin/lotus-chainwatch
 
+lotus-sim: $(BUILD_DEPS)
+	rm -f lotus-sim
+	go build $(GOFLAGS) -o lotus-sim ./cmd/lotus-sim
+.PHONY: lotus-sim
+BINS+=lotus-sim
+
 # SYSTEMD
 
 install-daemon-service: install-daemon
@@ -416,8 +424,13 @@ docsgen-openrpc-worker: docsgen-openrpc-bin
 
 .PHONY: docsgen docsgen-md-bin docsgen-openrpc-bin
 
-gen: actors-gen type-gen method-gen docsgen api-gen
+gen: actors-gen type-gen method-gen docsgen api-gen circleci
+	@echo ">>> IF YOU'VE MODIFIED THE CLI, REMEMBER TO ALSO MAKE docsgen-cli"
 .PHONY: gen
+
+snap: lotus lotus-miner lotus-worker
+	snapcraft
+	# snapcraft upload ./lotus_*.snap
 
 # separate from gen because it needs binaries
 docsgen-cli: lotus lotus-miner lotus-worker
@@ -426,3 +439,6 @@ docsgen-cli: lotus lotus-miner lotus-worker
 
 print-%:
 	@echo $*=$($*)
+
+circleci:
+	go generate -x ./.circleci

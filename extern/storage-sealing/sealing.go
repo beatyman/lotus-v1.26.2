@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
@@ -191,17 +192,16 @@ func (m *Sealing) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *Sealing) Remove(ctx context.Context, sid abi.SectorNumber) error {
+func (m *Sealing) Remove(ctx context.Context, id abi.SectorNumber) error {
 	m.startupWait.Wait()
-
 	// release the remote worker
-	id := storage.SectorName(m.minerSectorID(sid))
+	sid := storage.SectorName(m.minerSectorID(id))
 	memo := "sectors remove"
-	if _, err := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer).UpdateSectorState(id, memo, 500, true, false); err != nil {
+	if _, err := m.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer).UpdateSectorState(sid, memo, 500, true, false); err != nil {
 		return errors.As(err)
 	}
 
-	return m.sectors.Send(uint64(sid), SectorRemove{})
+	return m.sectors.Send(uint64(id), SectorRemove{})
 }
 
 func (m *Sealing) Terminate(ctx context.Context, sid abi.SectorNumber) error {
