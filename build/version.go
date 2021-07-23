@@ -6,12 +6,14 @@ var CurrentCommit string
 var BuildType int
 
 const (
-	BuildDefault  = 0
-	BuildMainnet  = 0x1
-	Build2k       = 0x2
-	BuildDebug    = 0x3
-	BuildCalibnet = 0x4
-
+	BuildDefault    = 0
+	BuildMainnet    = 0x1
+	Build2k         = 0x2
+	BuildDebug      = 0x3
+	BuildCalibnet   = 0x4
+	BuildInteropnet = 0x5
+)
+const (
 	BuildHLM = 0xf0
 )
 
@@ -31,13 +33,15 @@ func buildType() string {
 		return "+debug"
 	case BuildCalibnet:
 		return "+calibnet"
+	case BuildInteropnet:
+		return "+interopnet"
 	default:
 		return "+huh?"
 	}
 }
 
 // BuildVersion is the local build version, set by build system
-const BuildVersion = "1.10.1-rc1"
+const BuildVersion = "1.11.0"
 
 func UserVersion() string {
 	if os.Getenv("LOTUS_VERSION_IGNORE_COMMIT") == "1" {

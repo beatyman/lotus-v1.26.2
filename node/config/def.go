@@ -14,6 +14,14 @@ import (
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 )
 
+const (
+	// RetrievalPricingDefault configures the node to use the default retrieval pricing policy.
+	RetrievalPricingDefaultMode = "default"
+	// RetrievalPricingExternal configures the node to use the external retrieval pricing script
+	// configured by the user.
+	RetrievalPricingExternalMode = "external"
+)
+
 type Collector struct {
 	ReportUrl  string // server url
 	Interval   Duration
@@ -82,8 +90,34 @@ type DealmakingConfig struct {
 	// as a multiplier of the minimum collateral bound
 	MaxProviderCollateralMultiplier uint64
 
+	// The maximum number of parallel online data transfers (storage+retrieval)
+	SimultaneousTransfers uint64
+
 	Filter          string
 	RetrievalFilter string
+
+	RetrievalPricing *RetrievalPricing
+}
+
+type RetrievalPricing struct {
+	Strategy string // possible values: "default", "external"
+
+	Default  *RetrievalPricingDefault
+	External *RetrievalPricingExternal
+}
+
+type RetrievalPricingExternal struct {
+	// Path of the external script that will be run to price a retrieval deal.
+	// This parameter is ONLY applicable if the retrieval pricing policy strategy has been configured to "external".
+	Path string
+}
+
+type RetrievalPricingDefault struct {
+	// VerifiedDealsFreeTransfer configures zero fees for data transfer for a retrieval deal
+	// of a payloadCid that belongs to a verified storage deal.
+	// This parameter is ONLY applicable if the retrieval pricing policy strategy has been configured to "default".
+	// default value is true
+	VerifiedDealsFreeTransfer bool
 }
 
 type SealingConfig struct {
@@ -110,6 +144,7 @@ type SealingConfig struct {
 	BatchPreCommits bool
 	// maximum precommit batch size - batches will be sent immediately above this size
 	MaxPreCommitBatch int
+	MinPreCommitBatch int
 	// how long to wait before submitting a batch after crossing the minimum batch size
 	PreCommitBatchWait Duration
 	// time buffer for forceful batch submission before sectors/deal in batch would start expiring
@@ -319,12 +354,13 @@ func DefaultStorageMiner() *StorageMiner {
 			AlwaysKeepUnsealedCopy:    true,
 			FinalizeEarly:             false,
 
-			BatchPreCommits:     true,
+			BatchPreCommits:     false,
+			MinPreCommitBatch:   1,                                  // we must have at least one precommit to batch
 			MaxPreCommitBatch:   miner5.PreCommitSectorBatchMaxSize, // up to 256 sectors
 			PreCommitBatchWait:  Duration(24 * time.Hour),           // this should be less than 31.5 hours, which is the expiration of a precommit ticket
 			PreCommitBatchSlack: Duration(3 * time.Hour),            // time buffer for forceful batch submission before sectors/deals in batch would start expiring, higher value will lower the chances for message fail due to expiration
 
-			AggregateCommits: true,
+			AggregateCommits: false,
 			MinCommitBatch:   miner5.MinAggregatedSectors, // per FIP13, we must have at least four proofs to aggregate, where 4 is the cross over point where aggregation wins out on single provecommit gas costs
 			MaxCommitBatch:   miner5.MaxAggregatedSectors, // maximum 819 sectors, this is the maximum aggregation per FIP13
 			CommitBatchWait:  Duration(24 * time.Hour),    // this can be up to 30 days
@@ -350,6 +386,9 @@ func DefaultStorageMiner() *StorageMiner {
 			// Default to 10 - tcp should still be able to figure this out, and
 			// it's the ratio between 10gbit / 1gbit
 			ParallelFetchLimit: 10,
+
+			// By default use the hardware resource filtering strategy.
+			ResourceFiltering: sectorstorage.ResourceFilteringHardware,
 		},
 
 		Dealmaking: DealmakingConfig{
@@ -366,6 +405,18 @@ func DefaultStorageMiner() *StorageMiner {
 			PublishMsgPeriod:                Duration(time.Hour),
 			MaxDealsPerPublishMsg:           8,
 			MaxProviderCollateralMultiplier: 2,
+
+			SimultaneousTransfers: DefaultSimultaneousTransfers,
+
+			RetrievalPricing: &RetrievalPricing{
+				Strategy: RetrievalPricingDefaultMode,
+				Default: &RetrievalPricingDefault{
+					VerifiedDealsFreeTransfer: true,
+				},
+				External: &RetrievalPricingExternal{
+					Path: "",
+				},
+			},
 		},
 
 		Fees: MinerFeeConfig{
