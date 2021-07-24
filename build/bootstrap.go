@@ -2,15 +2,19 @@ package build
 
 import (
 	"context"
+	"embed"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/filecoin-project/lotus/lib/addrutil"
 
-	rice "github.com/GeertJohan/go.rice"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
+
+//go:embed bootstrap
+var bootstrapfs embed.FS
 
 func BuiltinBootstrap() ([]peer.AddrInfo, error) {
 	if DisableBuiltinAssets {
@@ -18,15 +22,15 @@ func BuiltinBootstrap() ([]peer.AddrInfo, error) {
 	}
 
 	var out []peer.AddrInfo
-
-	b := rice.MustFindBox("bootstrap")
-
 	if BootstrappersFile != "" {
-		spi := b.MustString(BootstrappersFile)
-		if spi == "" {
+		spi, err := bootstrapfs.ReadFile(path.Join("bootstrap", BootstrappersFile))
+		if err != nil {
+			return nil, err
+		}
+		if len(spi) == 0 {
 			return nil, nil
 		}
-		pi, err := addrutil.ParseAddresses(context.TODO(), strings.Split(strings.TrimSpace(spi), "\n"))
+		pi, err := addrutil.ParseAddresses(context.TODO(), strings.Split(strings.TrimSpace(string(spi)), "\n"))
 		if err != nil {
 			log.Warn(err)
 		} else {

@@ -44,6 +44,7 @@ var MpoolCmd = &cli.Command{
 		MpoolFindCmd,
 		MpoolConfig,
 		MpoolGasPerfCmd,
+		mpoolManage,
 	},
 }
 var mpoolGetCfg = &cli.Command{

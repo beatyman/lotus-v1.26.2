@@ -411,6 +411,9 @@ var runCmd = &cli.Command{
 			log.Warn(err)
 			ReleaseNodeApi(true)
 		}
+		if err := srv.Shutdown(context.TODO()); err != nil {
+			log.Errorf("shutting down RPC server failed: %s", err)
+		}
 		log.Info("worker exit")
 		return nil
 	},

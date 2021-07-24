@@ -17,36 +17,32 @@ var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 const BootstrappersFile = "devnet.pi"
 const GenesisFile = "devnet.car"
 
-const UpgradeBreezeHeight = -1
-const BreezeGasTampingDuration = 120
+var UpgradeBreezeHeight = abi.ChainEpoch(-1)
 
-const UpgradeSmokeHeight = -2
+const BreezeGasTampingDuration = 0
 
-const UpgradeIgnitionHeight = -3
-const UpgradeRefuelHeight = -4
+var UpgradeSmokeHeight = abi.ChainEpoch(-1)
+var UpgradeIgnitionHeight = abi.ChainEpoch(-2)
+var UpgradeRefuelHeight = abi.ChainEpoch(-3)
+var UpgradeTapeHeight = abi.ChainEpoch(-4)
 
-var UpgradeAssemblyHeight = abi.ChainEpoch(30)
+var UpgradeAssemblyHeight = abi.ChainEpoch(-5)
+var UpgradeLiftoffHeight = abi.ChainEpoch(-6)
 
-const UpgradeTapeHeight = 60
+var UpgradeKumquatHeight = abi.ChainEpoch(-7)
+var UpgradeCalicoHeight = abi.ChainEpoch(-8)
+var UpgradePersianHeight = abi.ChainEpoch(-9)
+var UpgradeOrangeHeight = abi.ChainEpoch(-10)
+var UpgradeClausHeight = abi.ChainEpoch(-11)
 
-const UpgradeLiftoffHeight = -5
+var UpgradeTrustHeight = abi.ChainEpoch(-12)
 
-const UpgradeKumquatHeight = 90
+var UpgradeNorwegianHeight = abi.ChainEpoch(-13)
 
-const UpgradeCalicoHeight = 120
-const UpgradePersianHeight = UpgradeCalicoHeight + (builtin2.EpochsInHour * 1)
+var UpgradeTurboHeight = abi.ChainEpoch(-14)
 
-const UpgradeClausHeight = 270
+var UpgradeHyperdriveHeight = abi.ChainEpoch(-15)
 
-const UpgradeOrangeHeight = 300
-
-const UpgradeTrustHeight = 330
-
-const UpgradeNorwegianHeight = 360
-
-const UpgradeTurboHeight = 390
-
-const UpgradeHyperdriveHeight = -1
 func init() {
 	policy.SetSupportedProofTypes(
 		abi.RegisteredSealProof_StackedDrg2KiBV1,
