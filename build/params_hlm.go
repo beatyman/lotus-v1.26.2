@@ -46,13 +46,20 @@ const UpgradeNorwegianHeight = 360
 
 const UpgradeTurboHeight = 390
 
-const UpgradeHyperdriveHeight = 420
+const UpgradeHyperdriveHeight = -1
 func init() {
 	policy.SetSupportedProofTypes(
 		abi.RegisteredSealProof_StackedDrg2KiBV1,
+		abi.RegisteredSealProof_StackedDrg8MiBV1,
 		abi.RegisteredSealProof_StackedDrg512MiBV1,
 		abi.RegisteredSealProof_StackedDrg32GiBV1,
 		abi.RegisteredSealProof_StackedDrg64GiBV1,
+
+		abi.RegisteredSealProof_StackedDrg2KiBV1_1,
+		abi.RegisteredSealProof_StackedDrg8MiBV1_1,
+		abi.RegisteredSealProof_StackedDrg512MiBV1_1,
+		abi.RegisteredSealProof_StackedDrg32GiBV1_1,
+		abi.RegisteredSealProof_StackedDrg64GiBV1_1,
 	)
 
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
