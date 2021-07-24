@@ -1,15 +1,12 @@
-package ffiwrapper
+package partialfile
 
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
-	"io"
-	"path/filepath"
-
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"golang.org/x/xerrors"
+	"io"
 
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -84,85 +81,69 @@ func trailer(downloader *operation.Downloader, p string, maxPieceSize int64) (*r
 	return &rle, err
 }
 
-func (sb *Sealer) ReadPieceQiniu(ctx context.Context, writer io.Writer, sector storage.SectorRef,
-	offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {
-	p, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, storiface.FTNone, storiface.PathStorage)
-	if err != nil {
-		return false, xerrors.Errorf("acquire unsealed sector path: %w", err)
-	}
-	defer done()
-	sp := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
-	p.Cache = filepath.Join(sp, storiface.FTCache.String(), storiface.SectorName(sector.ID))
-	p.Sealed = filepath.Join(sp, storiface.FTSealed.String(), storiface.SectorName(sector.ID))
-	p.Unsealed = filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
-
+func ReadPieceQiniu(ctx context.Context, unsealedPath string, sector storage.SectorRef,
+	offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error) {
 	ssize, err := sector.ProofType.SectorSize()
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
-
 	maxPieceSize := abi.PaddedPieceSize(ssize)
 
 	downloader := operation.NewDownloaderV2()
 
-	rle, err := trailer(downloader, p.Unsealed, int64(maxPieceSize))
+	rle, err := trailer(downloader, unsealedPath, int64(maxPieceSize))
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
-
-	pf := &partialFile{
+	pf := &PartialFile{
 		maxPiece:  maxPieceSize,
-		path:      p.Unsealed,
+		path:      unsealedPath,
 		allocated: *rle,
 	}
-
-	_, err = pf.HasAllocated(offset, size)
+	ok, err := pf.HasAllocated(offset, size)
 	if err != nil {
-		return false, err
+		_ = pf.Close()
+		return nil, false, err
 	}
-
-	//--
+	if !ok {
+		_ = pf.Close()
+		return nil, false, nil
+	}
 	offset2 := offset.Padded()
 	size2 := size.Padded()
 
 	{
 		have, err := pf.allocated.RunIterator()
 		if err != nil {
-			return false, err
+			_ = pf.Close()
+			return nil, false, err
 		}
 
-		and, err := rlepluslazy.And(have, pieceRun(offset2, size2))
+		and, err := rlepluslazy.And(have, PieceRun(offset2, size2))
 		if err != nil {
-			return false, err
+			_ = pf.Close()
+			return nil, false, err
 		}
 
 		c, err := rlepluslazy.Count(and)
 		if err != nil {
-			return false, err
+			_ = pf.Close()
+			return nil, false, err
 		}
 
 		if c != uint64(size2) {
 			log.Warnf("getting partial file reader reading %d unallocated bytes", uint64(size2)-c)
 		}
 	}
-
-	upr, err := fr32.NewUnpadReaderV2(size.Padded(), downloader, int64(offset2), p.Unsealed)
+	f, err := pf.Reader(offset.Padded(), size.Padded())
 	if err != nil {
-		return false, xerrors.Errorf("creating unpadded reader: %w", err)
-	}
-
-	if _, err := io.CopyN(writer, upr, int64(size)); err != nil {
 		_ = pf.Close()
-		return false, xerrors.Errorf("reading unsealed file: %w", err)
+		return nil, false, xerrors.Errorf("getting partial file reader: %w", err)
 	}
 
-	if pf.file == nil {
-		return true, nil
+	upr, err := fr32.NewUnpadReader(f, size.Padded())
+	if err != nil {
+		return nil, false, xerrors.Errorf("creating unpadded reader: %w", err)
 	}
-
-	if err := pf.Close(); err != nil {
-		return false, xerrors.Errorf("closing partial file: %w", err)
-	}
-
-	return true, nil
+	return upr, true, nil
 }

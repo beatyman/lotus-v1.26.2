@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"os"
 	"path/filepath"
 	"sort"
@@ -88,7 +89,7 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 		}
 
 		if sectors[0].SealedStorageType == database.MOUNT_TYPE_OSS {
-			sp := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
+			sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
 			lp.Cache = filepath.Join(sp, storiface.FTCache.String(), storiface.SectorName(sector.ID))
 			lp.Sealed = filepath.Join(sp, storiface.FTSealed.String(), storiface.SectorName(sector.ID))
 			lp.Unsealed = filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
