@@ -50,12 +50,6 @@ func init() {
 		abi.RegisteredSealProof_StackedDrg512MiBV1,
 		abi.RegisteredSealProof_StackedDrg32GiBV1,
 		abi.RegisteredSealProof_StackedDrg64GiBV1,
-
-		abi.RegisteredSealProof_StackedDrg2KiBV1_1,
-		abi.RegisteredSealProof_StackedDrg8MiBV1_1,
-		abi.RegisteredSealProof_StackedDrg512MiBV1_1,
-		abi.RegisteredSealProof_StackedDrg32GiBV1_1,
-		abi.RegisteredSealProof_StackedDrg64GiBV1_1,
 	)
 
 	policy.SetConsensusMinerMinPower(abi.NewStoragePower(10 << 30))
