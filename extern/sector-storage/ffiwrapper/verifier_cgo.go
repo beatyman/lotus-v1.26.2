@@ -6,7 +6,6 @@ import (
 	"context"
 
 	"go.opencensus.io/trace"
-
 	"golang.org/x/xerrors"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
