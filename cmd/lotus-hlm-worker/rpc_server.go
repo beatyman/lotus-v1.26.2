@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -60,6 +61,10 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 }
 
 func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSchedulerAPI) error {
+	up := os.Getenv("US3")
+	if up != "" {
+		return nil
+	}
 	if err := database.LockMount(w.minerRepo); err != nil {
 		log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, w.minerRepo).Code())
 		return nil
@@ -135,7 +140,7 @@ func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,
 	if err := w.loadMinerStorage(ctx, napi); err != nil {
 		return api.WindowPoStResp{}, errors.As(err)
 	}
-
+	log.Infof("GenerateWindowPoSt: %+v ",sectorInfo)
 	proofs, ignore, err := w.sb.GenerateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 	if err != nil {
 		log.Warnf("ignore len:%d", len(ignore))

@@ -75,7 +75,7 @@ func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorIn
 			Sealed:   s.SealedFile(),
 			Cache:    s.CachePath(),
 		}
-
+		log.Infof("wdpost: %+v",paths)
 		postProofType, err := rpt(s.ProofType)
 		if err != nil {
 			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("acquiring registered PoSt proof from sector info %+v: %w", s, err)
