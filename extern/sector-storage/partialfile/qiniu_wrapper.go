@@ -23,7 +23,7 @@ func trailer(downloader *operation.Downloader, p string, maxPieceSize int64) (*r
 	if err != nil {
 		return nil, err
 	}
-
+	log.Infof("download size: %+v,  maxPieceSize: %+v ,data :%+v ",size,maxPieceSize, data)
 	if size < int64(maxPieceSize) {
 		return nil, xerrors.Errorf("sector file '%s' was smaller than the sector size %d < %d", p, size, maxPieceSize)
 	}
