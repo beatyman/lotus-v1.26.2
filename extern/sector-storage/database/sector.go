@@ -3,7 +3,6 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"os"
 	"path/filepath"
 	"sync"
@@ -282,7 +281,7 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 	//todo test
 	up := os.Getenv("US3")
 	if up != "" {
-		defaultRepo=partialfile.QINIU_VIRTUAL_MOUNTPOINT
+		defaultRepo="/data/oss/qiniu/"
 	}
 	file := &storage.SectorFile{
 		SectorId:     sectorId,
