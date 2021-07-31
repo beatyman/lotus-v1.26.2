@@ -3,6 +3,8 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -277,7 +279,11 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 			log.Warnf("GetSectorFile(%s) took : %s", sectorId, took)
 		}
 	}()
-
+	//todo test
+	up := os.Getenv("US3")
+	if up != "" {
+		defaultRepo=partialfile.QINIU_VIRTUAL_MOUNTPOINT
+	}
 	file := &storage.SectorFile{
 		SectorId:     sectorId,
 		SealedRepo:   defaultRepo,
@@ -329,19 +335,25 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 			unsealedPoint = &mountPoint
 		}
 	}
-
 	if sealedPoint != nil {
-		file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%d", storageSealed))
+		if sealedPoint.MountType =="oss"{
+			file.SealedRepo=sealedPoint.MountDir
+		}else {
+			file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%d", storageSealed))
+		}
 		file.SealedStorageId = storageSealed
 		file.SealedStorageType = sealedPoint.MountType
 	}
 	if unsealedPoint != nil {
-		file.UnsealedRepo = filepath.Join(unsealedPoint.MountDir, fmt.Sprintf("%d", storageUnsealed))
+		if unsealedPoint.MountType=="oss"{
+			file.UnsealedRepo=unsealedPoint.MountDir
+		}else {
+			file.UnsealedRepo = filepath.Join(unsealedPoint.MountDir, fmt.Sprintf("%d", storageUnsealed))
+		}
 		file.UnsealedStorageId = storageUnsealed
 		file.UnsealedStorageType = unsealedPoint.MountType
 		file.IsMarketSector = true
 	}
-
 	// put to cache
 	sectorFileCacheLk.Lock()
 	sectorFileCaches[sectorId] = sectorFileCache{
