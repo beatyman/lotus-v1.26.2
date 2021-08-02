@@ -113,6 +113,7 @@ checkingApi:
 	diskSectors, err := scanDisk()
 	if err != nil {
 		log.Error("NewAllocate ", err)
+		return errors.As(err)
 	}
 	for _, sectors := range diskSectors {
 		for sid, _ := range sectors {
