@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/monitor"
+	"huangdong2012/filecoin-monitor/model"
+	"huangdong2012/filecoin-monitor/trace/spans"
 	"net"
 	"net/http"
 	"os"
@@ -280,6 +283,8 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		//添加监控
+		monitor.Init(model.PackageKind_Worker, act.String())
 
 		log.Infof("getting worker actor")
 		workerAddr, err := nodeApi.WorkerAddress(ctx, act, types.EmptyTSK)
@@ -340,6 +345,9 @@ var runCmd = &cli.Command{
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}
+		_, span := spans.NewWorkerSpan(context.Background())
+		span.SetInfo("")
+		span.End()
 
 		if err := database.LockMount(minerRepo); err != nil {
 			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())
@@ -399,6 +407,7 @@ var runCmd = &cli.Command{
 			log.Errorf("shutting down RPC server failed: %s", err)
 		}
 		log.Info("worker exit")
+
 		return nil
 	},
 }
