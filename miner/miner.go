@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	"sync"
@@ -626,7 +627,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		rbase = bvals[len(bvals)-1]
 	}
 
-	span.SetBeacon(string(rbase.Data))
+	span.SetBeacon(hex.EncodeToString(rbase.Data))
 	ticket, err := m.computeTicket(ctx, &rbase, base, mbi)
 	if err != nil {
 		err = xerrors.Errorf("scratching ticket failed: %w", err)

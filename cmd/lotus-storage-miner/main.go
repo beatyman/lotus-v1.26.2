@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/filecoin-project/lotus/monitor"
+	"huangdong2012/filecoin-monitor/model"
 
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
@@ -56,6 +58,8 @@ func main() {
 		lcli.WithCategory("hlm", testingCmd),
 		lcli.WithCategory("hlm", wdpostCmd),
 	}
+
+	monitor.Init(model.PackageKind_Miner, "todo...", "todo...")
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {
 		if jaeger != nil {

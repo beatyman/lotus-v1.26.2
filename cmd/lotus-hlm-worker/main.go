@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/lib/tracing"
 	"github.com/filecoin-project/lotus/monitor"
 	"huangdong2012/filecoin-monitor/model"
 	"huangdong2012/filecoin-monitor/trace/spans"
@@ -283,8 +284,15 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+
 		//添加监控
-		monitor.Init(model.PackageKind_Worker, act.String())
+		monitor.Init(model.PackageKind_Worker, act.String(), "todo...")
+		jaeger := tracing.SetupJaegerTracing("worker")
+		defer func() {
+			if jaeger != nil {
+				jaeger.Flush()
+			}
+		}()
 
 		log.Infof("getting worker actor")
 		workerAddr, err := nodeApi.WorkerAddress(ctx, act, types.EmptyTSK)
