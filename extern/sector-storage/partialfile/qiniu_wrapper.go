@@ -22,7 +22,6 @@ func trailer(downloader *operation.Downloader, p string, maxPieceSize int64) (*r
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("download size: %+v,  maxPieceSize: %+v ,data :%+v ",size,maxPieceSize, data)
 	if size < int64(maxPieceSize) {
 		return nil, xerrors.Errorf("sector file '%s' was smaller than the sector size %d < %d", p, size, maxPieceSize)
 	}
@@ -47,12 +46,10 @@ func trailer(downloader *operation.Downloader, p string, maxPieceSize int64) (*r
 		if trailerStart != int64(maxPieceSize) {
 			return xerrors.Errorf("expected sector size to equal trailer start index")
 		}
-		log.Infof("trailerStart:%+v ,trailerLen:%+v", trailerStart, int64(trailerLen))
-		_, trailerBytes, err := downloader.DownloadRangeBytes(p, trailerStart, int64(trailerLen))
+		_, trailerBytes, err := downloader.DownloadRangeBytes(p, trailerStart, int64(trailerLen)-1)
 		if err != nil {
 			return xerrors.Errorf("reading trailer: %w", err)
 		}
-		log.Infof("trailerBytes len: %+v ",len(trailerBytes))
 		rle, err = rlepluslazy.FromBuf(trailerBytes)
 		if err != nil {
 			return xerrors.Errorf("decoding trailer: %w", err)

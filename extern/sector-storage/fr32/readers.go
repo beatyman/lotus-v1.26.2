@@ -1,7 +1,9 @@
 package fr32
 
 import (
+	"bytes"
 	"io"
+	"io/ioutil"
 	"math/bits"
 
 	"golang.org/x/xerrors"
@@ -44,9 +46,8 @@ func NewUnpadReaderV2(sz abi.PaddedPieceSize, downloader *operation.Downloader, 
 	}
 
 	buf := make([]byte, MTTresh*mtChunkCount(sz))
-
 	return &unpadReader{
-		src:        nil,
+		src:        ioutil.NopCloser(bytes.NewReader([]byte{})),
 		left:       uint64(sz),
 		work:       buf,
 		offset:     offset,
