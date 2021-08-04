@@ -470,9 +470,6 @@ repush:
 			time.Sleep(60e9)
 			goto repush
 		}
-		if err := w.RemoveRepoSector(ctx, workerSB.RepoPath(), task.SectorName()); err != nil {
-			log.Warn(errors.As(err))
-		}
 	}
 	return nil
 }
