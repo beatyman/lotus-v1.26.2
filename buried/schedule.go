@@ -1,14 +1,19 @@
 package buried
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/filecoin-project/lotus/buried/miner"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
+	"github.com/filecoin-project/lotus/buried/utils"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/report"
 	"github.com/gwaylib/log"
+	"github.com/shirou/gopsutil/host"
 	"github.com/urfave/cli/v2"
+	"huangdong2012/filecoin-monitor/trace/spans"
 	"time"
 )
 
@@ -51,6 +56,48 @@ func RunCollectMinerInfo(cctx *cli.Context, timer int64) chan bool {
 					continue
 				}
 				go report.SendReport(kafaRestDataBytes)
+			case <-quit:
+				ticker.Stop()
+			}
+		}
+	}()
+
+	return quit
+}
+
+func RunCollectWorkerInfo(cctx *cli.Context, timer int64,workerCfg ffiwrapper.WorkerCfg,minerId string) chan bool {
+	ticker := time.NewTicker(time.Duration(timer*60) * time.Second)
+	quit := make(chan bool, 1)
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				hostInfo, _ := host.Info()
+				ip4,_ := utils.GetLocalIP()
+				var workerInfo = buriedmodel.WorkerInfo{}
+				var nodeInfo = buriedmodel.NodeInfo{
+					HostNo: hostInfo.HostID,
+					HostIP: ip4,
+					Status: buriedmodel.NodeStatus_Offline,
+				}
+				workerInfo.WorkerNo = workerCfg.ID
+				workerInfo.MinerId = minerId
+				workerInfo.SvcUri = workerCfg.SvcUri
+				workerInfo.MaxTaskNum = workerCfg.MaxTaskNum
+				workerInfo.ParallelPledge = workerCfg.ParallelPledge
+				workerInfo.ParallelPrecommit1 = workerCfg.ParallelPrecommit1
+				workerInfo.ParallelPrecommit2 = workerCfg.ParallelPrecommit2
+				workerInfo.ParallelCommit = workerCfg.ParallelCommit
+				workerInfo.Commit2Srv = workerCfg.Commit2Srv
+				workerInfo.WdPostSrv = workerCfg.WdPoStSrv
+				workerInfo.WnPostSrv = workerCfg.WnPoStSrv
+				//格式化json
+				workerInfo.NodeInfo = &nodeInfo
+				workerInfoStr, _ := json.Marshal(workerInfo)
+				_, span := spans.NewWorkerSpan(context.Background())
+				span.SetInfo(string(workerInfoStr))
+				span.End()
 			case <-quit:
 				ticker.Stop()
 			}

@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/buried"
 	"github.com/filecoin-project/lotus/lib/tracing"
 	"github.com/filecoin-project/lotus/monitor"
+	"github.com/shirou/gopsutil/host"
 	"huangdong2012/filecoin-monitor/model"
-	"huangdong2012/filecoin-monitor/trace/spans"
 	"net"
 	"net/http"
 	"os"
@@ -231,6 +232,11 @@ var runCmd = &cli.Command{
 			Value: false,
 			Usage: "Open wining PoSt service",
 		},
+		&cli.StringFlag{
+			Name:  "timer",
+			Usage: "Timer time try. The time is minutes. The default is 10 minutes",
+			Value: "10",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
@@ -284,16 +290,18 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-
+		host,err := host.Info()
+		if err != nil{
+			return err
+		}
 		//添加监控
-		monitor.Init(model.PackageKind_Worker, act.String(), "todo...")
+		monitor.Init(model.PackageKind_Worker, act.String(), host.HostID)
 		jaeger := tracing.SetupJaegerTracing("worker")
 		defer func() {
 			if jaeger != nil {
 				jaeger.Flush()
 			}
 		}()
-
 		log.Infof("getting worker actor")
 		workerAddr, err := nodeApi.WorkerAddress(ctx, act, types.EmptyTSK)
 		if err != nil {
@@ -353,9 +361,11 @@ var runCmd = &cli.Command{
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}
-		_, span := spans.NewWorkerSpan(context.Background())
-		span.SetInfo("")
-		span.End()
+
+		timer := cctx.Int64("timer")
+		go func() {
+			buried.RunCollectWorkerInfo(cctx,timer,workerCfg,act.String())
+		}()
 
 		if err := database.LockMount(minerRepo); err != nil {
 			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())

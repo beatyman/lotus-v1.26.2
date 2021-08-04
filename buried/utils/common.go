@@ -1,6 +1,9 @@
 package utils
 
-import "net"
+import (
+	"github.com/shirou/gopsutil/host"
+	"net"
+)
 
 // 获取本机网卡IP
 func GetLocalIP() (ipv4 string, err error) {
@@ -28,4 +31,12 @@ func GetLocalIP() (ipv4 string, err error) {
 
 	//err = common.ERR_NO_LOCAL_IP_FOUND
 	return
+}
+
+func GetHostNo() (string, error) {
+	host, err := host.Info()
+	if err != nil {
+		return "", err
+	}
+	return host.HostID, nil
 }
