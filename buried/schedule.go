@@ -66,7 +66,6 @@ func RunCollectMinerInfo(cctx *cli.Context, timer int64) chan bool {
 }
 
 func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.WorkerCfg, minerId string) chan bool {
-	log.Info("11111111111111111111111111111111111111111111111111111111111111111111111111111111111111")
 	ticker := time.NewTicker(time.Duration(timer*60) * time.Second)
 	quit := make(chan bool, 1)
 
@@ -98,7 +97,6 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 				//格式化json
 				workerInfo.NodeInfo = &nodeInfo
 				workerInfoStr, _ := json.Marshal(workerInfo)
-				log.Info("222222222222222222222222222222222222222222222222222222222")
 				log.Info(string(workerInfoStr))
 				_, span := spans.NewWorkerSpan(context.Background())
 				span.SetInfo(string(workerInfoStr))

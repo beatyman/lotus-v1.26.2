@@ -361,7 +361,6 @@ var runCmd = &cli.Command{
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}
-		log.Info("22222222222222222222================================================")
 		timer := cctx.Int64("timer")
 		go func() {
 			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, act.String())
