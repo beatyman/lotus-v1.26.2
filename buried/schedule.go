@@ -65,7 +65,8 @@ func RunCollectMinerInfo(cctx *cli.Context, timer int64) chan bool {
 	return quit
 }
 
-func RunCollectWorkerInfo(cctx *cli.Context, timer int64,workerCfg ffiwrapper.WorkerCfg,minerId string) chan bool {
+func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.WorkerCfg, minerId string) chan bool {
+	log.Info("11111111111111111111111111111111111111111111111111111111111111111111111111111111111111")
 	ticker := time.NewTicker(time.Duration(timer*60) * time.Second)
 	quit := make(chan bool, 1)
 
@@ -74,7 +75,7 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64,workerCfg ffiwrapper.Wo
 			select {
 			case <-ticker.C:
 				hostInfo, _ := host.Info()
-				ip4,_ := utils.GetLocalIP()
+				ip4, _ := utils.GetLocalIP()
 				var workerInfo = buriedmodel.WorkerInfo{}
 				var nodeInfo = buriedmodel.NodeInfo{
 					HostNo: hostInfo.HostID,
@@ -95,6 +96,8 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64,workerCfg ffiwrapper.Wo
 				//格式化json
 				workerInfo.NodeInfo = &nodeInfo
 				workerInfoStr, _ := json.Marshal(workerInfo)
+				log.Info("222222222222222222222222222222222222222222222222222222222")
+				log.Info(workerInfoStr)
 				_, span := spans.NewWorkerSpan(context.Background())
 				span.SetInfo(string(workerInfoStr))
 				span.End()
