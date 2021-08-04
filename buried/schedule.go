@@ -99,7 +99,7 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 				workerInfo.NodeInfo = &nodeInfo
 				workerInfoStr, _ := json.Marshal(workerInfo)
 				log.Info("222222222222222222222222222222222222222222222222222222222")
-				log.Info(workerInfoStr)
+				log.Info(string(workerInfoStr))
 				_, span := spans.NewWorkerSpan(context.Background())
 				span.SetInfo(string(workerInfoStr))
 				span.End()
