@@ -579,7 +579,7 @@ func (sb *Sealer) ReadPieceQiniu(ctx context.Context, sector storage.SectorRef, 
 func (sb *Sealer) PieceReader(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error) {
 	up := os.Getenv("US3")
 	if up != "" {
-	//	return sb.ReadPieceQiniu(ctx, sector, offset, size)
+	   return sb.ReadPieceQiniu(ctx, sector, offset, size)
 	}
 
 	log.Infof("DEBUG:PieceReader in, sector:%+v", sector)
