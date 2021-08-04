@@ -439,10 +439,10 @@ reAllocate:
 			if err := w.pushUnsealed(ctx, sealer, task); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
+			if err := w.pushCache(ctx, sealer, task, false); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			if err := w.pushCache(ctx, sealer, task, false); err != nil {
+			if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 		}
