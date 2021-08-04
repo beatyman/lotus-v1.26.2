@@ -1,6 +1,12 @@
 package utils
 
-import "net"
+import (
+	"fmt"
+	"github.com/shirou/gopsutil/host"
+	"net"
+	"os/exec"
+	"strings"
+)
 
 // 获取本机网卡IP
 func GetLocalIP() (ipv4 string, err error) {
@@ -28,4 +34,23 @@ func GetLocalIP() (ipv4 string, err error) {
 
 	//err = common.ERR_NO_LOCAL_IP_FOUND
 	return
+}
+
+func GetHostNo() (string, error) {
+	host, err := host.Info()
+	if err != nil {
+		return "", err
+	}
+	return host.HostID, nil
+}
+
+func ExeSysCommand(cmdStr string) string {
+	cmd := exec.Command("sh", "-c", cmdStr)
+	opBytes, err := cmd.Output()
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	smartctlInfo := strings.Trim(string(opBytes), "\n")
+	return smartctlInfo
 }
