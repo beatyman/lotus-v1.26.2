@@ -647,8 +647,8 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 		span.SetDeadline(int(di.Index))
 		span.SetPartitions(strings.Join(batchPartitionIndexes, ","))
 		span.SetPartitionCount(len(batch))
-		//span.SetOpenTime(di.Open) todo...
-		//span.SetCloseTime(di.Close) todo...
+		span.SetOpenEpoch(int64(di.Open))
+		span.SetCloseEpoch(int64(di.Close))
 		span.Starting("")
 
 		// Retry until we run out of sectors to prove.

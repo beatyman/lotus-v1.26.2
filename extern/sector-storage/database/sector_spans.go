@@ -3,10 +3,24 @@ package database
 import (
 	"context"
 	"fmt"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"huangdong2012/filecoin-monitor/trace/spans"
 	"strconv"
 	"sync"
+
+	"huangdong2012/filecoin-monitor/trace/spans"
+)
+
+const (
+	workerPledge         = 0
+	workerPledgeDone     = 1
+	workerPreCommit1     = 10
+	workerPreCommit1Done = 11
+	workerPreCommit2     = 20
+	workerPreCommit2Done = 21
+	workerCommit         = 40
+	workerCommitDone     = 41
+	workerFinalize       = 50
+	workerUnseal         = 60
+	workerUnsealDone     = 61
 )
 
 var (
@@ -42,32 +56,32 @@ func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wid, msg string, sta
 	}
 
 	switch state {
-	case int(ffiwrapper.WorkerPledge):
+	case workerPledge:
 		span := s.getSpan(info.ID, "Pledge", info)
 		span.Starting(msg)
-	case int(ffiwrapper.WorkerPledgeDone):
+	case workerPledgeDone:
 		span := s.getSpan(info.ID, "Pledge", info)
 		span.Finish(nil)
-	case int(ffiwrapper.WorkerPreCommit1):
+	case workerPreCommit1:
 
-	case int(ffiwrapper.WorkerPreCommit1Done):
+	case workerPreCommit1Done:
 		span := s.getSpan(info.ID, "PreCommit1", info)
 		span.Finish(nil)
-	case int(ffiwrapper.WorkerPreCommit2):
+	case workerPreCommit2:
 
-	case int(ffiwrapper.WorkerPreCommit2Done):
+	case workerPreCommit2Done:
 		span := s.getSpan(info.ID, "PreCommit2", info)
 		span.Finish(nil)
-	case int(ffiwrapper.WorkerCommit):
+	case workerCommit:
 
-	case int(ffiwrapper.WorkerCommitDone):
+	case workerCommitDone:
 		span := s.getSpan(info.ID, "Commit", info)
 		span.Finish(nil)
-	case int(ffiwrapper.WorkerFinalize):
+	case workerFinalize:
 
-	case int(ffiwrapper.WorkerUnseal):
+	case workerUnseal:
 
-	case int(ffiwrapper.WorkerUnsealDone):
+	case workerUnsealDone:
 		span := s.getSpan(info.ID, "Unseal", info)
 		span.Finish(nil)
 	}
