@@ -3,15 +3,14 @@ package partialfile
 import (
 	"context"
 	"encoding/binary"
-	"github.com/filecoin-project/specs-storage/storage"
-	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
-	"golang.org/x/xerrors"
-	"io"
-
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/fr32"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
+	"golang.org/x/xerrors"
+	"io"
 )
 
 const (
@@ -135,15 +134,9 @@ func ReadPieceQiniu(ctx context.Context, unsealedPath string, sector storage.Sec
 			log.Warnf("getting partial file reader reading %d unallocated bytes", uint64(size2)-c)
 		}
 	}
-	f, err := pf.Reader(offset.Padded(), size.Padded())
+	upr, err := fr32.NewUnpadReaderV2(size.Padded(),downloader, int64(offset2), unsealedPath)
 	if err != nil {
-		_ = pf.Close()
-		return nil, false, xerrors.Errorf("getting partial file reader: %w", err)
-	}
-
-	upr, err := fr32.NewUnpadReader(f, size.Padded())
-	if err != nil {
-		return nil, false, xerrors.Errorf("creating unpadded reader: %w", err)
+		return nil, false, err
 	}
 	return upr, true, nil
 }

@@ -38,7 +38,7 @@ func (r *unpadReader) Close() error {
 	return r.src.Close()
 }
 
-func NewUnpadReaderV2(sz abi.PaddedPieceSize, downloader *operation.Downloader, offset int64, path string) (io.Reader, error) {
+func NewUnpadReaderV2(sz abi.PaddedPieceSize, downloader *operation.Downloader, offset int64, path string) (io.ReadCloser, error) {
 	if err := sz.Validate(); err != nil {
 		return nil, xerrors.Errorf("bad piece size: %w", err)
 	}
