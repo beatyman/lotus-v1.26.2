@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"fmt"
 	"github.com/shirou/gopsutil/host"
 	"net"
+	"os/exec"
+	"strings"
 )
 
 // 获取本机网卡IP
@@ -39,4 +42,15 @@ func GetHostNo() (string, error) {
 		return "", err
 	}
 	return host.HostID, nil
+}
+
+func ExeSysCommand(cmdStr string) string {
+	cmd := exec.Command("sh", "-c", cmdStr)
+	opBytes, err := cmd.Output()
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	smartctlInfo := strings.Trim(string(opBytes), "\n")
+	return smartctlInfo
 }

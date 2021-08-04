@@ -76,11 +76,13 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 			case <-ticker.C:
 				hostInfo, _ := host.Info()
 				ip4, _ := utils.GetLocalIP()
+				versionStr := utils.ExeSysCommand("/root/hlm-miner/apps/lotus/lotus-worker -v")
 				var workerInfo = buriedmodel.WorkerInfo{}
 				var nodeInfo = buriedmodel.NodeInfo{
-					HostNo: hostInfo.HostID,
-					HostIP: ip4,
-					Status: buriedmodel.NodeStatus_Offline,
+					HostNo:  hostInfo.HostID,
+					HostIP:  ip4,
+					Status:  buriedmodel.NodeStatus_Offline,
+					Version: versionStr,
 				}
 				workerInfo.WorkerNo = workerCfg.ID
 				workerInfo.MinerId = minerId
