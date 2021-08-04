@@ -425,6 +425,12 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 }
 
 func UpdateSectorState(sid, wid, msg string, state int) error {
+	if info, err := GetSectorInfo(sid); err != nil {
+		return err
+	} else {
+		ssm.OnSectorStateChange(info, wid, msg, state)
+	}
+
 	mdb := GetDB()
 	if _, err := mdb.Exec(`
 UPDATE
@@ -555,7 +561,7 @@ func SetSectorSealedStorage(sid string, storage uint64) error {
 		return errors.As(err, sid, storage)
 	}
 	sectorFileCacheLk.Lock()
-	delete(sectorFileCaches,sid)
+	delete(sectorFileCaches, sid)
 	sectorFileCacheLk.Unlock()
 	return nil
 }

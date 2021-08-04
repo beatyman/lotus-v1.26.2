@@ -59,7 +59,7 @@ func main() {
 		lcli.WithCategory("hlm", wdpostCmd),
 	}
 
-	monitor.Init(model.PackageKind_Miner, "todo...", "todo...")
+	monitor.Init(model.PackageKind_Miner, "todo...")
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {
 		if jaeger != nil {

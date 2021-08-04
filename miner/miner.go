@@ -576,7 +576,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 
 	mbiStart := time.Now()
 	mbi, err = m.api.MinerGetBaseInfo(ctx, m.address, round, base.TipSet.Key())
-	span.SetBaseInfoDuration(int64(time.Now().Sub(mbiStart)))
+	span.SetBaseInfoDuration(time.Now().Sub(mbiStart).Milliseconds())
 	if err != nil {
 		err = xerrors.Errorf("failed to get mining base info: %w", err)
 		return 0, nil, err

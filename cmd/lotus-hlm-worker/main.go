@@ -286,7 +286,7 @@ var runCmd = &cli.Command{
 		}
 
 		//添加监控
-		monitor.Init(model.PackageKind_Worker, act.String(), "todo...")
+		monitor.Init(model.PackageKind_Worker, act.String())
 		jaeger := tracing.SetupJaegerTracing("worker")
 		defer func() {
 			if jaeger != nil {

@@ -36,7 +36,7 @@ func main() {
 		local = append(local, AdvanceBlockCmd)
 	}
 
-	monitor.Init(model.PackageKind_Lotus, "", "todo...")
+	monitor.Init(model.PackageKind_Lotus, "")
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {
 		if jaeger != nil {
