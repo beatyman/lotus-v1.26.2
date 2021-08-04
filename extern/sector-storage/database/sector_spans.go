@@ -3,12 +3,14 @@ package database
 import (
 	"context"
 	"fmt"
+	"github.com/gwaylib/errors"
 	"strconv"
 	"sync"
 
 	"huangdong2012/filecoin-monitor/trace/spans"
 )
 
+// 不使用ffiwrapper.WorkerTaskType枚举 避免循环引用
 const (
 	workerPledge         = 0
 	workerPledgeDone     = 1
@@ -33,56 +35,73 @@ type SectorSpans struct {
 	spans *sync.Map
 }
 
-func (s *SectorSpans) getSpan(id string, step string, info *SectorInfo) *spans.SectorSpan {
+func (s *SectorSpans) removeSpan(id, step string) {
 	key := fmt.Sprintf("%v-%v", id, step)
+	s.spans.Delete(key)
+}
+
+func (s *SectorSpans) getSpan(step string, info *SectorInfo, wInfo *WorkerInfo) *spans.SectorSpan {
+	key := fmt.Sprintf("%v-%v", info.ID, step)
 	if val, ok := s.spans.Load(key); ok {
 		return val.(*spans.SectorSpan)
 	}
 
 	_, span := spans.NewSectorSpan(context.Background())
-	span.SetID(id)
+	span.SetID(info.ID)
 	span.SetMinerID(info.MinerId)
 	span.SetStep(step)
 	span.SetSealedStorageID(strconv.FormatInt(info.StorageSealed, 10))
 	span.SetUnSealedStorageID(strconv.FormatInt(info.StorageUnsealed, 10))
+	span.SetWorkNo(info.WorkerId)
+	if wInfo != nil {
+		span.SetWorkIP(wInfo.Ip)
+	}
 	s.spans.Store(key, span)
 
 	return span
 }
 
-func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wid, msg string, state int) {
+func (s *SectorSpans) getStep(state int) string {
+	switch state {
+	case workerPledge, workerPledgeDone:
+		return "Pledge"
+	case workerPreCommit1, workerPreCommit1Done:
+		return "PreCommit1"
+	case workerPreCommit2, workerPreCommit2Done:
+		return "PreCommit2"
+	case workerCommit, workerCommitDone:
+		return "Commit"
+	case workerUnseal, workerUnsealDone:
+		return "Unseal"
+	}
+	return ""
+}
+
+func (s *SectorSpans) isStepDone(state int) bool {
+	return state == workerPledgeDone ||
+		state == workerPreCommit1Done ||
+		state == workerPreCommit2Done ||
+		state == workerCommitDone ||
+		state == workerUnsealDone
+}
+
+func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wInfo *WorkerInfo, wid, msg string, state int) {
 	if info == nil {
 		return
 	}
 
-	switch state {
-	case workerPledge:
-		span := s.getSpan(info.ID, "Pledge", info)
-		span.Starting(msg)
-	case workerPledgeDone:
-		span := s.getSpan(info.ID, "Pledge", info)
-		span.Finish(nil)
-	case workerPreCommit1:
-
-	case workerPreCommit1Done:
-		span := s.getSpan(info.ID, "PreCommit1", info)
-		span.Finish(nil)
-	case workerPreCommit2:
-
-	case workerPreCommit2Done:
-		span := s.getSpan(info.ID, "PreCommit2", info)
-		span.Finish(nil)
-	case workerCommit:
-
-	case workerCommitDone:
-		span := s.getSpan(info.ID, "Commit", info)
-		span.Finish(nil)
-	case workerFinalize:
-
-	case workerUnseal:
-
-	case workerUnsealDone:
-		span := s.getSpan(info.ID, "Unseal", info)
-		span.Finish(nil)
+	if step := s.getStep(state); len(step) > 0 {
+		if span := s.getSpan(step, info, wInfo); s.isStepDone(state) {
+			span.Finish(nil)
+			s.removeSpan(info.ID, step)
+		} else {
+			span.Starting(msg)
+		}
+	} else if state == SECTOR_STATE_FAILED {
+		if step = s.getStep(info.State); len(step) > 0 && !s.isStepDone(info.State) {
+			span := s.getSpan(step, info, wInfo)
+			span.Finish(errors.New(msg))
+			s.removeSpan(info.ID, step)
+		}
 	}
 }
