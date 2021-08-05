@@ -6,119 +6,63 @@ import (
 	"encoding/base64"
 	"io"
 	"os"
-	"runtime"
 )
 
 const (
-	BlockSize int64 = 4194304
+	BLOCK_BITS = 22 // Indicate that the blocksize is 4M
+	BLOCK_SIZE = 1 << BLOCK_BITS
 )
 
-type Reader interface {
-	Read([]byte) (int, error)
-	ReadAt([]byte, int64) (int, error)
+func BlockCount(fsize int64) int {
+
+	return int((fsize + (BLOCK_SIZE-1)) >> BLOCK_BITS)
 }
 
-//GetEtagByString calculates the hash value from the string
-func GetEtagByString(str string) (string, error) {
-	return GetEtagByBytes([]byte(str))
+func CalSha1(b []byte, r io.Reader) ([]byte, error) {
+
+	h := sha1.New()
+	_, err := io.Copy(h, r)
+	if err != nil {
+		return nil, err
+	}
+	return h.Sum(b), nil
 }
 
-//GetEtagByString calculates the hash value from file path
-func GetEtagByPath(filepath string) (string, error) {
-	var stat os.FileInfo
+func GetEtag(filename string) (etag string, err error) {
 
-	file, err := os.Open(filepath)
-	defer file.Close()
-	if err == nil {
-		if stat, err = file.Stat(); err == nil {
-			size := stat.Size()
-			return getEtagByReader(file, size), nil
+	f, err := os.Open(filename)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return
+	}
+
+	fsize := fi.Size()
+	blockCnt := BlockCount(fsize)
+	sha1Buf := make([]byte, 0, 21)
+
+	if blockCnt <= 1 { // file size <= 4M
+		sha1Buf = append(sha1Buf, 0x16)
+		sha1Buf, err = CalSha1(sha1Buf, f)
+		if err != nil {
+			return
 		}
-	}
-	return "", err
-}
-
-//GetEtagByString calculates the hash value from the byte array
-func GetEtagByBytes(content []byte) (string, error) {
-	reader := bytes.NewReader(content)
-	size := reader.Size()
-	return getEtagByReader(reader, size), nil
-}
-
-func getEtagByReader(reader Reader, size int64) string {
-	buffer := make([]byte, 0, 21)
-	if count := blockCount(size); count > 1 {
-		buffer = getHugeEtag(reader, count)
-	} else {
-		buffer = getTinyEtag(reader, buffer)
-	}
-	return base64.URLEncoding.EncodeToString(buffer)
-}
-
-func getTinyEtag(reader Reader, buffer []byte) []byte {
-	buffer = append(buffer, 0x16)
-	buffer = getSha1ByReader(buffer, reader)
-	return buffer
-}
-
-func doEtagWork(reader Reader, offsetChan <-chan int, conseqChan chan<- map[int][]byte) {
-	for offset := range offsetChan {
-		data := io.NewSectionReader(reader, int64(offset)*BlockSize, BlockSize)
-		sha1 := getSha1ByReader(nil, data)
-		conseqChan <- map[int][]byte{
-			offset: sha1,
+	} else { // file size > 4M
+		sha1Buf = append(sha1Buf, 0x96)
+		sha1BlockBuf := make([]byte, 0, blockCnt * 20)
+		for i := 0; i < blockCnt; i ++ {
+			body := io.LimitReader(f, BLOCK_SIZE)
+			sha1BlockBuf, err = CalSha1(sha1BlockBuf, body)
+			if err != nil {
+				return
+			}
 		}
+		sha1Buf, _ = CalSha1(sha1Buf, bytes.NewReader(sha1BlockBuf))
 	}
-}
-
-func getHugeEtag(reader Reader, count int64) []byte {
-	conseqChan := make(chan map[int][]byte, count)
-	offsetChan := make(chan int, count)
-
-	for i := 1; i <= runtime.NumCPU(); i++ {
-		go doEtagWork(reader, offsetChan, conseqChan)
-	}
-
-	for offset := 0; offset < int(count); offset++ {
-		offsetChan <- offset
-	}
-
-	close(offsetChan)
-
-	return getSha1ByConseqChan(conseqChan, count)
-}
-
-func getSha1ByConseqChan(conseqChan chan map[int][]byte, count int64) (conseq []byte) {
-	sha1Map := make(map[int][]byte, 0)
-	for i := 0; i < int(count); i++ {
-		eachChan := <-conseqChan
-		for k, v := range eachChan {
-			sha1Map[k] = v
-		}
-	}
-	blockSha1 := make([]byte, 0, count*20)
-	for i := 0; int64(i) < count; i++ {
-		blockSha1 = append(blockSha1, sha1Map[i]...)
-	}
-	conseq = make([]byte, 0, 21)
-	conseq = append(conseq, 0x96)
-	conseq = getSha1ByReader(conseq, bytes.NewReader(blockSha1))
+	etag = base64.URLEncoding.EncodeToString(sha1Buf)
 	return
-}
-
-func getSha1ByReader(buffer []byte, reader Reader) []byte {
-	hash := sha1.New()
-	io.Copy(hash, reader)
-	return hash.Sum(buffer)
-}
-
-func blockCount(size int64) int64 {
-	if size > BlockSize {
-		count := size / BlockSize
-		if size%BlockSize == 0 {
-			return count
-		}
-		return count + 1
-	}
-	return 1
 }
