@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"github.com/filecoin-project/lotus/monitor"
 	"huangdong2012/filecoin-monitor/model"
@@ -177,6 +176,12 @@ var runCmd = &cli.Command{
 		log.Info("Check done")
 		// end by zhoushuyue
 
+		endpoint, err := r.APIEndpoint()
+		if err != nil {
+			return xerrors.Errorf("getting API endpoint: %w", err)
+		}
+		monitor.Init(model.PackageKind_Miner, endpoint.String())
+
 		shutdownChan := make(chan struct{})
 		var minerapi api.StorageMiner
 		stop, err := node.New(ctx,
@@ -195,16 +200,7 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("creating node: %w", err)
 		}
 
-		if addr, err := minerapi.ActorAddress(context.Background()); err == nil {
-			monitor.Init(model.PackageKind_Miner, addr.String())
-		} else {
-			return xerrors.Errorf("get actor address error: %w", err)
-		}
 
-		endpoint, err := r.APIEndpoint()
-		if err != nil {
-			return xerrors.Errorf("getting API endpoint: %w", err)
-		}
 
 		// Bootstrap with full node
 		// implement by zhoushuyue
