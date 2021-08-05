@@ -313,10 +313,13 @@ func uploadToOSS(ctx context.Context, from, to string) error {
 									}
 	*/
 	uploader := operation.NewUploaderV2()
+	log.Infof("start upload :  %s to %s ",from, to)
 	err = uploader.Upload(from, to)
-	fmt.Printf("submit path %s to %s err %v\n", from, to, err)
+	log.Infof("finish upload :  %s to %s ,err: %+v  ",from, to, err)
 	if conf2.Delete {
-		os.Remove(from)
+		if err==nil {
+			os.Remove(from)
+		}
 	}
 
 	return err
