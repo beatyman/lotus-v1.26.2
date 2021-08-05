@@ -7,6 +7,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"github.com/filecoin-project/lotus/monitor"
+	"huangdong2012/filecoin-monitor/model"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	"sync"
 	"time"
@@ -72,6 +74,8 @@ func NewMiner(api v1api.FullNode, epp gen.WinningPoStProver, addr address.Addres
 		panic(err)
 	}
 
+	//此处和storage.miner的new方法都会执行monitor.Init(once保证了monitor只会初始化一次)
+	monitor.Init(model.PackageKind_Miner, addr.String())
 	return &Miner{
 		api:     api,
 		epp:     epp,

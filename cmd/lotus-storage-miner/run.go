@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/filecoin-project/lotus/monitor"
-	"huangdong2012/filecoin-monitor/model"
 	_ "net/http/pprof"
 	"os"
 
@@ -180,7 +178,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("getting API endpoint: %w", err)
 		}
-		monitor.Init(model.PackageKind_Miner, endpoint.String())
 
 		shutdownChan := make(chan struct{})
 		var minerapi api.StorageMiner
