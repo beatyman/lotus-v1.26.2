@@ -35,7 +35,6 @@ import (
 	"github.com/filecoin-project/lotus/journal"
 
 	logging "github.com/ipfs/go-log/v2"
-	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
@@ -214,9 +213,6 @@ func nextRoundTime(base *MiningBase) time.Time {
 //      we will select that tipset on the next iteration of the loop, thus
 //      discarding our null round.
 func (m *Miner) mine(ctx context.Context) {
-	ctx, span := trace.StartSpan(ctx, "/mine")
-	defer span.End()
-
 	go m.doWinPoStWarmup(ctx)
 
 	var lastBase MiningBase
