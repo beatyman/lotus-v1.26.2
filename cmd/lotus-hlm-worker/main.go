@@ -5,7 +5,6 @@ import (
 	"github.com/filecoin-project/lotus/buried"
 	"github.com/filecoin-project/lotus/lib/tracing"
 	"github.com/filecoin-project/lotus/monitor"
-	"github.com/shirou/gopsutil/host"
 	"huangdong2012/filecoin-monitor/model"
 	"net"
 	"net/http"
@@ -290,10 +289,7 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		host, err := host.Info()
-		if err != nil {
-			return err
-		}
+
 		//添加监控
 		monitor.Init(model.PackageKind_Worker, act.String())
 		jaeger := tracing.SetupJaegerTracing("worker")
