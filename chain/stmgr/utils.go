@@ -436,7 +436,7 @@ func GetLookbackTipSetForRound(ctx context.Context, sm *StateManager, ts *types.
 }
 
 func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcs beacon.Schedule, tsk types.TipSetKey, round abi.ChainEpoch, maddr address.Address, pv ffiwrapper.Verifier) (*api.MiningBaseInfo, error) {
-	ctx, span := trace.StartSpan(ctx, "MinerGetBaseInfoCore")
+	ctx, span := trace.StartSpan(ctx, "MinerGetBaseInfo")
 	span.AddAttributes(trace.Int64Attribute("Round", int64(round)))
 	span.AddAttributes(trace.StringAttribute("TipSetKey", tsk.String()))
 	defer span.End()
