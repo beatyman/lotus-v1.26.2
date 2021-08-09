@@ -104,6 +104,7 @@ func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Infof("prefix: %+v ,key: %+v ",prefix,key)
 	up := os.Getenv("US3")
 	if up == "" {
 		return "", errors.New("US3 Config Not Found")
