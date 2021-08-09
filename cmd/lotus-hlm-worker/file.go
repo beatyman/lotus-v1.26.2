@@ -323,8 +323,8 @@ func uploadToOSS(ctx context.Context, from, to string) error {
 	if err != nil {
 		return errors.As(err)
 	}
-	if strings.EqualFold(etagLocal, etagRemote) {
-		return errors.New(fmt.Sprintf("etag not match: local: %+v ,remote: %+v", etagLocal, etagRemote))
+	if !strings.EqualFold(etagLocal, etagRemote) {
+		return errors.New(fmt.Sprintf("file %+v etag not match: local: %+v ,remote: %+v",from, etagLocal, etagRemote))
 	}
 	log.Infof("finish upload :  %s to %s ,err: %+v  ", from, to, err)
 	if conf2.Delete {
