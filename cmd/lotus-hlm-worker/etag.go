@@ -99,13 +99,14 @@ func GetEtagFromServer(ctx context.Context, key string) (string, error) {
 	}
 	return entry.Hash, nil
 }
+
 //临时用list接口替代,list接口不是很稳定
 func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 	prefix, err := filepath.Abs(filepath.Dir(key))
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Infof("prefix: %+v ,key: %+v ",prefix,key)
+	log.Infof("prefix: %+v ,key: %+v ", prefix, key)
 	up := os.Getenv("US3")
 	if up == "" {
 		return "", errors.New("US3 Config Not Found")
@@ -130,6 +131,7 @@ func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 	var etags []string
 	marker := ""
 	retry := 0
+	hash := ""
 	for {
 		if retry > 20 {
 			break
@@ -138,12 +140,12 @@ func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 		if err != nil && err != io.EOF {
 			retry++
 			time.Sleep(time.Second)
-			log.Infof("get file %+v etag err: %+v",key,err.Error())
+			log.Infof("get file %+v etag err: %+v", key, err.Error())
 			continue
 		}
 		for _, v := range r {
 			if strings.EqualFold(v.Key, key) {
-				return v.Hash, nil
+				hash = v.Hash
 			}
 			files = append(files, v.Key)
 			etags = append(etags, v.Hash)
@@ -152,6 +154,9 @@ func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 			break
 		}
 		marker = out
+	}
+	if hash != "" {
+		return hash, nil
 	}
 	return "", errors.New("get etag error")
 }
