@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -136,6 +137,8 @@ func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 		r, _, out, err := bucket.List(nil, prefix, "", marker, 1000)
 		if err != nil && err != io.EOF {
 			retry++
+			time.Sleep(time.Second)
+			log.Infof("get file %+v etag err: %+v",key,err.Error())
 			continue
 		}
 		for _, v := range r {
