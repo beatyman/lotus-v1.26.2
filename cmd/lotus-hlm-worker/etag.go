@@ -2,8 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"encoding/base64"
+	"github.com/gwaylib/errors"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v7/kodo"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"io"
 	"os"
 )
@@ -14,8 +18,7 @@ const (
 )
 
 func BlockCount(fsize int64) int {
-
-	return int((fsize + (BLOCK_SIZE-1)) >> BLOCK_BITS)
+	return int((fsize + (BLOCK_SIZE - 1)) >> BLOCK_BITS)
 }
 
 func CalSha1(b []byte, r io.Reader) ([]byte, error) {
@@ -28,7 +31,7 @@ func CalSha1(b []byte, r io.Reader) ([]byte, error) {
 	return h.Sum(b), nil
 }
 
-func GetEtag(filename string) (etag string, err error) {
+func ComputeEtagLocal(filename string) (etag string, err error) {
 
 	f, err := os.Open(filename)
 	if err != nil {
@@ -53,8 +56,8 @@ func GetEtag(filename string) (etag string, err error) {
 		}
 	} else { // file size > 4M
 		sha1Buf = append(sha1Buf, 0x96)
-		sha1BlockBuf := make([]byte, 0, blockCnt * 20)
-		for i := 0; i < blockCnt; i ++ {
+		sha1BlockBuf := make([]byte, 0, blockCnt*20)
+		for i := 0; i < blockCnt; i++ {
 			body := io.LimitReader(f, BLOCK_SIZE)
 			sha1BlockBuf, err = CalSha1(sha1BlockBuf, body)
 			if err != nil {
@@ -65,4 +68,31 @@ func GetEtag(filename string) (etag string, err error) {
 	}
 	etag = base64.URLEncoding.EncodeToString(sha1Buf)
 	return
+}
+func GetEtagFromServer(ctx context.Context, key string) (string, error) {
+	up := os.Getenv("US3")
+	if up == "" {
+		return "", errors.New("US3 Config Not Found")
+	}
+	config, err := operation.Load(up)
+	if err != nil {
+		return "", err
+	}
+	cfg := kodo.Config{
+		AccessKey: config.Ak,
+		SecretKey: config.Sk,
+		RSHost:    config.RsHosts[0],  //stat 主要用这个
+		RSFHost:   config.RsfHosts[0], //列表主要靠这个配置
+		UpHosts:   config.UpHosts,
+	}
+	client := kodo.NewWithoutZone(&cfg)
+	bucket, err := client.BucketWithSafe(config.Bucket)
+	if err != nil {
+		return "", err
+	}
+	entry, err := bucket.Stat(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	return entry.Hash, nil
 }

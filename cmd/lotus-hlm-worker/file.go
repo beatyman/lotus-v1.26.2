@@ -296,9 +296,8 @@ func CopyFile(ctx context.Context, from, to string, t ...*Transferer) error {
 // upload file from filesystem to us3 oss cluster
 func uploadToOSS(ctx context.Context, from, to string) error {
 	up := os.Getenv("US3")
-
 	if up == "" {
-		fmt.Println("please set US3 environment variable first!")
+		log.Info("please set US3 environment variable first!")
 		return errors.New("connot find US3 environment variable")
 	}
 	conf2, err := operation.Load(up)
@@ -306,22 +305,32 @@ func uploadToOSS(ctx context.Context, from, to string) error {
 		log.Error("load config error", err)
 		return errors.As(err)
 	}
-	/*
-		if conf2.Sim {
-					submitPathOut(paths)
-							return
-									}
-	*/
 	uploader := operation.NewUploaderV2()
-	log.Infof("start upload :  %s to %s ",from, to)
+	log.Infof("start upload :  %s to %s ", from, to)
+	timeStart := time.Now()
 	err = uploader.Upload(from, to)
-	log.Infof("finish upload :  %s to %s ,err: %+v  ",from, to, err)
+	if err != nil {
+		return errors.As(err)
+	}
+	timeEnd := time.Now()
+	log.Infof("file  upload  %s to %s ,start :%+v, end: %+v, last:%+v ", from, to, timeStart, timeEnd, timeEnd.Sub(timeStart))
+	etagLocal, err := ComputeEtagLocal(from)
+	if err != nil {
+		return errors.As(err)
+	}
+	etagRemote, err := GetEtagFromServer(ctx, to)
+	if err != nil {
+		return errors.As(err)
+	}
+	if strings.EqualFold(etagLocal, etagRemote) {
+		return errors.New(fmt.Sprintf("etag not match: local: %+v ,remote: %+v", etagLocal, etagRemote))
+	}
+	log.Infof("finish upload :  %s to %s ,err: %+v  ", from, to, err)
 	if conf2.Delete {
-		if err==nil {
+		if err == nil {
 			os.Remove(from)
 		}
 	}
-
 	return err
 }
 
