@@ -319,7 +319,7 @@ func uploadToOSS(ctx context.Context, from, to string) error {
 		return errors.As(err)
 	}
 	log.Infof("etagLocal: %+v",etagLocal)
-	etagRemote, err := GetEtagFromServer2(ctx, to)
+	etagRemote, err := GetEtagFromServer2(ctx, to[1:])
 	if err != nil {
 		return errors.As(err)
 	}

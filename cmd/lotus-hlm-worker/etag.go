@@ -15,7 +15,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 )
@@ -500,10 +500,7 @@ func GetEtagFromServer(ctx context.Context, key string) (string, error) {
 
 //临时用list接口替代,list接口不是很稳定
 func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
-	prefix, err := filepath.Abs(filepath.Dir(key))
-	if err != nil {
-		log.Fatal(err)
-	}
+	prefix := path.Dir(key)
 	log.Infof("prefix: %+v ,key: %+v ", prefix, key)
 	up := os.Getenv("US3")
 	if up == "" {
@@ -525,8 +522,6 @@ func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var files []string
-	var etags []string
 	marker := ""
 	hash := ""
 	for {
@@ -540,8 +535,6 @@ func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 			if strings.EqualFold(v.Key, key) {
 				hash = v.Hash
 			}
-			files = append(files, v.Key)
-			etags = append(etags, v.Hash)
 		}
 		if out == "" {
 			break
@@ -551,6 +544,5 @@ func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 	if hash != "" {
 		return hash, nil
 	}
-	log.Infof(" files: %+v , etags:%+v ", files, etags)
 	return "", errors.New(fmt.Sprintf("file: %+v get etag error", key))
 }
