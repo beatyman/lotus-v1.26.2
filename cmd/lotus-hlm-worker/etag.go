@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/base64"
+	"fmt"
 	"github.com/gwaylib/errors"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v7/kodo"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
@@ -130,17 +131,12 @@ func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 	var files []string
 	var etags []string
 	marker := ""
-	retry := 0
 	hash := ""
 	for {
-		if retry > 20 {
-			break
-		}
 		r, _, out, err := bucket.List(nil, prefix, "", marker, 1000)
 		if err != nil && err != io.EOF {
-			retry++
 			time.Sleep(time.Second)
-			log.Infof("get file %+v etag err: %+v", key, err.Error())
+			log.Errorf("get file %+v etag err: %+v", key, err.Error())
 			continue
 		}
 		for _, v := range r {
@@ -158,5 +154,6 @@ func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
 	if hash != "" {
 		return hash, nil
 	}
-	return "", errors.New("get etag error")
+	log.Infof(" files: %+v , etags:%+v ",files,etags)
+	return "", errors.New(fmt.Sprintf("file: %+v get etag error",key))
 }
