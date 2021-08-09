@@ -10,6 +10,8 @@ import (
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 const (
@@ -95,4 +97,57 @@ func GetEtagFromServer(ctx context.Context, key string) (string, error) {
 		return "", err
 	}
 	return entry.Hash, nil
+}
+//临时用list接口替代,list接口不是很稳定
+func GetEtagFromServer2(ctx context.Context, key string) (string, error) {
+	prefix, err := filepath.Abs(filepath.Dir(key))
+	if err != nil {
+		log.Fatal(err)
+	}
+	up := os.Getenv("US3")
+	if up == "" {
+		return "", errors.New("US3 Config Not Found")
+	}
+	config, err := operation.Load(up)
+	if err != nil {
+		return "", err
+	}
+	cfg := kodo.Config{
+		AccessKey: config.Ak,
+		SecretKey: config.Sk,
+		RSHost:    config.RsHosts[0],  //stat 主要用这个
+		RSFHost:   config.RsfHosts[0], //列表主要靠这个配置
+		UpHosts:   config.UpHosts,
+	}
+	client := kodo.NewWithoutZone(&cfg)
+	bucket, err := client.BucketWithSafe(config.Bucket)
+	if err != nil {
+		return "", err
+	}
+	var files []string
+	var etags []string
+	marker := ""
+	retry := 0
+	for {
+		if retry > 20 {
+			break
+		}
+		r, _, out, err := bucket.List(nil, prefix, "", marker, 1000)
+		if err != nil && err != io.EOF {
+			retry++
+			continue
+		}
+		for _, v := range r {
+			if strings.EqualFold(v.Key, key) {
+				return v.Hash, nil
+			}
+			files = append(files, v.Key)
+			etags = append(etags, v.Hash)
+		}
+		if out == "" {
+			break
+		}
+		marker = out
+	}
+	return "", errors.New("get etag error")
 }
