@@ -233,8 +233,8 @@ var runCmd = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "timer",
-			Usage: "Timer time try. The time is minutes. The default is 10 minutes",
-			Value: "10",
+			Usage: "Timer time try. The time is minutes. The default is 1 minutes",
+			Value: "1",
 		},
 	},
 	Action: func(cctx *cli.Context) error {

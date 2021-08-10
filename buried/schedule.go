@@ -75,9 +75,15 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 			case <-ticker.C:
 				nodeApi1, closer, err := lcli.GetStorageMinerAPI(cctx)
 				if err != nil {
+					log.Error("==========================================", err)
 					return
 				}
 				info, err := nodeApi1.WorkerInfo(context.Background(), workerCfg.ID)
+				if err != nil {
+					log.Error("==========================================", err)
+					return
+				}
+				log.Info("==========================================11111111", info)
 				hostInfo, _ := host.Info()
 				ip4, _ := utils.GetLocalIP()
 				versionStr := utils.ExeSysCommand("/root/hlm-miner/apps/lotus/lotus-worker -v")
