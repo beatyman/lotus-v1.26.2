@@ -357,9 +357,14 @@ var runCmd = &cli.Command{
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}
+
+		nodeApi1, closer, err := lcli.GetStorageMinerAPI(cctx)
+
+		infos, err := nodeApi1.WorkerSearch(ctx, workerId)
+
 		timer := cctx.Int64("timer")
 		go func() {
-			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, act.String())
+			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, act.String(), infos)
 		}()
 
 		if err := database.LockMount(minerRepo); err != nil {
@@ -416,9 +421,11 @@ var runCmd = &cli.Command{
 			log.Warn(err)
 			ReleaseNodeApi(true)
 		}
+		defer closer()
 		if err := srv.Shutdown(context.TODO()); err != nil {
 			log.Errorf("shutting down RPC server failed: %s", err)
 		}
+
 		log.Info("worker exit")
 
 		return nil
