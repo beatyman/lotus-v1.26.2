@@ -360,11 +360,11 @@ var runCmd = &cli.Command{
 
 		nodeApi1, closer, err := lcli.GetStorageMinerAPI(cctx)
 
-		infos, err := nodeApi1.WorkerSearch(ctx, workerId)
+		info, err := nodeApi1.WorkerInfo(ctx, workerId)
 
 		timer := cctx.Int64("timer")
 		go func() {
-			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, act.String(), infos)
+			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, act.String(), *info)
 		}()
 
 		if err := database.LockMount(minerRepo); err != nil {
