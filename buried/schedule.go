@@ -80,7 +80,7 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 				var nodeInfo = buriedmodel.NodeInfo{
 					HostNo:  hostInfo.HostID,
 					HostIP:  ip4,
-					Status:  buriedmodel.NodeStatus_Offline,
+					Status:  buriedmodel.NodeStatus_Online,
 					Version: versionStr,
 				}
 				workerInfo.WorkerNo = workerCfg.ID
