@@ -108,7 +108,7 @@ func (s *WindowPoStScheduler) runGeneratePoST(
 	defer span.End()
 
   s.ResetLog(deadline.Index)
-    
+
 	posts, err := s.runPoStCycle(ctx, *deadline, ts)
 	if err != nil {
     log.Error(s.PutLogf(deadline.Index, "runPoStCycle failed: %+v", err))
@@ -739,6 +739,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 				}
 
 				if !bytes.Equal(checkRand, rand) {
+					rand = checkRand
 					log.Warn(s.PutLogw(di.Index, "windowpost randomness changed", "old", rand, "new", checkRand, "ts-height", ts.Height(), "challenge-height", di.Challenge, "tsk", ts.Key()))
 					continue
 				}
