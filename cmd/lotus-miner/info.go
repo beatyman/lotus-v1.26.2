@@ -205,7 +205,10 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v0api.Full
 			types.SizeStr(types.BigMul(types.NewInt(nfaults), types.NewInt(uint64(mi.SectorSize)))),
 			faultyPercentage)
 	}
-
+	head, err := fullapi.ChainHead(ctx)
+	if err != nil {
+		return err
+	}
 	if !pow.HasMinPower {
 		fmt.Print("Below minimum power threshold, no blocks will be won\n")
 	} else {

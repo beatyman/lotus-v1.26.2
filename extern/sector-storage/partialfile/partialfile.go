@@ -3,10 +3,10 @@ package partialfile
 import (
 	"context"
 	"encoding/binary"
+	"golang.org/x/xerrors"
 	"io"
 	"os"
 	"path/filepath"
-	"golang.org/x/xerrors"
 
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
 	"github.com/filecoin-project/go-state-types/abi"

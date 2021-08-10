@@ -2,18 +2,20 @@ package cliutil
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"golang.org/x/xerrors"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
+	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-jsonrpc"
 
@@ -136,7 +138,7 @@ func envForRepoDeprecation(t repo.RepoType) string {
 //  2. *_API_INFO environment variables
 //  3. deprecated *_API_INFO environment variables
 //  4. *-repo command line flags.
-func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
+func getAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
 	// Check if there was a flag passed with the listen address of the API
 	// server (only used by the tests)
 	apiFlags := flagsForAPI(t)

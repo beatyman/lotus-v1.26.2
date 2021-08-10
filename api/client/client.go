@@ -100,25 +100,17 @@ func NewWorkerRPCV0(ctx context.Context, addr string, requestHeader http.Header)
 
 // seperate from miner api, only support for worker connection.
 func NewHlmMinerSchedulerRPC(ctx context.Context, addr string, requestHeader http.Header) (api.HlmMinerSchedulerAPI, jsonrpc.ClientCloser, error) {
-	u, err := url.Parse(addr)
+	pushUrl, err := getPushUrl(addr)
 	if err != nil {
 		return nil, nil, err
 	}
-	switch u.Scheme {
-	case "ws":
-		u.Scheme = "http"
-	case "wss":
-		u.Scheme = "https"
-	}
-
 	var res api.HlmMinerSchedulerStruct
 	closer, err := jsonrpc.NewMergeClient(ctx, addr, "Filecoin",
-		[]interface{}{
-			&res.Internal,
-		},
+		api.GetInternalStructs(&res),
 		requestHeader,
+		rpcenc.ReaderParamEncoder(pushUrl),
 		jsonrpc.WithNoReconnect(),
-		jsonrpc.WithTimeout(120*time.Second),
+		jsonrpc.WithTimeout(30*time.Second),
 	)
 	if err != nil {
 		return nil, nil, errors.As(err, addr)
@@ -127,25 +119,17 @@ func NewHlmMinerSchedulerRPC(ctx context.Context, addr string, requestHeader htt
 
 }
 func NewWorkerHlmRPC(ctx context.Context, addr string, requestHeader http.Header) (api.WorkerHlmAPI, jsonrpc.ClientCloser, error) {
-	u, err := url.Parse(addr)
+	pushUrl, err := getPushUrl(addr)
 	if err != nil {
 		return nil, nil, err
 	}
-	switch u.Scheme {
-	case "ws":
-		u.Scheme = "http"
-	case "wss":
-		u.Scheme = "https"
-	}
-
 	var res api.WorkerHlmStruct
 	closer, err := jsonrpc.NewMergeClient(ctx, addr, "Filecoin",
-		[]interface{}{
-			&res.Internal,
-		},
+		api.GetInternalStructs(&res),
 		requestHeader,
+		rpcenc.ReaderParamEncoder(pushUrl),
 		jsonrpc.WithNoReconnect(),
-		jsonrpc.WithTimeout(120*time.Second),
+		jsonrpc.WithTimeout(30*time.Second),
 	)
 	if err != nil {
 		return nil, nil, errors.As(err, addr)

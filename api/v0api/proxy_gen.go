@@ -476,37 +476,55 @@ type GatewayStruct struct {
 type GatewayStub struct {
 }
 
-func (s *FullNodeStruct) MpoolSignMessage(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) {
-	return s.Internal.MpoolSignMessage(p0, p1, p2)
+func (c *FullNodeStruct) MpoolSignMessage(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) {
+	if c.Internal.MpoolSignMessage==nil{
+		return nil, ErrNotSupported
+	}
+	return c.Internal.MpoolSignMessage(p0, p1, p2)
 }
-func (s *FullNodeStub) MpoolSignMessage(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) {
-	return nil, xerrors.New("method not supported")
+func (c *FullNodeStub) MpoolSignMessage(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) {
+	return nil, ErrNotSupported
 }
 func (c *FullNodeStruct) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
+	if c.Internal.ChainComputeBaseFee==nil{
+		return *new(types.BigInt),ErrNotSupported
+	}
 	return c.Internal.ChainComputeBaseFee(ctx, tsk)
 }
 func (c *FullNodeStub) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
-	return types.EmptyInt, xerrors.New("method not supported")
+	return *new(types.BigInt),ErrNotSupported
 }
 func (c *FullNodeStruct) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
+	if c.Internal.SyncProgress==nil{
+		return *new(api.SyncProgress),  ErrNotSupported
+	}
 	return c.Internal.SyncProgress(ctx)
 }
 func (c *FullNodeStub) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
-	return api.SyncProgress{}, xerrors.New("method not supported")
+	return *new(api.SyncProgress),  ErrNotSupported
 }
 func (c *FullNodeStruct) InputWalletStatus(ctx context.Context) (string, error) {
+	if c.Internal.InputWalletStatus==nil{
+		return "", ErrNotSupported
+	}
 	return c.Internal.InputWalletStatus(ctx)
 }
 func (c *FullNodeStub) InputWalletStatus(ctx context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 func (c *FullNodeStruct) InputWalletPasswd(ctx context.Context, passwd string) error {
+	if c.Internal.InputWalletPasswd==nil{
+		return ErrNotSupported
+	}
 	return c.Internal.InputWalletPasswd(ctx, passwd)
 }
 func (c *FullNodeStub) InputWalletPasswd(ctx context.Context, passwd string) error {
 	return ErrNotSupported
 }
 func (c *FullNodeStruct) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
+	if c.Internal.WalletEncode==nil{
+		return ErrNotSupported
+	}
 	return c.Internal.WalletEncode(ctx, addr, passwd)
 }
 func (c *FullNodeStub) WalletEncode(ctx context.Context, addr, passwd string) error {

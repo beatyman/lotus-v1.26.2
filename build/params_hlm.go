@@ -42,7 +42,7 @@ var UpgradeNorwegianHeight = abi.ChainEpoch(-13)
 var UpgradeTurboHeight = abi.ChainEpoch(-14)
 
 var UpgradeHyperdriveHeight = abi.ChainEpoch(-15)
-
+var UpgradePricelistOopsHeight = abi.ChainEpoch(-8)
 func init() {
 	policy.SetSupportedProofTypes(
 		abi.RegisteredSealProof_StackedDrg2KiBV1,

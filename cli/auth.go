@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 

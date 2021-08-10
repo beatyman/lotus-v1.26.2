@@ -10,10 +10,15 @@ import (
 // // NOTE: ONLY PUT STRUCT DEFINITIONS IN THIS FILE
 // //
 // // After making edits here, run 'make cfgdoc-gen' (or 'make gen')
-
+type Collector struct {
+	ReportUrl  string // server url
+	Interval   Duration
+	RetryTimes int
+}
 // Common is common config between full node and miner
 type Common struct {
 	API    API
+	Collector Collector
 	Backup Backup
 	Libp2p Libp2p
 	Pubsub Pubsub
@@ -45,11 +50,16 @@ type StorageMiner struct {
 	Common
 
 	Subsystems MinerSubsystemConfig
+	WorkerAPI  WorkerAddrConfig
 	Dealmaking DealmakingConfig
 	Sealing    SealingConfig
 	Storage    sectorstorage.SealerConfig
 	Fees       MinerFeeConfig
 	Addresses  MinerAddressConfig
+}
+
+type WorkerAddrConfig struct {
+	ListenAddress string
 }
 
 type MinerSubsystemConfig struct {
@@ -141,6 +151,9 @@ type SealingConfig struct {
 	// Upper bound on how many sectors can be sealing at the same time when creating new sectors with deals (0 = unlimited)
 	MaxSealingSectorsForDeals uint64
 
+	// includes failed, 0 = no limit
+	MaxDealsPerSector uint64
+
 	// Period of time that a newly created sector will wait for more deals to be packed in to before it starts to seal.
 	// Sectors which are fully filled will start sealing immediately
 	WaitDealsDelay Duration
@@ -163,6 +176,7 @@ type SealingConfig struct {
 	BatchPreCommits bool
 	// maximum precommit batch size - batches will be sent immediately above this size
 	MaxPreCommitBatch int
+	MinPreCommitBatch int
 	// how long to wait before submitting a batch after crossing the minimum batch size
 	PreCommitBatchWait Duration
 	// time buffer for forceful batch submission before sectors/deal in batch would start expiring
@@ -210,6 +224,9 @@ type MinerFeeConfig struct {
 	MaxWindowPoStGasFee    types.FIL
 	MaxPublishDealsFee     types.FIL
 	MaxMarketBalanceAddFee types.FIL
+
+	EnableSeparatePartition bool
+	PartitionsPerMsg        int
 }
 
 type MinerAddressConfig struct {
