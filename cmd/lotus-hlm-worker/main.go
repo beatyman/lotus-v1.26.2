@@ -361,7 +361,9 @@ var runCmd = &cli.Command{
 		nodeApi1, closer, err := lcli.GetStorageMinerAPI(cctx)
 
 		info, err := nodeApi1.WorkerInfo(ctx, workerId)
-
+		if err != nil {
+			return err
+		}
 		timer := cctx.Int64("timer")
 		go func() {
 			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, act.String(), *info)
