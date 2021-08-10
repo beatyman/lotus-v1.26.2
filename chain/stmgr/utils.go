@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"go.opencensus.io/trace"
 	"os"
 	"reflect"
 	"runtime"
@@ -435,6 +436,11 @@ func GetLookbackTipSetForRound(ctx context.Context, sm *StateManager, ts *types.
 }
 
 func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcs beacon.Schedule, tsk types.TipSetKey, round abi.ChainEpoch, maddr address.Address, pv ffiwrapper.Verifier) (*api.MiningBaseInfo, error) {
+	ctx, span := trace.StartSpan(ctx, "MinerGetBaseInfo")
+	span.AddAttributes(trace.Int64Attribute("Round", int64(round)))
+	span.AddAttributes(trace.StringAttribute("TipSetKey", tsk.String()))
+	defer span.End()
+
 	ts, err := sm.ChainStore().LoadTipSet(tsk)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load tipset for mining base: %w", err)
@@ -471,6 +477,7 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcs beacon.Schedule
 			return nil, xerrors.Errorf("loading miner in current state: %w", err)
 		}
 
+		span.AddAttributes(trace.StringAttribute("LoadActorRaw", "ErrActorNotFound"))
 		return nil, nil
 	}
 	if err != nil {
@@ -499,6 +506,7 @@ func MinerGetBaseInfo(ctx context.Context, sm *StateManager, bcs beacon.Schedule
 		return nil, xerrors.Errorf("getting winning post proving set: %w", err)
 	}
 
+	span.AddAttributes(trace.Int64Attribute("SectorsCount", int64(len(sectors))))
 	if len(sectors) == 0 {
 		return nil, nil
 	}

@@ -650,6 +650,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 		span.SetOpenEpoch(int64(di.Open))
 		span.SetCloseEpoch(int64(di.Close))
 		span.Starting("")
+		spanHasFinish := false
 
 		// Retry until we run out of sectors to prove.
 		for retries := 0; ; retries++ {
@@ -710,6 +711,8 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 			if len(sinfos) == 0 {
 				// nothing to prove for this batch
 				log.Info(s.PutLogf(di.Index, "no sector info for deadline:%d", di.Index))
+
+				spanHasFinish = true
 				span.Finish(fmt.Errorf("no sector info for deadline:%d", di.Index))
 				break
 			}
@@ -820,13 +823,16 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 				postSkipped.Set(uint64(sector.Number))
 			}
 		}
+		if !spanHasFinish {
+			span.Finish(nil)
+		}
+
 		// Nothing to prove for this batch, try the next batch
 		if !somethingToProve {
 			continue
 		}
 
 		posts = append(posts, params)
-		span.Finish(nil)
 	}
 
 	return posts, nil

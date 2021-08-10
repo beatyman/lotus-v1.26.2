@@ -7,6 +7,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"github.com/filecoin-project/lotus/monitor"
+	"huangdong2012/filecoin-monitor/model"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	"sync"
 	"time"
@@ -33,7 +35,6 @@ import (
 	"github.com/filecoin-project/lotus/journal"
 
 	logging "github.com/ipfs/go-log/v2"
-	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
@@ -72,6 +73,8 @@ func NewMiner(api v1api.FullNode, epp gen.WinningPoStProver, addr address.Addres
 		panic(err)
 	}
 
+	//此处和storage.miner的new方法都会执行monitor.Init(once保证了monitor只会初始化一次)
+	monitor.Init(model.PackageKind_Miner, addr.String())
 	return &Miner{
 		api:     api,
 		epp:     epp,
@@ -210,9 +213,6 @@ func nextRoundTime(base *MiningBase) time.Time {
 //      we will select that tipset on the next iteration of the loop, thus
 //      discarding our null round.
 func (m *Miner) mine(ctx context.Context) {
-	ctx, span := trace.StartSpan(ctx, "/mine")
-	defer span.End()
-
 	go m.doWinPoStWarmup(ctx)
 
 	var lastBase MiningBase
@@ -515,7 +515,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	tStart := build.Clock.Now()
 
 	round := base.TipSet.Height() + base.NullRounds + 1
-	span.SetEpoch(int64(round))
+	span.SetRound(int64(round))
 
 	// always write out a log
 	var winner *types.ElectionProof
@@ -544,11 +544,12 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		}
 
 		isLate := uint64(tStart.Unix()) > (base.TipSet.MinTimestamp() + uint64(base.NullRounds*builtin.EpochDurationSeconds) + build.PropagationDelaySecs)
-		if isLate {
-			span.SetLazy(1)
-		} else {
-			span.SetLazy(0)
-		}
+		span.SetLate(isLate)
+		span.SetNullRound(int64(base.NullRounds))
+		span.SetLookbackEpoch(int64(policy.ChainFinality))
+		span.SetBaseEpoch(int64(base.TipSet.Height()))
+		span.SetBaseDeltaSeconds(float64(uint64(tStart.Unix()) - base.TipSet.MinTimestamp()))
+
 		logStruct := []interface{}{
 			"tookMilliseconds", (build.Clock.Now().UnixNano() - tStart.UnixNano()) / 1_000_000,
 			"forRound", int64(round),
@@ -585,6 +586,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	// log mineOne statis
 	expNum := 0
 	if mbi != nil {
+		span.SetBaseInfoNil(false)
 		span.SetTotalPower(mbi.NetworkPower.String())
 		span.SetMinerPower(mbi.MinerPower.String())
 		span.SetEligible(mbi.EligibleForMining)
@@ -600,6 +602,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		log.Warn(errors.As(err))
 	}
 	if mbi == nil {
+		span.SetBaseInfoNil(true)
 		return 0, nil, nil
 	}
 
@@ -627,6 +630,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		rbase = bvals[len(bvals)-1]
 	}
 
+	span.SetBeaconEpoch(int64(rbase.Round))
 	span.SetBeacon(hex.EncodeToString(rbase.Data))
 	ticket, err := m.computeTicket(ctx, &rbase, base, mbi)
 	if err != nil {
