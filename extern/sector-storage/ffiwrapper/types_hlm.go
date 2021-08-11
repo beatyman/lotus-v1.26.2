@@ -92,7 +92,7 @@ type WorkerCfg struct {
 }
 
 type WorkerTask struct {
-	Ctx context.Context
+	TraceContext string //用于span传播
 
 	Type WorkerTaskType
 	// TaskID uint64 // using SecotrID instead
@@ -394,7 +394,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		}
 		if wTask.State <= WorkerFinalize {
 			// maxTaskNum has changed to less, so only load a part
-			if wTask.State < WorkerFinalize  {//启动load全部任务
+			if wTask.State < WorkerFinalize { //启动load全部任务
 				break
 			}
 			r.lock.Lock()

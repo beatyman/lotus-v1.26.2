@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"go.opencensus.io/trace"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	"net/http"
 	"os"
@@ -241,11 +242,14 @@ func errRes(err error, res *ffiwrapper.SealRes) ffiwrapper.SealRes {
 }
 
 func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ffiwrapper.SealRes {
-	_, span := spans.NewTaskSpan(context.Background())
+	_, span := spans.NewTaskSpan(trace.Extract(task.TraceContext))
 	span.SetMinerID(w.actAddr.String())
 	span.SetType(fmt.Sprintf("%v", int(task.Type)))
 	span.SetWorkIP(w.workerCfg.IP)
-	span.SetWorkIP(w.workerCfg.ID)
+	span.SetWorkNo(w.workerCfg.ID)
+	span.SetMaxTaskCount(int64(w.workerCfg.MaxTaskNum))
+	span.SetWindowPostEnable(w.workerCfg.WdPoStSrv)
+	span.SetWinningPostEnable(w.workerCfg.WnPoStSrv)
 	span.Starting("task start...")
 
 	res := ffiwrapper.SealRes{
