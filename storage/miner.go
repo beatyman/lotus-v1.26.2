@@ -131,7 +131,6 @@ type fullNodeFilteredAPI interface {
 	WalletHas(context.Context, address.Address) (bool, error)
 
 	// implememt by zhoushuyue
-	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)
 	SyncProgress(context.Context) (api.SyncProgress, error)
 	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
 	WalletSignMessage(context.Context, address.Address, *types.Message) (*types.SignedMessage, error)

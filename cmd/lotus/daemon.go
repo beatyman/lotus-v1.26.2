@@ -352,7 +352,6 @@ var DaemonCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("initializing node: %w", err)
 		}
-
 		if cctx.String("import-key") != "" {
 			if err := importKey(ctx, api, cctx.String("import-key")); err != nil {
 				log.Errorf("importing key failed: %+v", err)
@@ -379,13 +378,11 @@ var DaemonCmd = &cli.Command{
 		if err != nil {
 			return fmt.Errorf("failed to instantiate rpc handler: %s", err)
 		}
-
 		// Serve the RPC.
 		rpcStopper, err := node.ServeRPC(h, "lotus-daemon", cctx.String("repo"), endpoint)
 		if err != nil {
 			return fmt.Errorf("failed to start json-rpc endpoint: %s", err)
 		}
-
 		// Monitor for shutdown.
 		finishCh := node.MonitorShutdown(shutdownChan,
 			node.ShutdownHandler{Component: "rpc server", StopFunc: rpcStopper},

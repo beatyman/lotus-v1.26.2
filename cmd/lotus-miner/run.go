@@ -129,6 +129,7 @@ var runCmd = &cli.Command{
 
 		r, err := repo.NewFS(minerRepoPath)
 		if err != nil {
+			log.Fatalf("minerRepoPath: %v", err)
 			return err
 		}
 
@@ -165,6 +166,7 @@ var runCmd = &cli.Command{
 			return err
 		}
 		if err := database.LockMount(minerRepoPath); err != nil {
+			log.Fatalf(" database.LockMount(minerRepoPath): %v", err)
 			return err
 		}
 		defer database.UnlockMount(minerRepoPath)
@@ -186,7 +188,6 @@ var runCmd = &cli.Command{
 		// end by zhoushuyue
 
 		shutdownChan := make(chan struct{})
-
 		var minerapi api.StorageMiner
 		stop, err := node.New(ctx,
 			node.StorageMiner(&minerapi, cfg.Subsystems),
@@ -203,15 +204,12 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("creating node: %w", err)
 		}
-
 		endpoint, err := r.APIEndpoint()
 		if err != nil {
 			return xerrors.Errorf("getting API endpoint: %w", err)
 		}
-
 		if bootstrapLibP2P {
 			log.Infof("Bootstrapping libp2p network with full node")
-
 			// Bootstrap with full node
 			// implement by zhoushuyue
 			ok, err = proxy.LotusProxyNetConnect(minerapi.NetConnect)
@@ -230,7 +228,6 @@ var runCmd = &cli.Command{
 			}
 			// end implement by zhoushuyue
 		}
-
 		log.Infof("Remote version %s", v)
 
 		// Instantiate the miner node handler.
@@ -238,7 +235,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("failed to instantiate rpc handler: %w", err)
 		}
-
 		// Serve the RPC.
 		rpcStopper, err := node.ServeRPC(handler, "lotus-miner", minerRepoPath, endpoint)
 		if err != nil {
@@ -255,14 +251,12 @@ var runCmd = &cli.Command{
 				log.Fatal(err)
 			}
 		}()
-
 		// Monitor for shutdown.
 		finishCh := node.MonitorShutdown(shutdownChan,
 			node.ShutdownHandler{Component: "rpc server", StopFunc: rpcStopper},
 			node.ShutdownHandler{Component: "miner", StopFunc: stop},
 			node.ShutdownHandler{Component: "scheduler", StopFunc: scSrv.Shutdown},
 		)
-
 		<-finishCh
 		return nil
 	},

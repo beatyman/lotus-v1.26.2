@@ -1035,5 +1035,6 @@ func ExtractEnabledMinerSubsystems(cfg config.MinerSubsystemConfig) (res api.Min
 	if cfg.EnableMarkets {
 		res = append(res, api.SubsystemMarkets)
 	}
+	log.Infof("ExtractEnabledMinerSubsystems :%+v ",res)
 	return res
 }

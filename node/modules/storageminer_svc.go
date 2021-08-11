@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/node/repo"
 
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
 
@@ -23,7 +24,7 @@ func connectMinerService(apiInfo string) func(mctx helpers.MetricsCtx, lc fx.Lif
 	return func(mctx helpers.MetricsCtx, lc fx.Lifecycle) (api.StorageMiner, error) {
 		ctx := helpers.LifecycleCtx(mctx, lc)
 		info := cliutil.ParseApiInfo(apiInfo)
-		addr, err := info.DialArgs("v0")
+		addr, err := info.DialArgs("v0",repo.StorageMiner)
 		if err != nil {
 			return nil, xerrors.Errorf("could not get DialArgs: %w", err)
 		}

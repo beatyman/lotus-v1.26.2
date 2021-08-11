@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/node/repo"
 	"strings"
 
 	"github.com/filecoin-project/go-address"
@@ -131,7 +132,7 @@ func (es EnabledServices) Contains(name string) bool {
 func checkApiInfo(ctx context.Context, ai string) (string, error) {
 	ai = strings.TrimPrefix(strings.TrimSpace(ai), "MINER_API_INFO=")
 	info := cliutil.ParseApiInfo(ai)
-	addr, err := info.DialArgs("v0")
+	addr, err := info.DialArgs("v0",repo.StorageMiner)
 	if err != nil {
 		return "", xerrors.Errorf("could not get DialArgs: %w", err)
 	}
