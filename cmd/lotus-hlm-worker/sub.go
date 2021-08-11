@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"go.opencensus.io/trace"
+	"go.opencensus.io/trace/propagation"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	"net/http"
 	"os"
@@ -242,7 +242,7 @@ func errRes(err error, res *ffiwrapper.SealRes) ffiwrapper.SealRes {
 }
 
 func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ffiwrapper.SealRes {
-	_, span := spans.NewTaskSpan(trace.Extract(task.TraceContext))
+	_, span := spans.NewTaskSpan(propagation.Extract(task.TraceContext))
 	span.SetMinerID(w.actAddr.String())
 	span.SetType(fmt.Sprintf("%v", int(task.Type)))
 	span.SetWorkIP(w.workerCfg.IP)

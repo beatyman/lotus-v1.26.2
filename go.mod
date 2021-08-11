@@ -194,4 +194,4 @@ replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
 
 replace huangdong2012/filecoin-monitor => github.com/huangdong2012/filecoin-monitor v0.0.0-20210811114310-0dbb48fe3f33
 
-replace go.opencensus.io => github.com/huangdong2012/opencensus-go v0.0.0-20210811112756-31234ec876e4
+replace go.opencensus.io => github.com/huangdong2012/opencensus-go v0.0.0-20210811124811-5fb3dfabf9a3

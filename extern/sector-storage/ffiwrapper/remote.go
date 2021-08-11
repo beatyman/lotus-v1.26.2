@@ -6,7 +6,7 @@ import (
 	"fmt"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
 	"github.com/filecoin-project/lotus/lib/report"
-	"go.opencensus.io/trace"
+	"go.opencensus.io/trace/propagation"
 	"math"
 	"os"
 	"sync"
@@ -141,7 +141,7 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: trace.Inject(ctx), //传播trace-id
+			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerPreCommit1,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -182,7 +182,7 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: trace.Inject(ctx), //传播trace-id
+			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerPreCommit2,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -223,7 +223,7 @@ func (sb *Sealer) SealCommit(ctx context.Context, sector storage.SectorRef, tick
 
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: trace.Inject(ctx), //传播trace-id
+			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerCommit,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -273,7 +273,7 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: trace.Inject(ctx), //传播trace-id
+			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerFinalize,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -330,7 +330,7 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, off
 
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: trace.Inject(ctx), //传播trace-id
+			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerUnseal,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -372,7 +372,7 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 	remotes := []*req{}
 	for i := 0; i < sb.remoteCfg.WinningPoSt; i++ {
 		task := WorkerTask{
-			TraceContext: trace.Inject(ctx), //传递trace-id
+			TraceContext: propagation.Inject(ctx), //传递trace-id
 			Type:         WorkerWinningPoSt,
 			ProofType:    sectorInfo[0].ProofType,
 			SectorID:     abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
@@ -457,7 +457,7 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 selectWorker:
 	for i := 0; i < sb.remoteCfg.WindowPoSt; i++ {
 		task := WorkerTask{
-			TraceContext: trace.Inject(ctx), //传播trace-id
+			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerWindowPoSt,
 			ProofType:    sectorInfo[0].ProofType,
 			SectorID:     abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
