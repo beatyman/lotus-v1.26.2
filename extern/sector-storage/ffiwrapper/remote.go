@@ -141,9 +141,10 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:      WorkerPreCommit1,
-			ProofType: sector.ProofType,
-			SectorID:  sector.ID,
+			TraceContext: trace.Inject(ctx), //传播trace-id
+			Type:         WorkerPreCommit1,
+			ProofType:    sector.ProofType,
+			SectorID:     sector.ID,
 
 			SealTicket: ticket,
 			Pieces:     pieces,
@@ -181,9 +182,10 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:      WorkerPreCommit2,
-			ProofType: sector.ProofType,
-			SectorID:  sector.ID,
+			TraceContext: trace.Inject(ctx), //传播trace-id
+			Type:         WorkerPreCommit2,
+			ProofType:    sector.ProofType,
+			SectorID:     sector.ID,
 
 			PreCommit1Out: phase1Out,
 		},
@@ -221,9 +223,10 @@ func (sb *Sealer) SealCommit(ctx context.Context, sector storage.SectorRef, tick
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:      WorkerCommit,
-			ProofType: sector.ProofType,
-			SectorID:  sector.ID,
+			TraceContext: trace.Inject(ctx), //传播trace-id
+			Type:         WorkerCommit,
+			ProofType:    sector.ProofType,
+			SectorID:     sector.ID,
 
 			SealTicket: ticket,
 			Pieces:     pieces,
@@ -270,9 +273,10 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:      WorkerFinalize,
-			ProofType: sector.ProofType,
-			SectorID:  sector.ID,
+			TraceContext: trace.Inject(ctx), //传播trace-id
+			Type:         WorkerFinalize,
+			ProofType:    sector.ProofType,
+			SectorID:     sector.ID,
 		},
 		ret: make(chan SealRes),
 	}
@@ -326,9 +330,10 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, off
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:      WorkerUnseal,
-			ProofType: sector.ProofType,
-			SectorID:  sector.ID,
+			TraceContext: trace.Inject(ctx), //传播trace-id
+			Type:         WorkerUnseal,
+			ProofType:    sector.ProofType,
+			SectorID:     sector.ID,
 
 			UnsealOffset:   offset,
 			UnsealSize:     size,
@@ -452,11 +457,12 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 selectWorker:
 	for i := 0; i < sb.remoteCfg.WindowPoSt; i++ {
 		task := WorkerTask{
-			Type:       WorkerWindowPoSt,
-			ProofType:  sectorInfo[0].ProofType,
-			SectorID:   abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
-			SectorInfo: sectorInfo,
-			Randomness: randomness,
+			TraceContext: trace.Inject(ctx), //传播trace-id
+			Type:         WorkerWindowPoSt,
+			ProofType:    sectorInfo[0].ProofType,
+			SectorID:     abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
+			SectorInfo:   sectorInfo,
+			Randomness:   randomness,
 		}
 		sid := task.SectorName()
 		r, ok := sb.selectGPUService(ctx, sid, task)
