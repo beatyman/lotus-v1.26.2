@@ -241,7 +241,7 @@ func errRes(err error, res *ffiwrapper.SealRes) ffiwrapper.SealRes {
 }
 
 func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ffiwrapper.SealRes {
-	_, span := spans.NewTaskSpan(task.Ctx)
+	_, span := spans.NewTaskSpan(context.Background())
 	span.SetMinerID(w.actAddr.String())
 	span.SetType(fmt.Sprintf("%v", int(task.Type)))
 	span.SetWorkIP(w.workerCfg.IP)
