@@ -29,7 +29,7 @@ else:
     blkcnt:文件以4MB为一个块进行切分后的块个数。
     blkN:第N(N>=0)个数据块的数据。
 */
-var BSIZE = int64(4 * 1024 * 1024)
+var BSIZE = int64(32 * 1024 * 1024)
 
 func ETag(file string, block_size int64) (etag string, err error) {
 

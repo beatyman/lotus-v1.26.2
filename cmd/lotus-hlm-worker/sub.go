@@ -439,14 +439,11 @@ reAllocate:
 			if err := w.pushUnsealed(ctx, sealer, task); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			if err := w.pushCache(ctx, sealer, task, false); err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
 			if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			if err := w.RemoveRepoSector(ctx, sealer.RepoPath(), task.SectorName()); err != nil {
-				log.Warn(errors.As(err))
+			if err := w.pushCache(ctx, sealer, task, false); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 		}
 	case ffiwrapper.WorkerUnseal:
