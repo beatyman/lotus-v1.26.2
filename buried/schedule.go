@@ -73,6 +73,17 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 		for {
 			select {
 			case <-ticker.C:
+				nodeApi1, closer, err := lcli.GetStorageMinerAPI(cctx)
+				if err != nil {
+					log.Error("==========================================", err)
+					return
+				}
+				info, err := nodeApi1.WorkerInfo(context.Background(), workerCfg.ID)
+				if err != nil {
+					log.Error("==========================================", err)
+					return
+				}
+				log.Info("==========================================11111111", info)
 				hostInfo, _ := host.Info()
 				ip4, _ := utils.GetLocalIP()
 				versionStr := utils.ExeSysCommand("/root/hlm-miner/apps/lotus/lotus-worker -v")
@@ -80,7 +91,7 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 				var nodeInfo = buriedmodel.NodeInfo{
 					HostNo:  hostInfo.HostID,
 					HostIP:  ip4,
-					Status:  buriedmodel.NodeStatus_Offline,
+					Status:  buriedmodel.NodeStatus_Online,
 					Version: versionStr,
 				}
 				workerInfo.WorkerNo = workerCfg.ID
@@ -94,6 +105,7 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 				workerInfo.Commit2Srv = workerCfg.Commit2Srv
 				workerInfo.WdPostSrv = workerCfg.WdPoStSrv
 				workerInfo.WnPostSrv = workerCfg.WnPoStSrv
+				workerInfo.Disable = info.Disable
 				//格式化json
 				workerInfo.NodeInfo = &nodeInfo
 				workerInfoStr, _ := json.Marshal(workerInfo)
@@ -101,6 +113,7 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 				_, span := spans.NewWorkerSpan(context.Background())
 				span.SetInfo(string(workerInfoStr))
 				span.End()
+				closer()
 			case <-quit:
 				ticker.Stop()
 			}

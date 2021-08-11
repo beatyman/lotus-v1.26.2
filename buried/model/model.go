@@ -90,6 +90,7 @@ type WorkerInfo struct {
 	Commit2Srv         bool   `json:"commit2_srv"`         //是否开启C2
 	WdPostSrv          bool   `json:"wd_post_srv"`         //是否开启WdPost
 	WnPostSrv          bool   `json:"wn_post_srv"`         //WnPost
+	Disable            bool   `json:"disable"`
 }
 
 type NodeInfo struct {
