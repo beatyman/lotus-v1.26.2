@@ -20,7 +20,6 @@ import (
 	"github.com/filecoin-project/go-state-types/dline"
 	"github.com/ipfs/go-cid"
 
-	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/specs-actors/v3/actors/runtime/proof"
@@ -46,9 +45,6 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 	log.Infof("WPoStPeriodDeadlines:%d, WPoStProvingPeriod=%d, WPoStChallengeWindow=%d, WPoStChallengeLookback=%d FaultDeclarationCutoff=%d",
 		di.WPoStPeriodDeadlines, di.WPoStPeriodDeadlines, di.WPoStChallengeWindow, di.WPoStChallengeLookback, di.FaultDeclarationCutoff,
 	)
-
-	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
-	defer span.End()
 
 	go func() {
 		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
@@ -175,6 +171,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 		span.SetPartitionCount(len(batch))
 		span.SetOpenEpoch(int64(di.Open))
 		span.SetCloseEpoch(int64(di.Close))
+		span.SetWorkerEnable(true)
 		span.Starting("")
 		spanHasFinish := false
 

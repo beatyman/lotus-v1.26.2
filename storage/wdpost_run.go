@@ -108,9 +108,6 @@ func (s *WindowPoStScheduler) runGeneratePoST(
 	ts *types.TipSet,
 	deadline *dline.Info,
 ) ([]miner.SubmitWindowedPoStParams, error) {
-	ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.generatePoST")
-	defer span.End()
-
 	s.ResetLog(deadline.Index)
 
 	posts, err := s.runPoStCycle(ctx, *deadline, ts)
@@ -523,9 +520,6 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 		return s.runHlmPoStCycle(ctx, di, ts)
 	}
 
-	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
-	defer span.End()
-
 	go func() {
 		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
 
@@ -649,6 +643,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 		span.SetPartitionCount(len(batch))
 		span.SetOpenEpoch(int64(di.Open))
 		span.SetCloseEpoch(int64(di.Close))
+		span.SetWorkerEnable(false)
 		span.Starting("")
 		spanHasFinish := false
 
