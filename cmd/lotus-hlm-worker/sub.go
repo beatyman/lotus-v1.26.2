@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"huangdong2012/filecoin-monitor/trace/spans"
 	"net/http"
 	"os"
 	"strings"
@@ -239,11 +241,19 @@ func errRes(err error, res *ffiwrapper.SealRes) ffiwrapper.SealRes {
 }
 
 func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ffiwrapper.SealRes {
+	_, span := spans.NewTaskSpan(task.Ctx)
+	span.SetMinerID(w.actAddr.String())
+	span.SetType(fmt.Sprintf("%v", int(task.Type)))
+	span.SetWorkIP(w.workerCfg.IP)
+	span.SetWorkIP(w.workerCfg.ID)
+	span.Starting("task start...")
+
 	res := ffiwrapper.SealRes{
 		Type:      task.Type,
 		TaskID:    task.Key(),
 		WorkerCfg: w.workerCfg,
 	}
+	defer span.Finish(res.GoErr)
 
 	switch task.Type {
 	case ffiwrapper.WorkerPledge:

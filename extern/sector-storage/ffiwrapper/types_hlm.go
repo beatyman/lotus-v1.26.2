@@ -92,6 +92,8 @@ type WorkerCfg struct {
 }
 
 type WorkerTask struct {
+	Ctx context.Context
+
 	Type WorkerTaskType
 	// TaskID uint64 // using SecotrID instead
 

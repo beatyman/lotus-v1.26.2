@@ -192,6 +192,6 @@ replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
 
-replace huangdong2012/filecoin-monitor => github.com/huangdong2012/filecoin-monitor v0.0.0-20210805093517-5569f6245aab
+replace huangdong2012/filecoin-monitor => github.com/huangdong2012/filecoin-monitor v0.0.0-20210811045748-a2071c619bb5
 
 replace go.opencensus.io => github.com/huangdong2012/opencensus-go v0.0.0-20210728074244-7f6b340fc394

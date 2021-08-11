@@ -366,6 +366,7 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 	remotes := []*req{}
 	for i := 0; i < sb.remoteCfg.WinningPoSt; i++ {
 		task := WorkerTask{
+			Ctx:        ctx, //传递trace-id
 			Type:       WorkerWinningPoSt,
 			ProofType:  sectorInfo[0].ProofType,
 			SectorID:   abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
