@@ -23,6 +23,8 @@ const (
 	workerFinalize       = 50
 	workerUnseal         = 60
 	workerUnsealDone     = 61
+
+	sectorProving = 200
 )
 
 var (
@@ -73,6 +75,10 @@ func (s *SectorSpans) getStep(state int) string {
 		return "Commit"
 	case workerUnseal, workerUnsealDone:
 		return "Unseal"
+	case workerFinalize:
+		return "Finalize"
+	case sectorProving:
+		return "Proving"
 	}
 	return ""
 }
@@ -82,7 +88,9 @@ func (s *SectorSpans) isStepDone(state int) bool {
 		state == workerPreCommit1Done ||
 		state == workerPreCommit2Done ||
 		state == workerCommitDone ||
-		state == workerUnsealDone
+		state == workerUnsealDone ||
+		state == workerFinalize ||
+		state == sectorProving
 }
 
 func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wInfo *WorkerInfo, wid, msg string, state int) {
