@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 
@@ -27,6 +26,7 @@ import (
 	commpffi "github.com/filecoin-project/go-commp-utils/ffiwrapper"
 	"github.com/filecoin-project/go-commp-utils/zerocomm"
 	"github.com/filecoin-project/lotus/extern/sector-storage/fr32"
+	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
