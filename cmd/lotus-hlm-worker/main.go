@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"github.com/filecoin-project/lotus/buried"
+	"github.com/filecoin-project/lotus/buried/utils"
 	"github.com/filecoin-project/lotus/lib/tracing"
 	"github.com/filecoin-project/lotus/monitor"
 	"huangdong2012/filecoin-monitor/model"
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -237,11 +237,6 @@ var runCmd = &cli.Command{
 			Usage: "Timer time try. The time is minutes. The default is 1 minutes",
 			Value: "1",
 		},
-		&cli.BoolFlag{
-			Name:  "is-test",
-			Value: false,
-			Usage: "Determine whether it is a test or production environment",
-		},
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
@@ -365,11 +360,8 @@ var runCmd = &cli.Command{
 		}
 
 		timer := cctx.Int64("timer")
-		isTest := cctx.Bool("is-test")
-		minerNo := act.String()
-		if !isTest {
-			minerNo = strings.Replace(minerNo, "t", "f", -1)
-		}
+		minerNo := utils.GetMinerAddr()
+		log.Infof("==============get addr :%s", minerNo)
 		go func() {
 			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, minerNo)
 		}()
