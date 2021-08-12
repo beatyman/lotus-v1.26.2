@@ -8,15 +8,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/bits"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 
@@ -29,6 +26,7 @@ import (
 	commpffi "github.com/filecoin-project/go-commp-utils/ffiwrapper"
 	"github.com/filecoin-project/go-commp-utils/zerocomm"
 	"github.com/filecoin-project/lotus/extern/sector-storage/fr32"
+	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
@@ -166,50 +164,6 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 		return abi.PieceInfo{}, errors.As(err)
 	}
 
-	path := filepath.Join(sb.RepoPath(), "sector_cc")
-	pathTxt := filepath.Join(sb.RepoPath(), "sector_cc.txt")
-	//是否空单数据
-	log.Info("secors =============", sector)
-	log.Info("existingPieceSizes len =============", len(existingPieceSizes))
-	log.Info("pieceSize==== =============", pieceSize)
-	log.Info("file========= =============", file)
-	isSectorCc := false
-	if len(existingPieceSizes) == 0 {
-		isSectorCc = true
-	}
-	//当miner为有效订单是 isSectorCc 设置为false
-	if sector.SectorFile.IsMarketSector {
-		log.Info("sector.SectorFile.IsMarketSector Eff order===========================================", sector.SectorFile.IsMarketSector, sector.ID)
-		isSectorCc = false
-	}
-	//判断扇区是否是空单数据
-	log.Info("SecotrId _ isSectorCc====================", sector.ID, isSectorCc)
-	if isSectorCc {
-		//判断空单文件是否存在
-		isExist, err := PathExists(pathTxt)
-		if err != nil {
-			log.Error("AddPiece PathExists Err :", err)
-		}
-		//判断是否存在cc文件，如果存在跳过AddPiece 直接返回cid
-		if isExist {
-			//拷贝文件到对应的unseal目录
-			log.Info("sector.UnsealedRepo===================================", sector.UnsealedRepo)
-			CopyFile(path, sector.UnsealedFile())
-			log.Info("AddPiece Skip By SectorId:", sector.ID)
-			cid1, err := ReadSecorCC(pathTxt)
-			if err != nil {
-				log.Error("AddPiece error ReadSecorCC ===========", err)
-			}
-			if err == nil {
-				return abi.PieceInfo{
-					Size:     pieceSize.Padded(),
-					PieceCID: cid1,
-				}, nil
-			}
-		}
-	}
-	log.Info("Execute AddPiece Task ", sector.ID, isSectorCc)
-
 	// TODO: allow tuning those:
 	chunk := abi.PaddedPieceSize(4 << 20)
 	parallel := runtime.NumCPU()
@@ -245,25 +199,16 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 		}
 	}()
 
-	unsealedPath := sector.UnsealedFile()
-	if err := os.MkdirAll(filepath.Dir(unsealedPath), 0755); err != nil {
-		return abi.PieceInfo{}, xerrors.Errorf("creating unsealed sector file: %w", err)
-	}
+	//unsealedPath := sector.UnsealedFile()
+	//if err := os.MkdirAll(filepath.Dir(unsealedPath), 0755); err != nil {
+	//	return abi.PieceInfo{}, xerrors.Errorf("creating unsealed sector file: %w", err)
+	//}
 	if len(existingPieceSizes) == 0 {
 		stagedFile, err = partialfile.CreateUnsealedPartialFile(maxPieceSize, sector)
-		//拷贝文件
-		if isSectorCc {
-			log.Info("copyFile path ====================", path)
-			isSuccess := CopyFile(unsealedPath, path)
-			if !isSuccess {
-				log.Error("Copy Unsealed File Failt .....")
-			}
-		}
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("creating unsealed sector file: %w", err)
 		}
 	} else {
-		log.Info("===============================================Effective order======", sector.ID)
 		stagedFile, err = partialfile.OpenUnsealedPartialFile(maxPieceSize, sector)
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("opening unsealed sector file: %w", err)
@@ -356,21 +301,9 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 		return abi.PieceInfo{}, err
 	}
 	stagedFile = nil
-	log.Info("Secotr id _ piecePromises len()====================", sector.ID, len(piecePromises))
+
 	if len(piecePromises) == 1 {
-		piece, _ := piecePromises[0]()
-		if isSectorCc {
-			//格式化json cid 写入磁盘中
-			pieceJson, _ := piece.PieceCID.MarshalJSON()
-			err = WriteSectorCC(pathTxt, pieceJson)
-			if err != nil {
-				log.Error("=============================WriteSectorCC ===err: ", err)
-			}
-		}
-		return abi.PieceInfo{
-			Size:     pieceSize.Padded(),
-			PieceCID: piece.PieceCID,
-		}, nil
+		return piecePromises[0]()
 	}
 
 	var payloadRoundedBytes abi.PaddedPieceSize
@@ -403,14 +336,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 
 		pieceCID = paddedCid
 	}
-	if isSectorCc {
-		//格式化json cid 写入磁盘中
-		bytes, err := pieceCID.MarshalJSON()
-		err = WriteSectorCC(pathTxt, bytes)
-		if err != nil {
-			log.Error("WriteSector CC err : ", err)
-		}
-	}
+
 	return abi.PieceInfo{
 		Size:     pieceSize.Padded(),
 		PieceCID: pieceCID,
@@ -964,98 +890,4 @@ func GenerateUnsealedCID(proofType abi.RegisteredSealProof, pieces []abi.PieceIn
 	}
 
 	return ffi.GenerateUnsealedCID(proofType, allPieces)
-}
-
-//拷贝文件
-func CopyFile(src, dst string) bool {
-	if len(src) == 0 || len(dst) == 0 {
-		return false
-	}
-	srcFile, e := os.OpenFile(src, os.O_RDONLY, os.ModePerm)
-	if e != nil {
-		log.Error("copyfile", e)
-		return false
-	}
-	defer srcFile.Close()
-
-	dst = strings.Replace(dst, "\\", "/", -1)
-	dstPathArr := strings.Split(dst, "/")
-	dstPathArr = dstPathArr[0 : len(dstPathArr)-1]
-	dstPath := strings.Join(dstPathArr, "/")
-
-	dstFileInfo := GetFileInfo(dstPath)
-	if dstFileInfo == nil {
-		if e := os.MkdirAll(dstPath, os.ModePerm); e != nil {
-			log.Error("copyfile", e)
-			return false
-		}
-	}
-	//这里要把O_TRUNC 加上，否则会出现新旧文件内容出现重叠现象
-	dstFile, e := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm)
-	if e != nil {
-		log.Error("copyfile", e)
-		return false
-	}
-	defer dstFile.Close()
-	//fileInfo, e := srcFile.Stat()
-	//fileInfo.Size() > 1024
-	//byteBuffer := make([]byte, 10)
-	if _, e := io.Copy(dstFile, srcFile); e != nil {
-		log.Error("copyfile", e)
-		return false
-	} else {
-		return true
-	}
-
-}
-
-func GetFileInfo(src string) os.FileInfo {
-	if fileInfo, e := os.Stat(src); e != nil {
-		if os.IsNotExist(e) {
-			return nil
-		}
-		return nil
-	} else {
-		return fileInfo
-	}
-}
-
-func WriteSectorCC(path string, data []byte) error {
-	//先判断是否存在
-	isExist, err := PathExists(path)
-	if err != nil {
-		log.Error("WriteSectorCC PathExists Error : >.>", err)
-	}
-	if isExist {
-		return nil
-	}
-	err = ioutil.WriteFile(path, data, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func ReadSecorCC(path string) (cid.Cid, error) {
-	input, err := ioutil.ReadFile(path)
-	if err != nil {
-		return cid.Cid{}, err
-	}
-	var c cid.Cid
-	err = c.UnmarshalJSON(input)
-	if err != nil {
-		return cid.Cid{}, err
-	}
-	return c, nil
-}
-
-func PathExists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
 }
