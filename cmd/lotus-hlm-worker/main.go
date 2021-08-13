@@ -291,14 +291,6 @@ var runCmd = &cli.Command{
 			return err
 		}
 
-		//添加监控
-		monitor.Init(model.PackageKind_Worker, act.String())
-		jaeger := tracing.SetupJaegerTracing("worker")
-		defer func() {
-			if jaeger != nil {
-				jaeger.Flush()
-			}
-		}()
 		log.Infof("getting worker actor")
 		workerAddr, err := nodeApi.WorkerAddress(ctx, act, types.EmptyTSK)
 		if err != nil {
@@ -358,6 +350,21 @@ var runCmd = &cli.Command{
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}
+
+		//添加监控
+		kind := model.PackageKind_Worker
+		if workerCfg.WdPoStSrv {
+			kind = model.PackageKind_WorkerWdPost
+		} else if workerCfg.WnPoStSrv {
+			kind = model.PackageKind_WorkerWnPost
+		}
+		monitor.Init(kind, act.String())
+		jaeger := tracing.SetupJaegerTracing("worker")
+		defer func() {
+			if jaeger != nil {
+				jaeger.Flush()
+			}
+		}()
 
 		timer := cctx.Int64("timer")
 		minerNo := utils.GetMinerAddr()

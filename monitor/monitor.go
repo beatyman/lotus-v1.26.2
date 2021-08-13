@@ -21,7 +21,7 @@ func Init(kind model.PackageKind, minerID string) {
 			HostNo:      getHostNo(),
 		}
 		trace.Init(opt, &model.TraceOptions{
-			ExportAll:   false,//todo test self span
+			ExportAll:   false, //todo test self span
 			SpanLogDir:  "",
 			SpanLogName: "",
 		})
