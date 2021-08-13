@@ -1,7 +1,6 @@
 package ffiwrapper
 
 import (
-	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"golang.org/x/xerrors"
 
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
@@ -27,3 +26,4 @@ func computeUnsealRanges(unsealed rlepluslazy.RunIterator, offset storiface.Unpa
 
 	return rlepluslazy.JoinClose(todo, mergeGaps)
 }
+

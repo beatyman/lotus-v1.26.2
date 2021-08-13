@@ -915,14 +915,6 @@ func (s *FullNodeStub) ClientGetRetrievalUpdates(p0 context.Context) (<-chan api
 	return nil, ErrNotSupported
 }
 
-func (s *FullNodeStruct) ClientGetRetrievalUpdates(p0 context.Context) (<-chan api.RetrievalInfo, error) {
-	return s.Internal.ClientGetRetrievalUpdates(p0)
-}
-
-func (s *FullNodeStub) ClientGetRetrievalUpdates(p0 context.Context) (<-chan api.RetrievalInfo, error) {
-	return nil, xerrors.New("method not supported")
-}
-
 func (s *FullNodeStruct) ClientHasLocal(p0 context.Context, p1 cid.Cid) (bool, error) {
 	if s.Internal.ClientHasLocal == nil {
 		return false, ErrNotSupported
@@ -987,14 +979,6 @@ func (s *FullNodeStruct) ClientListRetrievals(p0 context.Context) ([]api.Retriev
 
 func (s *FullNodeStub) ClientListRetrievals(p0 context.Context) ([]api.RetrievalInfo, error) {
 	return *new([]api.RetrievalInfo), ErrNotSupported
-}
-
-func (s *FullNodeStruct) ClientListRetrievals(p0 context.Context) ([]api.RetrievalInfo, error) {
-	return s.Internal.ClientListRetrievals(p0)
-}
-
-func (s *FullNodeStub) ClientListRetrievals(p0 context.Context) ([]api.RetrievalInfo, error) {
-	return *new([]api.RetrievalInfo), xerrors.New("method not supported")
 }
 
 func (s *FullNodeStruct) ClientMinerQueryOffer(p0 context.Context, p1 address.Address, p2 cid.Cid, p3 *cid.Cid) (api.QueryOffer, error) {
@@ -1094,14 +1078,6 @@ func (s *FullNodeStruct) ClientStatelessDeal(p0 context.Context, p1 *api.StartDe
 
 func (s *FullNodeStub) ClientStatelessDeal(p0 context.Context, p1 *api.StartDealParams) (*cid.Cid, error) {
 	return nil, ErrNotSupported
-}
-
-func (s *FullNodeStruct) ClientStatelessDeal(p0 context.Context, p1 *api.StartDealParams) (*cid.Cid, error) {
-	return s.Internal.ClientStatelessDeal(p0, p1)
-}
-
-func (s *FullNodeStub) ClientStatelessDeal(p0 context.Context, p1 *api.StartDealParams) (*cid.Cid, error) {
-	return nil, xerrors.New("method not supported")
 }
 
 func (s *FullNodeStruct) CreateBackup(p0 context.Context, p1 string) error {
@@ -2831,14 +2807,6 @@ func (s *GatewayStub) Version(p0 context.Context) (api.APIVersion, error) {
 	return *new(api.APIVersion), ErrNotSupported
 }
 
-func (s *GatewayStruct) Version(p0 context.Context) (api.APIVersion, error) {
-	return s.Internal.Version(p0)
-}
-
-func (s *GatewayStub) Version(p0 context.Context) (api.APIVersion, error) {
-	return *new(api.APIVersion), xerrors.New("method not supported")
-}
-
 func (s *GatewayStruct) WalletBalance(p0 context.Context, p1 address.Address) (types.BigInt, error) {
 	if s.Internal.WalletBalance == nil {
 		return *new(types.BigInt), ErrNotSupported
@@ -2852,3 +2820,4 @@ func (s *GatewayStub) WalletBalance(p0 context.Context, p1 address.Address) (typ
 
 var _ FullNode = new(FullNodeStruct)
 var _ Gateway = new(GatewayStruct)
+

@@ -1424,3 +1424,4 @@ var chainEncodeParamsCmd = &cli.Command{
 		return nil
 	},
 }
+
