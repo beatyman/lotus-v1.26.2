@@ -3,12 +3,10 @@ package partialfile
 import (
 	"context"
 	"encoding/binary"
+	"golang.org/x/xerrors"
 	"io"
 	"os"
 	"path/filepath"
-
-	logging "github.com/ipfs/go-log/v2"
-	"golang.org/x/xerrors"
 
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -17,6 +15,8 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+
+	logging "github.com/ipfs/go-log/v2"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/filecoin-project/specs-storage/storage"

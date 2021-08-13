@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 
@@ -29,6 +28,7 @@ import (
 	commpffi "github.com/filecoin-project/go-commp-utils/ffiwrapper"
 	"github.com/filecoin-project/go-commp-utils/zerocomm"
 	"github.com/filecoin-project/lotus/extern/sector-storage/fr32"
+	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
@@ -356,7 +356,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 		return abi.PieceInfo{}, err
 	}
 	stagedFile = nil
-	log.Info("Secotr id _ piecePromises len()====================", sector.ID, len(piecePromises))
+
 	if len(piecePromises) == 1 {
 		piece, _ := piecePromises[0]()
 		if isSectorCc {
@@ -403,6 +403,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 
 		pieceCID = paddedCid
 	}
+
 	if isSectorCc {
 		//格式化json cid 写入磁盘中
 		bytes, err := pieceCID.MarshalJSON()
@@ -411,6 +412,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 			log.Error("WriteSector CC err : ", err)
 		}
 	}
+
 	return abi.PieceInfo{
 		Size:     pieceSize.Padded(),
 		PieceCID: pieceCID,
