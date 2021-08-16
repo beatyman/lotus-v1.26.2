@@ -61,7 +61,6 @@ var GetHlmMinerSchedulerAPIInfo = cliutil.GetHlmMinerSchedulerAPIInfo
 var GetHlmMinerSchedulerAPI = cliutil.GetHlmMinerSchedulerAPI
 
 var CommonCommands = []*cli.Command{
-	NetCmd,
 	AuthCmd,
 	LogCmd,
 	WaitApiCmd,
