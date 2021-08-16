@@ -762,7 +762,7 @@ func (mp *MessagePool) createMessageChains(actor address.Address, mset map[uint6
 		}
 		curNonce++
 
-		minGas := vm.PricelistByVersion(build.NewestNetworkVersion).OnChainMessage(m.ChainLength()).Total()
+		minGas := vm.PricelistByEpoch(ts.Height()).OnChainMessage(m.ChainLength()).Total()
 		if m.Message.GasLimit < minGas {
 			break
 		}
