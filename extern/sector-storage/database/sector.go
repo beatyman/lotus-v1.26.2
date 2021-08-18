@@ -3,7 +3,6 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -278,11 +277,11 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 			log.Warnf("GetSectorFile(%s) took : %s", sectorId, took)
 		}
 	}()
-	//todo test
+/*	//todo test
 	up := os.Getenv("US3")
 	if up != "" {
-		defaultRepo="/data/oss/qiniu/"
-	}
+		defaultRepo = "/data/oss/qiniu/"
+	}*/
 	file := &storage.SectorFile{
 		SectorId:     sectorId,
 		SealedRepo:   defaultRepo,
@@ -335,18 +334,18 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 		}
 	}
 	if sealedPoint != nil {
-		if sealedPoint.MountType =="oss"{
-			file.SealedRepo=sealedPoint.MountDir
-		}else {
+		if sealedPoint.MountType == "oss" {
+			file.SealedRepo = sealedPoint.MountDir
+		} else {
 			file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%d", storageSealed))
 		}
 		file.SealedStorageId = storageSealed
 		file.SealedStorageType = sealedPoint.MountType
 	}
 	if unsealedPoint != nil {
-		if unsealedPoint.MountType=="oss"{
-			file.UnsealedRepo=unsealedPoint.MountDir
-		}else {
+		if unsealedPoint.MountType == "oss" {
+			file.UnsealedRepo = unsealedPoint.MountDir
+		} else {
 			file.UnsealedRepo = filepath.Join(unsealedPoint.MountDir, fmt.Sprintf("%d", storageUnsealed))
 		}
 		file.UnsealedStorageId = storageUnsealed
@@ -572,7 +571,7 @@ func SetSectorSealedStorage(sid string, storage uint64) error {
 		return errors.As(err, sid, storage)
 	}
 	sectorFileCacheLk.Lock()
-	delete(sectorFileCaches,sid)
+	delete(sectorFileCaches, sid)
 	sectorFileCacheLk.Unlock()
 	return nil
 }

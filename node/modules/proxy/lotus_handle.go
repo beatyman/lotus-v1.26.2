@@ -902,3 +902,13 @@ func (s *LotusImpl) WalletValidateAddress(p0 context.Context, p1 string) (addres
 func (s *LotusImpl) WalletVerify(p0 context.Context, p1 address.Address, p2 []byte, p3 *crypto.Signature) (bool, error) {
 	return bestNodeApi().WalletVerify(p0, p1, p2, p3)
 }
+func (s *LotusImpl)ChainCheckBlockstore(p0 context.Context) error{
+	return bestNodeApi().ChainCheckBlockstore(p0)
+}
+func (s *LotusImpl)ChainBlockstoreInfo(p0 context.Context) (map[string]interface{}, error){
+	return bestNodeApi().ChainBlockstoreInfo(p0)
+}
+// ChainGetMessagesInTipset returns message stores in current tipset
+func (s *LotusImpl)ChainGetMessagesInTipset(p0 context.Context, p1 types.TipSetKey) ([]api.Message, error) {
+	return bestNodeApi().ChainGetMessagesInTipset(p0,p1)
+}

@@ -1036,7 +1036,9 @@ var ChainExportCmd = &cli.Command{
 	ArgsUsage: "[outputPath]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name: "tipset",
+			Name:  "tipset",
+			Usage: "specify tipset to start the export from",
+			Value: "@head",
 		},
 		&cli.Int64Flag{
 			Name:  "recent-stateroots",

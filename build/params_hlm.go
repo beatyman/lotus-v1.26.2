@@ -17,6 +17,7 @@ var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 const BootstrappersFile = "devnet.pi"
 const GenesisFile = "devnet.car"
 
+
 var UpgradeBreezeHeight = abi.ChainEpoch(-1)
 
 const BreezeGasTampingDuration = 0
@@ -42,7 +43,6 @@ var UpgradeNorwegianHeight = abi.ChainEpoch(-13)
 var UpgradeTurboHeight = abi.ChainEpoch(-14)
 
 var UpgradeHyperdriveHeight = abi.ChainEpoch(-15)
-
 func init() {
 	policy.SetSupportedProofTypes(
 		abi.RegisteredSealProof_StackedDrg2KiBV1,
