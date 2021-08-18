@@ -350,7 +350,8 @@ var runCmd = &cli.Command{
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
 		}
-
+		minerNo := utils.GetMinerAddr()
+		log.Infof("==============get addr :%s", minerNo)
 		//添加监控
 		kind := model.PackageKind_Worker
 		if workerCfg.WdPoStSrv {
@@ -358,7 +359,7 @@ var runCmd = &cli.Command{
 		} else if workerCfg.WnPoStSrv {
 			kind = model.PackageKind_WorkerWnPost
 		}
-		monitor.Init(kind, act.String())
+		monitor.Init(kind, minerNo)
 		jaeger := tracing.SetupJaegerTracing("worker")
 		defer func() {
 			if jaeger != nil {
@@ -367,8 +368,6 @@ var runCmd = &cli.Command{
 		}()
 
 		timer := cctx.Int64("timer")
-		minerNo := utils.GetMinerAddr()
-		log.Infof("==============get addr :%s", minerNo)
 		go func() {
 			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, minerNo)
 		}()
