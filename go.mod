@@ -3,8 +3,8 @@ module github.com/filecoin-project/lotus
 go 1.16
 
 require (
-	contrib.go.opencensus.io/exporter/jaeger v0.1.0
-	contrib.go.opencensus.io/exporter/prometheus v0.1.0
+	contrib.go.opencensus.io/exporter/jaeger v0.2.1
+	contrib.go.opencensus.io/exporter/prometheus v0.3.0
 	github.com/BurntSushi/toml v0.3.1
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/Gurpartap/async v0.0.0-20180927173644-4f7f499dd9ee
@@ -108,7 +108,6 @@ require (
 	github.com/ipld/go-car v0.1.1-0.20201119040415-11b6074b6d4d
 	github.com/ipld/go-ipld-prime v0.5.1-0.20201021195245-109253e8a018
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.10.2
 	github.com/libp2p/go-buffer-pool v0.0.2
 	github.com/libp2p/go-eventbus v0.2.1
@@ -141,9 +140,11 @@ require (
 	github.com/open-rpc/meta-schema v0.0.0-20201029221707-1b72ef2ea333
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/polydawn/refmt v0.0.0-20190809202753-05966cbd336a
-	github.com/prometheus/client_golang v1.10.0
+	github.com/prometheus/client_golang v1.11.0
 	github.com/raulk/clock v1.1.0
 	github.com/raulk/go-watchdog v1.0.1
+	github.com/shirou/gopsutil v2.18.12+incompatible
+	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/stretchr/testify v1.7.0
@@ -164,14 +165,14 @@ require (
 	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210511113859-b0526f3d8744
+	golang.org/x/sys v0.0.0-20210603081109-ebe580a85c40
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/tools v0.1.5
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gotest.tools v2.2.0+incompatible
-	honnef.co/go/tools v0.0.1-2020.1.3 // indirect
+	huangdong2012/filecoin-monitor v0.0.0-00010101000000-000000000000
 )
 
 replace github.com/libp2p/go-libp2p-yamux => github.com/libp2p/go-libp2p-yamux v0.5.1
@@ -190,3 +191,7 @@ replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-2021
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
+
+replace huangdong2012/filecoin-monitor => github.com/huangdong2012/filecoin-monitor v0.0.0-20210816014551-45f61d698e66
+
+replace go.opencensus.io => github.com/huangdong2012/opencensus-go v0.0.0-20210811152114-2cc76fc1a84f
