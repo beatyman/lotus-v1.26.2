@@ -455,17 +455,15 @@ func (dpImpl *diskPoolImpl) NewAllocate(sid string) (SectorState, error) {
 		}
 		realFree := diskInfo.All - realUse
 		if realFree <= 0 {
-			log.Infof("repo: %v ,all :%v, use: %v free: %v ,alloc: %v", repo, diskInfo.All, realUse, realFree, 0)
+			log.Warnf("repo: %v ,all :%v, use: %v free: %v ,alloc: %v", repo, diskInfo.All, realUse, realFree, 0)
 			continue
 		}
 		canAllocated := sectorCap(realFree, uint64(dpImpl.ssize))
-		log.Infof("repo: %v ,all :%v, use: %v free: %v ,alloc: %v", repo, diskInfo.All, realUse, realFree, canAllocated)
 		if maxAllocated < canAllocated {
 			maxAllocated = canAllocated
 			maxRepo = repo
 		}
 	}
-	log.Info("maxRepo: ", maxRepo, " maxAllocated: ", maxAllocated)
 	if len(maxRepo) == 0 && !dpImpl.hasDisk {
 		maxRepo = dpImpl.defaultRepo
 	}

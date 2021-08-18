@@ -332,7 +332,7 @@ func handleFUseText(conn net.Conn, bufLen uint32) error {
 			canWrite = true
 		}
 
-		id := uuid.NewString()
+		id := uuid.New().String()
 		var file *os.File
 		if canWrite {
 			flag, err := strconv.ParseInt(p["Flag"], 10, 32)

@@ -16,43 +16,43 @@ const (
 var AllPermissions = []auth.Permission{PermRead, PermWrite, PermSign, PermAdmin}
 var DefaultPerms = []auth.Permission{PermRead}
 
+func permissionedProxies(in, out interface{}) {
+	outs := GetInternalStructs(out)
+	for _, o := range outs {
+		auth.PermissionedProxy(AllPermissions, DefaultPerms, in, o)
+	}
+}
+
 func PermissionedStorMinerAPI(a StorageMiner) StorageMiner {
 	var out StorageMinerStruct
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.CommonStruct.Internal)
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerProxyStruct.Internal)
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerProvingStruct.Internal)
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerSectorStruct.Internal)
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerStorageStruct.Internal)
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.HlmMinerWorkerStruct.Internal)
+	permissionedProxies(a, &out)
 	return &out
 }
 
 func PermissionedFullAPI(a FullNode) FullNode {
 	var out FullNodeStruct
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.CommonStruct.Internal)
+	permissionedProxies(a, &out)
 	return &out
 }
 
 func PermissionedWorkerAPI(a Worker) Worker {
 	var out WorkerStruct
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	permissionedProxies(a, &out)
 	return &out
 }
 func PermissionedHlmMinerSchedulerAPI(a HlmMinerSchedulerAPI) HlmMinerSchedulerAPI {
 	var out HlmMinerSchedulerStruct
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	permissionedProxies(a, &out)
 	return &out
 }
 func PermissionedWorkerHlmAPI(a WorkerHlmAPI) WorkerHlmAPI {
 	var out WorkerHlmStruct
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	permissionedProxies(a, &out)
 	return &out
 }
 
 func PermissionedWalletAPI(a Wallet) Wallet {
 	var out WalletStruct
-	auth.PermissionedProxy(AllPermissions, DefaultPerms, a, &out.Internal)
+	permissionedProxies(a, &out)
 	return &out
 }

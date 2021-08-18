@@ -46,6 +46,7 @@ import (
 // FullNode API is a low-level interface to the Filecoin network full node
 type FullNode interface {
 	Common
+	Net
 
 	// implement by hlm
 	MpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) //perm:sign
@@ -100,6 +101,9 @@ type FullNode interface {
 	// ChainGetParentMessages returns messages stored in parent tipset of the
 	// specified block.
 	ChainGetParentMessages(ctx context.Context, blockCid cid.Cid) ([]api.Message, error) //perm:read
+
+	// ChainGetMessagesInTipset returns message stores in current tipset
+	ChainGetMessagesInTipset(ctx context.Context, tsk types.TipSetKey) ([]api.Message, error) //perm:read
 
 	// ChainGetTipSetByHeight looks back for a tipset at the specified epoch.
 	// If there are no blocks at the specified epoch, a tipset at an earlier epoch

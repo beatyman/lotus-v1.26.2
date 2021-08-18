@@ -30,8 +30,6 @@ var log = logging.Logger("advmgr")
 
 var ErrNoWorkers = errors.New("no suitable workers found")
 
-type URLs []string
-
 type Worker interface {
 	storiface.WorkerCalls
 

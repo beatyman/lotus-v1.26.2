@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"github.com/filecoin-project/lotus/monitor"
 	"huangdong2012/filecoin-monitor/model"
 	"huangdong2012/filecoin-monitor/trace/spans"
@@ -401,6 +402,9 @@ func (m *Miner) mine(ctx context.Context) {
 			if err := m.sf.MinedBlock(b.Header, lastBase.TipSet.Height()+lastBase.NullRounds); err != nil {
 				m.sf.CleanCache(b.Header, lastBase.TipSet.Height()+lastBase.NullRounds)
 				log.Errorf("<!!> SLASH FILTER ERROR: %s", err)
+				if os.Getenv("LOTUS_MINER_NO_SLASHFILTER") != "_yes_i_know_i_can_and_probably_will_lose_all_my_fil_and_power_" {
+					continue
+				}
 				lastBase.TipSet = nil // clean the cache and redo the mining
 				continue
 			}
