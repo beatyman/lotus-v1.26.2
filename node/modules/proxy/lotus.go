@@ -96,10 +96,7 @@ func (l *LotusNode) GetNodeApiV0(sessionId string) (*LotusNodeApiV0, error) {
 	// see: github.com/filecoin-project/lotus/api/client/client.go#NewFullNodeRPCV0
 	var res v0api.FullNodeStruct
 	closer, err := jsonrpc.NewMergeClient(l.ctx, addr, "Filecoin",
-		[]interface{}{
-			&res.CommonStruct.Internal,
-			&res.Internal,
-		},
+		api.GetInternalStructs(&res),
 		headers,
 	)
 	if err != nil {
@@ -134,10 +131,7 @@ func (l *LotusNode) GetNodeApiV1(sessionId string) (*LotusNodeApiV1, error) {
 	// see: github.com/filecoin-project/lotus/api/client/client.go#NewFullNodeRPCV1
 	var res api.FullNodeStruct
 	closer, err := jsonrpc.NewMergeClient(l.ctx, addr, "Filecoin",
-		[]interface{}{
-			&res.CommonStruct.Internal,
-			&res.Internal,
-		},
+		api.GetInternalStructs(&res),
 		headers,
 	)
 	if err != nil {
