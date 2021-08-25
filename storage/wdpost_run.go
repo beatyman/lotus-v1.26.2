@@ -631,12 +631,12 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 			Proofs:     nil,
 		}
 
-		skipCount := uint64(0)
 		postSkipped := bitfield.New()
 		somethingToProve := false
 
 		// Retry until we run out of sectors to prove.
 		for retries := 0; ; retries++ {
+			skipCount := uint64(0)
 			var partitions []miner.PoStPartition
 			var sinfos []storage.ProofSectorInfo
 			for partIdx, partition := range batch {
@@ -786,7 +786,6 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 				return nil, ctx.Err()
 			}
 
-			skipCount += uint64(len(ps))
 			for _, sector := range ps {
 				postSkipped.Set(uint64(sector.Number))
 			}
