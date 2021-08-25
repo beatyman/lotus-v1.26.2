@@ -2,7 +2,6 @@ package cliutil
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"golang.org/x/xerrors"
 	"io/ioutil"

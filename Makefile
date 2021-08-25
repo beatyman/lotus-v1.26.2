@@ -119,11 +119,6 @@ lotus-worker: $(BUILD_DEPS)
 .PHONY: lotus-worker
 BINS+=lotus-worker
 
-chain-watch: $(BUILD_DEPS)
-	rm -f lotus-chain-watch
-	$(GOCC) build $(GOFLAGS) -o lotus-chain-watch ./cmd/chain-watch
-.PHONY: lotus-chain-watch
-BINS+=lotus-chain-watch
 
 
 lotus-shed: $(BUILD_DEPS)
@@ -218,7 +213,7 @@ BINS+=lotus-health
 
 leveldb-tools:
 	rm -f leveldb-tools
-	$(GOCC) -o leveldb-tools ./cmd/tools/leveldb-tools
+	$(GOCC) build -o leveldb-tools ./cmd/tools/leveldb-tools
 .PHONY: leveldb-tools
 BINS+=leveldb-tools
 

@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/filecoin-project/lotus/node/repo/imports"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-state-types/dline"
@@ -22,7 +24,6 @@ import (
 	datatransfer "github.com/filecoin-project/go-data-transfer"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
-	"github.com/filecoin-project/go-multistore"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
 
@@ -269,7 +270,9 @@ func (s *LotusImpl) ChainGetTipSet(p0 context.Context, p1 types.TipSetKey) (*typ
 func (s *LotusImpl) ChainGetTipSetByHeight(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) {
 	return bestNodeApi().ChainGetTipSetByHeight(p0, p1, p2)
 }
-
+func (s *LotusImpl)ChainGetTipSetAfterHeight(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error){
+	return bestNodeApi().ChainGetTipSetAfterHeight(p0, p1, p2)
+}
 func (s *LotusImpl) ChainHasObj(p0 context.Context, p1 cid.Cid) (bool, error) {
 	return bestNodeApi().ChainHasObj(p0, p1)
 }
@@ -366,7 +369,7 @@ func (s *LotusImpl) ClientQueryAsk(p0 context.Context, p1 peer.ID, p2 address.Ad
 	return bestNodeApi().ClientQueryAsk(p0, p1, p2)
 }
 
-func (s *LotusImpl) ClientRemoveImport(p0 context.Context, p1 multistore.StoreID) error {
+func (s *LotusImpl) ClientRemoveImport(p0 context.Context, p1 imports.ID) error {
 	return bestNodeApi().ClientRemoveImport(p0, p1)
 }
 
@@ -670,7 +673,9 @@ func (s *LotusImpl) StateDealProviderCollateralBounds(p0 context.Context, p1 abi
 func (s *LotusImpl) StateDecodeParams(p0 context.Context, p1 address.Address, p2 abi.MethodNum, p3 []byte, p4 types.TipSetKey) (interface{}, error) {
 	return bestNodeApi().StateDecodeParams(p0, p1, p2, p3, p4)
 }
-
+func (s *LotusImpl)StateEncodeParams(p0 context.Context, p1 cid.Cid, p2 abi.MethodNum, p3 json.RawMessage) ([]byte, error) {
+	return bestNodeApi().StateEncodeParams(p0, p1, p2, p3)
+}
 func (s *LotusImpl) StateGetActor(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) {
 	return bestNodeApi().StateGetActor(p0, p1, p2)
 }
