@@ -2,6 +2,7 @@ package cliutil
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"golang.org/x/xerrors"
 	"io/ioutil"
@@ -188,6 +189,15 @@ func getAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
 			return APIInfo{}, xerrors.Errorf("could not open repo at path: %s; %w", p, err)
 		}
 
+		exists, err := r.Exists()
+		if err != nil {
+			return APIInfo{}, xerrors.Errorf("repo.Exists returned an error: %w", err)
+		}
+
+		if !exists {
+			return APIInfo{}, errors.New("repo directory does not exist. Make sure your configuration is correct")
+		}
+
 		ma, err := r.APIEndpoint()
 		if err != nil {
 			return APIInfo{}, xerrors.Errorf("could not get api endpoint: %w", err)
@@ -227,7 +237,7 @@ func getRepoFs(ctx *cli.Context, t repo.RepoType) (*repo.FsRepo, error) {
 func GetRawAPI(ctx *cli.Context, t repo.RepoType, version string) (string, http.Header, error) {
 	ainfo, err := proxyAPIInfo(ctx, t)
 	if err != nil {
-		return "", nil, xerrors.Errorf("could not get API info: %w", err)
+		return "", nil, xerrors.Errorf("could not get API info for %s: %w", t, err)
 	}
 
 	addr, err := ainfo.DialArgs(version, t)
@@ -299,7 +309,19 @@ func GetFullNodeAPIV1(ctx *cli.Context) (v1api.FullNode, jsonrpc.ClientCloser, e
 		_, _ = fmt.Fprintln(ctx.App.Writer, "using full node API v1 endpoint:", addr)
 	}
 
-	return client.NewFullNodeRPCV1(ctx.Context, addr, headers)
+	v1API, closer, err := client.NewFullNodeRPCV1(ctx.Context, addr, headers)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	v, err := v1API.Version(ctx.Context)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !v.APIVersion.EqMajorMinor(api.FullAPIVersion1) {
+		return nil, nil, xerrors.Errorf("Remote API version didn't match (expected %s, remote %s)", api.FullAPIVersion1, v.APIVersion)
+	}
+	return v1API, closer, nil
 }
 
 type GetStorageMinerOptions struct {

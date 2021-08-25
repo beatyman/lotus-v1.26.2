@@ -236,6 +236,11 @@ func (b *CommitBatcher) maybeStartBatch(notif, after bool) ([]sealiface.CommitBa
 	} else {
 		res, err = b.processBatch(cfg)
 	}
+
+	if err != nil {
+		log.Warnf("CommitBatcher maybeStartBatch individual:%v processBatch %v", individual, err)
+	}
+
 	if err != nil && len(res) == 0 {
 		return nil, err
 	}

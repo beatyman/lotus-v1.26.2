@@ -5,7 +5,9 @@ all: build
 
 unexport GOFLAGS
 
-GOVERSION:=$(shell go version | cut -d' ' -f 3 | sed 's/^go//' | awk -F. '{printf "%d%03d%03d", $$1, $$2, $$3}')
+GOCC?=go
+
+GOVERSION:=$(shell $(GOCC) version | tr ' ' '\n' | grep go1 | sed 's/^go//' | awk -F. '{printf "%d%03d%03d", $$1, $$2, $$3}')
 ifeq ($(shell expr $(GOVERSION) \< 1016000), 1)
 $(warning Your Golang version is go$(shell expr $(GOVERSION) / 1000000).$(shell expr $(GOVERSION) % 1000000 / 1000).$(shell expr $(GOVERSION) % 1000))
 $(error Update Golang to version to at least 1.16.0)
@@ -88,51 +90,51 @@ interopnet: build-devnets
 
 etcd: $(BUILD_DEPS)
 	rm -f etcd
-	go build $(GOFLAGS) -o etcd ./cmd/etcd
+	$(GOCC) build $(GOFLAGS) -o etcd ./cmd/etcd
 .PHONY: etcd
 BINS+=etcd
 
 etcdctl: $(BUILD_DEPS)
 	rm -f etcdctl
-	go build $(GOFLAGS) -o etcdctl ./cmd/etcdctl
+	$(GOCC) build $(GOFLAGS) -o etcdctl ./cmd/etcdctl
 .PHONY: etcdctl
 BINS+=etcdctl
 
 lotus: $(BUILD_DEPS)
 	rm -f lotus
-	go build $(GOFLAGS) -o lotus ./cmd/lotus
+	$(GOCC) build $(GOFLAGS) -o lotus ./cmd/lotus
 
 .PHONY: lotus
 BINS+=lotus
 
 lotus-miner: $(BUILD_DEPS)
 	rm -f lotus-miner
-	go build $(GOFLAGS) -o lotus-miner ./cmd/lotus-miner
+	$(GOCC) build $(GOFLAGS) -o lotus-miner ./cmd/lotus-miner
 .PHONY: lotus-miner
 BINS+=lotus-miner
 
 lotus-worker: $(BUILD_DEPS)
 	rm -f lotus-worker
-	go build $(GOFLAGS) -o lotus-worker ./cmd/lotus-hlm-worker
+	$(GOCC) build $(GOFLAGS) -o lotus-worker ./cmd/lotus-hlm-worker
 .PHONY: lotus-worker
 BINS+=lotus-worker
 
 chain-watch: $(BUILD_DEPS)
 	rm -f lotus-chain-watch
-	go build $(GOFLAGS) -o lotus-chain-watch ./cmd/chain-watch
+	$(GOCC) build $(GOFLAGS) -o lotus-chain-watch ./cmd/chain-watch
 .PHONY: lotus-chain-watch
 BINS+=lotus-chain-watch
 
 
 lotus-shed: $(BUILD_DEPS)
 	rm -f lotus-shed
-	go build $(GOFLAGS) -o lotus-shed ./cmd/lotus-shed
+	$(GOCC) build $(GOFLAGS) -o lotus-shed ./cmd/lotus-shed
 .PHONY: lotus-shed
 BINS+=lotus-shed
 
 lotus-gateway: $(BUILD_DEPS)
 	rm -f lotus-gateway
-	go build $(GOFLAGS) -o lotus-gateway ./cmd/lotus-gateway
+	$(GOCC) build $(GOFLAGS) -o lotus-gateway ./cmd/lotus-gateway
 .PHONY: lotus-gateway
 BINS+=lotus-gateway
 
@@ -160,19 +162,19 @@ install-app:
 
 lotus-seed: $(BUILD_DEPS)
 	rm -f lotus-seed
-	go build $(GOFLAGS) -o lotus-seed ./cmd/lotus-seed
+	$(GOCC) build $(GOFLAGS) -o lotus-seed ./cmd/lotus-seed
 
 .PHONY: lotus-seed
 BINS+=lotus-seed
 
 benchmarks:
-	go run github.com/whyrusleeping/bencher ./... > bench.json
+	$(GOCC) run github.com/whyrusleeping/bencher ./... > bench.json
 	@echo Submitting results
 	@curl -X POST 'http://benchmark.kittyhawk.wtf/benchmark' -d '@bench.json' -u "${benchmark_http_cred}"
 .PHONY: benchmarks
 
 lotus-pond: 2k
-	go build -o lotus-pond ./lotuspond
+	$(GOCC) build -o lotus-pond ./lotuspond
 .PHONY: lotus-pond
 BINS+=lotus-pond
 
@@ -183,97 +185,76 @@ lotus-pond-front:
 lotus-pond-app: lotus-pond-front lotus-pond
 .PHONY: lotus-pond-app
 
-lotus-townhall:
-	rm -f lotus-townhall
-	go build -o lotus-townhall ./cmd/lotus-townhall
-.PHONY: lotus-townhall
-BINS+=lotus-townhall
-
-lotus-townhall-front:
-	(cd ./cmd/lotus-townhall/townhall && npm i && npm run build)
-.PHONY: lotus-townhall-front
-
-lotus-townhall-app: lotus-touch lotus-townhall-front
-.PHONY: lotus-townhall-app
-
 lotus-fountain:
 	rm -f lotus-fountain
-	go build -o lotus-fountain ./cmd/lotus-fountain
+	go build $(GOFLAGS) -o lotus-fountain ./cmd/lotus-fountain
+	go run github.com/GeertJohan/go.rice/rice append --exec lotus-fountain -i ./cmd/lotus-fountain -i ./build
 .PHONY: lotus-fountain
 BINS+=lotus-fountain
 
-lotus-chainwatch:
-	rm -f lotus-chainwatch
-	go build $(GOFLAGS) -o lotus-chainwatch ./cmd/lotus-chainwatch
-.PHONY: lotus-chainwatch
-BINS+=lotus-chainwatch
-
 lotus-bench:
 	rm -f lotus-bench
-	go build -o lotus-bench ./cmd/lotus-bench
+	$(GOCC) build -o lotus-bench ./cmd/lotus-bench
 .PHONY: lotus-bench
 BINS+=lotus-bench
 
 lotus-stats:
 	rm -f lotus-stats
-	go build $(GOFLAGS) -o lotus-stats ./cmd/lotus-stats
+	$(GOCC) build $(GOFLAGS) -o lotus-stats ./cmd/lotus-stats
 .PHONY: lotus-stats
 BINS+=lotus-stats
 
 lotus-pcr:
 	rm -f lotus-pcr
-	go build $(GOFLAGS) -o lotus-pcr ./cmd/lotus-pcr
+	$(GOCC) build $(GOFLAGS) -o lotus-pcr ./cmd/lotus-pcr
 .PHONY: lotus-pcr
 BINS+=lotus-pcr
 
 lotus-health:
 	rm -f lotus-health
-	go build -o lotus-health ./cmd/lotus-health
+	$(GOCC) build -o lotus-health ./cmd/lotus-health
 .PHONY: lotus-health
 BINS+=lotus-health
 
 leveldb-tools:
 	rm -f leveldb-tools
-	go build -o leveldb-tools ./cmd/tools/leveldb-tools
+	$(GOCC) -o leveldb-tools ./cmd/tools/leveldb-tools
 .PHONY: leveldb-tools
 BINS+=leveldb-tools
 
 lotus-storage:
 	rm -f lotus-storage
-	go build $(GOFLAGS) -o lotus-storage ./cmd/lotus-storage
+	$(GOCC) build $(GOFLAGS) -o lotus-storage ./cmd/lotus-storage
 .PHONY: lotus-storage
 BINS+=lotus-storage
 
 lotus-wallet:
 	rm -f lotus-wallet
-	go build -o lotus-wallet ./cmd/lotus-wallet
+	$(GOCC) build -o lotus-wallet ./cmd/lotus-wallet
 .PHONY: lotus-wallet
 BINS+=lotus-wallet
 
 lotus-keygen:
 	rm -f lotus-keygen
-	go build -o lotus-keygen ./cmd/lotus-keygen
+	$(GOCC) build -o lotus-keygen ./cmd/lotus-keygen
 .PHONY: lotus-keygen
 BINS+=lotus-keygen
 
 testground:
-	go build -tags testground -o /dev/null ./cmd/lotus
+	$(GOCC) build -tags testground -o /dev/null ./cmd/lotus
 .PHONY: testground
 BINS+=testground
 
 
 tvx:
 	rm -f tvx
-	go build -o tvx ./cmd/tvx
+	$(GOCC) build -o tvx ./cmd/tvx
 .PHONY: tvx
 BINS+=tvx
 
-install-chainwatch: lotus-chainwatch
-	install -C ./lotus-chainwatch /usr/local/bin/lotus-chainwatch
-
 lotus-sim: $(BUILD_DEPS)
 	rm -f lotus-sim
-	go build $(GOFLAGS) -o lotus-sim ./cmd/lotus-sim
+	$(GOCC) build $(GOFLAGS) -o lotus-sim ./cmd/lotus-sim
 .PHONY: lotus-sim
 BINS+=lotus-sim
 
@@ -295,21 +276,13 @@ install-miner-service: install-miner install-daemon-service
 	@echo
 	@echo "lotus-miner service installed. Don't forget to run 'sudo systemctl start lotus-miner' to start it and 'sudo systemctl enable lotus-miner' for it to be enabled on startup."
 
-install-chainwatch-service: install-chainwatch install-daemon-service
-	mkdir -p /etc/systemd/system
-	mkdir -p /var/log/lotus
-	install -C -m 0644 ./scripts/lotus-chainwatch.service /etc/systemd/system/lotus-chainwatch.service
-	systemctl daemon-reload
-	@echo
-	@echo "chainwatch service installed. Don't forget to run 'sudo systemctl start lotus-chainwatch' to start it and 'sudo systemctl enable lotus-chainwatch' for it to be enabled on startup."
-
 install-main-services: install-miner-service
 
-install-all-services: install-main-services install-chainwatch-service
+install-all-services: install-main-services
 
 install-services: install-main-services
 
-clean-daemon-service: clean-miner-service clean-chainwatch-service
+clean-daemon-service: clean-miner-service
 	-systemctl stop lotus-daemon
 	-systemctl disable lotus-daemon
 	rm -f /etc/systemd/system/lotus-daemon.service
@@ -319,12 +292,6 @@ clean-miner-service:
 	-systemctl stop lotus-miner
 	-systemctl disable lotus-miner
 	rm -f /etc/systemd/system/lotus-miner.service
-	systemctl daemon-reload
-
-clean-chainwatch-service:
-	-systemctl stop lotus-chainwatch
-	-systemctl disable lotus-chainwatch
-	rm -f /etc/systemd/system/lotus-chainwatch.service
 	systemctl daemon-reload
 
 clean-main-services: clean-daemon-service
@@ -353,25 +320,25 @@ dist-clean:
 .PHONY: dist-clean
 
 type-gen: api-gen
-	go run ./gen/main.go
-	go generate -x ./...
+	$(GOCC) run ./gen/main.go
+	$(GOCC) generate -x ./...
 	goimports -w api/
 
 method-gen: api-gen
-	(cd ./lotuspond/front/src/chain && go run ./methodgen.go)
+	(cd ./lotuspond/front/src/chain && $(GOCC) run ./methodgen.go)
 
 actors-gen:
-	go run ./chain/actors/agen
-	go fmt ./...
+	$(GOCC) run ./chain/actors/agen
+	$(GOCC) fmt ./...
 
 api-gen:
-	go run ./gen/api
+	$(GOCC) run ./gen/api
 	goimports -w api
 	goimports -w api
 .PHONY: api-gen
 
 cfgdoc-gen:
-	go run ./node/config/cfgdocgen > ./node/config/doc_gen.go
+	$(GOCC) run ./node/config/cfgdocgen > ./node/config/doc_gen.go
 
 appimage: lotus
 	rm -rf appimage-builder-cache || true
@@ -385,9 +352,9 @@ appimage: lotus
 docsgen: docsgen-md docsgen-openrpc
 
 docsgen-md-bin: api-gen actors-gen
-	go build $(GOFLAGS) -o docgen-md ./api/docgen/cmd
+	$(GOCC) build $(GOFLAGS) -o docgen-md ./api/docgen/cmd
 docsgen-openrpc-bin: api-gen actors-gen
-	go build $(GOFLAGS) -o docgen-openrpc ./api/docgen-openrpc/cmd
+	$(GOCC) build $(GOFLAGS) -o docgen-openrpc ./api/docgen-openrpc/cmd
 
 docsgen-md: docsgen-md-full docsgen-md-storage docsgen-md-worker
 
