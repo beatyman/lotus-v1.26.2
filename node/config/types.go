@@ -28,7 +28,6 @@ type Common struct {
 type FullNode struct {
 	Common
 	Client     Client
-	Metrics    Metrics
 	Wallet     Wallet
 	Fees       FeeConfig
 	Chainstore Chainstore
@@ -56,6 +55,41 @@ type StorageMiner struct {
 	Storage    sectorstorage.SealerConfig
 	Fees       MinerFeeConfig
 	Addresses  MinerAddressConfig
+	DAGStore   DAGStoreConfig
+}
+
+type DAGStoreConfig struct {
+	// Path to the dagstore root directory. This directory contains three
+	// subdirectories, which can be symlinked to alternative locations if
+	// need be:
+	//  - ./transients: caches unsealed deals that have been fetched from the
+	//    storage subsystem for serving retrievals.
+	//  - ./indices: stores shard indices.
+	//  - ./datastore: holds the KV store tracking the state of every shard
+	//    known to the DAG store.
+	// Default value: <LOTUS_MARKETS_PATH>/dagstore (split deployment) or
+	// <LOTUS_MINER_PATH>/dagstore (monolith deployment)
+	RootDir string
+
+	// The maximum amount of indexing jobs that can run simultaneously.
+	// 0 means unlimited.
+	// Default value: 5.
+	MaxConcurrentIndex int
+
+	// The maximum amount of unsealed deals that can be fetched simultaneously
+	// from the storage subsystem. 0 means unlimited.
+	// Default value: 0 (unlimited).
+	MaxConcurrentReadyFetches int
+
+	// The maximum number of simultaneous inflight API calls to the storage
+	// subsystem.
+	// Default value: 100.
+	MaxConcurrencyStorageCalls int
+
+	// The time between calls to periodic dagstore GC, in time.Duration string
+	// representation, e.g. 1m, 5m, 1h.
+	// Default value: 1 minute.
+	GCInterval Duration
 }
 
 type WorkerAddrConfig struct {
@@ -150,6 +184,11 @@ type SealingConfig struct {
 
 	// Upper bound on how many sectors can be sealing at the same time when creating new sectors with deals (0 = unlimited)
 	MaxSealingSectorsForDeals uint64
+
+	// CommittedCapacitySectorLifetime is the duration a Committed Capacity (CC) sector will
+	// live before it must be extended or converted into sector containing deals before it is
+	// terminated. Value must be between 180-540 days inclusive
+	CommittedCapacitySectorLifetime Duration
 
 	// includes failed, 0 = no limit
 	MaxDealsPerSector uint64
@@ -315,12 +354,6 @@ type Splitstore struct {
 }
 
 // // Full Node
-
-type Metrics struct {
-	Nickname   string
-	HeadNotifs bool
-}
-
 type Client struct {
 	UseIpfs             bool
 	IpfsOnlineMode      bool
