@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/lib/report"
 	"go.opencensus.io/trace/propagation"
 	"math"
@@ -558,7 +559,6 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 		if err != nil {
 			log.Error("Sector-Report Err,SectorId:%d", sector.Number, err)
 		}
-
 	}
 	defer func() {
 		log.Infof("SelectCommit2Service out:s-t%d-%d", sector.Miner, sector.Number)
@@ -590,6 +590,9 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 				continue
 			}
 			handler(r)
+			if err := database.UpdateSectorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun); err != nil {
+				log.Error("UpdateSectorState Err, sectorId:%d, error:%v:", sector.Number, err)
+			}
 			return &r.cfg, nil
 		}
 	}

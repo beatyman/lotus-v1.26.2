@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/gwaylib/errors"
+	"huangdong2012/filecoin-monitor/trace/spans"
 	"strconv"
 	"sync"
-
-	"huangdong2012/filecoin-monitor/trace/spans"
 )
 
 // 不使用ffiwrapper.WorkerTaskType枚举 避免循环引用
@@ -19,6 +18,7 @@ const (
 	workerPreCommit2     = 20
 	workerPreCommit2Done = 21
 	workerCommit         = 40
+	WorkerCommitRun      = 42
 	workerCommitDone     = 41
 	workerFinalize       = 50
 	workerUnseal         = 60
@@ -71,7 +71,7 @@ func (s *SectorSpans) getStep(state int) string {
 		return "PreCommit1"
 	case workerPreCommit2, workerPreCommit2Done:
 		return "PreCommit2"
-	case workerCommit, workerCommitDone:
+	case workerCommit, WorkerCommitRun, workerCommitDone:
 		return "Commit"
 	case workerUnseal, workerUnsealDone:
 		return "Unseal"
@@ -81,6 +81,10 @@ func (s *SectorSpans) getStep(state int) string {
 		return "Proving"
 	}
 	return ""
+}
+
+func (s *SectorSpans) isStepRunning(state int) bool {
+	return state == WorkerCommitRun
 }
 
 func (s *SectorSpans) isStepDone(state int) bool {
@@ -99,10 +103,14 @@ func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wInfo *WorkerInfo, w
 	}
 
 	if step := s.getStep(state); len(step) > 0 {
-		if span := s.getSpan(step, info, wInfo); s.isStepDone(state) {
+		if span := s.getSpan(step, info, wInfo); s.isStepDone(state) { //finish
 			span.Finish(nil)
 			s.removeSpan(info.ID, step)
-		} else {
+		} else if s.isStepRunning(state) { //running
+			if state == WorkerCommitRun {
+				span.Process("commit2", msg)
+			}
+		} else { //starting
 			span.Starting(msg)
 		}
 	} else if state == SECTOR_STATE_FAILED {
