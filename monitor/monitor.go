@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"encoding/json"
 	"github.com/shirou/gopsutil/host"
 	"huangdong2012/filecoin-monitor/metric"
 	"huangdong2012/filecoin-monitor/model"
@@ -39,4 +40,9 @@ func getHostNo() string {
 		return ""
 	}
 	return info.HostID
+}
+
+func toJson(obj interface{}) string {
+	data, _ := json.MarshalIndent(obj, "", "	")
+	return string(data)
 }
