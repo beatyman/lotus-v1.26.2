@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/buried/utils"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -422,6 +423,7 @@ reAllocate:
 
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
+		utils.DeleteC1Out(sector)
 	case ffiwrapper.WorkerPreCommit2:
 		//out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
 		out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
@@ -455,7 +457,7 @@ reAllocate:
 		pathTxt := sector.CachePath() + "/c1.out"
 		isExist, err := ffiwrapper.PathExists(pathTxt)
 		if err != nil {
-			log.Error("Read c1  PathExists Err :", err)
+			log.Error("Read C1  PathExists Err :", err)
 		}
 		var c1Out []byte
 		if isExist {
