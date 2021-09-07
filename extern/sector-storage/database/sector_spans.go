@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gwaylib/errors"
+	"go.opencensus.io/trace"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	"strconv"
 	"sync"
@@ -108,6 +109,10 @@ func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wInfo *WorkerInfo, w
 			s.removeSpan(info.ID, step)
 		} else if s.isStepRunning(state) { //running
 			if state == WorkerCommitRun {
+				if wInfo != nil {
+					span.AddAttributes(trace.StringAttribute("commit2_work_ip", wInfo.Ip))
+					span.AddAttributes(trace.StringAttribute("commit2_work_no", wInfo.ID))
+				}
 				span.Process("commit2", msg)
 			}
 		} else { //starting
