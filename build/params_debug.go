@@ -4,7 +4,7 @@
 package build
 
 func init() {
-	InsecurePoStValidation = true
+	InsecurePoStValidation = false
 	BuildType |= BuildDebug
 }
 
