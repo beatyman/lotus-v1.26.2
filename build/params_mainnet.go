@@ -1,12 +1,5 @@
-// +build !debug
-// +build !2k
-// +build !hlm
-// +build !calibration
-// +build !testground
-// +build !calibnet
-// +build !nerpanet
-// +build !butterflynet
-// +build !interopnet
+//go:build !debug && !2k && !testground && !calibnet && !nerpanet && !butterflynet && !interopnet
+// +build !debug,!2k,!testground,!calibnet,!nerpanet,!butterflynet,!interopnet,!hlm
 
 package build
 

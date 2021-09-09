@@ -32,7 +32,6 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	block "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	dstore "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	cbor "github.com/ipfs/go-ipld-cbor"
@@ -89,6 +88,8 @@ type HeadChangeEvt struct {
 	ApplyCount  int
 }
 
+type WeightFunc func(ctx context.Context, stateBs bstore.Blockstore, ts *types.TipSet) (types.BigInt, error)
+
 // ChainStore is the main point of access to chain data.
 //
 // Raw chain data is stored in the Blockstore, with relevant markers (genesis,
@@ -102,6 +103,8 @@ type ChainStore struct {
 	chainBlockstore bstore.Blockstore
 	stateBlockstore bstore.Blockstore
 	metadataDs      dstore.Batching
+
+	weight WeightFunc
 
 	chainLocalBlockstore bstore.Blockstore
 
@@ -130,7 +133,7 @@ type ChainStore struct {
 	wg       sync.WaitGroup
 }
 
-func NewChainStore(chainBs bstore.Blockstore, stateBs bstore.Blockstore, ds dstore.Batching, j journal.Journal) *ChainStore {
+func NewChainStore(chainBs bstore.Blockstore, stateBs bstore.Blockstore, ds dstore.Batching, weight WeightFunc, j journal.Journal) *ChainStore {
 	c, _ := lru.NewARC(DefaultMsgMetaCacheSize)
 	tsc, _ := lru.NewARC(DefaultTipSetCacheSize)
 	if j == nil {
@@ -145,6 +148,7 @@ func NewChainStore(chainBs bstore.Blockstore, stateBs bstore.Blockstore, ds dsto
 		chainBlockstore:      chainBs,
 		stateBlockstore:      stateBs,
 		chainLocalBlockstore: localbs,
+		weight:               weight,
 		metadataDs:           ds,
 		bestTips:             pubsub.New(64),
 		tipsets:              make(map[abi.ChainEpoch][]cid.Cid),
@@ -295,27 +299,36 @@ func (cs *ChainStore) SubHeadChanges(ctx context.Context) chan []*api.HeadChange
 	}}
 
 	go func() {
-		defer close(out)
-		var unsubOnce sync.Once
+		defer func() {
+			// Tell the caller we're done first, the following may block for a bit.
+			close(out)
+
+			// Unsubscribe.
+			cs.bestTips.Unsub(subch)
+
+			// Drain the channel.
+			for range subch {
+			}
+		}()
 
 		for {
 			select {
 			case val, ok := <-subch:
 				if !ok {
-					log.Warn("chain head sub exit loop")
+					// Shutting down.
+					return
+				}
+				select {
+				case out <- val.([]*api.HeadChange):
+				default:
+					log.Errorf("closing head change subscription due to slow reader")
 					return
 				}
 				if len(out) > 5 {
 					log.Warnf("head change sub is slow, has %d buffered entries", len(out))
 				}
-				select {
-				case out <- val.([]*api.HeadChange):
-				case <-ctx.Done():
-				}
 			case <-ctx.Done():
-				unsubOnce.Do(func() {
-					go cs.bestTips.Unsub(subch)
-				})
+				return
 			}
 		}
 	}()
@@ -403,11 +416,11 @@ func (cs *ChainStore) MaybeTakeHeavierTipSet(ctx context.Context, ts *types.TipS
 	}
 
 	defer cs.heaviestLk.Unlock()
-	w, err := cs.Weight(ctx, ts)
+	w, err := cs.weight(ctx, cs.StateBlockstore(), ts)
 	if err != nil {
 		return err
 	}
-	heaviestW, err := cs.Weight(ctx, cs.heaviest)
+	heaviestW, err := cs.weight(ctx, cs.StateBlockstore(), cs.heaviest)
 	if err != nil {
 		return err
 	}
@@ -650,7 +663,7 @@ func (cs *ChainStore) FlushValidationCache() error {
 	return FlushValidationCache(cs.metadataDs)
 }
 
-func FlushValidationCache(ds datastore.Batching) error {
+func FlushValidationCache(ds dstore.Batching) error {
 	log.Infof("clearing block validation cache...")
 
 	dsWalk, err := ds.Query(query.Query{
@@ -682,7 +695,7 @@ func FlushValidationCache(ds datastore.Batching) error {
 	for _, k := range allKeys {
 		if strings.HasPrefix(k.Key, blockValidationCacheKeyPrefix.String()) {
 			delCnt++
-			batch.Delete(datastore.RawKey(k.Key)) // nolint:errcheck
+			batch.Delete(dstore.RawKey(k.Key)) // nolint:errcheck
 		}
 	}
 
@@ -1166,4 +1179,8 @@ func (cs *ChainStore) GetTipsetByHeight(ctx context.Context, h abi.ChainEpoch, t
 	}
 
 	return cs.LoadTipSet(lbts.Parents())
+}
+
+func (cs *ChainStore) Weight(ctx context.Context, hts *types.TipSet) (types.BigInt, error) { // todo remove
+	return cs.weight(ctx, cs.StateBlockstore(), hts)
 }
