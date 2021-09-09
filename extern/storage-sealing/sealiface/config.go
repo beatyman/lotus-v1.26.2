@@ -23,6 +23,8 @@ type Config struct {
 
 	WaitDealsDelay time.Duration
 
+	CommittedCapacitySectorLifetime time.Duration
+
 	AlwaysKeepUnsealedCopy bool
 
 	FinalizeEarly bool
