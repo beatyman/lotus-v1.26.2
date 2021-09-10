@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"encoding/json"
+	"github.com/filecoin-project/lotus/journal/alerting"
 	"github.com/filecoin-project/lotus/node/repo/imports"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
@@ -52,7 +53,9 @@ type jwtPayload struct {
 }
 
 // rebuild by zhoushuyue
-
+func (s *LotusImpl)LogAlerts(p0 context.Context) ([]alerting.Alert, error) {
+	return bestNodeApi().LogAlerts(p0)
+}
 func (s *LotusImpl) Closing(p0 context.Context) (<-chan struct{}, error) {
 	//return bestNodeApi().Closing(p0)
 	return closingAll(p0)
