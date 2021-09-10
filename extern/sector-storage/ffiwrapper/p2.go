@@ -31,6 +31,7 @@ func readUnixConn(conn net.Conn) ([]byte, error) {
 	for {
 		n, err := conn.Read(buf)
 		if err != nil {
+			log.Error(err)
 			if err != io.EOF {
 				return nil, errors.As(err)
 			}
@@ -95,6 +96,7 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 loopUnixConn:
 	conn, err := d.DialContext(ctx, "unix", raddr.String())
 	if err != nil {
+		log.Error(err)
 		retryTime++
 		if retryTime < 10 {
 			time.Sleep(1e9)
@@ -158,15 +160,6 @@ var P2Cmd = &cli.Command{
 			panic(err)
 		}
 		resp := ExecPrecommit2Resp{}
-		defer func() {
-			result, err := json.Marshal(&resp)
-			if err != nil {
-				panic(err)
-			}
-			if _, err := conn.Write(result); err != nil {
-				panic(err)
-			}
-		}()
 
 		workerRepo, err := homedir.Expand(cctx.String("worker-repo"))
 		if err != nil {
@@ -189,9 +182,16 @@ var P2Cmd = &cli.Command{
 		out, err := workerSealer.SealPreCommit2(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.PreCommit1Out)
 		if err != nil {
 			resp.Err = errors.As(err, string(argIn)).Error()
-			return nil
 		}
 		resp.Data = out
+		log.Infof("SealPreCommit2: %+v ",resp)
+		result, err := json.Marshal(&resp)
+		if err != nil {
+			log.Error(err)
+		}
+		if _, err := conn.Write(result); err != nil {
+			log.Error(err)
+		}
 		return nil
 	},
 }
