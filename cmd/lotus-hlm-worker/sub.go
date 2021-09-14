@@ -466,6 +466,7 @@ reAllocate:
 				log.Error("Read c1.out Err ", err)
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
+			log.Info(sector.CachePath() + " ==========c1 retry")
 		} else {
 			c1Out, err = sealer.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
 			if err != nil {
