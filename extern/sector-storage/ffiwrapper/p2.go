@@ -8,7 +8,9 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
@@ -108,6 +110,7 @@ loopUnixConn:
 	if _, err := conn.Write(args); err != nil {
 		return storage.SectorCids{}, errors.As(err, string(args))
 	}
+	log.Infof("write args: %+v", args)
 	// wait donDatae
 	out, err := readUnixConn(conn)
 	if err != nil {
@@ -171,7 +174,7 @@ var P2Cmd = &cli.Command{
 			resp.Err = errors.As(err, string(argIn)).Error()
 			return nil
 		}
-
+		log.Infof("SealPreCommit2 argIn: %+v ", argIn)
 		workerSealer, err := New(RemoteCfg{}, &basicfs.Provider{
 			Root: workerRepo,
 		})
@@ -184,7 +187,7 @@ var P2Cmd = &cli.Command{
 			resp.Err = errors.As(err, string(argIn)).Error()
 		}
 		resp.Data = out
-		log.Infof("SealPreCommit2: %+v ",resp)
+		log.Infof("SealPreCommit2: %+v ", resp)
 		result, err := json.Marshal(&resp)
 		if err != nil {
 			log.Error(err)
@@ -192,6 +195,16 @@ var P2Cmd = &cli.Command{
 		if _, err := conn.Write(result); err != nil {
 			log.Error(err)
 		}
+		sigs := make(chan os.Signal, 1)
+		done := make(chan bool, 1)
+		signal.Notify(sigs, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
+		go func() {
+			sig := <-sigs
+			log.Infof("receve sig: %+v ", sig)
+			done <- true
+		}()
+		<-done
+		log.Info("SealPreCommit2 Write Success")
 		return nil
 	},
 }
