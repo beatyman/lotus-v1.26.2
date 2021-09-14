@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"time"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
@@ -45,6 +46,12 @@ func readUnixConn(conn net.Conn) ([]byte, error) {
 }
 
 func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.SectorCids, error) {
+	defer func() {
+		if e := recover(); e != nil {
+			log.Errorf("ExecPrecommit2 panic: %v\n%v", e, string(debug.Stack()))
+		}
+	}()
+
 	AssertGPU(ctx)
 
 	args, err := json.Marshal(task)
