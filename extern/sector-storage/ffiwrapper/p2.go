@@ -8,9 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
@@ -195,15 +193,12 @@ var P2Cmd = &cli.Command{
 		if _, err := conn.Write(result); err != nil {
 			log.Error(err)
 		}
-		sigs := make(chan os.Signal, 1)
-		done := make(chan bool, 1)
-		signal.Notify(sigs, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
-		go func() {
-			sig := <-sigs
-			log.Infof("receve sig: %+v ", sig)
-			done <- true
-		}()
-		<-done
+		ch := make(chan int)
+		select {
+		case <-ch:
+		case <-time.After(time.Second * 30):
+			log.Info("SealPreCommit2 timeout 30s")
+		}
 		log.Info("SealPreCommit2 Write Success")
 		return nil
 	},
