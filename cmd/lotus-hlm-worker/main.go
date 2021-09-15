@@ -66,14 +66,15 @@ func ReleaseNodeApi(shutdown bool) {
 		return
 	}
 
-	ctx := lcli.ReqContext(nodeCCtx)
-
-	// try reconnection
-	_, err := nodeApi.Version(ctx)
-	if err != nil {
-		closeNodeApi()
-		return
-	}
+	//shutdown之外的地方都需要复用api（断线重连）不能关闭连接
+	//ctx := lcli.ReqContext(nodeCCtx)
+	//
+	//// try reconnection
+	//_, err := nodeApi.Version(ctx)
+	//if err != nil {
+	//	closeNodeApi()
+	//	return
+	//}
 }
 
 func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
@@ -86,21 +87,10 @@ func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
 
 	nApi, closer, err := lcli.GetHlmMinerSchedulerAPI(nodeCCtx)
 	if err != nil {
-		closeNodeApi()
 		return nil, errors.As(err)
 	}
 	nodeApi = nApi
 	nodeCloser = closer
-
-	//v, err := nodeApi.Version(ctx)
-	//if err != nil {
-	//	closeNodeApi()
-	//	return nil, errors.As(err)
-	//}
-	//if v.APIVersion != build.APIVersion {
-	//	closeNodeApi()
-	//	return nil, xerrors.Errorf("lotus-storage-miner API version doesn't match: local: ", api.Version{APIVersion: build.APIVersion})
-	//}
 
 	return nodeApi, nil
 }

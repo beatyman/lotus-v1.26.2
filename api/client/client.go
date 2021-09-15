@@ -109,7 +109,6 @@ func NewHlmMinerSchedulerRPC(ctx context.Context, addr string, requestHeader htt
 		api.GetInternalStructs(&res),
 		requestHeader,
 		rpcenc.ReaderParamEncoder(pushUrl),
-		jsonrpc.WithNoReconnect(),
 		jsonrpc.WithTimeout(30*time.Second),
 	)
 	if err != nil {
