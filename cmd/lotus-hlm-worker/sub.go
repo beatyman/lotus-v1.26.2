@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"sync"
@@ -104,38 +105,39 @@ checkingApi:
 		}
 	}
 
-	tasks, err := api.WorkerQueue(ctx, workerCfg)
-	if err != nil {
-		return errors.As(err)
-	}
-	log.Infof("Worker(%s) started, Miner:%s, Srv:%s", workerCfg.ID, minerEndpoint, workerCfg.IP)
+	for i := 0; true; i++ {
+		if i > 0 {
+			<-time.After(time.Second * 10)
+		}
 
+		tasks, err := api.WorkerQueue(ctx, workerCfg)
+		if err != nil {
+			log.Errorf("api.WorkerQueue error(%v): %v", i, err.Error())
+			continue
+		}
+
+		log.Infof("Worker(%s) started(%v), Miner:%s, Srv:%s", workerCfg.ID, i, minerEndpoint, workerCfg.IP)
+		if err = w.processJobs(ctx, tasks); err != nil {
+			log.Errorf("processJobs error(%v): %v", i, err.Error())
+			continue
+		} else {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (w *worker) processJobs(ctx context.Context, tasks <-chan ffiwrapper.WorkerTask) error {
 loop:
 	for {
-		// log.Infof("Waiting for new task")
-		// checking is connection aliveable,if not, do reconnect.
-		aliveChecking := time.After(1 * time.Minute) // waiting out
 		select {
-		case <-aliveChecking:
-			ReleaseNodeApi(false)
-			_, err := GetNodeApi()
-			if err != nil {
-				log.Warn(errors.As(err))
+		case task, ok := <-tasks:
+			if !ok {
+				return fmt.Errorf("tasks chan closed")
 			}
-		case task := <-tasks:
-			// TODO: check params for task proof type.
-			//if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
-			//	ssize, err := task.ProofType.SectorSize()
-			//	if err != nil {
-			//		return errors.As(err)
-			//	}
-			//	if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
-			//		return errors.As(err)
-			//	}
-			//}
 			if task.SectorID.Miner == 0 {
-				// connection is down.
-				return errors.New("server shutdown").As(task)
+				return errors.New("task invalid").As(task)
 			}
 
 			log.Infof("New task: %s, sector %s, action: %d", task.Key(), task.SectorName(), task.Type)
@@ -170,7 +172,6 @@ loop:
 		}
 	}
 
-	log.Warn("acceptJobs exit")
 	return nil
 }
 
