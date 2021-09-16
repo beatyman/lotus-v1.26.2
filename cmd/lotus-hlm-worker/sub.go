@@ -49,16 +49,13 @@ func acceptJobs(ctx context.Context,
 	workerRepo, sealedRepo, mountedCfg string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
-checkingApi:
 	api, err := GetNodeApi()
 	if err != nil {
 		log.Warn(errors.As(err))
-		time.Sleep(3e9)
-		goto checkingApi
 	}
 
 	// get ssize from miner
-	ssize, err := api.ActorSectorSize(ctx, act)
+	ssize, err := api.RetryActorSectorSize(ctx, act)
 	if err != nil {
 		return err
 	}
@@ -176,31 +173,16 @@ loop:
 }
 
 func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res ffiwrapper.SealRes) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			log.Info("Get Node Api")
-			api, err := GetNodeApi()
-			if err != nil {
-				log.Warn(errors.As(err))
-				continue
-			}
-			if err := api.WorkerDone(ctx, res); err != nil {
-				if errors.ErrNoData.Equal(err) {
-					log.Errorf("caller not found, drop this task:%+v", task)
-					return
-				}
-
-				log.Warn(errors.As(err))
-				time.Sleep(time.Second * 10)
-				continue
-			}
-
-			log.Infof("Worker done: worker(%v)  sector(%v)", task.WorkerID, task.SectorID)
-			return
+	api, err := GetNodeApi()
+	if err != nil {
+		log.Warn(errors.As(err))
+	}
+	if err := api.RetryWorkerDone(ctx, res); err != nil {
+		if errors.ErrNoData.Equal(err) {
+			log.Errorf("caller not found, drop this task:%+v", task)
 		}
+	} else {
+		log.Infof("Worker done: worker(%v)  sector(%v)", task.WorkerID, task.SectorID)
 	}
 }
 
@@ -308,7 +290,7 @@ reAllocate:
 			if len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID && task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit {
 				// fetch the precommit cache data
 				// lock bandwidth
-				if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
+				if err := api.RetryWorkerAddConn(ctx, task.WorkerID, 1); err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)
 				}
 			retryFetch:
@@ -325,7 +307,7 @@ reAllocate:
 					goto retryFetch
 				}
 				// release bandwidth
-				if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
+				if err := api.RetryWorkerAddConn(ctx, task.WorkerID, -1); err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)
 				}
 				// release the storage cache
@@ -342,7 +324,7 @@ reAllocate:
 	}
 
 	// lock the task to this worker
-	if err := api.WorkerLock(ctx, w.workerCfg.ID, task.Key(), "task in", int(task.Type)); err != nil {
+	if err := api.RetryWorkerLock(ctx, w.workerCfg.ID, task.Key(), "task in", int(task.Type)); err != nil {
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	unlockWorker := false
@@ -449,7 +431,7 @@ reAllocate:
 	// release the worker when stage is interrupted
 	if unlockWorker {
 		log.Info("Release Worker by:", task)
-		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker", database.SECTOR_STATE_MOVE); err != nil {
+		if err := api.RetryWorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker", database.SECTOR_STATE_MOVE); err != nil {
 			log.Warn(errors.As(err))
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}

@@ -38,7 +38,7 @@ const (
 var log = logging.Logger("main")
 
 var (
-	nodeApi    api.HlmMinerSchedulerAPI
+	nodeApi    *api.RetryHlmMinerSchedulerAPI
 	nodeCloser jsonrpc.ClientCloser
 	nodeCCtx   *cli.Context
 	nodeSync   sync.Mutex
@@ -64,11 +64,10 @@ func ReleaseNodeApi(shutdown bool) {
 
 	if shutdown {
 		closeNodeApi()
-		return
 	}
 }
 
-func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
+func GetNodeApi() (*api.RetryHlmMinerSchedulerAPI, error) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
 
@@ -80,7 +79,7 @@ func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	nodeApi = nApi
+	nodeApi = &api.RetryHlmMinerSchedulerAPI{HlmMinerSchedulerAPI: nApi}
 	nodeCloser = closer
 
 	return nodeApi, nil

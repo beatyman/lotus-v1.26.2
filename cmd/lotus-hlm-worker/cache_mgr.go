@@ -83,7 +83,7 @@ func (w *worker) gcRepo(ctx context.Context, repo, typ string) error {
 		if err != nil {
 			return errors.As(err)
 		}
-		ws, err := api.WorkerWorkingById(ctx, fileNames)
+		ws, err := api.RetryWorkerWorkingById(ctx, fileNames)
 		if err != nil {
 			return errors.As(err, fileNames)
 		}
@@ -111,13 +111,13 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 	if err != nil {
 		return errors.As(err)
 	}
-	ss, err := api.PreStorageNode(ctx, sid, w.workerCfg.IP, database.STORAGE_KIND_SEALED)
+	ss, err := api.RetryPreStorageNode(ctx, sid, w.workerCfg.IP, database.STORAGE_KIND_SEALED)
 	if err != nil {
 		return errors.As(err)
 	}
 	switch ss.MountType {
 	case database.MOUNT_TYPE_HLM:
-		tmpAuth, err := api.NewHLMStorageTmpAuth(ctx, ss.ID, sid)
+		tmpAuth, err := api.RetryNewHLMStorageTmpAuth(ctx, ss.ID, sid)
 		if err != nil {
 			return errors.As(err)
 		}
@@ -133,7 +133,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := fc.Upload(ctx, cacheFromPath, filepath.Join("cache", sid)); err != nil {
 			return errors.As(err)
 		}
-		if err := api.DelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
+		if err := api.RetryDelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
 			log.Warn(errors.As(err))
 		}
 	case database.MOUNT_TYPE_OSS:
@@ -190,7 +190,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		}
 	}
 
-	if err := api.CommitStorageNode(ctx, sid, database.STORAGE_KIND_SEALED); err != nil {
+	if err := api.RetryCommitStorageNode(ctx, sid, database.STORAGE_KIND_SEALED); err != nil {
 		return errors.As(err)
 	}
 	return nil
@@ -204,7 +204,7 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	if err != nil {
 		return errors.As(err)
 	}
-	ss, err := api.PreStorageNode(ctx, sid, w.workerCfg.IP, database.STORAGE_KIND_UNSEALED)
+	ss, err := api.RetryPreStorageNode(ctx, sid, w.workerCfg.IP, database.STORAGE_KIND_UNSEALED)
 	if err != nil {
 		return errors.As(err)
 	}
@@ -218,7 +218,7 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if err != nil {
 			return errors.As(err)
 		}
-		tmpAuth, err := api.NewHLMStorageTmpAuth(ctx, ss.ID, sid)
+		tmpAuth, err := api.RetryNewHLMStorageTmpAuth(ctx, ss.ID, sid)
 		if err != nil {
 			return errors.As(err)
 		}
@@ -232,7 +232,7 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if err := fc.Upload(ctx, fileFromPath, filepath.Join("unsealed", sid)); err != nil {
 			return errors.As(err)
 		}
-		if err := api.DelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
+		if err := api.RetryDelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
 			log.Warn(errors.As(err))
 		}
 	case database.MOUNT_TYPE_OSS:
@@ -289,7 +289,7 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		if err != nil {
 			return errors.As(err)
 		}
-		tmpAuth, err := api.NewHLMStorageTmpAuth(ctx, ss.ID, sid)
+		tmpAuth, err := api.RetryNewHLMStorageTmpAuth(ctx, ss.ID, sid)
 		if err != nil {
 			return errors.As(err)
 		}
@@ -308,7 +308,7 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 			}
 			// it's ok if the unsealed not exist.
 		}
-		if err := api.DelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
+		if err := api.RetryDelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
 			log.Warn(errors.As(err))
 		}
 	case database.MOUNT_TYPE_OSS:
@@ -364,7 +364,7 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		if err != nil {
 			return errors.As(err)
 		}
-		tmpAuth, err := api.NewHLMStorageTmpAuth(ctx, ss.ID, sid)
+		tmpAuth, err := api.RetryNewHLMStorageTmpAuth(ctx, ss.ID, sid)
 		if err != nil {
 			return errors.As(err)
 		}
@@ -378,7 +378,7 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		if err := fc.Download(ctx, cacheToPath, filepath.Join("cache", sid)); err != nil {
 			return errors.As(err)
 		}
-		if err := api.DelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
+		if err := api.RetryDelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
 			log.Warn(errors.As(err))
 		}
 	case database.MOUNT_TYPE_OSS:
@@ -445,7 +445,7 @@ repush:
 		w.diskPool.UpdateState(task.SectorName(), database.SECTOR_STATE_PUSH)
 
 		// release the worker when pushing happened
-		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "pushing commit", database.SECTOR_STATE_PUSH); err != nil {
+		if err := api.RetryWorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "pushing commit", database.SECTOR_STATE_PUSH); err != nil {
 			log.Warn(errors.As(err))
 
 			if errors.ErrNoData.Equal(err) {

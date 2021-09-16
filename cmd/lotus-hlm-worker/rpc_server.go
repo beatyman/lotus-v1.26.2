@@ -60,7 +60,7 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 	return w.sb.SealCommit2(ctx, storage.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out)
 }
 
-func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSchedulerAPI) error {
+func (w *rpcServer) loadMinerStorage(ctx context.Context, napi *api.RetryHlmMinerSchedulerAPI) error {
 	up := os.Getenv("US3")
 	if up != "" {
 		return nil
@@ -74,7 +74,7 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSched
 	defer w.storageLk.Unlock()
 
 	// checksum
-	list, err := napi.ChecksumStorage(ctx, w.storageVer)
+	list, err := napi.RetryChecksumStorage(ctx, w.storageVer)
 	if err != nil {
 		return errors.As(err)
 	}
