@@ -85,7 +85,6 @@ func (w *worker) gcRepo(ctx context.Context, repo, typ string) error {
 		}
 		ws, err := api.WorkerWorkingById(ctx, fileNames)
 		if err != nil {
-			ReleaseNodeApi(false)
 			return errors.As(err, fileNames)
 		}
 	sealedLoop:
@@ -454,7 +453,6 @@ repush:
 				return nil
 			}
 
-			ReleaseNodeApi(false)
 			goto repush
 		}
 

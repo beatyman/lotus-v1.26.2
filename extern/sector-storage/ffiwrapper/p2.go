@@ -103,7 +103,6 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 loopUnixConn:
 	conn, err := d.DialContext(ctx, "unix", raddr.String())
 	if err != nil {
-		log.Error(err)
 		retryTime++
 		if retryTime < 10 {
 			time.Sleep(1e9)
@@ -112,6 +111,8 @@ loopUnixConn:
 		return storage.SectorCids{}, errors.As(err, string(args))
 	}
 	defer conn.Close()
+
+	log.Infof("ExecPrecommit2 dial unix success: worker(%v) sector(%v)", task.WorkerID, task.SectorID)
 	if _, err := conn.Write(args); err != nil {
 		return storage.SectorCids{}, errors.As(err, string(args))
 	}

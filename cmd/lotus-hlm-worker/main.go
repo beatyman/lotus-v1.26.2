@@ -52,6 +52,7 @@ func closeNodeApi() {
 	nodeCloser = nil
 }
 
+//shutdown之外的地方都需要复用api（断线重连）不能关闭连接
 func ReleaseNodeApi(shutdown bool) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
@@ -65,16 +66,6 @@ func ReleaseNodeApi(shutdown bool) {
 		closeNodeApi()
 		return
 	}
-
-	//shutdown之外的地方都需要复用api（断线重连）不能关闭连接
-	//ctx := lcli.ReqContext(nodeCCtx)
-	//
-	//// try reconnection
-	//_, err := nodeApi.Version(ctx)
-	//if err != nil {
-	//	closeNodeApi()
-	//	return
-	//}
 }
 
 func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {

@@ -110,6 +110,7 @@ checkingApi:
 			<-time.After(time.Second * 10)
 		}
 
+		workerCfg.Retry = i
 		tasks, err := api.WorkerQueue(ctx, workerCfg)
 		if err != nil {
 			log.Errorf("api.WorkerQueue error(%v): %v", i, err.Error())
@@ -163,7 +164,6 @@ loop:
 
 				res := w.processTask(ctx, task)
 				w.workerDone(ctx, task, res)
-
 				log.Infof("Task %s done, err: %+v", task.Key(), res.GoErr)
 			}(task)
 
@@ -187,22 +187,19 @@ func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res
 				log.Warn(errors.As(err))
 				continue
 			}
-			log.Info("Do WorkerDone")
 			if err := api.WorkerDone(ctx, res); err != nil {
 				if errors.ErrNoData.Equal(err) {
-					log.Warn("caller not found, drop this task:%+v", task)
+					log.Errorf("caller not found, drop this task:%+v", task)
 					return
 				}
 
 				log.Warn(errors.As(err))
-
-				ReleaseNodeApi(false)
+				time.Sleep(time.Second * 10)
 				continue
 			}
 
-			// pass
+			log.Infof("Worker done: worker(%v)  sector(%v)", task.WorkerID, task.SectorID)
 			return
-
 		}
 	}
 }
@@ -251,7 +248,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 	api, err := GetNodeApi()
 	if err != nil {
-		ReleaseNodeApi(false)
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	// clean cache before working.
@@ -313,7 +309,6 @@ reAllocate:
 				// fetch the precommit cache data
 				// lock bandwidth
 				if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
-					ReleaseNodeApi(false)
 					return errRes(errors.As(err, w.workerCfg), &res)
 				}
 			retryFetch:
@@ -331,7 +326,6 @@ reAllocate:
 				}
 				// release bandwidth
 				if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
-					ReleaseNodeApi(false)
 					return errRes(errors.As(err, w.workerCfg), &res)
 				}
 				// release the storage cache
@@ -349,7 +343,6 @@ reAllocate:
 
 	// lock the task to this worker
 	if err := api.WorkerLock(ctx, w.workerCfg.ID, task.Key(), "task in", int(task.Type)); err != nil {
-		ReleaseNodeApi(false)
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	unlockWorker := false
@@ -458,7 +451,6 @@ reAllocate:
 		log.Info("Release Worker by:", task)
 		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker", database.SECTOR_STATE_MOVE); err != nil {
 			log.Warn(errors.As(err))
-			ReleaseNodeApi(false)
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 	}
