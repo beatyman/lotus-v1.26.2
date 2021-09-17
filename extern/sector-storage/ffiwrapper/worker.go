@@ -336,7 +336,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		return nil, errors.As(err)
 	}
 	taskCh := make(chan WorkerTask)
-	ctx, cancel := context.WithCancel(oriCtx)
+	ctx, cancel := context.WithCancel(context.Background()) //注意：此处不能用oriCtx作为父parent 因为worker实现了断线重连
 	r := &remote{
 		ctx:            ctx,
 		cfg:            cfg,
