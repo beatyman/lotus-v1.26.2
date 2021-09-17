@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v8/kodocli"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"net"
 	"net/http"
 	"os"
@@ -375,7 +377,10 @@ var runCmd = &cli.Command{
 				os.Exit(1)
 			}
 		}()
-
+		//设置日志级别
+		elog:=kodocli.NewLogger()
+		elog.SetLevel(kodocli.LOG_LEVEL_ERROR)
+		operation.SetLogger(elog)
 		log.Info("starting acceptJobs")
 		if err := acceptJobs(ctx,
 			workerApi,
