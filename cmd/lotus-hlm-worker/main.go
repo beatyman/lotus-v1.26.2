@@ -229,7 +229,7 @@ var runCmd = &cli.Command{
 			if err := os.Setenv("Lotus_Parallel_PreCommit2", fmt.Sprintf("%v", cctx.Uint("parallel-precommit2"))); err != nil {
 				return err
 			}
-			if err := os.Setenv("Lotus_Parallel_Commit1", fmt.Sprintf("%v", cctx.Uint("parallel-commit"))); err != nil {
+			if err := os.Setenv("Lotus_Parallel_Commit", fmt.Sprintf("%v", cctx.Uint("parallel-commit"))); err != nil {
 				return err
 			}
 		}
