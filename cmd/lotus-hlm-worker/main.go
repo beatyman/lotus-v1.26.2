@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v8/kodocli"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -216,6 +217,22 @@ var runCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
+
+		//init env for rust
+		{
+			if err := os.Setenv("Lotus_Parallel_AddPiece", fmt.Sprintf("%v", cctx.Uint("parallel-addpiece"))); err != nil {
+				return err
+			}
+			if err := os.Setenv("Lotus_Parallel_PreCommit1", fmt.Sprintf("%v", cctx.Uint("parallel-precommit1"))); err != nil {
+				return err
+			}
+			if err := os.Setenv("Lotus_Parallel_PreCommit2", fmt.Sprintf("%v", cctx.Uint("parallel-precommit2"))); err != nil {
+				return err
+			}
+			if err := os.Setenv("Lotus_Parallel_Commit1", fmt.Sprintf("%v", cctx.Uint("parallel-commit"))); err != nil {
+				return err
+			}
+		}
 
 		nodeCCtx = cctx
 
