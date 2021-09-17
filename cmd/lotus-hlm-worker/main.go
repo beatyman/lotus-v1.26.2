@@ -31,10 +31,14 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+const (
+	QINIU_VIRTUAL_MOUNTPOINT = "/data/oss/qiniu/"
+)
+
 var log = logging.Logger("main")
 
 var (
-	nodeApi    api.HlmMinerSchedulerAPI
+	nodeApi    *api.RetryHlmMinerSchedulerAPI
 	nodeCloser jsonrpc.ClientCloser
 	nodeCCtx   *cli.Context
 	nodeSync   sync.Mutex
@@ -48,6 +52,7 @@ func closeNodeApi() {
 	nodeCloser = nil
 }
 
+//shutdown之外的地方都需要复用api（断线重连）不能关闭连接
 func ReleaseNodeApi(shutdown bool) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
@@ -59,20 +64,10 @@ func ReleaseNodeApi(shutdown bool) {
 
 	if shutdown {
 		closeNodeApi()
-		return
-	}
-
-	ctx := lcli.ReqContext(nodeCCtx)
-
-	// try reconnection
-	_, err := nodeApi.Version(ctx)
-	if err != nil {
-		closeNodeApi()
-		return
 	}
 }
 
-func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
+func GetNodeApi() (*api.RetryHlmMinerSchedulerAPI, error) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
 
@@ -82,21 +77,10 @@ func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
 
 	nApi, closer, err := lcli.GetHlmMinerSchedulerAPI(nodeCCtx)
 	if err != nil {
-		closeNodeApi()
 		return nil, errors.As(err)
 	}
-	nodeApi = nApi
+	nodeApi = &api.RetryHlmMinerSchedulerAPI{HlmMinerSchedulerAPI: nApi}
 	nodeCloser = closer
-
-	//v, err := nodeApi.Version(ctx)
-	//if err != nil {
-	//	closeNodeApi()
-	//	return nil, errors.As(err)
-	//}
-	//if v.APIVersion != build.APIVersion {
-	//	closeNodeApi()
-	//	return nil, xerrors.Errorf("lotus-storage-miner API version doesn't match: local: ", api.Version{APIVersion: build.APIVersion})
-	//}
 
 	return nodeApi, nil
 }
@@ -259,10 +243,25 @@ var runCmd = &cli.Command{
 			return err
 		}
 
+		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
+		defer cancel()
+
+		apitemp, err := GetNodeApi()
+		if err != nil {
+			return errors.As(err)
+		}
+		ss, err := apitemp.PreStorageNode(ctx, "", "", database.STORAGE_KIND_SEALED)
+		if err != nil {
+			return errors.As(err)
+		}
+		if ss.MountType == database.MOUNT_TYPE_OSS {
+			cctx.Set("storage-repo", QINIU_VIRTUAL_MOUNTPOINT)
+		}
 		sealedRepo, err := homedir.Expand(cctx.String("storage-repo"))
 		if err != nil {
 			return err
 		}
+
 		idFile := cctx.String("id-file")
 		if len(idFile) == 0 {
 			idFile = "~/.lotusworker/worker.id"
@@ -271,9 +270,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-
-		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
-		defer cancel()
 
 		log.Infof("getting miner actor")
 		act, err := nodeApi.ActorAddress(ctx)
@@ -395,7 +391,7 @@ var runCmd = &cli.Command{
 			log.Warn(err)
 			ReleaseNodeApi(true)
 		}
-		if err := srv.Shutdown(context.TODO()); err != nil {
+		if err := srv.Shutdown(ctx); err != nil {
 			log.Errorf("shutting down RPC server failed: %s", err)
 		}
 		log.Info("worker exit")

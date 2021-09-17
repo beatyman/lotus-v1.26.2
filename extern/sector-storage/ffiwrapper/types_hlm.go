@@ -89,6 +89,8 @@ type WorkerCfg struct {
 	Commit2Srv bool // need ParallelCommit2 > 0
 	WdPoStSrv  bool
 	WnPoStSrv  bool
+
+	Retry int //worker断线重连次数 0:第一次连接（不是重连）
 }
 
 type WorkerTask struct {
@@ -225,7 +227,7 @@ type remote struct {
 	finalizeChan   chan workerCall
 	unsealChan     chan workerCall
 
-	sealTasks   chan<- WorkerTask
+	sealTasks   chan WorkerTask
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
 	disable     bool                  // disable for new sector task
 

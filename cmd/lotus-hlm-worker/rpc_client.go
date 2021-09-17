@@ -52,12 +52,12 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out s
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	rCfg, err := napi.SelectCommit2Service(ctx, task.SectorID)
+	rCfg, err := napi.RetrySelectCommit2Service(ctx, task.SectorID)
 	if err != nil {
 		return nil, errors.As(err)
 	}
 	defer func() {
-		if err := napi.UnlockGPUService(ctx, rCfg.ID, task.Key()); err != nil {
+		if err := napi.RetryUnlockGPUService(ctx, rCfg.ID, task.Key()); err != nil {
 			log.Warn(errors.As(err))
 		}
 	}()

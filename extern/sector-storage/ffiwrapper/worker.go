@@ -313,6 +313,9 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		return nil, errors.New("Worker ID not found").As(cfg)
 	}
 	if old, ok := _remotes.Load(cfg.ID); ok {
+		if cfg.Retry > 0 { //worker断线重连的时候 返回原来的chan
+			return old.(*remote).sealTasks, nil
+		}
 		if old.(*remote).release != nil {
 			old.(*remote).release()
 		}

@@ -3,8 +3,13 @@ package sealing
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 
+	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -20,10 +25,43 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+)
+
+const (
+	QINIU_VIRTUAL_MOUNTPOINT = "/data/oss/qiniu/"
 )
 
 var DealSectorPriority = 1024
 var MaxTicketAge = policy.MaxPreCommitRandomnessLookback
+
+func uploadToOSS(ctx context.Context, from, to string) error {
+	up := os.Getenv("US3")
+
+	if up == "" {
+		fmt.Println("please set US3 environment variable first!")
+		return errors.New("connot find US3 environment variable")
+	}
+	conf2, err := operation.Load(up)
+	if err != nil {
+		log.Error("load config error", err)
+		return errors.As(err)
+	}
+	/*
+		if conf2.Sim {
+								submitPathOut(paths)
+															return
+																								}
+	*/
+	uploader := operation.NewUploaderV2()
+	err = uploader.Upload(from, to)
+	fmt.Printf("submit path %s to %s err %v\n", from, to, err)
+	if conf2.Delete {
+		os.Remove(from)
+	}
+
+	return err
+}
 
 func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) error {
 	m.inputLk.Lock()
@@ -71,9 +109,47 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 		log.Warnf("Creating %d filler pieces for sector %d", len(fillerSizes), sector.SectorNumber)
 	}
 
+	fromPath := ""
+	if sector.hasDeals() {
+		_, s, err := database.PrepareStorage("", "", database.STORAGE_KIND_SEALED)
+		if err == nil {
+			if s.MountType == database.MOUNT_TYPE_OSS {
+				id := m.minerSectorID(sector.SectorNumber)
+				sid := fmt.Sprintf("s-t0%d-%d", id.Miner, id.Number)
+
+				filepath.Walk(QINIU_VIRTUAL_MOUNTPOINT,
+					func(path string, f os.FileInfo, err error) error {
+						if f == nil {
+							return err
+						}
+						if f.IsDir() {
+							return nil
+						}
+						if filepath.Base(path) == sid {
+							fromPath = path
+							log.Infof("----------------------------handlePacking fromPath=%s", fromPath)
+						}
+						return nil
+					})
+				toPath := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid, "unsealed", sid)
+				if fromPath == "" {
+					return xerrors.Errorf("failed index unsealed file (%s): %w", fromPath, err)
+				}
+
+				err := uploadToOSS(nil, fromPath, toPath)
+				if err != nil {
+					return xerrors.Errorf("failed upload unsealed file (%s): %w", fromPath, err)
+				}
+			}
+		}
+	}
+
 	fillerPieces, err := m.padSector(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), sector.existingPieceSizes(), fillerSizes...)
 	if err != nil {
 		return xerrors.Errorf("filling up the sector (%v): %w", fillerSizes, err)
+	}
+	if fromPath != "" {
+		os.Remove(fromPath)
 	}
 
 	return ctx.Send(SectorPacked{FillerPieces: fillerPieces})

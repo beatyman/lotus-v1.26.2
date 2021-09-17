@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"time"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
@@ -31,6 +32,7 @@ func readUnixConn(conn net.Conn) ([]byte, error) {
 	for {
 		n, err := conn.Read(buf)
 		if err != nil {
+			log.Error(err)
 			if err != io.EOF {
 				return nil, errors.As(err)
 			}
@@ -44,6 +46,12 @@ func readUnixConn(conn net.Conn) ([]byte, error) {
 }
 
 func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.SectorCids, error) {
+	defer func() {
+		if e := recover(); e != nil {
+			log.Errorf("ExecPrecommit2 panic: %v\n%v", e, string(debug.Stack()))
+		}
+	}()
+
 	AssertGPU(ctx)
 
 	args, err := json.Marshal(task)
@@ -115,9 +123,12 @@ loopUnixConn:
 		return storage.SectorCids{}, errors.As(err, string(args))
 	}
 	defer conn.Close()
+
+	log.Infof("ExecPrecommit2 dial unix success: worker(%v) sector(%v)", task.WorkerID, task.SectorID)
 	if _, err := conn.Write(args); err != nil {
 		return storage.SectorCids{}, errors.As(err, string(args))
 	}
+	log.Infof("write args: %+v", args)
 	// wait donDatae
 	out, err := readUnixConn(conn)
 	if err != nil {
@@ -170,15 +181,6 @@ var P2Cmd = &cli.Command{
 			panic(err)
 		}
 		resp := ExecPrecommit2Resp{}
-		defer func() {
-			result, err := json.Marshal(&resp)
-			if err != nil {
-				panic(err)
-			}
-			if _, err := conn.Write(result); err != nil {
-				panic(err)
-			}
-		}()
 
 		workerRepo, err := homedir.Expand(cctx.String("worker-repo"))
 		if err != nil {
@@ -190,7 +192,7 @@ var P2Cmd = &cli.Command{
 			resp.Err = errors.As(err, string(argIn)).Error()
 			return nil
 		}
-
+		log.Infof("SealPreCommit2 argIn: %+v ", argIn)
 		workerSealer, err := New(RemoteCfg{}, &basicfs.Provider{
 			Root: workerRepo,
 		})
@@ -201,9 +203,23 @@ var P2Cmd = &cli.Command{
 		out, err := workerSealer.SealPreCommit2(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.PreCommit1Out)
 		if err != nil {
 			resp.Err = errors.As(err, string(argIn)).Error()
-			return nil
 		}
 		resp.Data = out
+		log.Infof("SealPreCommit2: %+v ", resp)
+		result, err := json.Marshal(&resp)
+		if err != nil {
+			log.Error(err)
+		}
+		if _, err := conn.Write(result); err != nil {
+			log.Error(err)
+		}
+		ch := make(chan int)
+		select {
+		case <-ch:
+		case <-time.After(time.Second * 30):
+			log.Info("SealPreCommit2 timeout 30s")
+		}
+		log.Info("SealPreCommit2 Write Success")
 		return nil
 	},
 }

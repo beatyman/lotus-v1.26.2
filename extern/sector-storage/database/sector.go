@@ -241,6 +241,9 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 				file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%d", storageSealed))
 				file.SealedStorageId = storageSealed
 				file.SealedStorageType = sealedPoint.MountType
+				if sealedPoint.MountType == MOUNT_TYPE_OSS {
+					file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%s", sectorId))
+				}
 			}
 			unsealedPoint, ok := storages[storageUnsealed]
 			if ok {
@@ -248,6 +251,9 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 				file.UnsealedStorageId = storageUnsealed
 				file.UnsealedStorageType = unsealedPoint.MountType
 				file.IsMarketSector = true
+				if sealedPoint.MountType == MOUNT_TYPE_OSS {
+					file.UnsealedRepo = filepath.Join(unsealedPoint.MountDir, fmt.Sprintf("%s", sectorId))
+				}
 			}
 		}
 		result[sectorId] = *file
@@ -271,7 +277,11 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 			log.Warnf("GetSectorFile(%s) took : %s", sectorId, took)
 		}
 	}()
-
+/*	//todo test
+	up := os.Getenv("US3")
+	if up != "" {
+		defaultRepo = "/data/oss/qiniu/"
+	}*/
 	file := &storage.SectorFile{
 		SectorId:     sectorId,
 		SealedRepo:   defaultRepo,
@@ -323,19 +333,25 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 			unsealedPoint = &mountPoint
 		}
 	}
-
 	if sealedPoint != nil {
-		file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%d", storageSealed))
+		if sealedPoint.MountType == "oss" {
+			file.SealedRepo = sealedPoint.MountDir
+		} else {
+			file.SealedRepo = filepath.Join(sealedPoint.MountDir, fmt.Sprintf("%d", storageSealed))
+		}
 		file.SealedStorageId = storageSealed
 		file.SealedStorageType = sealedPoint.MountType
 	}
 	if unsealedPoint != nil {
-		file.UnsealedRepo = filepath.Join(unsealedPoint.MountDir, fmt.Sprintf("%d", storageUnsealed))
+		if unsealedPoint.MountType == "oss" {
+			file.UnsealedRepo = unsealedPoint.MountDir
+		} else {
+			file.UnsealedRepo = filepath.Join(unsealedPoint.MountDir, fmt.Sprintf("%d", storageUnsealed))
+		}
 		file.UnsealedStorageId = storageUnsealed
 		file.UnsealedStorageType = unsealedPoint.MountType
 		file.IsMarketSector = true
 	}
-
 	// put to cache
 	sectorFileCacheLk.Lock()
 	sectorFileCaches[sectorId] = sectorFileCache{
@@ -555,7 +571,7 @@ func SetSectorSealedStorage(sid string, storage uint64) error {
 		return errors.As(err, sid, storage)
 	}
 	sectorFileCacheLk.Lock()
-	delete(sectorFileCaches,sid)
+	delete(sectorFileCaches, sid)
 	sectorFileCacheLk.Unlock()
 	return nil
 }

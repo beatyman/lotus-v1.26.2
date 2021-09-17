@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"golang.org/x/xerrors"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
@@ -528,7 +529,9 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 	//}
 	//defer srcDone()
 
-	sealed, err := os.OpenFile(sPath.Sealed, os.O_RDONLY, 0644) // nolint:gosec
+	//sealed, err := os.OpenFile(sPath.Sealed, os.O_RDONLY, 0644) // nolint:gosec
+	d := operation.NewDownloaderV2()
+	sealed, err := d.DownloadFile(sPath.Sealed, sPath.Sealed)
 	if err != nil {
 		return xerrors.Errorf("opening sealed file: %w", err)
 	}
@@ -637,7 +640,24 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 
 	return nil
 }
+func (sb *Sealer) ReadPieceQiniu(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error){
+	p, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, storiface.FTNone, storiface.PathStorage)
+	if err != nil {
+		return nil,false, xerrors.Errorf("acquire unsealed sector path: %w", err)
+	}
+	defer done()
+	sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
+	p.Cache = filepath.Join(sp, storiface.FTCache.String(), storiface.SectorName(sector.ID))
+	p.Sealed = filepath.Join(sp, storiface.FTSealed.String(), storiface.SectorName(sector.ID))
+	p.Unsealed = filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
+	return partialfile.ReadPieceQiniu(ctx, p.Unsealed,sector,offset,size)
+}
 func (sb *Sealer) PieceReader(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error) {
+	up := os.Getenv("US3")
+	if up != "" {
+	   return sb.ReadPieceQiniu(ctx, sector, offset, size)
+	}
+
 	log.Infof("DEBUG:PieceReader in, sector:%+v", sector)
 	defer log.Infof("DEBUG:PieceReader out, sector:%+v", sector)
 
@@ -821,6 +841,18 @@ func (sb *Sealer) SealCommit2(ctx context.Context, sector storage.SectorRef, pha
 	AssertGPU(ctx)
 
 	return ffi.SealCommitPhase2(phase1Out, sector.ID.Number, sector.ID.Miner)
+}
+
+type req struct {
+	Path   string `json:"path"`
+	ToPath string `json:"topath"`
+}
+
+func newReq(s, s1 string) *req {
+	return &req{
+		Path:   s,
+		ToPath: s1,
+	}
 }
 
 func (sb *Sealer) finalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {
