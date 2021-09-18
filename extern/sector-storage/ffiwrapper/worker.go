@@ -964,7 +964,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		sb.returnTask(task)
 		return
 	}
-	task.task.WorkerID = ss.SectorInfo.WorkerId
+	task.task.WorkerID = r.cfg.ID
 	task.task.SectorStorage = *ss
 
 	if task.task.SectorID.Miner == 0 {
@@ -1148,6 +1148,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		return SealRes{}, true
 	case res := <-resCh:
 		// send the result back to the caller
+		log.Infof("task(%v) return result", taskKey)
 		return res, false
 	}
 }
@@ -1169,6 +1170,7 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case rres <- res:
+		log.Infof("Task done: %v", res.TaskID)
 		return nil
 	}
 }

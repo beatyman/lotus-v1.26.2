@@ -254,3 +254,20 @@ func (a *RetryHlmMinerSchedulerAPI) RetryChecksumStorage(ctx context.Context, ve
 	}
 	return out, err
 }
+
+func (a *RetryHlmMinerSchedulerAPI) RetryHlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
+	var (
+		err error
+		out *database.SectorInfo
+	)
+	for i := 0; true; i++ {
+		if out, err = a.HlmMinerSchedulerAPI.HlmSectorGetState(ctx, sid); err == nil {
+			return out, nil
+		}
+		if !a.RetryEnable(err) {
+			return out, err
+		}
+		time.Sleep(time.Second * 10)
+	}
+	return out, err
+}

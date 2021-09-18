@@ -103,6 +103,10 @@ func acceptJobs(ctx context.Context,
 		}
 	}
 
+	if err = w.initDisk(ctx); err != nil {
+		return err
+	}
+
 	for i := 0; true; i++ {
 		if i > 0 {
 			<-time.After(time.Second * 10)
@@ -116,31 +120,6 @@ func acceptJobs(ctx context.Context,
 		}
 
 		log.Infof("Worker(%s) started(%v), Miner:%s, Srv:%s", workerCfg.ID, i, minerEndpoint, workerCfg.IP)
-		diskSectors, err := scanDisk()
-		if err != nil {
-			log.Error("NewAllocate ", err)
-			return errors.As(err)
-		}
-		for _, sectors := range diskSectors {
-			for sid, _ := range sectors {
-				info, err := api.HlmSectorGetState(ctx, sid)
-				if err != nil {
-					log.Error("NewAllocate ", err)
-					continue
-				}
-				//已经做完C2
-				if info.State >= ffiwrapper.WorkerCommitDone {
-					localSectors.WriteMap(sid, info.State)
-				} else if info.State <= ffiwrapper.WorkerPreCommit2Done {
-					//还做完P2 算500G
-					localSectors.WriteMap(sid, info.State)
-				} else {
-					localSectors.WriteMap(sid, info.State)
-					//还在做C1,或者C2,如果本地map没有标记C1,没做完算500G,已经做完算50G
-				}
-			}
-		}
-		log.Infof("scanDisk : %v", diskSectors)
 		if err = w.processJobs(ctx, tasks); err != nil {
 			log.Errorf("processJobs error(%v): %v", i, err.Error())
 			continue
@@ -149,6 +128,36 @@ func acceptJobs(ctx context.Context,
 		}
 	}
 
+	return nil
+}
+
+func (w *worker) initDisk(ctx context.Context) error {
+	api, _ := GetNodeApi()
+	diskSectors, err := scanDisk()
+	if err != nil {
+		return errors.As(err)
+	}
+
+	for _, sectors := range diskSectors {
+		for sid, _ := range sectors {
+			info, err := api.RetryHlmSectorGetState(ctx, sid)
+			if err != nil {
+				log.Error("NewAllocate ", err)
+				continue
+			}
+			//已经做完C2
+			if info.State >= ffiwrapper.WorkerCommitDone {
+				localSectors.WriteMap(sid, info.State)
+			} else if info.State <= ffiwrapper.WorkerPreCommit2Done {
+				//还做完P2 算500G
+				localSectors.WriteMap(sid, info.State)
+			} else {
+				localSectors.WriteMap(sid, info.State)
+				//还在做C1,或者C2,如果本地map没有标记C1,没做完算500G,已经做完算50G
+			}
+		}
+	}
+	log.Infof("scanDisk : %v", diskSectors)
 	return nil
 }
 
@@ -206,9 +215,11 @@ func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res
 	if err := api.RetryWorkerDone(ctx, res); err != nil {
 		if errors.ErrNoData.Equal(err) {
 			log.Errorf("caller not found, drop this task:%+v", task)
+		} else {
+			log.Errorf("Worker done error: worker(%v)  sector(%v)  error(%v)", task.WorkerID, task.SectorID, err)
 		}
 	} else {
-		log.Infof("Worker done: worker(%v)  sector(%v)", task.WorkerID, task.SectorID)
+		log.Infof("Worker done success: worker(%v)  sector(%v)", task.WorkerID, task.SectorID)
 	}
 }
 
@@ -269,7 +280,7 @@ reAllocate:
 	dpState, err := w.diskPool.NewAllocate(task.SectorName())
 	if err != nil {
 		w.workMu.Unlock()
-		if cleanTimes%30==0{
+		if cleanTimes%30 == 0 {
 			log.Warn(errors.As(err))
 		}
 		time.Sleep(60e9)
