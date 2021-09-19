@@ -315,6 +315,9 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	if old, ok := _remotes.Load(cfg.ID); ok {
 		if cfg.Retry > 0 { //worker断线重连的时候 返回原来的chan
 			log.Infof("worker retry(%v): %v", cfg.Retry, cfg.ID)
+			if _, err := old.(*remote).checkCache(true, nil); err != nil {
+				return nil, errors.As(err, cfg)
+			}
 			return old.(*remote).sealTasks, nil
 		}
 		if old.(*remote).release != nil {
@@ -966,7 +969,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		sb.returnTask(task)
 		return
 	}
-	task.task.WorkerID = r.cfg.ID
+	task.task.WorkerID = ss.SectorInfo.WorkerId
 	task.task.SectorStorage = *ss
 
 	if task.task.SectorID.Miner == 0 {
