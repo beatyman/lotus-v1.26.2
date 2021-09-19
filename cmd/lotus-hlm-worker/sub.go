@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -439,9 +440,29 @@ reAllocate:
 	case ffiwrapper.WorkerCommit:
 		pieceInfo := task.Pieces
 		cids := &task.Cids
-		c1Out, err := sealer.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+		//判断C1输出文件是否存在，如果存在，则跳过C1
+		pathTxt := sector.CachePath() + "/c1.out"
+		isExist, err := ffiwrapper.PathExists(pathTxt)
 		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
+			log.Error("Read C1  PathExists Err :", err)
+		}
+		var c1Out []byte
+		if isExist {
+			c1Out, err = ioutil.ReadFile(pathTxt)
+			if err != nil {
+				log.Error("Read c1.out Err ", err)
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			log.Info(sector.CachePath() + " ==========c1 retry")
+		} else {
+			c1Out, err = sealer.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+			if err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			err = ffiwrapper.WriteSectorCC(pathTxt, c1Out)
+			if err != nil {
+				log.Error("=============================WriteSector C1 ===err: ", err)
+			}
 		}
 		w.removeDataLayer(ctx, sector.CachePath())
 		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerCommitDone)
