@@ -127,7 +127,6 @@ func NewWorkerHlmRPC(ctx context.Context, addr string, requestHeader http.Header
 		api.GetInternalStructs(&res),
 		requestHeader,
 		rpcenc.ReaderParamEncoder(pushUrl),
-		jsonrpc.WithNoReconnect(),
 		jsonrpc.WithTimeout(30*time.Second),
 	)
 	if err != nil {

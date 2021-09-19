@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"strings"
@@ -19,6 +20,23 @@ func (a *RetryHlmMinerSchedulerAPI) RetryEnable(err error) bool {
 	return err != nil &&
 		(strings.Contains(err.Error(), "websocket connection closed") ||
 			strings.Contains(err.Error(), "connection refused"))
+}
+
+func (a *RetryHlmMinerSchedulerAPI) RetryAuthNew(ctx context.Context, perms []auth.Permission) ([]byte, error) {
+	var (
+		err error
+		out []byte
+	)
+	for i := 0; true; i++ {
+		if out, err = a.HlmMinerSchedulerAPI.AuthNew(ctx, perms); err == nil {
+			return out, nil
+		}
+		if !a.RetryEnable(err) {
+			return out, err
+		}
+		time.Sleep(time.Second * 10)
+	}
+	return out, err
 }
 
 func (a *RetryHlmMinerSchedulerAPI) RetryActorSectorSize(ctx context.Context, addr address.Address) (abi.SectorSize, error) {
