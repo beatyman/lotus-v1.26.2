@@ -315,6 +315,9 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	if old, ok := _remotes.Load(cfg.ID); ok {
 		if cfg.Retry > 0 { //worker断线重连的时候 返回原来的chan
 			log.Infof("worker retry(%v): %v", cfg.Retry, cfg.ID)
+			if err := sb.OnlineWorker(cfg); err != nil {
+				return nil, errors.As(err)
+			}
 			if _, err := old.(*remote).checkCache(true, nil); err != nil {
 				return nil, errors.As(err, cfg)
 			}
@@ -326,17 +329,9 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		return nil, errors.New("The worker has exist").As(old.(*remote).cfg)
 	}
 
-	// update state in db
-	if err := database.OnlineWorker(&database.WorkerInfo{
-		ID:         cfg.ID,
-		UpdateTime: time.Now(),
-		Ip:         cfg.IP,
-		SvcUri:     cfg.SvcUri,
-		Online:     true,
-	}); err != nil {
+	if err := sb.OnlineWorker(cfg); err != nil {
 		return nil, errors.As(err)
 	}
-	sb.offlineWorker.Delete(cfg.ID) // for the no worker task stat.
 
 	wInfo, err := database.GetWorkerInfo(cfg.ID)
 	if err != nil {
@@ -392,6 +387,21 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 
 	log.Infof("worker connection and init finish: %v", r.cfg.ID)
 	return taskCh, nil
+}
+
+func (sb *Sealer) OnlineWorker(cfg WorkerCfg) error {
+	// update state in db
+	if err := database.OnlineWorker(&database.WorkerInfo{
+		ID:         cfg.ID,
+		UpdateTime: time.Now(),
+		Ip:         cfg.IP,
+		SvcUri:     cfg.SvcUri,
+		Online:     true,
+	}); err != nil {
+		return errors.As(err)
+	}
+	sb.offlineWorker.Delete(cfg.ID) // for the no worker task stat.
+	return nil
 }
 
 // call UnlockService to release
