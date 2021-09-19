@@ -314,6 +314,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	}
 	if old, ok := _remotes.Load(cfg.ID); ok {
 		if cfg.Retry > 0 { //worker断线重连的时候 返回原来的chan
+			log.Infof("worker retry(%v): %v", cfg.Retry, cfg.ID)
 			return old.(*remote).sealTasks, nil
 		}
 		if old.(*remote).release != nil {
@@ -354,8 +355,8 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		disable:     wInfo.Disable,
 	}
 	r.release = func() {
+		log.Infof("worker release: %v", r.cfg.ID)
 		cancel()
-
 		// clean the other lock which has called by this worker.
 		_remotes.Range(func(key, val interface{}) bool {
 			_r := val.(*remote)
@@ -386,6 +387,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 
 	go sb.remoteWorker(ctx, r, cfg)
 
+	log.Infof("worker connection and init finish: %v", r.cfg.ID)
 	return taskCh, nil
 }
 
@@ -1148,7 +1150,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		return SealRes{}, true
 	case res := <-resCh:
 		// send the result back to the caller
-		log.Infof("task(%v) return result", taskKey)
+		log.Infof("task return result:%v", taskKey)
 		return res, false
 	}
 }
@@ -1168,9 +1170,10 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 
 	select {
 	case <-ctx.Done():
+		log.Infof("Task done error: %v, %v", res.TaskID, ctx.Err())
 		return ctx.Err()
 	case rres <- res:
-		log.Infof("Task done: %v", res.TaskID)
+		log.Infof("Task done success: %v", res.TaskID)
 		return nil
 	}
 }

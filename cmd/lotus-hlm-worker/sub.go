@@ -214,10 +214,9 @@ func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res
 	}
 	if err := api.RetryWorkerDone(ctx, res); err != nil {
 		if errors.ErrNoData.Equal(err) {
-			log.Errorf("caller not found, drop this task:%+v", task)
-		} else {
-			log.Errorf("Worker done error: worker(%v)  sector(%v)  error(%v)", task.WorkerID, task.SectorID, err)
+			err = fmt.Errorf("caller not found, drop this task")
 		}
+		log.Errorf("Worker done error: worker(%v)  sector(%v)  error(%v)", task.WorkerID, task.SectorID, err)
 	} else {
 		log.Infof("Worker done success: worker(%v)  sector(%v)", task.WorkerID, task.SectorID)
 	}
