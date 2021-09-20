@@ -114,6 +114,7 @@ func acceptJobs(ctx context.Context,
 		}
 
 		workerCfg.Retry = i
+		workerCfg.C2Sids = rpcServer.getC2sids()
 		tasks, err := api.WorkerQueue(ctx, workerCfg)
 		if err != nil {
 			log.Errorf("api.WorkerQueue error(%v): %v", i, err.Error())

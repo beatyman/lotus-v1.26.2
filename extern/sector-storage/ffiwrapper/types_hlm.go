@@ -90,7 +90,8 @@ type WorkerCfg struct {
 	WdPoStSrv  bool
 	WnPoStSrv  bool
 
-	Retry int //worker断线重连次数 0:第一次连接（不是重连）
+	Retry  int            //worker断线重连次数 0:第一次连接（不是重连）
+	C2Sids []abi.SectorID //c2 worker正在执行的扇区id (c2断线重连后需要恢复busyOnTasks)
 }
 
 type WorkerTask struct {
@@ -230,6 +231,7 @@ type remote struct {
 	sealTasks   chan WorkerTask
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
 	disable     bool                  // disable for new sector task
+	offline     bool                  //当前是否断线
 
 	srvConn int64
 }
@@ -247,15 +249,12 @@ func (r *remote) fullTask() bool {
 	defer r.lock.Unlock()
 	return len(r.busyOnTasks) >= r.cfg.MaxTaskNum
 }
+
 func (r *remote) fakeFullTask() bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	count := 0
-	for sid := range r.busyOnTasks {
-		task, ok := r.busyOnTasks[sid]
-		if !ok {
-			continue
-		}
+	for _, task := range r.busyOnTasks {
 		//只计算P1,P2任务
 		if task.Type < WorkerPreCommit2Done {
 			count++
@@ -394,7 +393,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		}
 		if wTask.State <= WorkerFinalize {
 			// maxTaskNum has changed to less, so only load a part
-			if wTask.State < WorkerFinalize  {//启动load全部任务
+			if wTask.State < WorkerFinalize { //启动load全部任务
 				break
 			}
 			r.lock.Lock()

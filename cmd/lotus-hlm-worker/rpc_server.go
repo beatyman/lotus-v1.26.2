@@ -28,6 +28,24 @@ type rpcServer struct {
 
 	c2Lk    sync.Mutex
 	c2Cache map[string]bool
+
+	c2sidsRW sync.RWMutex
+	c2sids   map[string]abi.SectorID
+}
+
+func (w *rpcServer) sectorName(sid abi.SectorID) string {
+	return fmt.Sprintf("s-t0%d-%d", sid.Miner, sid.Number)
+}
+
+func (w *rpcServer) getC2sids() []abi.SectorID {
+	w.c2sidsRW.RLock()
+	defer w.c2sidsRW.RUnlock()
+
+	out := make([]abi.SectorID, 0, 0)
+	for _, sid := range w.c2sids {
+		out = append(out, sid)
+	}
+	return out
 }
 
 func (w *rpcServer) Version(context.Context) (string, error) {
@@ -38,11 +56,21 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 	log.Infof("SealCommit2 RPC in:%d", sector)
 	defer log.Infof("SealCommit2 RPC out:%d", sector)
 
+	w.c2sidsRW.Lock()
+	w.c2sids[w.sectorName(sector.SectorID)] = sector.SectorID
+	w.c2sidsRW.Unlock()
+
 	defer func() {
-		//只能在c2 worker执行UnlockGPUService（不能在p1 worker调用c2完成后执行：会出现p1 worker重启而没执行到这句 造成miner那边维护的c2 worker的busy一直不正确）
+		w.c2sidsRW.Lock()
+		delete(w.c2sids, w.sectorName(sector.SectorID))
+		w.c2sidsRW.Unlock()
+		log.Infof("SealCommit2 finish and current c2sids:%v", w.getC2sids())
+
+		//只能在c2 worker执行UnlockGPUService
+		//不能在p1 worker调用c2完成后执行：会出现p1 worker重启而没执行到这句 造成miner那边维护的c2 worker的busy一直不正确
 		napi, _ := GetNodeApi()
 		if err := napi.RetryUnlockGPUService(ctx, w.workerID, sector.TaskKey); err != nil {
-			log.Warn(errors.As(err))
+			log.Errorf("SealCommit2 unlock gpu service error: %v", err)
 		}
 	}()
 
