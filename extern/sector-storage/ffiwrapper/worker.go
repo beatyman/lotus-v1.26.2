@@ -494,7 +494,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		defer _r.lock.Unlock()
 
 		//过滤当前断线的worker
-		if r.offline {
+		if _r.offline {
 			return true
 		}
 		//优先返回曾经下发记录里面的worker
