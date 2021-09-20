@@ -26,11 +26,6 @@ type rpcClient struct {
 	closer jsonrpc.ClientCloser
 }
 
-func (r *rpcClient) Close() error {
-	r.closer()
-	return nil
-}
-
 func (r *rpcClient) RetryEnable(err error) bool {
 	return err != nil &&
 		(strings.Contains(err.Error(), "websocket connection closed") ||
@@ -109,7 +104,6 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out s
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	defer rClient.Close()
 
 	// do work
 	return rClient.RetrySealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType}, c1out)
