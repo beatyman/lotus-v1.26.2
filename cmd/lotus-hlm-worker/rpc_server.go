@@ -18,6 +18,7 @@ import (
 )
 
 type rpcServer struct {
+	workerID  string
 	minerRepo string
 	sb        *ffiwrapper.Sealer
 
@@ -36,6 +37,14 @@ func (w *rpcServer) Version(context.Context) (string, error) {
 func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commit1Out storage.Commit1Out) (storage.Proof, error) {
 	log.Infof("SealCommit2 RPC in:%d", sector)
 	defer log.Infof("SealCommit2 RPC out:%d", sector)
+
+	defer func() {
+		//只能在c2 worker执行UnlockGPUService（不能在p1 worker调用c2完成后执行：会出现p1 worker重启而没执行到这句 造成miner那边维护的c2 worker的busy一直不正确）
+		napi, _ := GetNodeApi()
+		if err := napi.RetryUnlockGPUService(ctx, w.workerID, sector.TaskKey); err != nil {
+			log.Warn(errors.As(err))
+		}
+	}()
 
 	// remove the dumplicate request.
 	w.c2Lk.Lock()
@@ -140,7 +149,7 @@ func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,
 	if err := w.loadMinerStorage(ctx, napi); err != nil {
 		return api.WindowPoStResp{}, errors.As(err)
 	}
-	log.Infof("GenerateWindowPoSt: %+v ",sectorInfo)
+	log.Infof("GenerateWindowPoSt: %+v ", sectorInfo)
 	proofs, ignore, err := w.sb.GenerateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 	if err != nil {
 		log.Warnf("ignore len:%d", len(ignore))

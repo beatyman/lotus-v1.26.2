@@ -17,6 +17,8 @@ type WindowPoStResp struct {
 type SectorRef struct {
 	abi.SectorID
 	ProofType abi.RegisteredSealProof
+
+	TaskKey string //用于UnlockGPUService
 }
 
 type WorkerHlmAPI interface {

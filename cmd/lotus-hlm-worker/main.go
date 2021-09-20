@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v8/kodocli"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -351,6 +351,7 @@ var runCmd = &cli.Command{
 			WnPoStSrv:          cctx.Bool("wnpost-srv"),
 		}
 		workerApi := &rpcServer{
+			workerID:     workerCfg.ID,
 			minerRepo:    minerRepo,
 			sb:           minerSealer,
 			storageCache: map[int64]database.StorageInfo{},
@@ -395,7 +396,7 @@ var runCmd = &cli.Command{
 			}
 		}()
 		//设置日志级别
-		elog:=kodocli.NewLogger()
+		elog := kodocli.NewLogger()
 		elog.SetLevel(kodocli.LOG_LEVEL_ERROR)
 		operation.SetLogger(elog)
 		log.Info("starting acceptJobs")

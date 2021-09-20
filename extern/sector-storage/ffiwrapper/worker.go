@@ -355,28 +355,37 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	r.release = func() {
 		log.Infof("worker release: %v", r.cfg.ID)
 		cancel()
+
+		r.lock.Lock()
+		defer r.lock.Unlock()
+
+		for sid, _ := range r.busyOnTasks {
+			delete(r.busyOnTasks, sid)
+		}
+
+		// 释放worker的时候不要把清理其他worker的busyOnTasks
 		// clean the other lock which has called by this worker.
-		_remotes.Range(func(key, val interface{}) bool {
-			_r := val.(*remote)
-			if _r == r {
-				return true
-			}
-
-			_r.lock.Lock()
-			defer _r.lock.Unlock()
-
-			r.lock.Lock()
-			for sid, _ := range r.busyOnTasks {
-				_, ok := _r.busyOnTasks[sid]
-				if !ok {
-					continue
-				}
-				log.Infof("clean task(%s) by worker(%s) exit", sid, _r.cfg.ID)
-				delete(_r.busyOnTasks, sid)
-			}
-			r.lock.Unlock()
-			return true
-		})
+		//_remotes.Range(func(key, val interface{}) bool {
+		//	_r := val.(*remote)
+		//	if _r == r {
+		//		return true
+		//	}
+		//
+		//	_r.lock.Lock()
+		//	defer _r.lock.Unlock()
+		//
+		//	r.lock.Lock()
+		//	for sid, _ := range r.busyOnTasks {
+		//		_, ok := _r.busyOnTasks[sid]
+		//		if !ok {
+		//			continue
+		//		}
+		//		log.Infof("clean task(%s) by worker(%s) exit", sid, _r.cfg.ID)
+		//		delete(_r.busyOnTasks, sid)
+		//	}
+		//	r.lock.Unlock()
+		//	return true
+		//})
 	}
 	if _, err := r.checkCache(true, nil); err != nil {
 		return nil, errors.As(err, cfg)

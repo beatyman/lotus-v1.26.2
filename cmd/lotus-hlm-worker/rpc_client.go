@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 )
 
 var (
@@ -30,23 +29,6 @@ func (r *rpcClient) RetryEnable(err error) bool {
 	return err != nil &&
 		(strings.Contains(err.Error(), "websocket connection closed") ||
 			strings.Contains(err.Error(), "connection refused"))
-}
-
-func (r *rpcClient) RetrySealCommit2(ctx context.Context, ref api.SectorRef, c1out storage.Commit1Out) (storage.Proof, error) {
-	var (
-		err error
-		out storage.Proof
-	)
-	for i := 0; true; i++ {
-		if out, err = r.WorkerHlmAPI.SealCommit2(ctx, ref, c1out); err == nil {
-			return out, nil
-		}
-		if !r.RetryEnable(err) {
-			return out, err
-		}
-		time.Sleep(time.Second * 10)
-	}
-	return out, err
 }
 
 func ConnectHlmWorker(ctx context.Context, fa *api.RetryHlmMinerSchedulerAPI, url string) (*rpcClient, error) {
@@ -91,11 +73,6 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out s
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	defer func() {
-		if err := napi.RetryUnlockGPUService(ctx, rCfg.ID, task.Key()); err != nil {
-			log.Warn(errors.As(err))
-		}
-	}()
 
 	log.Infof("Selected Commit2 Service: %s", rCfg.SvcUri)
 
@@ -106,5 +83,5 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out s
 	}
 
 	// do work
-	return rClient.RetrySealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType}, c1out)
+	return rClient.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType, TaskKey: task.Key()}, c1out)
 }
