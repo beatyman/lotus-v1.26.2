@@ -458,11 +458,9 @@ func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi
 		return nil
 	}
 
-	rmt.lock.Lock()
-	defer rmt.lock.Unlock()
-
 	//1.c2 worker不绑定sector 所以c2 worker重连的时候需要将运行中的sector信息传入 作为恢复busy的依据
 	if rmt.cfg.Commit2Srv || rmt.cfg.WdPoStSrv || rmt.cfg.WnPoStSrv {
+		rmt.lock.Lock()
 		rmt.busyOnTasks = map[string]WorkerTask{}
 		for _, sid := range c2sids {
 			task := WorkerTask{
@@ -471,27 +469,35 @@ func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi
 			}
 			rmt.busyOnTasks[task.SectorName()] = task
 		}
-	} /*else { //2.p1 worker从sqlite恢复busy状态
-		if kind == WorkerQueueKind_WorkerReStart {
-			return nil
-		}
+		rmt.lock.Unlock()
+	} else { //2.p1 worker从sqlite恢复busy状态
 
-		history, err := database.GetWorking(rmt.cfg.ID)
-		if err != nil && !errors.ErrNoData.Equal(err) {
-			return err
-		}
-		for _, wTask := range history {
-			if wTask.State <= WorkerFinalize {
-				if _, ok := rmt.busyOnTasks[wTask.ID]; !ok {
-					rmt.busyOnTasks[wTask.ID] = WorkerTask{
-						Type:     WorkerTaskType(wTask.State),
-						SectorID: sectorID(wTask.ID),
-						WorkerID: wTask.WorkerId,
-					}
-				}
-			}
-		}
-	}*/
+		//备注：非p1的worker的busy状态由checkCache去恢复 自己恢复会影响pledge任务的执行
+		//busy状态恢复后，任务的重试由状态机处理
+
+		//if kind == WorkerQueueKind_WorkerReStart {
+		//	return nil
+		//}
+		//
+		//history, err := database.GetWorking(rmt.cfg.ID)
+		//if err != nil && !errors.ErrNoData.Equal(err) {
+		//	return err
+		//}
+		//
+		//rmt.lock.Lock()
+		//for _, wTask := range history {
+		//	if wTask.State <= WorkerFinalize {
+		//		if _, ok := rmt.busyOnTasks[wTask.ID]; !ok {
+		//			rmt.busyOnTasks[wTask.ID] = WorkerTask{
+		//				Type:     WorkerTaskType(wTask.State),
+		//				SectorID: sectorID(wTask.ID),
+		//				WorkerID: wTask.WorkerId,
+		//			}
+		//		}
+		//	}
+		//}
+		//rmt.lock.Unlock()
+	}
 
 	_, err := rmt.checkCache(true, nil)
 	return err
@@ -501,13 +507,13 @@ func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi
 func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerTask) (*remote, bool) {
 	_remoteGpuLk.Lock()
 	defer _remoteGpuLk.Unlock()
+	log.Infof("task(%v) select gpu starting", task.SectorID)
 
 	var (
 		r   *remote
 		rs  []*remote
 		msg = ""
 	)
-	log.Infof("task(%v) select gpu starting", task.SectorID)
 	//1.找出所有在线的c2 worker
 	_remotes.Range(func(key, val interface{}) bool {
 		_r := val.(*remote)
@@ -546,12 +552,13 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		}
 	}
 	//4.找到了c2 worker 则设置busy状态
-	if r != nil {
-		log.Infof("task(%v) select gpu finish: %v", task.SectorID, r.cfg.ID)
+	if msg = ""; r != nil {
+		msg = r.cfg.ID
 		r.lock.Lock()
 		r.busyOnTasks[sid] = task // make busy
 		r.lock.Unlock()
 	}
+	log.Infof("task(%v) select gpu finish: %v", task.SectorID, msg)
 
 	return r, r != nil
 }
