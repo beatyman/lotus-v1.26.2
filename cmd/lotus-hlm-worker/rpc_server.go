@@ -57,12 +57,12 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 	w.c2sids[w.sectorName(sector.SectorID)] = sector.SectorID
 	w.c2sidsRW.Unlock()
 
-	log.Infof("SealCommit2 RPC in:%d, current c2sids: %v", sector, w.getC2sids())
+	log.Infof("SealCommit2 RPC in:%v, current c2sids: %v", sector, w.getC2sids())
 	defer func() {
 		w.c2sidsRW.Lock()
 		delete(w.c2sids, w.sectorName(sector.SectorID))
 		w.c2sidsRW.Unlock()
-		log.Infof("SealCommit2 RPC out:%d, current c2sids: %v", sector, w.getC2sids())
+		log.Infof("SealCommit2 RPC out:%v, current c2sids: %v", sector, w.getC2sids())
 
 		//只能在c2 worker执行UnlockGPUService
 		//不能在p1 worker调用c2完成后执行：会出现p1 worker重启而没执行到这句 造成miner那边维护的c2 worker的busy一直不正确
