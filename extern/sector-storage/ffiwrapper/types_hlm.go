@@ -94,6 +94,14 @@ type WorkerCfg struct {
 	C2Sids []abi.SectorID //c2 worker正在执行的扇区id (c2断线重连后需要恢复busyOnTasks)
 }
 
+type WorkerQueueKind string
+
+const (
+	WorkerQueueKind_MinerReStart    WorkerQueueKind = "miner_restart"
+	WorkerQueueKind_WorkerReStart   WorkerQueueKind = "worker_restart"
+	WorkerQueueKind_WorkerReConnect WorkerQueueKind = "worker_reconnect"
+)
+
 type WorkerTask struct {
 	Type WorkerTaskType
 	// TaskID uint64 // using SecotrID instead

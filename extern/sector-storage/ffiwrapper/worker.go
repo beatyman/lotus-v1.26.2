@@ -319,29 +319,30 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	}
 
 	var (
-		err error
-		rmt *remote
-		msg = "init"
+		err  error
+		rmt  *remote
+		kind = WorkerQueueKind_MinerReStart
 	)
 	defer func() {
 		if err != nil {
 			log.Infof("AddWorker: worker(%v) error(%v)", cfg.ID, err)
 		} else {
-			log.Infof("AddWorker: worker(%v) success(%v)", cfg.ID, msg)
+			log.Infof("AddWorker: worker(%v) success(%v)", cfg.ID, string(kind))
 		}
 
 		if rmt != nil {
 			sb.setupOfflineWorker(oriCtx, rmt)
-			if err = sb.loadBusyStatus(rmt, cfg.C2Sids); err != nil {
+			if err = sb.loadBusyStatus(rmt, kind, cfg.C2Sids); err != nil {
 				log.Infof("AddWorker: worker(%v) load busy status error(%v)", cfg.ID, err)
 			}
 		}
 	}()
 
+	log.Infof("AddWorker: worker(%v) start...", cfg.ID)
 	if old, ok := _remotes.Load(cfg.ID); ok { //1.worker在miner里面存在(比如worker重启或重连)
 		rmt = old.(*remote)
-		if msg = "restart"; cfg.Retry > 0 {
-			msg = "reconnect"
+		if kind = WorkerQueueKind_WorkerReStart; cfg.Retry > 0 {
+			kind = WorkerQueueKind_WorkerReConnect
 		}
 
 		if err := sb.onlineWorker(cfg); err != nil {
@@ -442,7 +443,7 @@ func (sb *Sealer) setupOfflineWorker(ctx context.Context, rmt *remote) {
 	}()
 }
 
-func (sb *Sealer) loadBusyStatus(rmt *remote, c2sids []abi.SectorID) error {
+func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi.SectorID) error {
 	if rmt == nil {
 		return nil
 	}
@@ -461,8 +462,12 @@ func (sb *Sealer) loadBusyStatus(rmt *remote, c2sids []abi.SectorID) error {
 			rmt.busyOnTasks[task.SectorName()] = task
 		}
 	} else { //2.p1 worker从sqlite恢复busy状态
+		if kind == WorkerQueueKind_WorkerReStart {
+			return nil
+		}
+
 		history, err := database.GetWorking(rmt.cfg.ID)
-		if err != nil {
+		if err != nil && !errors.ErrNoData.Equal(err) {
 			return err
 		}
 		for _, wTask := range history {
@@ -496,11 +501,6 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		//过滤当前断线的worker
 		if _r.offline {
 			return true
-		}
-		//优先返回曾经下发记录里面的worker
-		if t, ok := _r.busyOnTasks[sid]; ok && t.Type == task.Type {
-			r = _r
-			return false
 		}
 
 		switch task.Type {
