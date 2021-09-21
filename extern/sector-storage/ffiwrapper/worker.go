@@ -460,10 +460,10 @@ func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi
 
 	rmt.lock.Lock()
 	defer rmt.lock.Unlock()
-	rmt.busyOnTasks = map[string]WorkerTask{}
 
 	//1.c2 worker不绑定sector 所以c2 worker重连的时候需要将运行中的sector信息传入 作为恢复busy的依据
 	if rmt.cfg.Commit2Srv || rmt.cfg.WdPoStSrv || rmt.cfg.WnPoStSrv {
+		rmt.busyOnTasks = map[string]WorkerTask{}
 		for _, sid := range c2sids {
 			task := WorkerTask{
 				Type:     WorkerCommit,
@@ -471,7 +471,7 @@ func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi
 			}
 			rmt.busyOnTasks[task.SectorName()] = task
 		}
-	} else { //2.p1 worker从sqlite恢复busy状态
+	} /*else { //2.p1 worker从sqlite恢复busy状态
 		if kind == WorkerQueueKind_WorkerReStart {
 			return nil
 		}
@@ -491,9 +491,10 @@ func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi
 				}
 			}
 		}
-	}
+	}*/
 
-	return nil
+	_, err := rmt.checkCache(true, nil)
+	return err
 }
 
 // call UnlockService to release
@@ -502,55 +503,51 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	defer _remoteGpuLk.Unlock()
 
 	var (
-		r  *remote
-		rs []*remote
+		r   *remote
+		rs  []*remote
+		msg = ""
 	)
+	log.Infof("task(%v) select gpu starting", task.SectorID)
+	//1.找出所有在线的c2 worker
 	_remotes.Range(func(key, val interface{}) bool {
 		_r := val.(*remote)
-
 		//过滤当前断线的worker
 		if _r.offline {
 			return true
 		}
-
-		//过滤p1 worker
-		switch task.Type {
-		case WorkerCommit:
-			if !_r.cfg.Commit2Srv {
-				return true
-			}
-		case WorkerWinningPoSt:
-			if !_r.cfg.WnPoStSrv {
-				return true
-			}
-		case WorkerWindowPoSt:
-			if !_r.cfg.WdPoStSrv {
-				return true
-			}
+		//过滤类型不匹配的worker(如p1)
+		if !_r.taskEnable(task) {
+			return true
 		}
-
 		rs = append(rs, _r)
 		return true
 	})
-
-	//1.优先从之前的下发记录找c2 worker
 	for _, _r := range rs {
-		if t, ok := _r.busyOnTasks[sid]; ok && t.Type == task.Type {
+		msg += _r.cfg.ID + ","
+	}
+	log.Infof("task(%v) select gpu with c2workers: %v", task.SectorID, msg)
+
+	//2.根据已分发的任务数"降序"排序c2 worker
+	sort.Slice(rs, func(i, j int) bool {
+		return len(rs[i].busyOnTasks) > len(rs[j].busyOnTasks)
+	})
+	//3.根据已分发的任务数"降序"遍历c2 worker
+	for _, _r := range rs {
+		//3.1 如果遇到处于空闲的c2 worker，且之前被这个任务选择过（可能p1对c2调用失败）则优先获取
+		if t, ok := _r.busyOnTasks[sid]; ok && t.Type == task.Type && !_r.limitParallel(task.Type, true) {
+			log.Infof("task(%v) select gpu with idle and old-hit c2worker", task.SectorID)
 			r = _r
 			break
 		}
-	}
-	//2.没有之前的c2下发记录 则从空闲的c2 worker里面找一个
-	if r == nil {
-		for _, _r := range rs {
-			if !_r.limitParallel(task.Type, true) {
-				r = _r
-				break
-			}
+		//3.2 如果没有曾经下发过的c2 worker处于空闲状态 则"降序"遍历退出时选择到任务数最小的一个空闲c2 worker
+		if !_r.limitParallel(task.Type, true) {
+			r = _r
+			//这里不能break 需要"降序"遍历到最后一条记录 以获取任务数最小的c2 worker
 		}
 	}
-	//3.找到了c2 worker 则设置busy状态
+	//4.找到了c2 worker 则设置busy状态
 	if r != nil {
+		log.Infof("task(%v) select gpu finish: %v", task.SectorID, r.cfg.ID)
 		r.lock.Lock()
 		r.busyOnTasks[sid] = task // make busy
 		r.lock.Unlock()

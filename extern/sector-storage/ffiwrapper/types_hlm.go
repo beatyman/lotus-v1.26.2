@@ -244,6 +244,18 @@ type remote struct {
 	srvConn int64
 }
 
+func (r *remote) taskEnable(task WorkerTask) bool {
+	switch task.Type {
+	case WorkerCommit:
+		return r.cfg.Commit2Srv
+	case WorkerWinningPoSt:
+		return r.cfg.WnPoStSrv
+	case WorkerWindowPoSt:
+		return r.cfg.WdPoStSrv
+	}
+	return true
+}
+
 func (r *remote) busyOn(sid string) bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
