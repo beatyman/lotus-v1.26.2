@@ -114,11 +114,14 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 			continue
 		}
 
-		if r, ok := _remotes.Load(info.ID); ok && !r.(*remote).offline {
-			workerOnlines++
-		}
-
-		if _, ok := sb.offlineWorker.Load(info.ID); ok {
+		r, ok := _remotes.Load(info.ID)
+		if ok { //连上过miner
+			if r.(*remote).offline { //当前断线
+				workerOfflines++
+			} else { //当前在线
+				workerOnlines++
+			}
+		} else { //(miner重启后)从未连接miner
 			workerOfflines++
 		}
 	}
@@ -292,7 +295,6 @@ func (sb *Sealer) DelWorker(ctx context.Context, workerId string) {
 			rmt.release()
 		}
 	}
-	_remotes.Delete(workerId)
 }
 
 func (sb *Sealer) DisableWorker(ctx context.Context, wid string, disable bool) error {
@@ -403,7 +405,15 @@ func (sb *Sealer) initWorker(cfg WorkerCfg) (rmt *remote, err error) {
 
 		release: func() {
 			log.Infof("worker(%v) release", rmt.cfg.ID)
+
+			rmt.offline = true
 			cancel()
+
+			rmt.lock.Lock()
+			rmt.busyOnTasks = map[string]WorkerTask{}
+			rmt.lock.Unlock()
+
+			_remotes.Delete(cfg.ID)
 		},
 	}
 	_remotes.Store(cfg.ID, rmt)
@@ -491,18 +501,19 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	_remoteGpuLk.Lock()
 	defer _remoteGpuLk.Unlock()
 
-	// select a remote worker
-	var r *remote
+	var (
+		r  *remote
+		rs []*remote
+	)
 	_remotes.Range(func(key, val interface{}) bool {
 		_r := val.(*remote)
-		_r.lock.Lock()
-		defer _r.lock.Unlock()
 
 		//过滤当前断线的worker
 		if _r.offline {
 			return true
 		}
 
+		//过滤p1 worker
 		switch task.Type {
 		case WorkerCommit:
 			if !_r.cfg.Commit2Srv {
@@ -517,20 +528,35 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 				return true
 			}
 		}
-		if _r.limitParallel(task.Type, true) {
-			// r is nil
-			return true
-		}
 
-		r = _r
-		r.busyOnTasks[sid] = task // make busy
-		// break range
-		return false
+		rs = append(rs, _r)
+		return true
 	})
-	if r == nil {
-		return nil, false
+
+	//1.优先从之前的下发记录找c2 worker
+	for _, _r := range rs {
+		if t, ok := _r.busyOnTasks[sid]; ok && t.Type == task.Type {
+			r = _r
+			break
+		}
 	}
-	return r, true
+	//2.没有之前的c2下发记录 则从空闲的c2 worker里面找一个
+	if r == nil {
+		for _, _r := range rs {
+			if !_r.limitParallel(task.Type, true) {
+				r = _r
+				break
+			}
+		}
+	}
+	//3.找到了c2 worker 则设置busy状态
+	if r != nil {
+		r.lock.Lock()
+		r.busyOnTasks[sid] = task // make busy
+		r.lock.Unlock()
+	}
+
+	return r, r != nil
 }
 
 func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {

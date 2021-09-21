@@ -113,11 +113,12 @@ func acceptJobs(ctx context.Context,
 			<-time.After(time.Second * 10)
 		}
 
+		log.Infof("Worker(%s) starting(%v), Miner:%s, Srv:%s", workerCfg.ID, i, minerEndpoint, workerCfg.IP)
 		workerCfg.Retry = i
 		workerCfg.C2Sids = rpcServer.getC2sids()
 		tasks, err := api.WorkerQueue(ctx, workerCfg)
 		if err != nil {
-			log.Errorf("api.WorkerQueue error(%v): %v", i, err.Error())
+			log.Infof("Worker(%s) start(%v) error(%v), Miner:%s, Srv:%s", workerCfg.ID, i, err, minerEndpoint, workerCfg.IP)
 			continue
 		}
 
