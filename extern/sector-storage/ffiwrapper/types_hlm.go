@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
@@ -239,9 +240,21 @@ type remote struct {
 	sealTasks   chan WorkerTask
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
 	disable     bool                  // disable for new sector task
-	offline     bool                  //当前是否断线
+	offline     int32                 //当前是否断线
 
 	srvConn int64
+}
+
+func (r *remote) isOfflineState() bool {
+	return atomic.LoadInt32(&r.offline) > 0
+}
+
+func (r *remote) setOfflineState() {
+	atomic.AddInt32(&r.offline, 1)
+}
+
+func (r *remote) clearOfflineState() {
+	atomic.StoreInt32(&r.offline, 0)
 }
 
 func (r *remote) taskEnable(task WorkerTask) bool {

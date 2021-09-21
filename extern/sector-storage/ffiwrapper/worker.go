@@ -116,7 +116,7 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 
 		r, ok := _remotes.Load(info.ID)
 		if ok { //连上过miner
-			if r.(*remote).offline { //当前断线
+			if r.(*remote).isOfflineState() { //当前断线
 				workerOfflines++
 			} else { //当前在线
 				workerOnlines++
@@ -232,39 +232,33 @@ func (sb *Sealer) WorkerRemoteStats() ([]WorkerRemoteStats, error) {
 			continue
 		}
 
-		on, ok := _remotes.Load(info.ID)
-		if !ok {
-			_, ok := sb.offlineWorker.Load(info.ID)
-			if !ok {
-				// remove the unknow worker, maybe it has been moved.
-				continue
-			}
+		if _r, ok := _remotes.Load(info.ID); ok {
+			if r := _r.(*remote); !r.isOfflineState() { // for online
+				sectors, err := sb.TaskWorking(r.cfg.ID)
+				if err != nil {
+					return nil, errors.As(err)
+				}
+				busyOn := []string{}
+				r.lock.Lock()
+				for _, b := range r.busyOnTasks {
+					busyOn = append(busyOn, b.Key())
+				}
+				r.lock.Unlock()
 
-			// for offline
+				stat.Online = true
+				stat.Srv = r.cfg.Commit2Srv || r.cfg.WnPoStSrv || r.cfg.WdPoStSrv
+				stat.BusyOn = fmt.Sprintf("%+v", busyOn)
+				stat.SectorOn = sectors
+
+				result = append(result, stat)
+			} else { // for offline
+				stat.Online = false
+				result = append(result, stat)
+			}
+		} else { // for offline
 			stat.Online = false
 			result = append(result, stat)
-			continue
 		}
-
-		// for online
-		r := on.(*remote)
-		sectors, err := sb.TaskWorking(r.cfg.ID)
-		if err != nil {
-			return nil, errors.As(err)
-		}
-		busyOn := []string{}
-		r.lock.Lock()
-		for _, b := range r.busyOnTasks {
-			busyOn = append(busyOn, b.Key())
-		}
-		r.lock.Unlock()
-
-		stat.Online = true
-		stat.Srv = r.cfg.Commit2Srv || r.cfg.WnPoStSrv || r.cfg.WdPoStSrv
-		stat.BusyOn = fmt.Sprintf("%+v", busyOn)
-		stat.SectorOn = sectors
-
-		result = append(result, stat)
 	}
 	sort.Sort(result)
 	return result, nil
@@ -328,14 +322,20 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	defer func() {
 		if err != nil {
 			log.Infof("AddWorker: worker(%v) error(%v)", cfg.ID, err)
+			return
 		} else {
 			log.Infof("AddWorker: worker(%v) success(%v)", cfg.ID, string(kind))
 		}
 
 		if rmt != nil {
 			sb.setupOfflineWorker(oriCtx, rmt)
+			if err = sb.onlineWorker(cfg, rmt); err != nil {
+				log.Infof("AddWorker: worker(%v) online error(%v)", cfg.ID, err)
+				return
+			}
 			if err = sb.loadBusyStatus(rmt, kind, cfg.C2Sids); err != nil {
 				log.Infof("AddWorker: worker(%v) load busy status error(%v)", cfg.ID, err)
+				return
 			}
 		}
 	}()
@@ -345,10 +345,6 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		rmt = old.(*remote)
 		if kind = WorkerQueueKind_WorkerReStart; cfg.Retry > 0 {
 			kind = WorkerQueueKind_WorkerReConnect
-		}
-
-		if err := sb.onlineWorker(cfg); err != nil {
-			return nil, errors.As(err)
 		}
 	} else { //2.worker在miner里面不存在(miner重启或worker首次连接)
 		if rmt, err = sb.initWorker(cfg); err != nil {
@@ -361,29 +357,24 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 
 //worker(p1,c2)重启(或首次启动)的时候需要做一次初始化(重连的时候不需要)
 func (sb *Sealer) initWorker(cfg WorkerCfg) (rmt *remote, err error) {
-	log.Infof("worker(%v) init...", cfg.ID)
+	log.Infof("init worker(%v) starting...", cfg.ID)
 
 	//1.worker已经初始化过 则直接返回 （初始化操作只执行一次）
 	if old, ok := _remotes.Load(cfg.ID); ok {
-		log.Infof("worker(%v) init skiped", cfg.ID)
+		log.Infof("init worker(%v) skiped", cfg.ID)
 		return old.(*remote), nil
 	}
 
 	//2.worker init...
 	defer func() {
 		if err != nil {
-			log.Infof("worker(%v) init error: %v", cfg.ID, err)
+			log.Infof("init worker(%v) error: %v", cfg.ID, err)
 		} else {
-			log.Infof("worker(%v) init finish", cfg.ID)
+			log.Infof("init worker(%v) finish", cfg.ID)
 		}
 	}()
 
-	var (
-		wInfo *database.WorkerInfo
-	)
-	if err = sb.onlineWorker(cfg); err != nil {
-		return nil, errors.As(err)
-	}
+	var wInfo *database.WorkerInfo
 	if wInfo, err = database.GetWorkerInfo(cfg.ID); err != nil {
 		return nil, errors.As(err)
 	}
@@ -401,14 +392,12 @@ func (sb *Sealer) initWorker(cfg WorkerCfg) (rmt *remote, err error) {
 		sealTasks:   make(chan WorkerTask),
 		busyOnTasks: map[string]WorkerTask{},
 		disable:     wInfo.Disable,
-		offline:     false,
 
 		release: func() {
 			log.Infof("worker(%v) release", rmt.cfg.ID)
 
-			rmt.offline = true
 			cancel()
-
+			rmt.setOfflineState()
 			rmt.lock.Lock()
 			rmt.busyOnTasks = map[string]WorkerTask{}
 			rmt.lock.Unlock()
@@ -423,7 +412,10 @@ func (sb *Sealer) initWorker(cfg WorkerCfg) (rmt *remote, err error) {
 	return rmt, nil
 }
 
-func (sb *Sealer) onlineWorker(cfg WorkerCfg) error {
+func (sb *Sealer) onlineWorker(cfg WorkerCfg, rmt *remote) error {
+	if rmt != nil {
+		rmt.clearOfflineState()
+	}
 	if err := database.OnlineWorker(&database.WorkerInfo{
 		ID:         cfg.ID,
 		UpdateTime: time.Now(),
@@ -445,7 +437,8 @@ func (sb *Sealer) setupOfflineWorker(ctx context.Context, rmt *remote) {
 	go func() {
 		<-ctx.Done()
 
-		rmt.offline = true
+		log.Infof("worker(%v) offline...", rmt.cfg.ID)
+		rmt.setOfflineState()
 		sb.offlineWorker.Store(rmt.cfg.ID, rmt)
 		if err := database.OfflineWorker(rmt.cfg.ID); err != nil {
 			log.Error("worker(%v) offline error(%v)", rmt.cfg.ID, err)
@@ -518,7 +511,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	_remotes.Range(func(key, val interface{}) bool {
 		_r := val.(*remote)
 		//过滤当前断线的worker
-		if _r.offline {
+		if _r.isOfflineState() {
 			return true
 		}
 		//过滤类型不匹配的worker(如p1)
@@ -552,7 +545,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		}
 	}
 	//4.找到了c2 worker 则设置busy状态
-	if msg = ""; r != nil {
+	if msg = "not found"; r != nil {
 		msg = r.cfg.ID
 		r.lock.Lock()
 		r.busyOnTasks[sid] = task // make busy
@@ -1061,7 +1054,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		default:
 			// sleep for controlling the loop
 			time.Sleep(10 * time.Second)
-			if r.offline {
+			if r.isOfflineState() {
 				continue
 			}
 
