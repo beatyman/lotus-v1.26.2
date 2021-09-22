@@ -329,7 +329,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 
 		if rmt != nil {
 			sb.setupOfflineWorker(oriCtx, rmt)
-			if err = sb.onlineWorker(cfg, rmt); err != nil {
+			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
 				log.Infof("AddWorker: worker(%v) online error(%v)", cfg.ID, err)
 				return
 			}
@@ -347,7 +347,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 			kind = WorkerQueueKind_WorkerReConnect
 		}
 	} else { //2.worker在miner里面不存在(miner重启或worker首次连接)
-		if rmt, err = sb.initWorker(cfg); err != nil {
+		if rmt, err = sb.initWorker(oriCtx, cfg); err != nil {
 			return nil, err
 		}
 	}
@@ -356,7 +356,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 }
 
 //worker(p1,c2)重启(或首次启动)的时候需要做一次初始化(重连的时候不需要)
-func (sb *Sealer) initWorker(cfg WorkerCfg) (rmt *remote, err error) {
+func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote, err error) {
 	log.Infof("init worker(%v) starting...", cfg.ID)
 
 	//1.worker已经初始化过 则直接返回 （初始化操作只执行一次）
@@ -378,10 +378,9 @@ func (sb *Sealer) initWorker(cfg WorkerCfg) (rmt *remote, err error) {
 	if wInfo, err = database.GetWorkerInfo(cfg.ID); err != nil {
 		return nil, errors.As(err)
 	}
-	//注意：此处不能用oriCtx作为父parent 因为worker实现了断线重连
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background()) //注意：此处不能用oriCtx作为父parent 因为worker实现了断线重连
 	rmt = &remote{
-		ctx:            ctx,
+		ctx:            oriCtx, //这个上下文必须要是jsonrpc的上下文 用于捕获连接是否断开
 		cfg:            cfg,
 		precommit1Chan: make(chan workerCall, 10),
 		precommit2Chan: make(chan workerCall, 10),
@@ -412,8 +411,9 @@ func (sb *Sealer) initWorker(cfg WorkerCfg) (rmt *remote, err error) {
 	return rmt, nil
 }
 
-func (sb *Sealer) onlineWorker(cfg WorkerCfg, rmt *remote) error {
+func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCfg) error {
 	if rmt != nil {
+		rmt.ctx = oriCtx
 		rmt.clearOfflineState()
 	}
 	if err := database.OnlineWorker(&database.WorkerInfo{
