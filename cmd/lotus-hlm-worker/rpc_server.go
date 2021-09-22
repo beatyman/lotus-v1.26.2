@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
@@ -17,6 +18,24 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+func newRpcServer(id string, repo string, sb *ffiwrapper.Sealer) *rpcServer {
+	out := &rpcServer{
+		workerID:  id,
+		minerRepo: repo,
+		sb:        sb,
+
+		storageCache: map[int64]database.StorageInfo{},
+		c2sids:       make(map[string]abi.SectorID),
+	}
+	go out.c2outClear()
+	return out
+}
+
+type c2out struct {
+	t time.Time
+	r storage.Proof
+}
+
 type rpcServer struct {
 	workerID  string
 	minerRepo string
@@ -26,11 +45,31 @@ type rpcServer struct {
 	storageVer   int64
 	storageCache map[int64]database.StorageInfo
 
-	c2Lk    sync.Mutex
-	c2Cache map[string]bool
-
 	c2sidsRW sync.RWMutex
 	c2sids   map[string]abi.SectorID
+	c2outs   sync.Map //p1->c2; c2 handing and p1 restart; c2->p1 失败 此时将结果缓存 等待p1重做c2的时候直接从缓存获取结果
+}
+
+func (w *rpcServer) c2outClear() {
+	var (
+		interval = time.Minute * 10
+		expire   = time.Minute * 20
+	)
+
+	for {
+		<-time.After(interval)
+
+		w.c2outs.Range(func(k, v interface{}) bool {
+			if out, ok := v.(*c2out); ok {
+				if time.Since(out.t) > expire {
+					w.c2outs.Delete(k)
+				}
+			} else {
+				w.c2outs.Delete(k)
+			}
+			return true
+		})
+	}
 }
 
 func (w *rpcServer) sectorName(sid abi.SectorID) string {
@@ -53,14 +92,27 @@ func (w *rpcServer) Version(context.Context) (string, error) {
 }
 
 func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commit1Out storage.Commit1Out) (storage.Proof, error) {
+	sid := w.sectorName(sector.SectorID)
+	if obj, ok := w.c2outs.Load(sid); ok {
+		if out, ok := obj.(*c2out); ok {
+			log.Infof("SealCommit2 RPC hit-cache:%v, current c2sids: %v", sector, w.getC2sids())
+			return out.r, nil
+		}
+	}
+
 	w.c2sidsRW.Lock()
-	w.c2sids[w.sectorName(sector.SectorID)] = sector.SectorID
+	if _, ok := w.c2sids[sid]; ok {
+		w.c2sidsRW.Unlock()
+		log.Infof("SealCommit2 RPC dumplicate:%v, current c2sids: %v", sector, w.getC2sids())
+		return storage.Proof{}, errors.New("sector is sealing").As(sid)
+	}
+	w.c2sids[sid] = sector.SectorID
 	w.c2sidsRW.Unlock()
 
 	log.Infof("SealCommit2 RPC in:%v, current c2sids: %v", sector, w.getC2sids())
 	defer func() {
 		w.c2sidsRW.Lock()
-		delete(w.c2sids, w.sectorName(sector.SectorID))
+		delete(w.c2sids, sid)
 		w.c2sidsRW.Unlock()
 		log.Infof("SealCommit2 RPC out:%v, current c2sids: %v", sector, w.getC2sids())
 
@@ -72,27 +124,11 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 		}
 	}()
 
-	// remove the dumplicate request.
-	w.c2Lk.Lock()
-	if w.c2Cache == nil {
-		w.c2Cache = map[string]bool{}
+	out, err := w.sb.SealCommit2(ctx, storage.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out)
+	if err == nil {
+		w.c2outs.Store(sid, &c2out{r: out, t: time.Now()})
 	}
-	key := fmt.Sprintf("s-t0%d-%d", sector.Miner, sector.Number)
-	_, ok := w.c2Cache[key]
-	if ok {
-		w.c2Lk.Unlock()
-		return storage.Proof{}, errors.New("sector is sealing").As(key)
-	}
-	w.c2Cache[key] = true
-	w.c2Lk.Unlock()
-
-	defer func() {
-		w.c2Lk.Lock()
-		delete(w.c2Cache, key)
-		w.c2Lk.Unlock()
-	}()
-
-	return w.sb.SealCommit2(ctx, storage.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out)
+	return out, err
 }
 
 func (w *rpcServer) loadMinerStorage(ctx context.Context, napi *api.RetryHlmMinerSchedulerAPI) error {

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v8/kodocli"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"net"
@@ -351,14 +350,7 @@ var runCmd = &cli.Command{
 			WdPoStSrv:          cctx.Bool("wdpost-srv"),
 			WnPoStSrv:          cctx.Bool("wnpost-srv"),
 		}
-		workerApi := &rpcServer{
-			workerID:     workerCfg.ID,
-			minerRepo:    minerRepo,
-			sb:           minerSealer,
-			storageCache: map[int64]database.StorageInfo{},
-
-			c2sids: make(map[string]abi.SectorID),
-		}
+		workerApi := newRpcServer(workerCfg.ID, minerRepo, minerSealer)
 
 		if err := database.LockMount(minerRepo); err != nil {
 			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())
