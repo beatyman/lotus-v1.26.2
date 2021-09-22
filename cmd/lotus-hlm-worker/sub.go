@@ -291,7 +291,7 @@ reAllocate:
 	dpState, err := w.diskPool.NewAllocate(task.SectorName())
 	if err != nil {
 		w.workMu.Unlock()
-		log.Warn(errors.As(err))
+		//log.Warn(errors.As(err))
 		time.Sleep(60e9)
 		cleanTimes++
 		if cleanTimes%10 == 0 {
