@@ -328,8 +328,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		}
 
 		if rmt != nil {
-			sb.setupOfflineWorker(oriCtx, rmt)
-			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
+			if err = sb.setOnlineWorker(oriCtx, rmt, cfg); err != nil {
 				log.Infof("AddWorker: worker(%v) online error(%v)", cfg.ID, err)
 				return
 			}
@@ -411,7 +410,7 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 	return rmt, nil
 }
 
-func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCfg) error {
+func (sb *Sealer) setOnlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCfg) error {
 	if rmt != nil {
 		rmt.ctx = oriCtx
 		rmt.clearOfflineState()
@@ -429,21 +428,17 @@ func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCf
 	return nil
 }
 
-func (sb *Sealer) setupOfflineWorker(ctx context.Context, rmt *remote) {
+func (sb *Sealer) setOfflineWorker(rmt *remote) {
 	if rmt == nil {
 		return
 	}
 
-	go func() {
-		<-ctx.Done()
-
-		log.Infof("worker(%v) offline...", rmt.cfg.ID)
-		rmt.setOfflineState()
-		sb.offlineWorker.Store(rmt.cfg.ID, rmt)
-		if err := database.OfflineWorker(rmt.cfg.ID); err != nil {
-			log.Error("worker(%v) offline error(%v)", rmt.cfg.ID, err)
-		}
-	}()
+	log.Infof("worker(%v) offline...", rmt.cfg.ID)
+	rmt.setOfflineState()
+	sb.offlineWorker.Store(rmt.cfg.ID, rmt)
+	if err := database.OfflineWorker(rmt.cfg.ID); err != nil {
+		log.Error("worker(%v) offline error(%v)", rmt.cfg.ID, err)
+	}
 }
 
 func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi.SectorID) error {
@@ -1260,6 +1255,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		return SealRes{}, true
 	case <-r.ctx.Done():
 		log.Infof("worker canceled:%s", taskKey)
+		sb.setOfflineWorker(r)
 		return SealRes{}, true
 	case <-sb.stopping:
 		log.Infof("sb stoped:%s", taskKey)
