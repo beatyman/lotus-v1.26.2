@@ -374,10 +374,6 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 		}
 	}()
 
-	var wInfo *database.WorkerInfo
-	if wInfo, err = database.GetWorkerInfo(cfg.ID); err != nil {
-		return nil, errors.As(err)
-	}
 	ctx, cancel := context.WithCancel(context.Background()) //注意：此处不能用oriCtx作为父parent 因为worker实现了断线重连
 	rmt = &remote{
 		ctx:            oriCtx, //这个上下文必须要是jsonrpc的上下文 用于捕获连接是否断开
@@ -390,7 +386,6 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 
 		sealTasks:   make(chan WorkerTask),
 		busyOnTasks: map[string]WorkerTask{},
-		disable:     wInfo.Disable,
 
 		release: func() {
 			log.Infof("worker(%v) release", rmt.cfg.ID)
@@ -412,12 +407,15 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 }
 
 func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCfg) error {
-	if rmt != nil {
-		rmt.ctx = oriCtx
-		rmt.retry = cfg.Retry
-		rmt.clearOfflineState()
+	if rmt == nil {
+		return fmt.Errorf("remote is nil on onlineWorker")
 	}
-	if err := database.OnlineWorker(&database.WorkerInfo{
+
+	var (
+		err   error
+		wInfo *database.WorkerInfo
+	)
+	if err = database.OnlineWorker(&database.WorkerInfo{
 		ID:         cfg.ID,
 		UpdateTime: time.Now(),
 		Ip:         cfg.IP,
@@ -425,6 +423,15 @@ func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCf
 		Online:     true,
 	}); err != nil {
 		return errors.As(err)
+	}
+	if wInfo, err = database.GetWorkerInfo(cfg.ID); err != nil {
+		return errors.As(err)
+	}
+	{
+		rmt.ctx = oriCtx
+		rmt.retry = cfg.Retry
+		rmt.disable = wInfo.Disable
+		rmt.clearOfflineState()
 	}
 	sb.offlineWorker.Delete(cfg.ID)
 	return nil
