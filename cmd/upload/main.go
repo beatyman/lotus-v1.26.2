@@ -57,9 +57,9 @@ func main() {
 }
 
 var uploadCmd = &cli.Command{
-	Name:      "prove",
+	Name:      "upload",
 	Usage:     "Benchmark a proof computation",
-	ArgsUsage: "[input.json]",
+	ArgsUsage: "",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "miner-addr",
