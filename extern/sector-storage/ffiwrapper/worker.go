@@ -562,21 +562,22 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	return r, r != nil
 }
 
-func (sb *Sealer) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
+func (sb *Sealer) UnlockGPUService(ctx context.Context, rst *Commit2Result) error {
 	_remoteGpuLk.Lock()
 	defer _remoteGpuLk.Unlock()
 
-	_r, ok := _remotes.Load(workerId)
+	_r, ok := _remotes.Load(rst.WorkerId)
 	if !ok {
 		return nil
 	}
 	r := _r.(*remote)
 
-	sid, _, err := ParseTaskKey(taskKey)
+	sid, _, err := ParseTaskKey(rst.TaskKey)
 	if err != nil {
-		sid = taskKey // for service called.
+		sid = rst.TaskKey // for service called.
 	}
 
+	c2cache.set(rst)
 	r.freeTask(sid)
 	return nil
 }

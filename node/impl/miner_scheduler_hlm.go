@@ -79,11 +79,11 @@ func (hs *HlmMinerScheduler) ActorSectorSize(ctx context.Context, addr address.A
 	return mi.SectorSize, nil
 }
 
-func (hs *HlmMinerScheduler) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {
+func (hs *HlmMinerScheduler) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.Commit2Worker, error) {
 	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).SelectCommit2Service(ctx, sector)
 }
-func (hs *HlmMinerScheduler) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
-	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockGPUService(ctx, workerId, taskKey)
+func (hs *HlmMinerScheduler) UnlockGPUService(ctx context.Context, rst *ffiwrapper.Commit2Result) error {
+	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).UnlockGPUService(ctx, rst)
 }
 func (hs *HlmMinerScheduler) WorkerQueue(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) {
 	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AddWorker(ctx, cfg)

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
@@ -70,6 +71,22 @@ var (
 	ErrTaskNotFound = errors.New("Task not found")
 	ErrTaskDone     = errors.New("Task Done")
 )
+
+type Commit2Worker struct {
+	WorkerId string
+	Url      string
+	Proof    string //hex.EncodeToString(storage.Proof)
+}
+
+type Commit2Result struct {
+	WorkerId string
+	TaskKey  string
+	Sid      string
+
+	Err        error
+	Proof      string //hex.EncodeToString(storage.Proof)
+	FinishTime time.Time
+}
 
 type WorkerCfg struct {
 	ID string // worker id, default is empty for same worker.

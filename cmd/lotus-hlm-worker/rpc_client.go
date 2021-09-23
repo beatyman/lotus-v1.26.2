@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
@@ -69,13 +70,20 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out s
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	rCfg, err := mApi.RetrySelectCommit2Service(ctx, task.SectorID)
+
+	c2worker, err := mApi.RetrySelectCommit2Service(ctx, task.SectorID)
 	if err != nil {
 		return nil, errors.As(err)
 	}
+	if len(c2worker.Proof) > 0 {
+		if data, err := hex.DecodeString(c2worker.Proof); err == nil {
+			log.Infof("Task(%v) Cached Commit2 Service: %s", task.Key(), c2worker.WorkerId)
+			return data, nil
+		}
+	}
 
-	log.Infof("Task(%v) Selected Commit2 Service: %s", task.Key(), rCfg.SvcUri)
-	cli, err := GetWorkerClient(ctx, mApi, rCfg.SvcUri)
+	log.Infof("Task(%v) Selected Commit2 Service: %s", task.Key(), c2worker.Url)
+	cli, err := GetWorkerClient(ctx, mApi, c2worker.Url)
 	if err != nil {
 		return nil, errors.As(err)
 	}

@@ -98,10 +98,10 @@ func (a *RetryHlmMinerSchedulerAPI) RetryWorkerUnlock(ctx context.Context, worke
 	return err
 }
 
-func (a *RetryHlmMinerSchedulerAPI) RetrySelectCommit2Service(ctx context.Context, sid abi.SectorID) (*ffiwrapper.WorkerCfg, error) {
+func (a *RetryHlmMinerSchedulerAPI) RetrySelectCommit2Service(ctx context.Context, sid abi.SectorID) (*ffiwrapper.Commit2Worker, error) {
 	var (
 		err error
-		out *ffiwrapper.WorkerCfg
+		out *ffiwrapper.Commit2Worker
 	)
 	for i := 0; true; i++ {
 		if out, err = a.HlmMinerSchedulerAPI.SelectCommit2Service(ctx, sid); err == nil {
@@ -115,10 +115,10 @@ func (a *RetryHlmMinerSchedulerAPI) RetrySelectCommit2Service(ctx context.Contex
 	return out, err
 }
 
-func (a *RetryHlmMinerSchedulerAPI) RetryUnlockGPUService(ctx context.Context, workerId, taskKey string) error {
+func (a *RetryHlmMinerSchedulerAPI) RetryUnlockGPUService(ctx context.Context, rst *ffiwrapper.Commit2Result) error {
 	var err error
 	for i := 0; true; i++ {
-		if err = a.HlmMinerSchedulerAPI.UnlockGPUService(ctx, workerId, taskKey); err == nil {
+		if err = a.HlmMinerSchedulerAPI.UnlockGPUService(ctx, rst); err == nil {
 			return nil
 		}
 		if !a.RetryEnable(err) {
