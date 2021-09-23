@@ -328,7 +328,8 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		}
 
 		if rmt != nil {
-			if err = sb.setOnlineWorker(oriCtx, rmt, cfg); err != nil {
+			sb.setupOfflineWorker(oriCtx, rmt, cfg.Retry)
+			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
 				log.Infof("AddWorker: worker(%v) online error(%v)", cfg.ID, err)
 				return
 			}
@@ -410,9 +411,10 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 	return rmt, nil
 }
 
-func (sb *Sealer) setOnlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCfg) error {
+func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCfg) error {
 	if rmt != nil {
 		rmt.ctx = oriCtx
+		rmt.retry = cfg.Retry
 		rmt.clearOfflineState()
 	}
 	if err := database.OnlineWorker(&database.WorkerInfo{
@@ -428,17 +430,26 @@ func (sb *Sealer) setOnlineWorker(oriCtx context.Context, rmt *remote, cfg Worke
 	return nil
 }
 
-func (sb *Sealer) setOfflineWorker(rmt *remote) {
+func (sb *Sealer) setupOfflineWorker(oriCtx context.Context, rmt *remote, retry int) {
 	if rmt == nil {
 		return
 	}
 
-	log.Infof("worker(%v) offline...", rmt.cfg.ID)
-	rmt.setOfflineState()
-	sb.offlineWorker.Store(rmt.cfg.ID, rmt)
-	if err := database.OfflineWorker(rmt.cfg.ID); err != nil {
-		log.Error("worker(%v) offline error(%v)", rmt.cfg.ID, err)
-	}
+	go func(count int) {
+		<-oriCtx.Done()
+
+		if rmt.retry > count {
+			log.Infof("worker(%v) offline handle delay", rmt.cfg.ID)
+			return
+		}
+
+		log.Infof("worker(%v) offline...", rmt.cfg.ID)
+		rmt.setOfflineState()
+		sb.offlineWorker.Store(rmt.cfg.ID, rmt)
+		if err := database.OfflineWorker(rmt.cfg.ID); err != nil {
+			log.Error("worker(%v) offline error(%v)", rmt.cfg.ID, err)
+		}
+	}(retry)
 }
 
 func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi.SectorID) error {
@@ -1255,7 +1266,6 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		return SealRes{}, true
 	case <-r.ctx.Done():
 		log.Infof("worker canceled:%s", taskKey)
-		sb.setOfflineWorker(r)
 		return SealRes{}, true
 	case <-sb.stopping:
 		log.Infof("sb stoped:%s", taskKey)

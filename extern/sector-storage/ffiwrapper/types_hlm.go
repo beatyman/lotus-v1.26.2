@@ -241,6 +241,7 @@ type remote struct {
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
 	disable     bool                  // disable for new sector task
 	offline     int32                 //当前是否断线
+	retry       int                   //重连次数
 
 	srvConn int64
 }
@@ -427,9 +428,9 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		if wTask.State <= WorkerFinalize {
 			// maxTaskNum has changed to less, so only load a part
 			/*
-			if wTask.State < WorkerFinalize && len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
-				break
-			}
+				if wTask.State < WorkerFinalize && len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
+					break
+				}
 			*/
 			r.lock.Lock()
 			_, ok := r.busyOnTasks[wTask.ID]
