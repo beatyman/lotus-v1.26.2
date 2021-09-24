@@ -499,7 +499,7 @@ func (w *worker) removeDataLayer(ctx context.Context, cacheDir string) {
 		if v.IsDir() {
 			log.Warn("dir ::  ==> ", cacheDir+v.Name())
 		} else {
-			if strings.Contains(v.Name(), "data-layer") {
+			if strings.Contains(v.Name(), "data-layer") || strings.Contains(v.Name(), "c1.out") {
 				filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
 				files = append(files, filename)
 			}
