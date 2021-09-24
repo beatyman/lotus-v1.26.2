@@ -128,7 +128,6 @@ loopUnixConn:
 	if _, err := conn.Write(args); err != nil {
 		return storage.SectorCids{}, errors.As(err, string(args))
 	}
-	log.Infof("write args: %+v", args)
 	// wait donDatae
 	out, err := readUnixConn(conn)
 	if err != nil {
@@ -192,7 +191,6 @@ var P2Cmd = &cli.Command{
 			resp.Err = errors.As(err, string(argIn)).Error()
 			return nil
 		}
-		log.Infof("SealPreCommit2 argIn: %+v ", argIn)
 		workerSealer, err := New(RemoteCfg{}, &basicfs.Provider{
 			Root: workerRepo,
 		})
