@@ -108,6 +108,7 @@ type WorkerCfg struct {
 	WdPoStSrv  bool
 	WnPoStSrv  bool
 
+	Cycle  string         //每次启动(或重启)后生成的uuid(Cycle+Retry 唯一标识一次连接)
 	Retry  int            //worker断线重连次数 0:第一次连接（不是重连）
 	C2Sids []abi.SectorID //c2 worker正在执行的扇区id (c2断线重连后需要恢复busyOnTasks)
 }
@@ -258,7 +259,6 @@ type remote struct {
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
 	disable     bool                  // disable for new sector task
 	offline     int32                 //当前是否断线
-	retry       int                   //重连次数
 
 	srvConn int64
 }

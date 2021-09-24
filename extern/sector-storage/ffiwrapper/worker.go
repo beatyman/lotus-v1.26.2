@@ -328,7 +328,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		}
 
 		if rmt != nil {
-			sb.setupOfflineWorker(oriCtx, rmt, cfg.Retry)
+			sb.setupOfflineWorker(oriCtx, rmt, cfg)
 			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
 				log.Infof("AddWorker: worker(%v) online error(%v)", cfg.ID, err)
 				return
@@ -429,7 +429,7 @@ func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCf
 	}
 	{
 		rmt.ctx = oriCtx
-		rmt.retry = cfg.Retry
+		rmt.cfg = cfg
 		rmt.disable = wInfo.Disable
 		rmt.clearOfflineState()
 	}
@@ -437,26 +437,26 @@ func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCf
 	return nil
 }
 
-func (sb *Sealer) setupOfflineWorker(oriCtx context.Context, rmt *remote, retry int) {
+func (sb *Sealer) setupOfflineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCfg) {
 	if rmt == nil {
 		return
 	}
 
-	go func(count int) {
+	go func(cycle string, retry int) {
 		<-oriCtx.Done()
 
-		if rmt.retry > count {
-			log.Infof("worker(%v) offline handle delay", rmt.cfg.ID)
+		if cycle != rmt.cfg.Cycle || retry != rmt.cfg.Retry {
+			log.Infof("worker(%v) offline(%v) ignore", rmt.cfg.ID, retry)
 			return
 		}
 
-		log.Infof("worker(%v) offline...", rmt.cfg.ID)
+		log.Infof("worker(%v) offline(%v)...", rmt.cfg.ID, retry)
 		rmt.setOfflineState()
 		sb.offlineWorker.Store(rmt.cfg.ID, rmt)
 		if err := database.OfflineWorker(rmt.cfg.ID); err != nil {
-			log.Error("worker(%v) offline error(%v)", rmt.cfg.ID, err)
+			log.Error("worker(%v) offline(%v) error(%v)", rmt.cfg.ID, retry, err)
 		}
-	}(retry)
+	}(cfg.Cycle, cfg.Retry)
 }
 
 func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi.SectorID) error {

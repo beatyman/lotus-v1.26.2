@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -108,6 +109,7 @@ func acceptJobs(ctx context.Context,
 		return err
 	}
 
+	workerCfg.Cycle = uuid.New().String() //唯一标识一次启动
 	for i := 0; true; i++ {
 		if i > 0 {
 			<-time.After(time.Second * 10)
