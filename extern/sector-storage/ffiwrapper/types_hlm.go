@@ -247,6 +247,8 @@ type remote struct {
 	release func()
 
 	// recieve owner task
+	pledgeWait     int32
+	pledgeChan     chan workerCall
 	precommit1Wait int32
 	precommit1Chan chan workerCall
 	precommit2Wait int32

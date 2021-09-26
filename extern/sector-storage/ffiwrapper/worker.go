@@ -378,6 +378,7 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 	rmt = &remote{
 		ctx:            oriCtx, //这个上下文必须要是jsonrpc的上下文 用于捕获连接是否断开
 		cfg:            cfg,
+		pledgeChan:     make(chan workerCall, 10),
 		precommit1Chan: make(chan workerCall, 10),
 		precommit2Chan: make(chan workerCall, 10),
 		commitChan:     make(chan workerCall, 10),
@@ -476,35 +477,9 @@ func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi
 			rmt.busyOnTasks[task.SectorName()] = task
 		}
 		rmt.lock.Unlock()
-	} else { //2.p1 worker从sqlite恢复busy状态
-
-		//备注：非p1的worker的busy状态由checkCache去恢复 自己恢复会影响pledge任务的执行
-		//busy状态恢复后，任务的重试由状态机处理
-
-		//if kind == WorkerQueueKind_WorkerReStart {
-		//	return nil
-		//}
-		//
-		//history, err := database.GetWorking(rmt.cfg.ID)
-		//if err != nil && !errors.ErrNoData.Equal(err) {
-		//	return err
-		//}
-		//
-		//rmt.lock.Lock()
-		//for _, wTask := range history {
-		//	if wTask.State <= WorkerFinalize {
-		//		if _, ok := rmt.busyOnTasks[wTask.ID]; !ok {
-		//			rmt.busyOnTasks[wTask.ID] = WorkerTask{
-		//				Type:     WorkerTaskType(wTask.State),
-		//				SectorID: sectorID(wTask.ID),
-		//				WorkerID: wTask.WorkerId,
-		//			}
-		//		}
-		//	}
-		//}
-		//rmt.lock.Unlock()
 	}
 
+	//2.p1 worker从sqlite恢复busy状态
 	_, err := rmt.checkCache(true, nil)
 	return err
 }
@@ -851,6 +826,10 @@ func (sb *Sealer) toRemoteOwner(task workerCall) {
 
 func (sb *Sealer) toRemoteChan(task workerCall, r *remote) {
 	switch task.task.Type {
+	case WorkerPledge:
+		atomic.AddInt32(&_pledgeWait, 1)
+		atomic.AddInt32(&(r.pledgeWait), 1)
+		r.pledgeChan <- task
 	case WorkerPreCommit1:
 		atomic.AddInt32(&_precommit1Wait, 1)
 		atomic.AddInt32(&(r.precommit1Wait), 1)
@@ -921,6 +900,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	unsealTasks := _unsealTasks
 	if cfg.ParallelPledge == 0 {
 		pledgeTasks = nil
+		r.pledgeChan = nil
 	}
 	if cfg.ParallelPrecommit1 == 0 {
 		precommit1Tasks = nil
@@ -956,6 +936,11 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		//log.Infof("checkPledge:%d,queue:%d", _pledgeWait, len(_pledgeTasks))
 
 		select {
+		case task := <-r.pledgeChan:
+			atomic.AddInt32(&_pledgeWait, -1)
+			atomic.AddInt32(&(r.pledgeWait), -1)
+			sb.pubPledgeEvent(task.task)
+			sb.doSealTask(ctx, r, task)
 		case task := <-pledgeTasks:
 			atomic.AddInt32(&_pledgeWait, -1)
 			sb.pubPledgeEvent(task.task)
@@ -1117,9 +1102,15 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 
 	switch task.task.Type {
 	case WorkerPledge:
+		// not the task owner
+		if len(task.task.WorkerID) > 0 && task.task.WorkerID != r.cfg.ID {
+			go sb.toRemoteOwner(task)
+			return
+		}
+
 		if r.fakeFullTask() {
 			time.Sleep(30e9)
-			log.Warnf("return task:%s", r.cfg.ID, task.task.Key())
+			log.Warnf("return task: %v, %v", r.cfg.ID, task.task.Key())
 			sb.returnTask(task)
 			return
 		}
