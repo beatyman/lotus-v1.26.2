@@ -468,7 +468,7 @@ reAllocate:
 				log.Error("=============================WriteSector C1 ===err: ", err)
 			}
 		}
-		w.removeDataLayer(ctx, sector.CachePath())
+		w.removeDataLayer(ctx, sector.CachePath(),false)
 		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerCommitDone)
 		// if local gpu no set, using remotes .
 		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
@@ -494,7 +494,7 @@ reAllocate:
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
 		//fix sector rebuild tool : disk space full
-		w.removeDataLayer(ctx, sector.CachePath())
+		w.removeDataLayer(ctx, sector.CachePath(),true)
 		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerFinalize)
 		sealedFile := sealer.SectorPath("sealed", task.SectorName())
 		_, err := os.Stat(string(sealedFile))

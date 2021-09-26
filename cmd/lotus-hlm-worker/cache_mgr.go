@@ -201,15 +201,9 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	log.Infof("pushUnsealed:%+v", sid)
 	defer log.Infof("pushUnsealed exit:%+v", sid)
 
-	api, err := GetNodeApi()
-	if err != nil {
-		return errors.As(err)
-	}
-	ss, err := api.RetryPreStorageNode(ctx, sid, w.workerCfg.IP, database.STORAGE_KIND_UNSEALED)
-	if err != nil {
-		return errors.As(err)
-	}
+	ss := task.SectorStorage.UnsealedStorage
 	if ss.ID == 0 {
+		// no unsealed storage to mount
 		return nil
 	}
 
@@ -464,20 +458,18 @@ repush:
 				goto repush
 			}
 		}
-		/*
 		if err := w.pushUnsealed(ctx, workerSB, task); err != nil {
 			log.Error(errors.As(err, task))
 			time.Sleep(60e9)
 			goto repush
 		}
-		 */
 		if err := w.RemoveRepoSector(ctx, workerSB.RepoPath(), task.SectorName()); err != nil {
 			log.Warn(errors.As(err))
 		}
 	}
 	return nil
 }
-func (w *worker) removeDataLayer(ctx context.Context, cacheDir string) {
+func (w *worker) removeDataLayer(ctx context.Context, cacheDir string, removeC1cache bool) {
 	files := make([]string, 0)
 	file, err := os.Stat(cacheDir)
 	if err != nil {
@@ -499,9 +491,15 @@ func (w *worker) removeDataLayer(ctx context.Context, cacheDir string) {
 		if v.IsDir() {
 			log.Warn("dir ::  ==> ", cacheDir+v.Name())
 		} else {
-			if strings.Contains(v.Name(), "data-layer") || strings.Contains(v.Name(), "c1.out") {
+			if strings.Contains(v.Name(), "data-layer") {
 				filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
 				files = append(files, filename)
+			}
+			if removeC1cache {
+				if strings.Contains(v.Name(), "c1.out") {
+					filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
+					files = append(files, filename)
+				}
 			}
 		}
 	}
