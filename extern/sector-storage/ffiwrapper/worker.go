@@ -1289,12 +1289,19 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 		return nil
 	}
 
+	if size := len(res.Err); size > 0 {
+		log.Errorw("Task done error", "task-id", res.TaskID, "err", res.Err)
+		if long := 200; size > long { //状态机在处理太长的错误的时候会报错 导致任务无法重做 故此处截取错误信息(200个字符)
+			res.Err = res.Err[0:long]
+		}
+	} else {
+		log.Infow("Task done success", "task-id", res.TaskID)
+	}
+
 	select {
 	case <-ctx.Done():
-		log.Infof("Task done error: %v, %v", res.TaskID, ctx.Err())
 		return ctx.Err()
 	case rres <- res:
-		log.Infof("Task done success: %v", res.TaskID)
 		return nil
 	}
 }
