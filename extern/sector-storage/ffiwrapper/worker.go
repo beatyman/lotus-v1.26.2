@@ -321,26 +321,26 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	)
 	defer func() {
 		if err != nil {
-			log.Infof("AddWorker: worker(%v) error(%v)", cfg.ID, err)
+			log.Infof("AddWorker(%v): worker(%v) error(%v)", cfg.Retry, cfg.ID, err)
 			return
 		} else {
-			log.Infof("AddWorker: worker(%v) success(%v)", cfg.ID, string(kind))
+			log.Infof("AddWorker(%v): worker(%v) success(%v)", cfg.Retry, cfg.ID, string(kind))
 		}
 
 		if rmt != nil {
 			sb.setupOfflineWorker(oriCtx, rmt, cfg)
 			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
-				log.Infof("AddWorker: worker(%v) online error(%v)", cfg.ID, err)
+				log.Infof("AddWorker(%v): worker(%v) online error(%v)", cfg.Retry, cfg.ID, err)
 				return
 			}
 			if err = sb.loadBusyStatus(rmt, kind, cfg.C2Sids); err != nil {
-				log.Infof("AddWorker: worker(%v) load busy status error(%v)", cfg.ID, err)
+				log.Infof("AddWorker(%v): worker(%v) load busy status error(%v)", cfg.Retry, cfg.ID, err)
 				return
 			}
 		}
 	}()
 
-	log.Infof("AddWorker: worker(%v) start...", cfg.ID)
+	log.Infof("AddWorker(%v): worker(%v) starting...", cfg.Retry, cfg.ID)
 	if old, ok := _remotes.Load(cfg.ID); ok { //1.worker在miner里面存在(比如worker重启或重连)
 		rmt = old.(*remote)
 		if kind = WorkerQueueKind_WorkerReStart; cfg.Retry > 0 {
@@ -416,6 +416,9 @@ func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCf
 		err   error
 		wInfo *database.WorkerInfo
 	)
+	rmt.offlineRW.Lock()
+	defer rmt.offlineRW.Unlock()
+
 	if err = database.OnlineWorker(&database.WorkerInfo{
 		ID:         cfg.ID,
 		UpdateTime: time.Now(),
@@ -443,9 +446,12 @@ func (sb *Sealer) setupOfflineWorker(oriCtx context.Context, rmt *remote, cfg Wo
 		return
 	}
 
-	go func(cycle string, retry int) {
-		<-oriCtx.Done()
+	go func(ctx context.Context, cycle string, retry int) {
+		<-ctx.Done()
 
+		rmt.offlineRW.RLock()
+		defer rmt.offlineRW.RUnlock()
+		
 		if cycle != rmt.cfg.Cycle || retry != rmt.cfg.Retry {
 			log.Infof("worker(%v) offline(%v) ignore", rmt.cfg.ID, retry)
 			return
@@ -457,7 +463,7 @@ func (sb *Sealer) setupOfflineWorker(oriCtx context.Context, rmt *remote, cfg Wo
 		if err := database.OfflineWorker(rmt.cfg.ID); err != nil {
 			log.Error("worker(%v) offline(%v) error(%v)", rmt.cfg.ID, retry, err)
 		}
-	}(cfg.Cycle, cfg.Retry)
+	}(oriCtx, cfg.Cycle, cfg.Retry)
 }
 
 func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi.SectorID) error {
@@ -1291,8 +1297,8 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 
 	if size := len(res.Err); size > 0 {
 		log.Errorw("Task done error", "task-id", res.TaskID, "err", res.Err)
-		if long := 200; size > long { //状态机在处理太长的错误的时候会报错 导致任务无法重做 故此处截取错误信息(200个字符)
-			res.Err = res.Err[0:long]
+		if limit := 200; size > limit { //状态机在处理太长的错误的时候会报错 导致任务无法重做 故此处截取错误信息(200个字符)
+			res.Err = res.Err[0:limit]
 		}
 	} else {
 		log.Infow("Task done success", "task-id", res.TaskID)

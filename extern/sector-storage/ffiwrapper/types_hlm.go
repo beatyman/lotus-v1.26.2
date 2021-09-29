@@ -261,6 +261,7 @@ type remote struct {
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
 	disable     bool                  // disable for new sector task
 	offline     int32                 //当前是否断线
+	offlineRW   sync.RWMutex          //上线和下线的操作需要锁住
 
 	srvConn int64
 }
