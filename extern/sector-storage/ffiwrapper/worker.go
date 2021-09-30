@@ -328,7 +328,6 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		}
 
 		if rmt != nil {
-			sb.setupOfflineWorker(oriCtx, rmt, cfg)
 			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
 				log.Infof("AddWorker(%v): worker(%v) online error(%v)", cfg.Retry, cfg.ID, err)
 				return
@@ -402,6 +401,7 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 	}
 	_remotes.Store(cfg.ID, rmt)
 	go sb.loopWorker(ctx, rmt, cfg)
+	go sb.offlineWorkerLoop(ctx, rmt)
 
 	log.Infof("worker(%v) init (busy status: %v)", cfg.ID, rmt.busyOnTasks)
 	return rmt, nil
@@ -412,13 +412,13 @@ func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCf
 		return fmt.Errorf("remote is nil on onlineWorker")
 	}
 
+	rmt.offlineRW.Lock()
+	defer rmt.offlineRW.Unlock()
+
 	var (
 		err   error
 		wInfo *database.WorkerInfo
 	)
-	rmt.offlineRW.Lock()
-	defer rmt.offlineRW.Unlock()
-
 	if err = database.OnlineWorker(&database.WorkerInfo{
 		ID:         cfg.ID,
 		UpdateTime: time.Now(),
@@ -441,29 +441,46 @@ func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCf
 	return nil
 }
 
-func (sb *Sealer) setupOfflineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCfg) {
+func (sb *Sealer) offlineWorkerLoop(ctx context.Context, rmt *remote) {
+	log.Infow("offline worker loop starting", "worker-id", rmt.cfg.ID)
+	defer log.Infow("offline worker loop exit", "worker-id", rmt.cfg.ID)
+
+	for {
+		<-time.After(time.Second * 5) //检测worker是否掉线的间隔
+
+		rmt.offlineRW.RLock()
+		rmtCtx, cycle, retry := rmt.ctx, rmt.cfg.Cycle, rmt.cfg.Retry
+		rmt.offlineRW.RUnlock()
+
+		select {
+		case <-ctx.Done(): //全局退出（进程退出/DeleteWorker）
+			return
+		case <-rmtCtx.Done(): //worker下线
+			sb.offlineWorkerHandle(rmt, cycle, retry)
+		default:
+		}
+	}
+}
+
+func (sb *Sealer) offlineWorkerHandle(rmt *remote, cycle string, retry int) {
 	if rmt == nil {
 		return
 	}
 
-	go func(ctx context.Context, cycle string, retry int) {
-		<-ctx.Done()
+	rmt.offlineRW.RLock()
+	defer rmt.offlineRW.RUnlock()
 
-		rmt.offlineRW.RLock()
-		defer rmt.offlineRW.RUnlock()
-		
-		if cycle != rmt.cfg.Cycle || retry != rmt.cfg.Retry {
-			log.Infof("worker(%v) offline(%v) ignore", rmt.cfg.ID, retry)
-			return
-		}
+	if cycle != rmt.cfg.Cycle || retry != rmt.cfg.Retry {
+		log.Infow("worker offline ignore", "worker-id", rmt.cfg.ID, "old-retry", retry, "curr-retry", retry)
+		return
+	}
 
-		log.Infof("worker(%v) offline(%v)...", rmt.cfg.ID, retry)
-		rmt.setOfflineState()
-		sb.offlineWorker.Store(rmt.cfg.ID, rmt)
-		if err := database.OfflineWorker(rmt.cfg.ID); err != nil {
-			log.Error("worker(%v) offline(%v) error(%v)", rmt.cfg.ID, retry, err)
-		}
-	}(oriCtx, cfg.Cycle, cfg.Retry)
+	log.Infow("worker offline...", "worker-id", rmt.cfg.ID, "retry", retry)
+	rmt.setOfflineState()
+	sb.offlineWorker.Store(rmt.cfg.ID, rmt)
+	if err := database.OfflineWorker(rmt.cfg.ID); err != nil {
+		log.Errorw("worker offline error", "worker-id", rmt.cfg.ID, "retry", retry, "err", err)
+	}
 }
 
 func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi.SectorID) error {
@@ -833,7 +850,6 @@ func (sb *Sealer) toRemoteOwner(task workerCall) {
 func (sb *Sealer) toRemoteChan(task workerCall, r *remote) {
 	switch task.task.Type {
 	case WorkerPledge:
-		atomic.AddInt32(&_pledgeWait, 1)
 		atomic.AddInt32(&(r.pledgeWait), 1)
 		r.pledgeChan <- task
 	case WorkerPreCommit1:
@@ -943,7 +959,6 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 
 		select {
 		case task := <-r.pledgeChan:
-			atomic.AddInt32(&_pledgeWait, -1)
 			atomic.AddInt32(&(r.pledgeWait), -1)
 			sb.pubPledgeEvent(task.task)
 			sb.doSealTask(ctx, r, task)
