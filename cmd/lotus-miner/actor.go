@@ -209,6 +209,11 @@ var actorWithdrawCmd = &cli.Command{
 	Name:  "withdraw",
 	Usage: "withdraw available balance",
 	Flags: []cli.Flag{
+		&cli.IntFlag{
+			Name:  "confidence",
+			Usage: "number of block confirmations to wait for",
+			Value: int(build.MessageConfidence),
+		},
 		&cli.Int64Flag{
 			Name:  "nonce",
 			Usage: "spec nonce(lotus wallet list)",
@@ -216,13 +221,6 @@ var actorWithdrawCmd = &cli.Command{
 		},
 	},
 	ArgsUsage: "[amount (FIL)]",
-	Flags: []cli.Flag{
-		&cli.IntFlag{
-			Name:  "confidence",
-			Usage: "number of block confirmations to wait for",
-			Value: int(build.MessageConfidence),
-		},
-	},
 	Action: func(cctx *cli.Context) error {
 		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
