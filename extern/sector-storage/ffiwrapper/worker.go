@@ -543,9 +543,9 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	})
 	//3.根据已分发的任务数"降序"遍历c2 worker
 	for _, _r := range rs {
-		//3.1 如果遇到处于空闲的c2 worker，且之前被这个任务选择过（可能p1对c2调用失败）则优先获取
-		if t, ok := _r.busyOnTasks[sid]; ok && t.Type == task.Type && !_r.limitParallel(task.Type, true) {
-			log.Infof("task(%v) select gpu with idle and old-hit c2worker", task.SectorID)
+		//3.1 优先获取之前被这个任务选择过（p1->c2连接超时）的c2
+		if t, ok := _r.busyOnTasks[sid]; ok && t.Type == task.Type {
+			log.Infof("task(%v) select gpu with old-hit c2worker", task.SectorID)
 			r = _r
 			break
 		}
