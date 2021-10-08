@@ -561,6 +561,10 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		r.lock.Lock()
 		r.busyOnTasks[sid] = task // make busy
 		r.lock.Unlock()
+
+		if err := database.UpdateSectorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun); err != nil {
+			log.Error("UpdateSectorState Err, sectorId:%d, error:%v:", task.SectorID, err)
+		}
 	}
 	log.Infof("task(%v) select gpu finish: %v", task.SectorID, msg)
 
