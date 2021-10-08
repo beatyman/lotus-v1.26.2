@@ -257,15 +257,13 @@ func (s *LotusImpl) ChainGetParentReceipts(p0 context.Context, p1 cid.Cid) ([]*t
 func (s *LotusImpl) ChainGetPath(p0 context.Context, p1 types.TipSetKey, p2 types.TipSetKey) ([]*api.HeadChange, error) {
 	return bestNodeApi().ChainGetPath(p0, p1, p2)
 }
-
-func (s *LotusImpl) ChainGetRandomnessFromBeacon(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) {
-	return bestNodeApi().ChainGetRandomnessFromBeacon(p0, p1, p2, p3, p4)
+func (s *LotusImpl)StateGetRandomnessFromTickets(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
+	return bestNodeApi().StateGetRandomnessFromTickets(p0, p1, p2, p3, p4)
 }
-
-func (s *LotusImpl) ChainGetRandomnessFromTickets(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) {
-	return bestNodeApi().ChainGetRandomnessFromTickets(p0, p1, p2, p3, p4)
+// StateGetRandomnessFromBeacon is used to sample the beacon for randomness.
+func (s *LotusImpl)StateGetRandomnessFromBeacon(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
+	return bestNodeApi().StateGetRandomnessFromBeacon(p0, p1, p2, p3, p4)
 }
-
 func (s *LotusImpl) ChainGetTipSet(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) {
 	return bestNodeApi().ChainGetTipSet(p0, p1)
 }
