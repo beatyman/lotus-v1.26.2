@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
@@ -70,6 +72,22 @@ var (
 	ErrTaskDone     = errors.New("Task Done")
 )
 
+type Commit2Worker struct {
+	WorkerId string
+	Url      string
+	Proof    string //hex.EncodeToString(storage.Proof)
+}
+
+type Commit2Result struct {
+	WorkerId string
+	TaskKey  string
+	Sid      string
+
+	Err        error
+	Proof      string //hex.EncodeToString(storage.Proof)
+	FinishTime time.Time
+}
+
 type WorkerCfg struct {
 	ID string // worker id, default is empty for same worker.
 	IP string // worker current ip
@@ -89,7 +107,19 @@ type WorkerCfg struct {
 	Commit2Srv bool // need ParallelCommit2 > 0
 	WdPoStSrv  bool
 	WnPoStSrv  bool
+
+	Cycle  string         //每次启动(或重启)后生成的uuid(Cycle+Retry 唯一标识一次连接)
+	Retry  int            //worker断线重连次数 0:第一次连接（不是重连）
+	C2Sids []abi.SectorID //c2 worker正在执行的扇区id (c2断线重连后需要恢复busyOnTasks)
 }
+
+type WorkerQueueKind string
+
+const (
+	WorkerQueueKind_MinerReStart    WorkerQueueKind = "miner_restart"
+	WorkerQueueKind_WorkerReStart   WorkerQueueKind = "worker_restart"
+	WorkerQueueKind_WorkerReConnect WorkerQueueKind = "worker_reconnect"
+)
 
 type WorkerTask struct {
 	TraceContext string //用于span传播
@@ -219,6 +249,8 @@ type remote struct {
 	release func()
 
 	// recieve owner task
+	pledgeWait     int32
+	pledgeChan     chan workerCall
 	precommit1Wait int32
 	precommit1Chan chan workerCall
 	precommit2Wait int32
@@ -227,11 +259,37 @@ type remote struct {
 	finalizeChan   chan workerCall
 	unsealChan     chan workerCall
 
-	sealTasks   chan<- WorkerTask
+	sealTasks   chan WorkerTask
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
 	disable     bool                  // disable for new sector task
+	offline     int32                 //当前是否断线
+	offlineRW   sync.RWMutex          //上线和下线的操作需要锁住
 
 	srvConn int64
+}
+
+func (r *remote) isOfflineState() bool {
+	return atomic.LoadInt32(&r.offline) > 0
+}
+
+func (r *remote) setOfflineState() {
+	atomic.AddInt32(&r.offline, 1)
+}
+
+func (r *remote) clearOfflineState() {
+	atomic.StoreInt32(&r.offline, 0)
+}
+
+func (r *remote) taskEnable(task WorkerTask) bool {
+	switch task.Type {
+	case WorkerCommit:
+		return r.cfg.Commit2Srv
+	case WorkerWinningPoSt:
+		return r.cfg.WnPoStSrv
+	case WorkerWindowPoSt:
+		return r.cfg.WdPoStSrv
+	}
+	return true
 }
 
 func (r *remote) busyOn(sid string) bool {
@@ -247,15 +305,12 @@ func (r *remote) fullTask() bool {
 	defer r.lock.Unlock()
 	return len(r.busyOnTasks) >= r.cfg.MaxTaskNum
 }
+
 func (r *remote) fakeFullTask() bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	count := 0
-	for sid := range r.busyOnTasks {
-		task, ok := r.busyOnTasks[sid]
-		if !ok {
-			continue
-		}
+	for _, task := range r.busyOnTasks {
 		//只计算P1,P2任务
 		if task.Type < WorkerPreCommit2Done {
 			count++
@@ -394,9 +449,11 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		}
 		if wTask.State <= WorkerFinalize {
 			// maxTaskNum has changed to less, so only load a part
-			if wTask.State < WorkerFinalize { //启动load全部任务
-				break
-			}
+			/*
+				if wTask.State < WorkerFinalize && len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
+					break
+				}
+			*/
 			r.lock.Lock()
 			_, ok := r.busyOnTasks[wTask.ID]
 			if !ok {

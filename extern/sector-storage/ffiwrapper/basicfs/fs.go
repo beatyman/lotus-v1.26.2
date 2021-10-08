@@ -9,6 +9,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/specs-storage/storage"
 
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -98,9 +99,13 @@ func (b *Provider) AcquireSector(ctx context.Context, id storage.SectorRef, exis
 		}
 
 		if !allocate.Has(fileType) {
-			if _, err := os.Stat(path); os.IsNotExist(err) {
-				done()
-				return storiface.SectorPaths{}, nil, storiface.ErrSectorNotFound
+			switch id.UnsealedStorageType {
+			case database.MOUNT_TYPE_OSS:
+			default:
+				if _, err := os.Stat(path); os.IsNotExist(err) {
+					done()
+					return storiface.SectorPaths{}, nil, storiface.ErrSectorNotFound
+				}
 			}
 		}
 

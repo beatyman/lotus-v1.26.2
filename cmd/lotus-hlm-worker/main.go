@@ -7,6 +7,9 @@ import (
 	"github.com/filecoin-project/lotus/lib/tracing"
 	"github.com/filecoin-project/lotus/monitor"
 	"huangdong2012/filecoin-monitor/model"
+	"fmt"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v8/kodocli"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"net"
 	"net/http"
 	"os"
@@ -36,10 +39,14 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+const (
+	QINIU_VIRTUAL_MOUNTPOINT = "/data/oss/qiniu/"
+)
+
 var log = logging.Logger("main")
 
 var (
-	nodeApi    api.HlmMinerSchedulerAPI
+	nodeApi    *api.RetryHlmMinerSchedulerAPI
 	nodeCloser jsonrpc.ClientCloser
 	nodeCCtx   *cli.Context
 	nodeSync   sync.Mutex
@@ -53,6 +60,7 @@ func closeNodeApi() {
 	nodeCloser = nil
 }
 
+//shutdown之外的地方都需要复用api（断线重连）不能关闭连接
 func ReleaseNodeApi(shutdown bool) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
@@ -64,20 +72,10 @@ func ReleaseNodeApi(shutdown bool) {
 
 	if shutdown {
 		closeNodeApi()
-		return
-	}
-
-	ctx := lcli.ReqContext(nodeCCtx)
-
-	// try reconnection
-	_, err := nodeApi.Version(ctx)
-	if err != nil {
-		closeNodeApi()
-		return
 	}
 }
 
-func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
+func GetNodeApi() (*api.RetryHlmMinerSchedulerAPI, error) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
 
@@ -87,21 +85,10 @@ func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
 
 	nApi, closer, err := lcli.GetHlmMinerSchedulerAPI(nodeCCtx)
 	if err != nil {
-		closeNodeApi()
 		return nil, errors.As(err)
 	}
-	nodeApi = nApi
+	nodeApi = &api.RetryHlmMinerSchedulerAPI{HlmMinerSchedulerAPI: nApi}
 	nodeCloser = closer
-
-	//v, err := nodeApi.Version(ctx)
-	//if err != nil {
-	//	closeNodeApi()
-	//	return nil, errors.As(err)
-	//}
-	//if v.APIVersion != build.APIVersion {
-	//	closeNodeApi()
-	//	return nil, xerrors.Errorf("lotus-storage-miner API version doesn't match: local: ", api.Version{APIVersion: build.APIVersion})
-	//}
 
 	return nodeApi, nil
 }
@@ -241,6 +228,22 @@ var runCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
 
+		//init env for rust
+		{
+			if err := os.Setenv("Lotus_Parallel_AddPiece", fmt.Sprintf("%v", cctx.Uint("parallel-addpiece"))); err != nil {
+				return err
+			}
+			if err := os.Setenv("Lotus_Parallel_PreCommit1", fmt.Sprintf("%v", cctx.Uint("parallel-precommit1"))); err != nil {
+				return err
+			}
+			if err := os.Setenv("Lotus_Parallel_PreCommit2", fmt.Sprintf("%v", cctx.Uint("parallel-precommit2"))); err != nil {
+				return err
+			}
+			if err := os.Setenv("Lotus_Parallel_Commit", fmt.Sprintf("%v", cctx.Uint("parallel-commit"))); err != nil {
+				return err
+			}
+		}
+
 		nodeCCtx = cctx
 
 		nodeApi, err := GetNodeApi()
@@ -269,10 +272,25 @@ var runCmd = &cli.Command{
 			return err
 		}
 
+		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
+		defer cancel()
+
+		apitemp, err := GetNodeApi()
+		if err != nil {
+			return errors.As(err)
+		}
+		ss, err := apitemp.PreStorageNode(ctx, "", "", database.STORAGE_KIND_SEALED)
+		if err != nil {
+			return errors.As(err)
+		}
+		if ss.MountType == database.MOUNT_TYPE_OSS {
+			cctx.Set("storage-repo", QINIU_VIRTUAL_MOUNTPOINT)
+		}
 		sealedRepo, err := homedir.Expand(cctx.String("storage-repo"))
 		if err != nil {
 			return err
 		}
+
 		idFile := cctx.String("id-file")
 		if len(idFile) == 0 {
 			idFile = "~/.lotusworker/worker.id"
@@ -281,9 +299,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-
-		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
-		defer cancel()
 
 		log.Infof("getting miner actor")
 		act, err := nodeApi.ActorAddress(ctx)
@@ -345,11 +360,8 @@ var runCmd = &cli.Command{
 			WdPoStSrv:          cctx.Bool("wdpost-srv"),
 			WnPoStSrv:          cctx.Bool("wnpost-srv"),
 		}
-		workerApi := &rpcServer{
-			minerRepo:    minerRepo,
-			sb:           minerSealer,
-			storageCache: map[int64]database.StorageInfo{},
-		}
+		workerApi := newRpcServer(workerCfg.ID, minerRepo, minerSealer)
+
 		minerNo := utils.GetMinerAddr()
 		log.Infof("==============get addr :%s", minerNo)
 		//添加监控
@@ -371,6 +383,7 @@ var runCmd = &cli.Command{
 		go func() {
 			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, minerNo)
 		}()
+
 
 		if err := database.LockMount(minerRepo); err != nil {
 			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())
@@ -410,7 +423,10 @@ var runCmd = &cli.Command{
 				os.Exit(1)
 			}
 		}()
-
+		//设置日志级别
+		elog := kodocli.NewLogger()
+		elog.SetLevel(kodocli.LOG_LEVEL_ERROR)
+		operation.SetLogger(elog)
 		log.Info("starting acceptJobs")
 		if err := acceptJobs(ctx,
 			workerApi,
@@ -426,12 +442,10 @@ var runCmd = &cli.Command{
 			log.Warn(err)
 			ReleaseNodeApi(true)
 		}
-		if err := srv.Shutdown(context.TODO()); err != nil {
+		if err := srv.Shutdown(ctx); err != nil {
 			log.Errorf("shutting down RPC server failed: %s", err)
 		}
-
 		log.Info("worker exit")
-
 		return nil
 	},
 }

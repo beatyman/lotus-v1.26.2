@@ -402,7 +402,7 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 
 	for _, r := range remotes {
 		go func(req *req) {
-			defer sb.UnlockGPUService(ctx, req.remote.cfg.ID, req.task.Key())
+			defer sb.UnlockGPUService(ctx, &Commit2Result{WorkerId: req.remote.cfg.ID, TaskKey: req.task.Key()})
 
 			// send to remote worker
 			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
@@ -500,7 +500,7 @@ selectWorker:
 	for _, r := range remotes {
 		go func(req *req) {
 			ctx := context.TODO()
-			defer sb.UnlockGPUService(ctx, req.remote.cfg.ID, req.task.Key())
+			defer sb.UnlockGPUService(ctx, &Commit2Result{WorkerId: req.remote.cfg.ID, TaskKey: req.task.Key()})
 
 			// send to remote worker
 			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
@@ -537,105 +537,28 @@ selectWorker:
 	return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, err
 }
 
-var selectCommit2ServiceLock = sync.Mutex{}
-
 // Need call sb.UnlockService to release this selected.
 // if no commit2 service, it will block the function call.
-// TODO: auto unlock service when deadlock happen.
-func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*WorkerCfg, error) {
-	log.Infof("SelectCommit2Service in:s-t%d-%d", sector.Miner, sector.Number)
-	selectCommit2ServiceLock.Lock()
-	handler := func(r *remote) {
-		endTime := time.Now().Unix()
-		minerId := "s-t0" + sector.Miner.String()
-		sectorId := minerId + "-" + sector.Number.String()
-		log.Infof("Report sector in:%v", sectorId)
-		err := CollectSectorC2StateInfo(endTime, minerId, sectorId, r.cfg, "Commit2WaitDone")
-		if err != nil {
-			log.Error("Sector-Report Err,SectorId:%d", sector.Number, err)
-		}
-
-		err = CollectSectorC2StateInfo(endTime, minerId, sectorId, r.cfg, "Commit2Start")
-		if err != nil {
-			log.Error("Sector-Report Err,SectorId:%d", sector.Number, err)
-		}
-	}
-	defer func() {
-		log.Infof("SelectCommit2Service out:s-t%d-%d", sector.Miner, sector.Number)
-		selectCommit2ServiceLock.Unlock()
-	}()
-
+func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*Commit2Worker, error) {
 	task := WorkerTask{
 		Type:     WorkerCommit,
 		SectorID: sector,
 	}
 	sid := task.SectorName()
 
-	tick := time.Tick(3e9)
-	checking := make(chan bool, 1)
-	checking <- true // not wait for the first request.
-	defer func() {
-		close(checking)
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, errors.New("user canceled").As(sid)
-		case <-tick:
-			checking <- true
-		case <-checking:
-			r, ok := sb.selectGPUService(ctx, sid, task)
-			if !ok {
-				continue
-			}
-			handler(r)
-			if err := database.UpdateSectorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun); err != nil {
-				log.Error("UpdateSectorState Err, sectorId:%d, error:%v:", sector.Number, err)
-			}
-			return &r.cfg, nil
-		}
+	//1.优先从缓存获取
+	if wid, prf, ok := c2cache.get(sid); ok {
+		return &Commit2Worker{
+			WorkerId: wid,
+			Proof:    prf,
+		}, nil
 	}
-	return nil, errors.New("not reach here").As(sid)
-}
-
-func CollectSectorC2StateInfo(endTime int64, minerId string, sectorId string, workercfg WorkerCfg, state string) error {
-	sectorStateInfo := &buriedmodel.SectorState{
-		MinerID:  minerId,
-		WorkerID: workercfg.ID,
-		ClientIP: workercfg.IP,
-		//		SectorSize: task.SectorStorage.StorageInfo.SectorSize,
-		// SectorID: storage.SectorName(m.minerSectorID(state.SectorNumber)),
-		SectorID:   sectorId,
-		State:      state,
-		CreateTime: endTime,
-		StatusType: "02",
+	//2.其次选择worker
+	if r, ok := sb.selectGPUService(ctx, sid, task); ok {
+		return &Commit2Worker{
+			WorkerId: r.cfg.ID,
+			Url:      r.cfg.SvcUri,
+		}, nil
 	}
-	sectorsDataBytes, err := json.Marshal(sectorStateInfo)
-
-	if err != nil {
-		return err
-	}
-	reqData := &buriedmodel.BuriedDataCollectParams{
-		DataType: "sector_state",
-		Data:     sectorsDataBytes,
-	}
-
-	kafkaRestValue := buriedmodel.KafkaRestValue{
-		Value: reqData,
-	}
-
-	var values []buriedmodel.KafkaRestValue
-	values = append(values, kafkaRestValue)
-
-	kafaRestData := &buriedmodel.KafkaRestData{
-		Records: values,
-	}
-	kafaRestDataBytes, err := json.Marshal(kafaRestData)
-	if err != nil {
-		return err
-	}
-	go report.SendRpcReport(kafaRestDataBytes)
-	//go rpcclient.Send(kafaRestDataBytes)
-	return nil
+	return nil, errors.New("idle gpu not found")
 }

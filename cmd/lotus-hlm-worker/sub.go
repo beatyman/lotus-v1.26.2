@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"go.opencensus.io/trace/propagation"
 	"huangdong2012/filecoin-monitor/trace/spans"
+	"fmt"
+	"github.com/google/uuid"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -52,16 +55,13 @@ func acceptJobs(ctx context.Context,
 	workerRepo, sealedRepo, mountedCfg string,
 	workerCfg ffiwrapper.WorkerCfg,
 ) error {
-checkingApi:
 	api, err := GetNodeApi()
 	if err != nil {
 		log.Warn(errors.As(err))
-		time.Sleep(3e9)
-		goto checkingApi
 	}
 
 	// get ssize from miner
-	ssize, err := api.ActorSectorSize(ctx, act)
+	ssize, err := api.RetryActorSectorSize(ctx, act)
 	if err != nil {
 		return err
 	}
@@ -108,19 +108,47 @@ checkingApi:
 		}
 	}
 
-	tasks, err := api.WorkerQueue(ctx, workerCfg)
-	if err != nil {
-		return errors.As(err)
+	if err = w.initDisk(ctx); err != nil {
+		return err
 	}
-	log.Infof("Worker(%s) started, Miner:%s, Srv:%s", workerCfg.ID, minerEndpoint, workerCfg.IP)
+
+	workerCfg.Cycle = uuid.New().String() //唯一标识一次启动
+	for i := 0; true; i++ {
+		if i > 0 {
+			<-time.After(time.Second * 10)
+		}
+
+		log.Infof("Worker(%s) starting(%v), Miner:%s, Srv:%s", workerCfg.ID, i, minerEndpoint, workerCfg.IP)
+		workerCfg.Retry = i
+		workerCfg.C2Sids = rpcServer.getC2sids()
+		tasks, err := api.WorkerQueue(ctx, workerCfg)
+		if err != nil {
+			log.Infof("Worker(%s) start(%v) error(%v), Miner:%s, Srv:%s", workerCfg.ID, i, err, minerEndpoint, workerCfg.IP)
+			continue
+		}
+
+		log.Infof("Worker(%s) started(%v), Miner:%s, Srv:%s", workerCfg.ID, i, minerEndpoint, workerCfg.IP)
+		if err = w.processJobs(ctx, tasks); err != nil {
+			log.Errorf("processJobs error(%v): %v", i, err.Error())
+			continue
+		} else {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (w *worker) initDisk(ctx context.Context) error {
+	api, _ := GetNodeApi()
 	diskSectors, err := scanDisk()
 	if err != nil {
-		log.Error("NewAllocate ", err)
 		return errors.As(err)
 	}
+
 	for _, sectors := range diskSectors {
 		for sid, _ := range sectors {
-			info, err := api.HlmSectorGetState(ctx, sid)
+			info, err := api.RetryHlmSectorGetState(ctx, sid)
 			if err != nil {
 				log.Error("NewAllocate ", err)
 				continue
@@ -138,32 +166,19 @@ checkingApi:
 		}
 	}
 	log.Infof("scanDisk : %v", diskSectors)
+	return nil
+}
+
+func (w *worker) processJobs(ctx context.Context, tasks <-chan ffiwrapper.WorkerTask) error {
 loop:
 	for {
-		// log.Infof("Waiting for new task")
-		// checking is connection aliveable,if not, do reconnect.
-		aliveChecking := time.After(1 * time.Minute) // waiting out
 		select {
-		case <-aliveChecking:
-			ReleaseNodeApi(false)
-			_, err := GetNodeApi()
-			if err != nil {
-				log.Warn(errors.As(err))
+		case task, ok := <-tasks:
+			if !ok {
+				return fmt.Errorf("tasks chan closed")
 			}
-		case task := <-tasks:
-			// TODO: check params for task proof type.
-			//if workerCfg.Commit2Srv || workerCfg.WdPoStSrv || workerCfg.WnPoStSrv || workerCfg.ParallelCommit2 > 0 {
-			//	ssize, err := task.ProofType.SectorSize()
-			//	if err != nil {
-			//		return errors.As(err)
-			//	}
-			//	if err := w.CheckParams(ctx, minerEndpoint, to, ssize); err != nil {
-			//		return errors.As(err)
-			//	}
-			//}
 			if task.SectorID.Miner == 0 {
-				// connection is down.
-				return errors.New("server shutdown").As(task)
+				return errors.New("task invalid").As(task)
 			}
 
 			log.Infof("New task: %s, sector %s, action: %d", task.Key(), task.SectorName(), task.Type)
@@ -189,7 +204,6 @@ loop:
 
 				res := w.processTask(ctx, task)
 				w.workerDone(ctx, task, res)
-
 				log.Infof("Task %s done, err: %+v", task.Key(), res.GoErr)
 			}(task)
 
@@ -198,39 +212,21 @@ loop:
 		}
 	}
 
-	log.Warn("acceptJobs exit")
 	return nil
 }
 
 func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res ffiwrapper.SealRes) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			log.Info("Get Node Api")
-			api, err := GetNodeApi()
-			if err != nil {
-				log.Warn(errors.As(err))
-				continue
-			}
-			log.Info("Do WorkerDone")
-			if err := api.WorkerDone(ctx, res); err != nil {
-				if errors.ErrNoData.Equal(err) {
-					log.Warn("caller not found, drop this task:%+v", task)
-					return
-				}
-
-				log.Warn(errors.As(err))
-
-				ReleaseNodeApi(false)
-				continue
-			}
-
-			// pass
-			return
-
+	api, err := GetNodeApi()
+	if err != nil {
+		log.Warn(errors.As(err))
+	}
+	if err := api.RetryWorkerDone(ctx, res); err != nil {
+		if errors.ErrNoData.Equal(err) {
+			err = fmt.Errorf("caller not found, drop this task")
 		}
+		log.Errorf("Worker done error: worker(%v)  sector(%v)  error(%v)", task.WorkerID, task.SectorID, err)
+	} else {
+		log.Infof("Worker done success: worker(%v)  sector(%v)", task.WorkerID, task.SectorID)
 	}
 }
 
@@ -289,7 +285,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 	api, err := GetNodeApi()
 	if err != nil {
-		ReleaseNodeApi(false)
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	// clean cache before working.
@@ -303,7 +298,9 @@ reAllocate:
 	dpState, err := w.diskPool.NewAllocate(task.SectorName())
 	if err != nil {
 		w.workMu.Unlock()
-		log.Warn(errors.As(err))
+		if cleanTimes%30 == 0 {
+			log.Warn(errors.As(err))
+		}
 		time.Sleep(60e9)
 		cleanTimes++
 		if cleanTimes%10 == 0 {
@@ -356,8 +353,7 @@ reAllocate:
 			if len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID && task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit {
 				// fetch the precommit cache data
 				// lock bandwidth
-				if err := api.WorkerAddConn(ctx, task.WorkerID, 1); err != nil {
-					ReleaseNodeApi(false)
+				if err := api.RetryWorkerAddConn(ctx, task.WorkerID, 1); err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)
 				}
 			retryFetch:
@@ -374,8 +370,7 @@ reAllocate:
 					goto retryFetch
 				}
 				// release bandwidth
-				if err := api.WorkerAddConn(ctx, task.WorkerID, -1); err != nil {
-					ReleaseNodeApi(false)
+				if err := api.RetryWorkerAddConn(ctx, task.WorkerID, -1); err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)
 				}
 				// release the storage cache
@@ -392,8 +387,7 @@ reAllocate:
 	}
 
 	// lock the task to this worker
-	if err := api.WorkerLock(ctx, w.workerCfg.ID, task.Key(), "task in", int(task.Type)); err != nil {
-		ReleaseNodeApi(false)
+	if err := api.RetryWorkerLock(ctx, w.workerCfg.ID, task.Key(), "task in", int(task.Type)); err != nil {
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	unlockWorker := false
@@ -464,11 +458,31 @@ reAllocate:
 	case ffiwrapper.WorkerCommit:
 		pieceInfo := task.Pieces
 		cids := &task.Cids
-		c1Out, err := sealer.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+		//判断C1输出文件是否存在，如果存在，则跳过C1
+		pathTxt := sector.CachePath() + "/c1.out"
+		isExist, err := ffiwrapper.PathExists(pathTxt)
 		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
+			log.Error("Read C1  PathExists Err :", err)
 		}
-		w.removeDataLayer(ctx, sector.CachePath())
+		var c1Out []byte
+		if isExist {
+			c1Out, err = ioutil.ReadFile(pathTxt)
+			if err != nil {
+				log.Error("Read c1.out Err ", err)
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			log.Info(sector.CachePath() + " ==========c1 retry")
+		} else {
+			c1Out, err = sealer.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+			if err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			err = ffiwrapper.WriteSectorCC(pathTxt, c1Out)
+			if err != nil {
+				log.Error("=============================WriteSector C1 ===err: ", err)
+			}
+		}
+		w.removeDataLayer(ctx, sector.CachePath(),false)
 		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerCommitDone)
 		// if local gpu no set, using remotes .
 		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
@@ -494,7 +508,7 @@ reAllocate:
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
 		//fix sector rebuild tool : disk space full
-		w.removeDataLayer(ctx, sector.CachePath())
+		w.removeDataLayer(ctx, sector.CachePath(),true)
 		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerFinalize)
 		sealedFile := sealer.SectorPath("sealed", task.SectorName())
 		_, err := os.Stat(string(sealedFile))
@@ -523,9 +537,8 @@ reAllocate:
 	// release the worker when stage is interrupted
 	if unlockWorker {
 		log.Info("Release Worker by:", task)
-		if err := api.WorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker", database.SECTOR_STATE_MOVE); err != nil {
+		if err := api.RetryWorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "transfer to another worker", database.SECTOR_STATE_MOVE); err != nil {
 			log.Warn(errors.As(err))
-			ReleaseNodeApi(false)
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 	}
