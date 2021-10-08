@@ -374,9 +374,9 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 				*<- Committing    |
 				|   |        ^--> CommitFailed
 				|   v             ^
-		        |   SubmitCommit  |
-		        |   |             |
-		        |   v             |
+			        |   SubmitCommit  |
+		        	|   |             |
+		        	|   v             |
 				*<- CommitWait ---/
 				|   |
 				|   v
