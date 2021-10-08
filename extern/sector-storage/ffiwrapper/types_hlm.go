@@ -83,7 +83,7 @@ type Commit2Result struct {
 	TaskKey  string
 	Sid      string
 
-	Err        error
+	Err        string
 	Proof      string //hex.EncodeToString(storage.Proof)
 	FinishTime time.Time
 }

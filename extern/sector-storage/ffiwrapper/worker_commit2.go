@@ -42,7 +42,7 @@ func (c *commit2Cache) loop() {
 }
 
 func (c *commit2Cache) set(rst *Commit2Result) {
-	if rst == nil || len(rst.Sid) == 0 || rst.Err != nil || len(rst.Proof) == 0 {
+	if rst == nil || len(rst.Sid) == 0 || len(rst.Proof) == 0 || len(rst.Err) > 0 {
 		return
 	}
 	rst.FinishTime = time.Now()
