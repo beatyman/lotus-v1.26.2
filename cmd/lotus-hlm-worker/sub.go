@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"io/ioutil"
+	"github.com/filecoin-project/lotus/buried/utils"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -415,6 +417,7 @@ reAllocate:
 
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
+		utils.DeleteC1Out(sector)
 	case ffiwrapper.WorkerPreCommit2:
 		//out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
 		out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)

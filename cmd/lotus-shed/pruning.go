@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/chain/consensus/filcns"
 	"github.com/ipfs/bbloom"
 	"github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
@@ -13,8 +14,6 @@ import (
 
 	badgerbs "github.com/filecoin-project/lotus/blockstore/badger"
 	"github.com/filecoin-project/lotus/chain/store"
-	"github.com/filecoin-project/lotus/chain/vm"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/node/repo"
 )
 
@@ -169,7 +168,7 @@ var stateTreePruneCmd = &cli.Command{
 			return nil
 		}
 
-		cs := store.NewChainStore(bs, bs, mds, vm.Syscalls(ffiwrapper.ProofVerifier), nil)
+		cs := store.NewChainStore(bs, bs, mds, filcns.Weight, nil)
 		defer cs.Close() //nolint:errcheck
 
 		if err := cs.Load(); err != nil {

@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/filecoin-project/go-address"
@@ -13,7 +14,6 @@ import (
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-jsonrpc/auth"
-	"github.com/filecoin-project/go-multistore"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
@@ -27,8 +27,10 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	"github.com/filecoin-project/lotus/extern/storage-sealing/sealiface"
+	"github.com/filecoin-project/lotus/journal/alerting"
 	marketevents "github.com/filecoin-project/lotus/markets/loggers"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	"github.com/filecoin-project/lotus/node/repo/imports"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
@@ -61,6 +63,8 @@ type CommonStruct struct {
 		Closing func(p0 context.Context) (<-chan struct{}, error) `perm:"read"`
 
 		Discover func(p0 context.Context) (apitypes.OpenRPCDocument, error) `perm:"read"`
+
+		LogAlerts func(p0 context.Context) ([]alerting.Alert, error) `perm:"admin"`
 
 		LogList func(p0 context.Context) ([]string, error) `perm:"write"`
 
@@ -136,11 +140,9 @@ type FullNodeStruct struct {
 
 		ChainGetPath func(p0 context.Context, p1 types.TipSetKey, p2 types.TipSetKey) ([]*HeadChange, error) `perm:"read"`
 
-		ChainGetRandomnessFromBeacon func(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) `perm:"read"`
-
-		ChainGetRandomnessFromTickets func(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) `perm:"read"`
-
 		ChainGetTipSet func(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) `perm:"read"`
+
+		ChainGetTipSetAfterHeight func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) `perm:"read"`
 
 		ChainGetTipSetByHeight func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) `perm:"read"`
 
@@ -198,7 +200,7 @@ type FullNodeStruct struct {
 
 		ClientQueryAsk func(p0 context.Context, p1 peer.ID, p2 address.Address) (*storagemarket.StorageAsk, error) `perm:"read"`
 
-		ClientRemoveImport func(p0 context.Context, p1 multistore.StoreID) error `perm:"admin"`
+		ClientRemoveImport func(p0 context.Context, p1 imports.ID) error `perm:"admin"`
 
 		ClientRestartDataTransfer func(p0 context.Context, p1 datatransfer.TransferID, p2 peer.ID, p3 bool) error `perm:"write"`
 
@@ -350,7 +352,13 @@ type FullNodeStruct struct {
 
 		StateDecodeParams func(p0 context.Context, p1 address.Address, p2 abi.MethodNum, p3 []byte, p4 types.TipSetKey) (interface{}, error) `perm:"read"`
 
+		StateEncodeParams func(p0 context.Context, p1 cid.Cid, p2 abi.MethodNum, p3 json.RawMessage) ([]byte, error) `perm:"read"`
+
 		StateGetActor func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) `perm:"read"`
+
+		StateGetRandomnessFromBeacon func(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) `perm:"read"`
+
+		StateGetRandomnessFromTickets func(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) `perm:"read"`
 
 		StateListActors func(p0 context.Context, p1 types.TipSetKey) ([]address.Address, error) `perm:"read"`
 
@@ -482,7 +490,11 @@ type GatewayStruct struct {
 
 		ChainGetMessage func(p0 context.Context, p1 cid.Cid) (*types.Message, error) ``
 
+		ChainGetPath func(p0 context.Context, p1 types.TipSetKey, p2 types.TipSetKey) ([]*HeadChange, error) ``
+
 		ChainGetTipSet func(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) ``
+
+		ChainGetTipSetAfterHeight func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) ``
 
 		ChainGetTipSetByHeight func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) ``
 
@@ -618,6 +630,16 @@ type StorageMinerStruct struct {
 		ComputeProof func(p0 context.Context, p1 []builtin.SectorInfo, p2 abi.PoStRandomness) ([]builtin.PoStProof, error) `perm:"read"`
 
 		CreateBackup func(p0 context.Context, p1 string) error `perm:"admin"`
+
+		DagstoreGC func(p0 context.Context) ([]DagstoreShardResult, error) `perm:"admin"`
+
+		DagstoreInitializeAll func(p0 context.Context, p1 DagstoreInitializeAllParams) (<-chan DagstoreInitializeAllEvent, error) `perm:"write"`
+
+		DagstoreInitializeShard func(p0 context.Context, p1 string) error `perm:"write"`
+
+		DagstoreListShards func(p0 context.Context) ([]DagstoreShardInfo, error) `perm:"read"`
+
+		DagstoreRecoverShard func(p0 context.Context, p1 string) error `perm:"write"`
 
 		DealsConsiderOfflineRetrievalDeals func(p0 context.Context) (bool, error) `perm:"admin"`
 
@@ -947,6 +969,17 @@ func (s *CommonStub) Discover(p0 context.Context) (apitypes.OpenRPCDocument, err
 	return *new(apitypes.OpenRPCDocument), ErrNotSupported
 }
 
+func (s *CommonStruct) LogAlerts(p0 context.Context) ([]alerting.Alert, error) {
+	if s.Internal.LogAlerts == nil {
+		return *new([]alerting.Alert), ErrNotSupported
+	}
+	return s.Internal.LogAlerts(p0)
+}
+
+func (s *CommonStub) LogAlerts(p0 context.Context) ([]alerting.Alert, error) {
+	return *new([]alerting.Alert), ErrNotSupported
+}
+
 func (s *CommonStruct) LogList(p0 context.Context) ([]string, error) {
 	if s.Internal.LogList == nil {
 		return *new([]string), ErrNotSupported
@@ -1210,28 +1243,6 @@ func (s *FullNodeStub) ChainGetPath(p0 context.Context, p1 types.TipSetKey, p2 t
 	return *new([]*HeadChange), ErrNotSupported
 }
 
-func (s *FullNodeStruct) ChainGetRandomnessFromBeacon(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) {
-	if s.Internal.ChainGetRandomnessFromBeacon == nil {
-		return *new(abi.Randomness), ErrNotSupported
-	}
-	return s.Internal.ChainGetRandomnessFromBeacon(p0, p1, p2, p3, p4)
-}
-
-func (s *FullNodeStub) ChainGetRandomnessFromBeacon(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) {
-	return *new(abi.Randomness), ErrNotSupported
-}
-
-func (s *FullNodeStruct) ChainGetRandomnessFromTickets(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) {
-	if s.Internal.ChainGetRandomnessFromTickets == nil {
-		return *new(abi.Randomness), ErrNotSupported
-	}
-	return s.Internal.ChainGetRandomnessFromTickets(p0, p1, p2, p3, p4)
-}
-
-func (s *FullNodeStub) ChainGetRandomnessFromTickets(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) {
-	return *new(abi.Randomness), ErrNotSupported
-}
-
 func (s *FullNodeStruct) ChainGetTipSet(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) {
 	if s.Internal.ChainGetTipSet == nil {
 		return nil, ErrNotSupported
@@ -1240,6 +1251,17 @@ func (s *FullNodeStruct) ChainGetTipSet(p0 context.Context, p1 types.TipSetKey) 
 }
 
 func (s *FullNodeStub) ChainGetTipSet(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) {
+	return nil, ErrNotSupported
+}
+
+func (s *FullNodeStruct) ChainGetTipSetAfterHeight(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) {
+	if s.Internal.ChainGetTipSetAfterHeight == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.ChainGetTipSetAfterHeight(p0, p1, p2)
+}
+
+func (s *FullNodeStub) ChainGetTipSetAfterHeight(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) {
 	return nil, ErrNotSupported
 }
 
@@ -1551,14 +1573,14 @@ func (s *FullNodeStub) ClientQueryAsk(p0 context.Context, p1 peer.ID, p2 address
 	return nil, ErrNotSupported
 }
 
-func (s *FullNodeStruct) ClientRemoveImport(p0 context.Context, p1 multistore.StoreID) error {
+func (s *FullNodeStruct) ClientRemoveImport(p0 context.Context, p1 imports.ID) error {
 	if s.Internal.ClientRemoveImport == nil {
 		return ErrNotSupported
 	}
 	return s.Internal.ClientRemoveImport(p0, p1)
 }
 
-func (s *FullNodeStub) ClientRemoveImport(p0 context.Context, p1 multistore.StoreID) error {
+func (s *FullNodeStub) ClientRemoveImport(p0 context.Context, p1 imports.ID) error {
 	return ErrNotSupported
 }
 
@@ -2387,6 +2409,17 @@ func (s *FullNodeStub) StateDecodeParams(p0 context.Context, p1 address.Address,
 	return nil, ErrNotSupported
 }
 
+func (s *FullNodeStruct) StateEncodeParams(p0 context.Context, p1 cid.Cid, p2 abi.MethodNum, p3 json.RawMessage) ([]byte, error) {
+	if s.Internal.StateEncodeParams == nil {
+		return *new([]byte), ErrNotSupported
+	}
+	return s.Internal.StateEncodeParams(p0, p1, p2, p3)
+}
+
+func (s *FullNodeStub) StateEncodeParams(p0 context.Context, p1 cid.Cid, p2 abi.MethodNum, p3 json.RawMessage) ([]byte, error) {
+	return *new([]byte), ErrNotSupported
+}
+
 func (s *FullNodeStruct) StateGetActor(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) {
 	if s.Internal.StateGetActor == nil {
 		return nil, ErrNotSupported
@@ -2396,6 +2429,28 @@ func (s *FullNodeStruct) StateGetActor(p0 context.Context, p1 address.Address, p
 
 func (s *FullNodeStub) StateGetActor(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) {
 	return nil, ErrNotSupported
+}
+
+func (s *FullNodeStruct) StateGetRandomnessFromBeacon(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
+	if s.Internal.StateGetRandomnessFromBeacon == nil {
+		return *new(abi.Randomness), ErrNotSupported
+	}
+	return s.Internal.StateGetRandomnessFromBeacon(p0, p1, p2, p3, p4)
+}
+
+func (s *FullNodeStub) StateGetRandomnessFromBeacon(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
+	return *new(abi.Randomness), ErrNotSupported
+}
+
+func (s *FullNodeStruct) StateGetRandomnessFromTickets(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
+	if s.Internal.StateGetRandomnessFromTickets == nil {
+		return *new(abi.Randomness), ErrNotSupported
+	}
+	return s.Internal.StateGetRandomnessFromTickets(p0, p1, p2, p3, p4)
+}
+
+func (s *FullNodeStub) StateGetRandomnessFromTickets(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
+	return *new(abi.Randomness), ErrNotSupported
 }
 
 func (s *FullNodeStruct) StateListActors(p0 context.Context, p1 types.TipSetKey) ([]address.Address, error) {
@@ -3058,6 +3113,17 @@ func (s *GatewayStub) ChainGetMessage(p0 context.Context, p1 cid.Cid) (*types.Me
 	return nil, ErrNotSupported
 }
 
+func (s *GatewayStruct) ChainGetPath(p0 context.Context, p1 types.TipSetKey, p2 types.TipSetKey) ([]*HeadChange, error) {
+	if s.Internal.ChainGetPath == nil {
+		return *new([]*HeadChange), ErrNotSupported
+	}
+	return s.Internal.ChainGetPath(p0, p1, p2)
+}
+
+func (s *GatewayStub) ChainGetPath(p0 context.Context, p1 types.TipSetKey, p2 types.TipSetKey) ([]*HeadChange, error) {
+	return *new([]*HeadChange), ErrNotSupported
+}
+
 func (s *GatewayStruct) ChainGetTipSet(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) {
 	if s.Internal.ChainGetTipSet == nil {
 		return nil, ErrNotSupported
@@ -3066,6 +3132,17 @@ func (s *GatewayStruct) ChainGetTipSet(p0 context.Context, p1 types.TipSetKey) (
 }
 
 func (s *GatewayStub) ChainGetTipSet(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) {
+	return nil, ErrNotSupported
+}
+
+func (s *GatewayStruct) ChainGetTipSetAfterHeight(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) {
+	if s.Internal.ChainGetTipSetAfterHeight == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.ChainGetTipSetAfterHeight(p0, p1, p2)
+}
+
+func (s *GatewayStub) ChainGetTipSetAfterHeight(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) {
 	return nil, ErrNotSupported
 }
 
@@ -3638,6 +3715,61 @@ func (s *StorageMinerStruct) CreateBackup(p0 context.Context, p1 string) error {
 }
 
 func (s *StorageMinerStub) CreateBackup(p0 context.Context, p1 string) error {
+	return ErrNotSupported
+}
+
+func (s *StorageMinerStruct) DagstoreGC(p0 context.Context) ([]DagstoreShardResult, error) {
+	if s.Internal.DagstoreGC == nil {
+		return *new([]DagstoreShardResult), ErrNotSupported
+	}
+	return s.Internal.DagstoreGC(p0)
+}
+
+func (s *StorageMinerStub) DagstoreGC(p0 context.Context) ([]DagstoreShardResult, error) {
+	return *new([]DagstoreShardResult), ErrNotSupported
+}
+
+func (s *StorageMinerStruct) DagstoreInitializeAll(p0 context.Context, p1 DagstoreInitializeAllParams) (<-chan DagstoreInitializeAllEvent, error) {
+	if s.Internal.DagstoreInitializeAll == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.DagstoreInitializeAll(p0, p1)
+}
+
+func (s *StorageMinerStub) DagstoreInitializeAll(p0 context.Context, p1 DagstoreInitializeAllParams) (<-chan DagstoreInitializeAllEvent, error) {
+	return nil, ErrNotSupported
+}
+
+func (s *StorageMinerStruct) DagstoreInitializeShard(p0 context.Context, p1 string) error {
+	if s.Internal.DagstoreInitializeShard == nil {
+		return ErrNotSupported
+	}
+	return s.Internal.DagstoreInitializeShard(p0, p1)
+}
+
+func (s *StorageMinerStub) DagstoreInitializeShard(p0 context.Context, p1 string) error {
+	return ErrNotSupported
+}
+
+func (s *StorageMinerStruct) DagstoreListShards(p0 context.Context) ([]DagstoreShardInfo, error) {
+	if s.Internal.DagstoreListShards == nil {
+		return *new([]DagstoreShardInfo), ErrNotSupported
+	}
+	return s.Internal.DagstoreListShards(p0)
+}
+
+func (s *StorageMinerStub) DagstoreListShards(p0 context.Context) ([]DagstoreShardInfo, error) {
+	return *new([]DagstoreShardInfo), ErrNotSupported
+}
+
+func (s *StorageMinerStruct) DagstoreRecoverShard(p0 context.Context, p1 string) error {
+	if s.Internal.DagstoreRecoverShard == nil {
+		return ErrNotSupported
+	}
+	return s.Internal.DagstoreRecoverShard(p0, p1)
+}
+
+func (s *StorageMinerStub) DagstoreRecoverShard(p0 context.Context, p1 string) error {
 	return ErrNotSupported
 }
 

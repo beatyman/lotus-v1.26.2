@@ -24,9 +24,8 @@
   * [ChainGetParentMessages](#ChainGetParentMessages)
   * [ChainGetParentReceipts](#ChainGetParentReceipts)
   * [ChainGetPath](#ChainGetPath)
-  * [ChainGetRandomnessFromBeacon](#ChainGetRandomnessFromBeacon)
-  * [ChainGetRandomnessFromTickets](#ChainGetRandomnessFromTickets)
   * [ChainGetTipSet](#ChainGetTipSet)
+  * [ChainGetTipSetAfterHeight](#ChainGetTipSetAfterHeight)
   * [ChainGetTipSetByHeight](#ChainGetTipSetByHeight)
   * [ChainHasObj](#ChainHasObj)
   * [ChainHead](#ChainHead)
@@ -73,6 +72,7 @@
 * [I](#I)
   * [ID](#ID)
 * [Log](#Log)
+  * [LogAlerts](#LogAlerts)
   * [LogList](#LogList)
   * [LogSetLevel](#LogSetLevel)
 * [Market](#Market)
@@ -163,7 +163,10 @@
   * [StateCompute](#StateCompute)
   * [StateDealProviderCollateralBounds](#StateDealProviderCollateralBounds)
   * [StateDecodeParams](#StateDecodeParams)
+  * [StateEncodeParams](#StateEncodeParams)
   * [StateGetActor](#StateGetActor)
+  * [StateGetRandomnessFromBeacon](#StateGetRandomnessFromBeacon)
+  * [StateGetRandomnessFromTickets](#StateGetRandomnessFromTickets)
   * [StateListActors](#StateListActors)
   * [StateListMessages](#StateListMessages)
   * [StateListMiners](#StateListMiners)
@@ -687,56 +690,6 @@ Inputs:
 
 Response: `null`
 
-### ChainGetRandomnessFromBeacon
-ChainGetRandomnessFromBeacon is used to sample the beacon for randomness.
-
-
-Perms: read
-
-Inputs:
-```json
-[
-  [
-    {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    {
-      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
-    }
-  ],
-  2,
-  10101,
-  "Ynl0ZSBhcnJheQ=="
-]
-```
-
-Response: `null`
-
-### ChainGetRandomnessFromTickets
-ChainGetRandomnessFromTickets is used to sample the chain for randomness.
-
-
-Perms: read
-
-Inputs:
-```json
-[
-  [
-    {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    {
-      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
-    }
-  ],
-  2,
-  10101,
-  "Ynl0ZSBhcnJheQ=="
-]
-```
-
-Response: `null`
-
 ### ChainGetTipSet
 ChainGetTipSet returns the tipset specified by the given TipSetKey.
 
@@ -746,6 +699,38 @@ Perms: read
 Inputs:
 ```json
 [
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+{
+  "Cids": null,
+  "Blocks": null,
+  "Height": 0
+}
+```
+
+### ChainGetTipSetAfterHeight
+ChainGetTipSetAfterHeight looks back for a tipset at the specified epoch.
+If there are no blocks at the specified epoch, the first non-nil tipset at a later epoch
+will be returned.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  10101,
   [
     {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
@@ -1497,7 +1482,7 @@ Inputs:
     },
     "Piece": null,
     "Size": 42,
-    "LocalStore": 12,
+    "FromLocalCAR": "string value",
     "Total": "0",
     "UnsealPrice": "0",
     "PaymentInterval": 42,
@@ -1551,7 +1536,7 @@ Inputs:
     },
     "Piece": null,
     "Size": 42,
-    "LocalStore": 12,
+    "FromLocalCAR": "string value",
     "Total": "0",
     "UnsealPrice": "0",
     "PaymentInterval": 42,
@@ -1845,6 +1830,15 @@ Response: `"12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf"`
 
 ## Log
 
+
+### LogAlerts
+
+
+Perms: admin
+
+Inputs: `null`
+
+Response: `null`
 
 ### LogList
 
@@ -4151,6 +4145,25 @@ Inputs:
 
 Response: `{}`
 
+### StateEncodeParams
+StateEncodeParams attempts to encode the provided json params to the binary from
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  1,
+  null
+]
+```
+
+Response: `"Ynl0ZSBhcnJheQ=="`
+
 ### StateGetActor
 StateGetActor returns the indicated actor's nonce and balance.
 
@@ -4185,6 +4198,56 @@ Response:
   "Balance": "0"
 }
 ```
+
+### StateGetRandomnessFromBeacon
+StateGetRandomnessFromBeacon is used to sample the beacon for randomness.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  2,
+  10101,
+  "Ynl0ZSBhcnJheQ==",
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `null`
+
+### StateGetRandomnessFromTickets
+StateGetRandomnessFromTickets is used to sample the chain for randomness.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  2,
+  10101,
+  "Ynl0ZSBhcnJheQ==",
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `null`
 
 ### StateListActors
 StateListActors returns the addresses of every actor in the state

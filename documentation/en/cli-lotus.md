@@ -7,7 +7,7 @@ USAGE:
    lotus [global options] command [command options] [arguments...]
 
 VERSION:
-   1.11.1
+   1.12.0-rc1
 
 COMMANDS:
    daemon   Start a lotus daemon process
@@ -394,6 +394,7 @@ USAGE:
 OPTIONS:
    --wallet value, -w value   Specify address to withdraw funds to, otherwise it will use the default wallet address
    --address value, -a value  Market address to withdraw from (account or miner actor address, defaults to --wallet address)
+   --confidence value         number of block confirmations to wait for (default: 5)
    --help, -h                 show help (default: false)
    
 ```
@@ -1537,7 +1538,7 @@ OPTIONS:
    --gas-premium value  gas price for new message (pay to miner, attoFIL/GasUnit)
    --gas-limit value    gas limit for new message (GasUnit) (default: 0)
    --auto               automatically reprice the specified message (default: false)
-   --max-fee value      Spend up to X attoFIL for this message (applicable for auto mode)
+   --fee-limit max-fee  Spend up to X FIL for this message in units of FIL. Previously when flag was max-fee units were in attoFIL. Applicable for auto mode
    --help, -h           show help (default: false)
    
 ```
@@ -2303,11 +2304,12 @@ NAME:
    lotus chain encode params - Encodes the given JSON params
 
 USAGE:
-   lotus chain encode params [command options] [toAddr method params]
+   lotus chain encode params [command options] [dest method params]
 
 OPTIONS:
    --tipset value    
    --encoding value  specify input encoding to parse (default: "base64")
+   --to-code         interpret dest as code CID instead of as address (default: false)
    --help, -h        show help (default: false)
    
 ```
@@ -2371,6 +2373,7 @@ USAGE:
 COMMANDS:
    list       List log systems
    set-level  Set log level
+   alerts     Get alert states
    help, h    Shows a list of commands or help for one command
 
 OPTIONS:
@@ -2423,6 +2426,20 @@ DESCRIPTION:
 OPTIONS:
    --system value  limit to log system
    --help, -h      show help (default: false)
+   
+```
+
+### lotus log alerts
+```
+NAME:
+   lotus log alerts - Get alert states
+
+USAGE:
+   lotus log alerts [command options] [arguments...]
+
+OPTIONS:
+   --all       get all (active and inactive) alerts (default: false)
+   --help, -h  show help (default: false)
    
 ```
 

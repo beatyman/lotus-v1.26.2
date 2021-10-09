@@ -1,6 +1,12 @@
 package utils
 
-import "net"
+import (
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/gwaylib/log"
+	"net"
+	"os"
+)
 
 // 获取本机网卡IP
 func GetLocalIP() (ipv4 string, err error) {
@@ -28,4 +34,16 @@ func GetLocalIP() (ipv4 string, err error) {
 
 	//err = common.ERR_NO_LOCAL_IP_FOUND
 	return
+}
+
+func DeleteC1Out(sector storage.SectorRef) {
+	//判断C1输出文件是否存在，如果存在，则跳过C1
+	pathTxt := sector.CachePath() + "/c1.out"
+	isExist, err := ffiwrapper.PathExists(pathTxt)
+	if err != nil {
+		log.Error(pathTxt+" C1 PathExists Err :", err)
+	}
+	if isExist {
+		os.Remove(pathTxt)
+	}
 }

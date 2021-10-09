@@ -125,6 +125,55 @@ and storage providers`,
 			Comment: ``,
 		},
 	},
+	"DAGStoreConfig": []DocField{
+		{
+			Name: "RootDir",
+			Type: "string",
+
+			Comment: `Path to the dagstore root directory. This directory contains three
+subdirectories, which can be symlinked to alternative locations if
+need be:
+- ./transients: caches unsealed deals that have been fetched from the
+storage subsystem for serving retrievals.
+- ./indices: stores shard indices.
+- ./datastore: holds the KV store tracking the state of every shard
+known to the DAG store.
+Default value: <LOTUS_MARKETS_PATH>/dagstore (split deployment) or
+<LOTUS_MINER_PATH>/dagstore (monolith deployment)`,
+		},
+		{
+			Name: "MaxConcurrentIndex",
+			Type: "int",
+
+			Comment: `The maximum amount of indexing jobs that can run simultaneously.
+0 means unlimited.
+Default value: 5.`,
+		},
+		{
+			Name: "MaxConcurrentReadyFetches",
+			Type: "int",
+
+			Comment: `The maximum amount of unsealed deals that can be fetched simultaneously
+from the storage subsystem. 0 means unlimited.
+Default value: 0 (unlimited).`,
+		},
+		{
+			Name: "MaxConcurrencyStorageCalls",
+			Type: "int",
+
+			Comment: `The maximum number of simultaneous inflight API calls to the storage
+subsystem.
+Default value: 100.`,
+		},
+		{
+			Name: "GCInterval",
+			Type: "Duration",
+
+			Comment: `The time between calls to periodic dagstore GC, in time.Duration string
+representation, e.g. 1m, 5m, 1h.
+Default value: 1 minute.`,
+		},
+	},
 	"DealmakingConfig": []DocField{
 		{
 			Name: "ConsiderOnlineStorageDeals",
@@ -204,6 +253,13 @@ message`,
 as a multiplier of the minimum collateral bound`,
 		},
 		{
+			Name: "MaxStagingDealsBytes",
+			Type: "int64",
+
+			Comment: `The maximum allowed disk usage size in bytes of staging deals not yet
+passed to the sealing node by the markets service. 0 is unlimited.`,
+		},
+		{
 			Name: "SimultaneousTransfers",
 			Type: "uint64",
 
@@ -242,12 +298,6 @@ see https://docs.filecoin.io/mine/lotus/miner-configuration/#using-filters-for-f
 		{
 			Name: "Client",
 			Type: "Client",
-
-			Comment: ``,
-		},
-		{
-			Name: "Metrics",
-			Type: "Metrics",
 
 			Comment: ``,
 		},
@@ -306,36 +356,35 @@ Format: multiaddress`,
 			Comment: ``,
 		},
 		{
+			Name: "DisableNatPortMap",
+			Type: "bool",
+
+			Comment: `When not disabled (default), lotus asks NAT devices (e.g., routers), to
+open up an external port and forward it to the port lotus is running on.
+When this works (i.e., when your router supports NAT port forwarding),
+it makes the local lotus node accessible from the public internet`,
+		},
+		{
 			Name: "ConnMgrLow",
 			Type: "uint",
 
-			Comment: ``,
+			Comment: `ConnMgrLow is the number of connections that the basic connection manager
+will trim down to.`,
 		},
 		{
 			Name: "ConnMgrHigh",
 			Type: "uint",
 
-			Comment: ``,
+			Comment: `ConnMgrHigh is the number of connections that, when exceeded, will trigger
+a connection GC operation. Note: protected/recently formed connections don't
+count towards this limit.`,
 		},
 		{
 			Name: "ConnMgrGrace",
 			Type: "Duration",
 
-			Comment: ``,
-		},
-	},
-	"Metrics": []DocField{
-		{
-			Name: "Nickname",
-			Type: "string",
-
-			Comment: ``,
-		},
-		{
-			Name: "HeadNotifs",
-			Type: "bool",
-
-			Comment: ``,
+			Comment: `ConnMgrGrace is a time duration that new connections are immune from being
+closed by the connection manager.`,
 		},
 	},
 	"MinerAddressConfig": []DocField{
@@ -563,6 +612,14 @@ Note that setting this number too high in relation to deal ingestion rate may re
 			Comment: `Upper bound on how many sectors can be sealing at the same time when creating new sectors with deals (0 = unlimited)`,
 		},
 		{
+			Name: "CommittedCapacitySectorLifetime",
+			Type: "Duration",
+
+			Comment: `CommittedCapacitySectorLifetime is the duration a Committed Capacity (CC) sector will
+live before it must be extended or converted into sector containing deals before it is
+terminated. Value must be between 180-540 days inclusive`,
+		},
+		{
 			Name: "WaitDealsDelay",
 			Type: "Duration",
 
@@ -653,6 +710,13 @@ avoid the relatively high cost of unsealing the data later, at the cost of more 
 			Type: "Duration",
 
 			Comment: `time buffer for forceful batch submission before sectors/deals in batch would start expiring`,
+		},
+		{
+			Name: "BatchPreCommitAboveBaseFee",
+			Type: "types.FIL",
+
+			Comment: `network BaseFee below which to stop doing precommit batching, instead
+sending precommit messages to the chain individually`,
 		},
 		{
 			Name: "AggregateAboveBaseFee",
@@ -752,6 +816,12 @@ Default is 20 (about once a week).`,
 		{
 			Name: "Addresses",
 			Type: "MinerAddressConfig",
+
+			Comment: ``,
+		},
+		{
+			Name: "DAGStore",
+			Type: "DAGStoreConfig",
 
 			Comment: ``,
 		},
