@@ -63,6 +63,7 @@ func (w *rpcServer) Version(context.Context) (string, error) {
 
 func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commit1Out storage.Commit1Out) (storage.Proof, error) {
 	var (
+		err  error
 		dump = false //是否重复扇区
 		prf  storage.Proof
 		sid  = w.sectorName(sector.SectorID)
@@ -95,16 +96,19 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 		dump = true
 		w.c2sidsRW.Unlock()
 		log.Infof("SealCommit2 RPC dumplicate:%v, current c2sids: %v", sector, w.getC2sids())
-		out.Err = errors.New("sector is sealing").As(sid)
-		return storage.Proof{}, out.Err
+		err = errors.New("sector is sealing").As(sid)
+		out.Err = err.Error()
+		return storage.Proof{}, err
 	}
 	w.c2sids[sid] = sector.SectorID
 	w.c2sidsRW.Unlock()
 
-	if prf, out.Err = w.sb.SealCommit2(ctx, storage.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out); out.Err == nil {
+	if prf, err = w.sb.SealCommit2(ctx, storage.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out); err == nil {
 		out.Proof = hex.EncodeToString(prf)
+	} else {
+		out.Err = err.Error()
 	}
-	return prf, out.Err
+	return prf, err
 }
 
 func (w *rpcServer) loadMinerStorage(ctx context.Context, napi *api.RetryHlmMinerSchedulerAPI) error {
