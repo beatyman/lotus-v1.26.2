@@ -2,11 +2,7 @@ package ffiwrapper
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	buriedmodel "github.com/filecoin-project/lotus/buried/model"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/lib/report"
 	"go.opencensus.io/trace/propagation"
 	"math"
 	"os"
