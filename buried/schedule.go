@@ -109,11 +109,11 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 				//格式化json
 				workerInfo.NodeInfo = &nodeInfo
 				workerInfoStr, _ := json.Marshal(workerInfo)
-				log.Info(string(workerInfoStr))
+				//log.Info(string(workerInfoStr))
 				_, span := spans.NewWorkerSpan(context.Background())
 				span.SetInfo(string(workerInfoStr))
 				span.End()
-//				closer()
+				//				closer()
 			case <-quit:
 				ticker.Stop()
 			}
