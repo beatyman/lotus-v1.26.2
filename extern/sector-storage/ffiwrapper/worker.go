@@ -841,7 +841,12 @@ func (sb *Sealer) toRemoteOwner(task workerCall) {
 
 		// clear this on worker online.
 		sb.offlineWorker.Store(task.task.WorkerID, task.task.SectorStorage.WorkerInfo)
-		sb.returnTask(task)
+
+		//已绑定了worker的刷单任务 不返回全局队列（防止阻塞刷单循环）其他情况的任务都返回全局队列
+		if !(task.task.Type == WorkerPledge && len(task.task.WorkerID) > 0) {
+			sb.returnTask(task)
+		}
+
 		return
 	}
 	sb.toRemoteChan(task, r.(*remote))
