@@ -328,12 +328,14 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		}
 
 		if rmt != nil {
-			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
-				log.Infof("AddWorker(%v): worker(%v) online error(%v)", cfg.Retry, cfg.ID, err)
-				return
-			}
+			//1.加载busy状态
 			if err = sb.loadBusyStatus(rmt, kind, cfg.C2Sids); err != nil {
 				log.Infof("AddWorker(%v): worker(%v) load busy status error(%v)", cfg.Retry, cfg.ID, err)
+				return
+			}
+			//2.设置worker为在线状态(需要放在最后一步)
+			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
+				log.Infof("AddWorker(%v): worker(%v) online error(%v)", cfg.Retry, cfg.ID, err)
 				return
 			}
 		}
