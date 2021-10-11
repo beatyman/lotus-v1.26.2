@@ -64,7 +64,7 @@ func (w *rpcServer) Version(context.Context) (string, error) {
 func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commit1Out storage.Commit1Out) (storage.Proof, error) {
 	var (
 		err  error
-		dump = false //是否重复扇区
+		dump = false //是否重复扇区(重复:正在执行中...)
 		prf  storage.Proof
 		sid  = w.sectorName(sector.SectorID)
 		out  = &ffiwrapper.Commit2Result{
@@ -76,13 +76,15 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 
 	log.Infof("SealCommit2 RPC in:%v, current c2sids: %v", sector, w.getC2sids())
 	defer func() {
-		if !dump {
-			w.c2sidsRW.Lock()
-			delete(w.c2sids, sid)
-			w.c2sidsRW.Unlock()
+		log.Infof("SealCommit2 RPC out:%v, current c2sids: %v, error: %v", sector, w.getC2sids(), out.Err)
+		if dump { //正在执行中的任务 不能释放锁
+			return
 		}
 
-		log.Infof("SealCommit2 RPC out:%v, current c2sids: %v, error: %v", sector, w.getC2sids(), out.Err)
+		w.c2sidsRW.Lock()
+		delete(w.c2sids, sid)
+		w.c2sidsRW.Unlock()
+
 		//只能在c2 worker执行UnlockGPUService
 		//不能在p1 worker调用c2完成后执行：会出现p1 worker重启而没执行到这句 造成miner那边维护的c2 worker的busy一直不正确
 		mApi, _ := GetNodeApi()
