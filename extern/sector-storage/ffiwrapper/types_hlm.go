@@ -310,7 +310,7 @@ func (r *remote) fakeFullTask() bool {
 	count := 0
 	for _, task := range r.busyOnTasks {
 		//只计算P1,P2任务
-		if task.Type < WorkerPreCommit2Done {
+		if task.Type <= WorkerPreCommit2Done {
 			count++
 		}
 	}
