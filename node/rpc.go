@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	_ "net/http/pprof"
-	"path/filepath"
 	"runtime"
 	"strconv"
 
@@ -27,8 +26,6 @@ import (
 	"github.com/filecoin-project/lotus/lib/rpcenc"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node/impl"
-	nauth "github.com/filecoin-project/lotus/node/modules/auth"
-	"github.com/gwaylib/errors"
 )
 
 var rpclog = logging.Logger("rpc")
@@ -54,15 +51,17 @@ func ServeRPC(h http.Handler, id, repo string, addr multiaddr.Multiaddr) (StopFu
 			return ctx
 		},
 	}
-
+	/*
 	log.Info("rebuild tls cert automatic")
 	certPath := filepath.Join(repo, "miner_crt.pem")
 	keyPath := filepath.Join(repo, "miner_key.pem")
 	if err := nauth.CreateTLSCert(certPath, keyPath); err != nil {
 		return nil, errors.As(err)
 	}
+	 */
 	go func() {
-		err = srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
+		//err = srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
+		err=srv.Serve(manet.NetListener(lst))
 		if err != http.ErrServerClosed {
 			rpclog.Warnf("rpc server failed: %s", err)
 		}
