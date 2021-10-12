@@ -110,6 +110,7 @@ type WorkerCfg struct {
 
 	Cycle  string         //每次启动(或重启)后生成的uuid(Cycle+Retry 唯一标识一次连接)
 	Retry  int            //worker断线重连次数 0:第一次连接（不是重连）
+	Busy   []string       //p1 worker正在执行中的任务(miner重启->worker重连时需要: checkCache + Busy 恢复miner的busy状态)
 	C2Sids []abi.SectorID //c2 worker正在执行的扇区id (c2断线重连后需要恢复busyOnTasks)
 }
 
@@ -310,7 +311,7 @@ func (r *remote) fakeFullTask() bool {
 	count := 0
 	for _, task := range r.busyOnTasks {
 		//只计算P1,P2任务
-		if task.Type <= WorkerPreCommit2Done {
+		if task.Type < WorkerPreCommit2Done {
 			count++
 		}
 	}
