@@ -328,12 +328,14 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		}
 
 		if rmt != nil {
-			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
-				log.Infof("AddWorker(%v): worker(%v) online error(%v)", cfg.Retry, cfg.ID, err)
+			//1.加载busy状态
+			if err = sb.loadBusyStatus(kind, rmt, cfg); err != nil {
+				log.Infof("AddWorker(%v): worker(%v) load busy status error(%v)", cfg.Retry, cfg.ID, err)
 				return
 			}
-			if err = sb.loadBusyStatus(rmt, kind, cfg.C2Sids); err != nil {
-				log.Infof("AddWorker(%v): worker(%v) load busy status error(%v)", cfg.Retry, cfg.ID, err)
+			//2.设置worker为在线状态(需要放在最后一步)
+			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
+				log.Infof("AddWorker(%v): worker(%v) online error(%v)", cfg.Retry, cfg.ID, err)
 				return
 			}
 		}
@@ -447,6 +449,9 @@ func (sb *Sealer) offlineWorkerLoop(ctx context.Context, rmt *remote) {
 
 	for {
 		<-time.After(time.Second * 5) //检测worker是否掉线的间隔
+		if rmt.isOfflineState() {
+			continue
+		}
 
 		rmt.offlineRW.RLock()
 		rmtCtx, cycle, retry := rmt.ctx, rmt.cfg.Cycle, rmt.cfg.Retry
@@ -483,7 +488,7 @@ func (sb *Sealer) offlineWorkerHandle(rmt *remote, cycle string, retry int) {
 	}
 }
 
-func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi.SectorID) error {
+func (sb *Sealer) loadBusyStatus(kind WorkerQueueKind, rmt *remote, cfg WorkerCfg) error {
 	if rmt == nil {
 		return nil
 	}
@@ -492,7 +497,7 @@ func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi
 	if rmt.cfg.Commit2Srv || rmt.cfg.WdPoStSrv || rmt.cfg.WnPoStSrv {
 		rmt.lock.Lock()
 		rmt.busyOnTasks = map[string]WorkerTask{}
-		for _, sid := range c2sids {
+		for _, sid := range cfg.C2Sids {
 			task := WorkerTask{
 				Type:     WorkerCommit,
 				SectorID: sid,
@@ -500,11 +505,36 @@ func (sb *Sealer) loadBusyStatus(rmt *remote, kind WorkerQueueKind, c2sids []abi
 			rmt.busyOnTasks[task.SectorName()] = task
 		}
 		rmt.lock.Unlock()
+	} else {
+		//2.p1 worker从sqlite恢复busy状态(worker重连则不需要恢复)
+		switch kind {
+		case WorkerQueueKind_MinerReStart: //miner重启时: checkCache + worker上报的Busy状态
+			if _, err := rmt.checkCache(true, nil); err != nil {
+				return err
+			}
+
+			if len(cfg.Busy) > 0 { //此处根据worker上报的状态恢复因checkCache加1的任务
+				dict := make(map[string]string)
+				for _, sn := range cfg.Busy {
+					dict[sn] = sn
+				}
+
+				rmt.lock.Lock()
+				for sn, task := range rmt.busyOnTasks {
+					if _, ok := dict[sn]; ok && int(task.Type)%10 > 0 {
+						task.Type -= 1
+					}
+				}
+				rmt.lock.Unlock()
+			}
+		case WorkerQueueKind_WorkerReStart: //worker重启时: 直接使用checkCache
+			if _, err := rmt.checkCache(true, nil); err != nil {
+				return err
+			}
+		}
 	}
 
-	//2.p1 worker从sqlite恢复busy状态
-	_, err := rmt.checkCache(true, nil)
-	return err
+	return nil
 }
 
 // call UnlockService to release
@@ -1298,6 +1328,15 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 
 // export for rpc service
 func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
+	//worker重连的时候，需要先online完成 才能TaskDone 否则busy状态可能不一致
+	if r, ok := _remotes.Load(res.WorkerCfg.ID); ok {
+		if rmt := r.(*remote); rmt.isOfflineState() {
+			return fmt.Errorf("worker current offline")
+		}
+	} else {
+		return fmt.Errorf("worker current offline")
+	}
+
 	_remoteResultLk.Lock()
 	rres, ok := _remoteResult[res.TaskID]
 	_remoteResultLk.Unlock()
