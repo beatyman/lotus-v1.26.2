@@ -119,6 +119,7 @@ func acceptJobs(ctx context.Context,
 
 		log.Infof("Worker(%s) starting(%v), Miner:%s, Srv:%s", workerCfg.ID, i, minerEndpoint, workerCfg.IP)
 		workerCfg.Retry = i
+		workerCfg.Busy = w.busyTasks()
 		workerCfg.C2Sids = rpcServer.getC2sids()
 		tasks, err := api.WorkerQueue(ctx, workerCfg)
 		if err != nil {
@@ -136,6 +137,17 @@ func acceptJobs(ctx context.Context,
 	}
 
 	return nil
+}
+
+func (w *worker) busyTasks() []string {
+	w.workMu.Lock()
+	defer w.workMu.Unlock()
+
+	out := make([]string, 0, 0)
+	for _, task := range w.workOn {
+		out = append(out, task.SectorName())
+	}
+	return out
 }
 
 func (w *worker) initDisk(ctx context.Context) error {
@@ -481,7 +493,7 @@ reAllocate:
 				log.Error("=============================WriteSector C1 ===err: ", err)
 			}
 		}
-		w.removeDataLayer(ctx, sector.CachePath(),false)
+		w.removeDataLayer(ctx, sector.CachePath(), false)
 		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerCommitDone)
 		// if local gpu no set, using remotes .
 		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
@@ -507,7 +519,7 @@ reAllocate:
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
 		//fix sector rebuild tool : disk space full
-		w.removeDataLayer(ctx, sector.CachePath(),true)
+		w.removeDataLayer(ctx, sector.CachePath(), true)
 		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerFinalize)
 		sealedFile := sealer.SectorPath("sealed", task.SectorName())
 		_, err := os.Stat(string(sealedFile))

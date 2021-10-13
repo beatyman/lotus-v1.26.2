@@ -60,7 +60,8 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 	}
 	gpuKey, _, err := allocateGpu(ctx)
 	if err != nil {
-		log.Warn(errors.As(err))
+		log.Errorw("allocate gpu error", "task-key", task.Key(), "err", errors.As(err))
+		return storage.SectorCids{}, errors.As(err)
 	}
 	defer returnGpu(gpuKey)
 
@@ -70,15 +71,15 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 
 	var cmd *exec.Cmd
 	if os.Getenv("LOTUS_WORKER_P2_CPU_LIST") != "" {
-		cpuList:=os.Getenv("LOTUS_WORKER_P2_CPU_LIST")
-		log.Infof("Lock P2 cpu list: %v ",cpuList)
-		cmd = exec.CommandContext(ctx, "taskset","-c",cpuList,programName,
+		cpuList := os.Getenv("LOTUS_WORKER_P2_CPU_LIST")
+		log.Infof("Lock P2 cpu list: %v ", cpuList)
+		cmd = exec.CommandContext(ctx, "taskset", "-c", cpuList, programName,
 			"precommit2",
 			"--worker-repo", repo,
 			"--name", task.SectorName(),
 			"--addr", unixAddr,
 		)
-	}else {
+	} else {
 		cmd = exec.CommandContext(ctx, programName,
 			"precommit2",
 			"--worker-repo", repo,
