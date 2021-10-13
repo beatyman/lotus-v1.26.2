@@ -110,6 +110,7 @@ require (
 	github.com/ipld/go-car/v2 v2.0.3-0.20210811121346-c514a30114d7
 	github.com/ipld/go-ipld-prime v0.12.0
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.10.2
 	github.com/libp2p/go-buffer-pool v0.0.2
@@ -143,7 +144,6 @@ require (
 	github.com/open-rpc/meta-schema v0.0.0-20201029221707-1b72ef2ea333
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pelletier/go-toml v1.9.3 // indirect
-	github.com/polydawn/refmt v0.0.0-20190809202753-05966cbd336a
 	github.com/polydawn/refmt v0.0.0-20201211092308-30ac6d18308e
 	github.com/prometheus/client_golang v1.10.0
 	github.com/qiniupd/qiniu-go-sdk v1.0.0 // indirect
@@ -176,7 +176,6 @@ require (
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gotest.tools v2.2.0+incompatible
-	honnef.co/go/tools v0.0.1-2020.1.3 // indirect
 )
 
 replace github.com/libp2p/go-libp2p-yamux => github.com/libp2p/go-libp2p-yamux v0.5.1

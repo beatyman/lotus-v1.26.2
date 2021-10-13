@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"io/ioutil"
 	"github.com/filecoin-project/lotus/buried/utils"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
