@@ -138,9 +138,6 @@ func acceptJobs(ctx context.Context,
 }
 
 func (w *worker) busyTasks() []string {
-	w.workMu.Lock()
-	defer w.workMu.Unlock()
-
 	out := make([]string, 0, 0)
 	for _, task := range w.workOn {
 		out = append(out, task.SectorName())
