@@ -8,6 +8,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	builtin2 "github.com/filecoin-project/specs-actors/v2/actors/builtin"
 	"github.com/ipfs/go-cid"
+	"github.com/filecoin-project/go-state-types/network"
 )
 
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
@@ -16,7 +17,7 @@ var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 
 const BootstrappersFile = "devnet.pi"
 const GenesisFile = "devnet.car"
-
+const GenesisNetworkVersion = network.Version0
 
 var UpgradeBreezeHeight = abi.ChainEpoch(-1)
 
@@ -43,6 +44,9 @@ var UpgradeNorwegianHeight = abi.ChainEpoch(-13)
 var UpgradeTurboHeight = abi.ChainEpoch(-14)
 
 var UpgradeHyperdriveHeight = abi.ChainEpoch(-15)
+
+var UpgradeChocolateHeight = abi.ChainEpoch(-16)
+
 func init() {
 	policy.SetSupportedProofTypes(
 		abi.RegisteredSealProof_StackedDrg2KiBV1,
