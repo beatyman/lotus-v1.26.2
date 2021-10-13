@@ -17,7 +17,7 @@ var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 
 const BootstrappersFile = "devnet.pi"
 const GenesisFile = "devnet.car"
-const GenesisNetworkVersion = network.Version0
+const GenesisNetworkVersion = network.Version14
 
 var UpgradeBreezeHeight = abi.ChainEpoch(-1)
 
