@@ -409,6 +409,7 @@ func (r *remote) UpdateTask(sid string, state int) bool {
 	return ok
 
 }
+
 func (r *remote) freeTask(sid string) bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -416,6 +417,28 @@ func (r *remote) freeTask(sid string) bool {
 	delete(r.busyOnTasks, sid)
 	return ok
 }
+
+//根据worker上报的状态恢复因checkCache或ctx.Done()加1的任务
+func (r *remote) checkBusy(wBusy []string) {
+	if len(wBusy) == 0 {
+		return
+	}
+
+	dict := make(map[string]string)
+	for _, sn := range wBusy {
+		dict[sn] = sn
+	}
+
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	for sn, task := range r.busyOnTasks {
+		if _, ok := dict[sn]; ok && int(task.Type)%10 > 0 {
+			task.Type -= 1
+		}
+	}
+}
+
 func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error) {
 	// restore from database
 	history, err := database.GetWorking(r.cfg.ID)

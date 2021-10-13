@@ -509,28 +509,18 @@ func (sb *Sealer) loadBusyStatus(kind WorkerQueueKind, rmt *remote, cfg WorkerCf
 		//2.p1 worker从sqlite恢复busy状态(worker重连则不需要恢复)
 		switch kind {
 		case WorkerQueueKind_MinerReStart: //miner重启时: checkCache + worker上报的Busy状态
+			//1.从sqlite恢复busy状态
 			if _, err := rmt.checkCache(true, nil); err != nil {
 				return err
 			}
-
-			if len(cfg.Busy) > 0 { //此处根据worker上报的状态恢复因checkCache加1的任务
-				dict := make(map[string]string)
-				for _, sn := range cfg.Busy {
-					dict[sn] = sn
-				}
-
-				rmt.lock.Lock()
-				for sn, task := range rmt.busyOnTasks {
-					if _, ok := dict[sn]; ok && int(task.Type)%10 > 0 {
-						task.Type -= 1
-					}
-				}
-				rmt.lock.Unlock()
-			}
+			//2.从worker上报的任务fix checkCache的结果
+			rmt.checkBusy(cfg.Busy)
 		case WorkerQueueKind_WorkerReStart: //worker重启时: 直接使用checkCache
 			if _, err := rmt.checkCache(true, nil); err != nil {
 				return err
 			}
+		case WorkerQueueKind_WorkerReConnect:
+			rmt.checkBusy(cfg.Busy)
 		}
 	}
 
