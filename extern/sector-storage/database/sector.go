@@ -441,6 +441,13 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 }
 
 func UpdateSectorState(sid, wid, msg string, state int) error {
+	if info, err := GetSectorInfo(sid); err != nil {
+		return err
+	} else if info != nil {
+		wInfo, _ := GetWorkerInfo(info.WorkerId)
+		ssm.OnSectorStateChange(info, wInfo, wid, msg, state)
+	}
+
 	mdb := GetDB()
 	if _, err := mdb.Exec(`
 UPDATE

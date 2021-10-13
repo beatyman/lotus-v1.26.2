@@ -1,5 +1,14 @@
 package model
 
+import "time"
+
+type NodeStatus int32
+
+const (
+	NodeStatus_Online NodeStatus = iota
+	NodeStatus_Offline
+)
+
 // MinerInfo :
 type MinerInfo struct {
 	ID                      int64  `json:"id"`
@@ -66,4 +75,29 @@ type KafkaRestData struct {
 
 type KafkaRestValue struct {
 	Value interface{} `json:"value"`
+}
+
+type WorkerInfo struct {
+	*NodeInfo
+	WorkerNo           string `json:"worker_no"`           //worker编号
+	MinerId            string `json:"miner_id"`            //所属的矿工节点ID 如t01000
+	SvcUri             string `json:"svc_uri"`             //worker api地址
+	MaxTaskNum         int    `json:"max_task_num"`        //最大任务数
+	ParallelPledge     int    `json:"parallel_pledge"`     //addPiece 任务数
+	ParallelPrecommit1 int    `json:"parallel_precommit1"` //P1任务数
+	ParallelPrecommit2 int    `json:"parallel_precommit2"` //p2任务数
+	ParallelCommit     int    `json:"parallel_commit"`     //并行提交 如果数字是0，将选择提交服务直到成功
+	Commit2Srv         bool   `json:"commit2_srv"`         //是否开启C2
+	WdPostSrv          bool   `json:"wd_post_srv"`         //是否开启WdPost
+	WnPostSrv          bool   `json:"wn_post_srv"`         //WnPost
+	Disable            bool   `json:"disable"`
+}
+
+type NodeInfo struct {
+	HostIP    string     `json:"host_ip"`    //主机IP
+	HostNo    string     `json:"host_no"`    //主机编号
+	Version   string     `json:"version"`    //版本号
+	Status    NodeStatus `json:"status"`     //运行状态
+	Desc      string     `json:"desc"`       //描述
+	StartTime time.Time  `json:"start_time"` //启动时间
 }

@@ -79,5 +79,5 @@ if [ -f ./lotus-storage ]; then
     cp -vrf lotus-storage $install_path
 fi
 if [ -f ./lotus-worker ]; then
-    cp -vrf lotus-worker $HOME/hlm-miner/apps/lotus/lotus-worker-wnpost
+    cp -vrf lotus-worker $install_path
 fi

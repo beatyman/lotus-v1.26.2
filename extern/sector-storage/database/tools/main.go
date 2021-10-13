@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	database.InitDB("/data/sdb/lotus-user-1/.lotusstorage")
+	database.InitDB("/Users/huangdong/Temp/lotus")
 	db := database.GetDB()
 
 	rebalanceCurWork(db)

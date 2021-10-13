@@ -123,6 +123,8 @@ const (
 )
 
 type WorkerTask struct {
+	TraceContext string //用于span传播
+
 	Type WorkerTaskType
 	// TaskID uint64 // using SecotrID instead
 
