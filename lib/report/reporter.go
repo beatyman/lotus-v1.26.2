@@ -79,9 +79,9 @@ func (r *Reporter) Run() {
 	r.lk.Unlock()
 	r.SetSurvivalServer(true)
 	errBuff := [][]byte{}
-	go func() {
-		r.runTimerTestingServer()
-	}()
+	//go func() {
+	//	r.runTimerTestingServer()
+	//}()
 	for {
 		select {
 		case data := <-r.reports:
