@@ -144,10 +144,12 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/polydawn/refmt v0.0.0-20201211092308-30ac6d18308e
-	github.com/prometheus/client_golang v1.10.0
+	github.com/prometheus/client_golang v1.11.0
 	github.com/qiniupd/qiniu-go-sdk v1.0.0 // indirect
 	github.com/raulk/clock v1.1.0
 	github.com/raulk/go-watchdog v1.0.1
+	github.com/shirou/gopsutil v2.18.12+incompatible
+	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.0
