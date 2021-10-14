@@ -8,8 +8,6 @@ import (
 	"github.com/filecoin-project/lotus/monitor"
 	"huangdong2012/filecoin-monitor/model"
 	"fmt"
-	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v8/kodocli"
-	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"net"
 	"net/http"
 	"os"
@@ -17,26 +15,26 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
-	mux "github.com/gorilla/mux"
-	"github.com/mitchellh/go-homedir"
-
 	"github.com/filecoin-project/go-jsonrpc/auth"
-	logging "github.com/ipfs/go-log/v2"
-	"github.com/urfave/cli/v2"
-	"golang.org/x/xerrors"
-
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/lib/lotuslog"
 	"github.com/filecoin-project/lotus/node/repo"
-
+	"github.com/google/gops/agent"
+	mux "github.com/gorilla/mux"
 	"github.com/gwaylib/errors"
+	logging "github.com/ipfs/go-log/v2"
+	"github.com/mitchellh/go-homedir"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v8/kodocli"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
+	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -227,6 +225,11 @@ var runCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
+
+		//start gops
+		if err := agent.Listen(agent.Options{}); err != nil {
+			return err
+		}
 
 		//init env for rust
 		{
