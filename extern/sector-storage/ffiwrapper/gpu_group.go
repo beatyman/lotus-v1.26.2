@@ -3,6 +3,7 @@ package ffiwrapper
 import (
 	"context"
 	"encoding/xml"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -13,7 +14,8 @@ import (
 )
 
 type GpuPci struct {
-	PciBus string `xml:"pci_bus"`
+	PciBus    string `xml:"pci_bus"`
+	PciDevice string `xml:"pci_device"`
 	// TODO: more infomation
 }
 
@@ -23,6 +25,10 @@ func (p *GpuPci) ParseBusId() (int, error) {
 		return 0, err
 	}
 	return int(val), nil
+}
+
+func (p *GpuPci) GetPciBusId() string {
+	return fmt.Sprintf("%s:%s", p.PciBus, p.PciDevice)
 }
 
 type GpuInfo struct {
@@ -77,12 +83,7 @@ func allocateGpu(ctx context.Context) (string, *GpuInfo, error) {
 	gpuLock.Lock()
 	defer gpuLock.Unlock()
 	for _, gpuInfo := range gpuGroup {
-		keyInt, err := gpuInfo.Pci.ParseBusId()
-		if err != nil {
-			log.Warn(errors.As(err))
-			continue
-		}
-		key := strconv.Itoa(keyInt)
+		key := gpuInfo.Pci.GetPciBusId()
 		using, _ := gpuKeys[key]
 		if using {
 			continue
