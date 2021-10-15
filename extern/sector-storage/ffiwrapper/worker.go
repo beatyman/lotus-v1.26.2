@@ -582,7 +582,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		r.busyOnTasks[sid] = task // make busy
 		r.lock.Unlock()
 
-		if err := database.UpdateSectorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun); err != nil {
+		if err := database.UpdateSectorMonitorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun); err != nil {
 			log.Error("UpdateSectorState Err, sectorId:%d, error:%v:", task.SectorID, err)
 		}
 	}
@@ -1284,9 +1284,6 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		state := int(task.Type) + 1
 		r.UpdateTask(task.SectorName(), state) // set state to done
 
-		go func() {
-			CollectSectorStateInfo(task, "02", r.cfg)
-		}()
 		log.Infof("Delete task waiting :%s", taskKey)
 		_remoteResultLk.Lock()
 		delete(_remoteResult, taskKey)
@@ -1295,9 +1292,6 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 
 	// send the task to daemon work.
 	log.Infof("DEBUG: send task %s to %s (locked:%s)", task.Key(), r.cfg.ID, task.WorkerID)
-	go func() {
-		CollectSectorStateInfo(task, "01", r.cfg)
-	}()
 	select {
 	case <-ctx.Done():
 		log.Infof("user canceled:%s", taskKey)

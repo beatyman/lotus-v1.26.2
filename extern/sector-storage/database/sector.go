@@ -277,11 +277,11 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 			log.Warnf("GetSectorFile(%s) took : %s", sectorId, took)
 		}
 	}()
-/*	//todo test
-	up := os.Getenv("US3")
-	if up != "" {
-		defaultRepo = "/data/oss/qiniu/"
-	}*/
+	/*	//todo test
+		up := os.Getenv("US3")
+		if up != "" {
+			defaultRepo = "/data/oss/qiniu/"
+		}*/
 	file := &storage.SectorFile{
 		SectorId:     sectorId,
 		SealedRepo:   defaultRepo,
@@ -438,6 +438,16 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 		SealedStorage:   *sealedInfo,
 		UnsealedStorage: *unsealedInfo,
 	}, nil
+}
+
+func UpdateSectorMonitorState(sid, wid, msg string, state int) error {
+	if info, err := GetSectorInfo(sid); err != nil {
+		return err
+	} else if info != nil {
+		wInfo, _ := GetWorkerInfo(info.WorkerId)
+		ssm.OnSectorStateChange(info, wInfo, wid, msg, state)
+	}
+	return nil
 }
 
 func UpdateSectorState(sid, wid, msg string, state int) error {
