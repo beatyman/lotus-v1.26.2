@@ -246,8 +246,8 @@ var addHLMStorageCmd = &cli.Command{
 				SectorSize:     sectorSize,
 				MaxWork:        maxWork,
 				Version:        time.Now().UnixNano(),
+				MountAuth:      mountAuth,
 			},
-			MountAuth: mountAuth,
 		})
 	},
 }
@@ -419,6 +419,7 @@ var replaceHLMStorageCmd = &cli.Command{
 		mountSignalUri := cctx.String("mount-signal-uri")
 		mountTransfUri := cctx.String("mount-transf-uri")
 		mountAuthUri := cctx.String("mount-auth-uri")
+		info.MountAuth = mountAuth
 		switch info.MountType {
 		case database.MOUNT_TYPE_HLM:
 			if len(mountSignalUri) == 0 {
@@ -443,7 +444,7 @@ var replaceHLMStorageCmd = &cli.Command{
 			info.MountSignalUri = mountSignalUri
 			info.MountTransfUri = mountTransfUri
 		}
-		return nodeApi.ReplaceHLMStorage(ctx, &database.StorageAuth{StorageInfo: *info, MountAuth: mountAuth})
+		return nodeApi.ReplaceHLMStorage(ctx, &database.StorageAuth{StorageInfo: *info})
 	},
 }
 

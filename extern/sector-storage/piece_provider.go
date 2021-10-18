@@ -3,7 +3,10 @@ package sectorstorage
 import (
 	"bufio"
 	"context"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"io"
+	"os"
 
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
@@ -20,6 +23,7 @@ type Unsealer interface {
 	// SectorsUnsealPiece will Unseal a Sealed sector file for the given sector.
 	SectorsUnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error
 	//ReadPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error)
+	ReadPieceStorageInfo(ctx context.Context, sector storage.SectorRef) (database.SectorStorage, error)
 }
 
 type PieceProvider interface {
@@ -100,7 +104,15 @@ func (p *pieceProvider) tryReadUnsealedPiece(ctx context.Context, sector storage
 // If we have an existing unsealed file containing the given piece, the returned boolean will be set to false.
 func (p *pieceProvider) ReadPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error) {
 	//return p.uns.ReadPiece(ctx, sector, offset, size, ticket, unsealed)
-
+	log.Info("Try ReadPiece Start")
+	info, err := p.uns.ReadPieceStorageInfo(ctx, sector)
+	if err != nil {
+		log.Error(err)
+		return nil, false, err
+	} else {
+		log.Infof("%+v", info)
+	}
+	log.Info("Try ReadPiece End")
 	if err := offset.Valid(); err != nil {
 		return nil, false, xerrors.Errorf("offset is not valid: %w", err)
 	}
@@ -108,65 +120,50 @@ func (p *pieceProvider) ReadPiece(ctx context.Context, sector storage.SectorRef,
 		return nil, false, xerrors.Errorf("size is not a valid piece size: %w", err)
 	}
 
-	r, unlock, err := p.tryReadUnsealedPiece(ctx, sector, offset, size)
-
-	log.Debugf("result of first tryReadUnsealedPiece: r=%+v, err=%s", r, err)
-
-	if xerrors.Is(err, storiface.ErrSectorNotFound) {
-		log.Debugf("no unsealed sector file with unsealed piece, sector=%+v, offset=%d, size=%d", sector, offset, size)
-		err = nil
-	}
+	ssize, err := sector.ProofType.SectorSize()
 	if err != nil {
-		log.Errorf("returning error from ReadPiece:%s", err)
+		return nil, false, err
+	}
+	maxPieceSize := abi.PaddedPieceSize(ssize)
+
+	log.Info("Start OpenUnsealedPartialFileV2")
+	pf, err := partialfile.OpenUnsealedPartialFileV2(maxPieceSize, sector, info)
+	if err != nil {
+		if xerrors.Is(err, os.ErrNotExist) {
+			return nil, false, nil
+		}
+		return nil, false, xerrors.Errorf("opening partial file: %w", err)
+	}
+	log.Info("Over OpenUnsealedPartialFileV2")
+	ok, err := pf.HasAllocated(offset, size)
+	if err != nil {
+		_ = pf.Close()
 		return nil, false, err
 	}
 
-	var uns bool
-
-	if r == nil {
-		// a nil reader means that none of the workers has an unsealed sector file
-		// containing the unsealed piece.
-		// we now need to unseal a sealed sector file for the given sector to read the unsealed piece from it.
-		uns = true
-		commd := &unsealed
-		if unsealed == cid.Undef {
-			commd = nil
-		}
-		if err := p.uns.SectorsUnsealPiece(ctx, sector, offset, size, ticket, commd); err != nil {
-			log.Errorf("failed to SectorsUnsealPiece: %s", err)
-			return nil, false, xerrors.Errorf("unsealing piece: %w", err)
-		}
-
-		log.Debugf("unsealed a sector file to read the piece, sector=%+v, offset=%d, size=%d", sector, offset, size)
-
-		r, unlock, err = p.tryReadUnsealedPiece(ctx, sector, offset, size)
-		if err != nil {
-			log.Errorf("failed to tryReadUnsealedPiece after SectorsUnsealPiece: %s", err)
-			return nil, true, xerrors.Errorf("read after unsealing: %w", err)
-		}
-		if r == nil {
-			log.Errorf("got no reader after unsealing piece")
-			return nil, true, xerrors.Errorf("got no reader after unsealing piece")
-		}
-		log.Debugf("got a reader to read unsealed piece, sector=%+v, offset=%d, size=%d", sector, offset, size)
-	} else {
-		log.Debugf("unsealed piece already exists, no need to unseal, sector=%+v, offset=%d, size=%d", sector, offset, size)
+	if !ok {
+		_ = pf.Close()
+		return nil, false, nil
 	}
 
-	upr, err := fr32.NewUnpadReader(r, size.Padded())
+	f, err := pf.Reader(offset.Padded(), size.Padded())
 	if err != nil {
-		unlock()
-		return nil, uns, xerrors.Errorf("creating unpadded reader: %w", err)
+		_ = pf.Close()
+		return nil, false, xerrors.Errorf("getting partial file reader: %w", err)
 	}
+
+	upr, err := fr32.NewUnpadReader(f, size.Padded())
+	if err != nil {
+		return nil, false, xerrors.Errorf("creating unpadded reader: %w", err)
+	}
+	var uns bool
 
 	log.Debugf("returning reader to read unsealed piece, sector=%+v, offset=%d, size=%d", sector, offset, size)
 
 	return &funcCloser{
 		Reader: bufio.NewReaderSize(upr, 127),
 		close: func() error {
-			err = r.Close()
-			unlock()
-			return err
+			return nil
 		},
 	}, uns, nil
 }

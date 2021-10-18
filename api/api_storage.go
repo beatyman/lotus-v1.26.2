@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"time"
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
@@ -68,7 +69,7 @@ type StorageMiner interface {
 	SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, r storage.Data, d PieceDealInfo) (SectorOffset, error) //perm:admin
 
 	SectorsUnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error //perm:admin
-
+	ReadPieceStorageInfo(ctx context.Context, sector storage.SectorRef) (database.SectorStorage, error)                                                                                    //perm:admin                                                                                  //perm:read
 	// List all staged sectors
 	SectorsList(context.Context) ([]abi.SectorNumber, error) //perm:read
 

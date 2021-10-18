@@ -555,7 +555,7 @@ func SetSectorSealedStorage(sid string, storage uint64) error {
 		return errors.As(err, sid, storage)
 	}
 	sectorFileCacheLk.Lock()
-	delete(sectorFileCaches,sid)
+	delete(sectorFileCaches, sid)
 	sectorFileCacheLk.Unlock()
 	return nil
 }

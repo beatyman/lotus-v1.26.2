@@ -232,6 +232,112 @@ func OpenUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.Se
 		file:      f,
 	}, nil
 }
+func OpenUnsealedPartialFileV2(maxPieceSize abi.PaddedPieceSize, sector storage.SectorRef, ss database.SectorStorage) (*PartialFile, error) {
+	log.Infof("%+v", sector)
+	path := sector.UnsealedFile()
+	log.Info(path)
+	var f fsutil.PartialFile
+	switch ss.UnsealedStorage.MountType {
+	case database.MOUNT_TYPE_HLM:
+		// loading special storage implement
+		log.Info("hlm OpenUnsealedPartialFileV2")
+		sid := ss.SectorInfo.ID
+		auth := hlmclient.NewAuthClient(ss.UnsealedStorage.MountAuthUri, ss.UnsealedStorage.MountAuth)
+		ctx := context.TODO()
+		token, err := auth.NewFileToken(ctx, sid)
+		if err != nil {
+			log.Warn(errors.As(err))
+			return nil, errors.New(errors.As(err).Code())
+		}
+		log.Info("hlmclient.OpenHttpFile")
+		f = hlmclient.OpenHttpFile(ctx, ss.UnsealedStorage.MountTransfUri, filepath.Join("unsealed", sid), sid, string(token))
+		// need the file has exist.
+		if _, err := f.Stat(); err != nil {
+			log.Warn(errors.As(err))
+			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+		}
+	default:
+		osfile, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint
+		if err != nil {
+			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+		}
+		f = osfile
+	}
+
+	var rle rlepluslazy.RLE
+	err := func() error {
+		st, err := f.Stat()
+		if err != nil {
+			return xerrors.Errorf("stat '%s': %w", path, err)
+		}
+		if st.Size() < int64(maxPieceSize) {
+			return xerrors.Errorf("sector file '%s' was smaller than the sector size %d < %d", path, st.Size(), maxPieceSize)
+		}
+		// read trailer
+		var tlen [4]byte
+		_, err = f.ReadAt(tlen[:], st.Size()-int64(len(tlen)))
+		if err != nil {
+			return xerrors.Errorf("reading trailer length: %w", err)
+		}
+
+		// sanity-check the length
+		trailerLen := binary.LittleEndian.Uint32(tlen[:])
+		expectLen := int64(trailerLen) + int64(len(tlen)) + int64(maxPieceSize)
+		if expectLen != st.Size() {
+			return xerrors.Errorf("file '%s' has inconsistent length; has %d bytes; expected %d (%d trailer, %d sector data)", path, st.Size(), expectLen, int64(trailerLen)+int64(len(tlen)), maxPieceSize)
+		}
+		if trailerLen > veryLargeRle {
+			log.Warnf("Partial file '%s' has a VERY large trailer with %d bytes", path, trailerLen)
+		}
+
+		trailerStart := st.Size() - int64(len(tlen)) - int64(trailerLen)
+		if trailerStart != int64(maxPieceSize) {
+			return xerrors.Errorf("expected sector size to equal trailer start index")
+		}
+
+		trailerBytes := make([]byte, trailerLen)
+		_, err = f.ReadAt(trailerBytes, trailerStart)
+		if err != nil {
+			return xerrors.Errorf("reading trailer: %w", err)
+		}
+
+		rle, err = rlepluslazy.FromBuf(trailerBytes)
+		if err != nil {
+			return xerrors.Errorf("decoding trailer: %w", err)
+		}
+
+		it, err := rle.RunIterator()
+		if err != nil {
+			return xerrors.Errorf("getting trailer run iterator: %w", err)
+		}
+
+		f, err := rlepluslazy.Fill(it)
+		if err != nil {
+			return xerrors.Errorf("filling bitfield: %w", err)
+		}
+		lastSet, err := rlepluslazy.Count(f)
+		if err != nil {
+			return xerrors.Errorf("finding last set byte index: %w", err)
+		}
+
+		if lastSet > uint64(maxPieceSize) {
+			return xerrors.Errorf("last set byte at index higher than sector size: %d > %d", lastSet, maxPieceSize)
+		}
+
+		return nil
+	}()
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+
+	return &PartialFile{
+		maxPiece:  maxPieceSize,
+		path:      path,
+		allocated: rle,
+		file:      f,
+	}, nil
+}
 
 func (pf *PartialFile) Close() error {
 	return pf.file.Close()

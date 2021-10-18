@@ -2,6 +2,7 @@ package sectorstorage
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"io"
 	"net/http"
 	"sync"
@@ -106,11 +107,11 @@ type SealerConfig struct {
 	ParallelFetchLimit int
 
 	// Local worker config
-	AllowAddPiece   bool
-	AllowPreCommit1 bool
-	AllowPreCommit2 bool
-	AllowCommit     bool
-	AllowUnseal     bool
+	AllowAddPiece               bool
+	AllowPreCommit1             bool
+	AllowPreCommit2             bool
+	AllowCommit                 bool
+	AllowUnseal                 bool
 	RemoteSeal                  bool
 	RemoteWnPoSt                int
 	RemoteWdPoSt                int
@@ -248,6 +249,9 @@ func (m *Manager) schedFetch(sector storage.SectorRef, ft storiface.SectorFileTy
 
 func (m *Manager) ReadPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error) {
 	return m.hlmWorker.ReadPiece(ctx, sector, offset, size, ticket, unsealed)
+}
+func (m *Manager) ReadPieceStorageInfo(ctx context.Context, sector storage.SectorRef) (database.SectorStorage, error) {
+	return m.hlmWorker.ReadPieceStorageInfo(ctx, sector)
 }
 
 // SectorsUnsealPiece will Unseal the Sealed sector file for the given sector.

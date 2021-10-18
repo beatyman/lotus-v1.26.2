@@ -5,6 +5,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"time"
 
 	"github.com/filecoin-project/go-address"
@@ -783,9 +784,9 @@ type StorageMinerStruct struct {
 
 		SectorsSummary func(p0 context.Context) (map[SectorState]int, error) `perm:"read"`
 
-		SectorsUnsealPiece func(p0 context.Context, p1 storage.SectorRef, p2 storiface.UnpaddedByteIndex, p3 abi.UnpaddedPieceSize, p4 abi.SealRandomness, p5 *cid.Cid) error `perm:"admin"`
-
-		SectorsUpdate func(p0 context.Context, p1 abi.SectorNumber, p2 SectorState) error `perm:"admin"`
+		SectorsUnsealPiece   func(p0 context.Context, p1 storage.SectorRef, p2 storiface.UnpaddedByteIndex, p3 abi.UnpaddedPieceSize, p4 abi.SealRandomness, p5 *cid.Cid) error `perm:"admin"`
+		ReadPieceStorageInfo func(p0 context.Context, p1 storage.SectorRef) (database.SectorStorage, error)                                                                     `perm:"admin"`
+		SectorsUpdate        func(p0 context.Context, p1 abi.SectorNumber, p2 SectorState) error                                                                                `perm:"admin"`
 
 		StorageAddLocal func(p0 context.Context, p1 string) error `perm:"admin"`
 
@@ -1036,7 +1037,7 @@ func (s *CommonStub) Version(p0 context.Context) (APIVersion, error) {
 }
 
 func (s *FullNodeStruct) MpoolSignMessage(p0 context.Context, p1 *types.Message, p2 *MessageSendSpec) (*types.SignedMessage, error) {
-	if s.Internal.MpoolSignMessage==nil{
+	if s.Internal.MpoolSignMessage == nil {
 		return nil, ErrNotSupported
 	}
 	return s.Internal.MpoolSignMessage(p0, p1, p2)
@@ -1045,7 +1046,7 @@ func (s *FullNodeStub) MpoolSignMessage(p0 context.Context, p1 *types.Message, p
 	return nil, ErrNotSupported
 }
 func (c *FullNodeStruct) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
-	if c.Internal.ChainComputeBaseFee==nil{
+	if c.Internal.ChainComputeBaseFee == nil {
 		return *new(types.BigInt), ErrNotSupported
 	}
 	return c.Internal.ChainComputeBaseFee(ctx, tsk)
@@ -1054,16 +1055,16 @@ func (c *FullNodeStub) ChainComputeBaseFee(ctx context.Context, tsk types.TipSet
 	return *new(types.BigInt), ErrNotSupported
 }
 func (c *FullNodeStruct) SyncProgress(ctx context.Context) (SyncProgress, error) {
-	if c.Internal.SyncProgress==nil{
-		return *new(SyncProgress),ErrNotSupported
+	if c.Internal.SyncProgress == nil {
+		return *new(SyncProgress), ErrNotSupported
 	}
 	return c.Internal.SyncProgress(ctx)
 }
 func (c *FullNodeStub) SyncProgress(ctx context.Context) (SyncProgress, error) {
-	return *new(SyncProgress),ErrNotSupported
+	return *new(SyncProgress), ErrNotSupported
 }
 func (c *FullNodeStruct) InputWalletStatus(ctx context.Context) (string, error) {
-	if c.Internal.InputWalletStatus==nil{
+	if c.Internal.InputWalletStatus == nil {
 		return "", ErrNotSupported
 	}
 	return c.Internal.InputWalletStatus(ctx)
@@ -1072,7 +1073,7 @@ func (c *FullNodeStub) InputWalletStatus(ctx context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 func (c *FullNodeStruct) InputWalletPasswd(ctx context.Context, passwd string) error {
-	if c.Internal.InputWalletPasswd==nil{
+	if c.Internal.InputWalletPasswd == nil {
 		return ErrNotSupported
 	}
 	return c.Internal.InputWalletPasswd(ctx, passwd)
@@ -1081,7 +1082,7 @@ func (c *FullNodeStub) InputWalletPasswd(ctx context.Context, passwd string) err
 	return ErrNotSupported
 }
 func (c *FullNodeStruct) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
-	if c.Internal.WalletEncode==nil{
+	if c.Internal.WalletEncode == nil {
 		return ErrNotSupported
 	}
 	return c.Internal.WalletEncode(ctx, addr, passwd)
@@ -3029,7 +3030,7 @@ func (s *FullNodeStruct) WalletNew(p0 context.Context, p1 types.KeyType, p2 stri
 	if s.Internal.WalletNew == nil {
 		return *new(address.Address), ErrNotSupported
 	}
-	return s.Internal.WalletNew(p0, p1,p2)
+	return s.Internal.WalletNew(p0, p1, p2)
 }
 
 func (s *FullNodeStub) WalletNew(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error) {
@@ -4564,7 +4565,15 @@ func (s *StorageMinerStruct) SectorsUnsealPiece(p0 context.Context, p1 storage.S
 func (s *StorageMinerStub) SectorsUnsealPiece(p0 context.Context, p1 storage.SectorRef, p2 storiface.UnpaddedByteIndex, p3 abi.UnpaddedPieceSize, p4 abi.SealRandomness, p5 *cid.Cid) error {
 	return ErrNotSupported
 }
-
+func (s *StorageMinerStruct) ReadPieceStorageInfo(p0 context.Context, p1 storage.SectorRef) (database.SectorStorage, error) {
+	if s.Internal.ReadPieceStorageInfo == nil {
+		return *new(database.SectorStorage), ErrNotSupported
+	}
+	return s.Internal.ReadPieceStorageInfo(p0, p1)
+}
+func (s *StorageMinerStub) ReadPieceStorageInfo(p0 context.Context, p1 storage.SectorRef) (database.SectorStorage, error) {
+	return *new(database.SectorStorage), ErrNotSupported
+}
 func (s *StorageMinerStruct) SectorsUpdate(p0 context.Context, p1 abi.SectorNumber, p2 SectorState) error {
 	if s.Internal.SectorsUpdate == nil {
 		return ErrNotSupported
@@ -4752,7 +4761,7 @@ func (s *StorageMinerStub) WorkerStats(p0 context.Context) (map[uuid.UUID]storif
 	return *new(map[uuid.UUID]storiface.WorkerStats), ErrNotSupported
 }
 func (c *WalletStruct) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
-	if c.Internal.WalletEncode==nil{
+	if c.Internal.WalletEncode == nil {
 		return ErrNotSupported
 	}
 	return c.Internal.WalletEncode(ctx, addr, passwd)
@@ -4819,7 +4828,7 @@ func (s *WalletStruct) WalletNew(p0 context.Context, p1 types.KeyType, p2 string
 	if s.Internal.WalletNew == nil {
 		return *new(address.Address), ErrNotSupported
 	}
-	return s.Internal.WalletNew(p0, p1,p2)
+	return s.Internal.WalletNew(p0, p1, p2)
 }
 
 func (s *WalletStub) WalletNew(p0 context.Context, p1 types.KeyType, p2 string) (address.Address, error) {

@@ -3,9 +3,12 @@ package node
 import (
 	"context"
 	"encoding/json"
+	nauth "github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/gwaylib/errors"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
+	"path/filepath"
 	"runtime"
 	"strconv"
 
@@ -51,17 +54,16 @@ func ServeRPC(h http.Handler, id, repo string, addr multiaddr.Multiaddr) (StopFu
 			return ctx
 		},
 	}
-	/*
+
 	log.Info("rebuild tls cert automatic")
 	certPath := filepath.Join(repo, "miner_crt.pem")
 	keyPath := filepath.Join(repo, "miner_key.pem")
 	if err := nauth.CreateTLSCert(certPath, keyPath); err != nil {
 		return nil, errors.As(err)
 	}
-	 */
 	go func() {
-		//err = srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
-		err=srv.Serve(manet.NetListener(lst))
+		err = srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
+		//err = srv.Serve(manet.NetListener(lst))
 		if err != http.ErrServerClosed {
 			rpclog.Warnf("rpc server failed: %s", err)
 		}
