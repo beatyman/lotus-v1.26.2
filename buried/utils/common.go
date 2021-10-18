@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gwaylib/errors"
+	"github.com/gwaylib/log"
 	"github.com/shirou/gopsutil/host"
 	"io/ioutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
@@ -84,6 +85,7 @@ func ExeSysCommand(cmdStr string) string {
 func GetMinerAddr() string {
 	url, token, err := GetWorkerAddrAndToken()
 	if err != nil {
+		log.Error("err ===============GetWorkerAddrAndToken()===================", err)
 		return ""
 	}
 	data := new(DataJson)
@@ -91,11 +93,13 @@ func GetMinerAddr() string {
 	dataByte, _ := json.Marshal(data)
 	str, err := RequsetUrl("POST", url, token, string(dataByte))
 	if err != nil {
+		log.Error("err ===============RequsetUrl(POST, url, token, string(dataByte))===================", err)
 		return ""
 	}
 
 	var resp ActorAddressResp
 	if err = json.Unmarshal(str, &resp); err != nil {
+		log.Error("err ===============json.Unmarshal(str, &resp)===================", err)
 		return ""
 	}
 	return resp.Result
@@ -143,12 +147,16 @@ func GetWorkerAddrAndToken() (api string, token string, err error) {
 	urlPath := path + "/worker_api"
 	tokenBytes, err := ioutil.ReadFile(tokenPath)
 	if err != nil {
+		log.Error("err ===============ioutil.ReadFile(tokenPath)===================", err)
 		return "", "", err
 	}
 	token = string(tokenBytes)
-
+	token = strings.Trim(token, "")
+	token = strings.Trim(token, "\n")
+	token = strings.Trim(token, "\\n")
 	urlBytes, err := ioutil.ReadFile(urlPath)
 	if err != nil {
+		log.Error("err ===============ioutil.ReadFile(urlPath)===================", err)
 		return "", "", err
 	}
 

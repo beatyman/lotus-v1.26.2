@@ -582,7 +582,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		r.busyOnTasks[sid] = task // make busy
 		r.lock.Unlock()
 
-		if err := database.UpdateSectorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun); err != nil {
+		if err := database.UpdateSectorMonitorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun); err != nil {
 			log.Error("UpdateSectorState Err, sectorId:%d, error:%v:", task.SectorID, err)
 		}
 	}
