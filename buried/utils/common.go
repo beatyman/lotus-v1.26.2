@@ -134,7 +134,9 @@ func GetWorkerAddrAndToken() (api string, token string, err error) {
 		return "", "", err
 	}
 	token = string(tokenBytes)
-
+	token = strings.Trim(token, "")
+	token = strings.Trim(token, "\n")
+	token = strings.Trim(token, "\\n")
 	urlBytes, err := ioutil.ReadFile(urlPath)
 	if err != nil {
 		log.Error("err ===============ioutil.ReadFile(urlPath)===================", err)
