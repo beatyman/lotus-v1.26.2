@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-storage/storage"
-	"github.com/gwaylib/log"
 	"net"
 	"net/http"
 	"os"
