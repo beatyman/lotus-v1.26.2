@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +35,7 @@ func (p *GpuPci) GetPciBusId() string {
 type GpuInfo struct {
 	Pci GpuPci `xml:"pci"`
 	// TODO: more infomation
+	UUID string `xml:"uuid"`
 }
 
 type GpuXml struct {
@@ -84,6 +86,11 @@ func allocateGpu(ctx context.Context) (string, *GpuInfo, error) {
 	defer gpuLock.Unlock()
 	for _, gpuInfo := range gpuGroup {
 		key := gpuInfo.Pci.GetPciBusId()
+		if strings.Index(gpuInfo.UUID, "GPU-") > -1 {
+			uid := strings.TrimPrefix(gpuInfo.UUID, "GPU-")
+			key = fmt.Sprintf("%s@%s", uid, key)
+		}
+		log.Infof("gpu key : %s", key)
 		using, _ := gpuKeys[key]
 		if using {
 			continue
