@@ -17,8 +17,6 @@ import (
 
 // remove cache of the sector
 func (w *worker) RemoveRepoSector(ctx context.Context, repo, sid string) error {
-	w.workMu.Lock()
-	defer w.workMu.Unlock()
 	return w.removeRepoSector(ctx, repo, sid)
 }
 
@@ -41,9 +39,6 @@ func (w *worker) removeRepoSector(ctx context.Context, repo, sid string) error {
 
 // auto clean cache of the unusing sector.
 func (w *worker) GcRepoSectors(ctx context.Context) error {
-	w.workMu.Lock()
-	defer w.workMu.Unlock()
-
 	repos := w.diskPool.Repos()
 
 	for _, repo := range repos {
