@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/metrics"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/fileserver"
-	"github.com/filecoin-project/lotus/metrics"
+	mproxy "github.com/filecoin-project/lotus/metrics/proxy"
 	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/repo"
@@ -63,7 +64,7 @@ func listenSchedulerApi(cctx *cli.Context, repoFs *repo.FsRepo, sm *impl.Storage
 	mux := mux.NewRouter()
 	hs := impl.NewHlmMinerScheduler(sm)
 	rpcServer := jsonrpc.NewServer()
-	rpcServer.Register("Filecoin", api.PermissionedHlmMinerSchedulerAPI(metrics.MetricedHlmMinerSchedulerAPI(hs)))
+	rpcServer.Register("Filecoin", api.PermissionedHlmMinerSchedulerAPI(mproxy.MetricedHlmMinerSchedulerAPI(hs)))
 	mux.Handle("/rpc/v0", rpcServer)
 	mux.PathPrefix("/file").HandlerFunc(fileserver.NewStorageFileServer(repoFs.Path()).FileHttpServer)
 
