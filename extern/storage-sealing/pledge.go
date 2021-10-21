@@ -91,6 +91,7 @@ func (m *Sealing) RunPledgeSector() error {
 				stats := sb.GetPledgeWait()
 				// not accurate, if missing the taskConsumed event, it should replenish in gcTime.
 				if stats > 0 {
+					log.Infow("pledge loop continue", "wait-count", stats)
 					continue
 				}
 				go func() {

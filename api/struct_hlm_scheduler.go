@@ -29,9 +29,8 @@ type HlmMinerSchedulerStruct struct {
 		WorkerAddress   func(context.Context, address.Address, types.TipSetKey) (address.Address, error) `perm:"read"`
 		ActorSectorSize func(context.Context, address.Address) (abi.SectorSize, error)                   `perm:"read"`
 
-		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error) `perm:"write"`
-
-		UnlockGPUService func(ctx context.Context, workerId, taskKey string) error `perm:"write"`
+		SelectCommit2Service func(context.Context, abi.SectorID) (*ffiwrapper.Commit2Worker, error) `perm:"write"`
+		UnlockGPUService     func(ctx context.Context, rst *ffiwrapper.Commit2Result) error         `perm:"write"`
 
 		WorkerQueue func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"write"`
 		WorkerDone  func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"write"`
@@ -52,6 +51,7 @@ type HlmMinerSchedulerStruct struct {
 		PreStorageNode       func(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) `perm:"write"`
 		CommitStorageNode    func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
 		CancelStorageNode    func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
+		HlmSectorGetState    func(ctx context.Context, sid string) (*database.SectorInfo, error)                           `perm:"read"`
 	}
 }
 
@@ -74,11 +74,11 @@ func (c *HlmMinerSchedulerStruct) WorkerAddress(ctx context.Context, act address
 	return c.Internal.WorkerAddress(ctx, act, tsk)
 }
 
-func (c *HlmMinerSchedulerStruct) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.WorkerCfg, error) {
+func (c *HlmMinerSchedulerStruct) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*ffiwrapper.Commit2Worker, error) {
 	return c.Internal.SelectCommit2Service(ctx, sector)
 }
-func (c *HlmMinerSchedulerStruct) UnlockGPUService(ctx context.Context, workerId, taskKey string) error {
-	return c.Internal.UnlockGPUService(ctx, workerId, taskKey)
+func (c *HlmMinerSchedulerStruct) UnlockGPUService(ctx context.Context, rst *ffiwrapper.Commit2Result) error {
+	return c.Internal.UnlockGPUService(ctx, rst)
 }
 
 func (c *HlmMinerSchedulerStruct) WorkerQueue(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) {
@@ -130,6 +130,9 @@ func (c *HlmMinerSchedulerStruct) CommitStorageNode(ctx context.Context, sectorI
 
 func (c *HlmMinerSchedulerStruct) CancelStorageNode(ctx context.Context, sectorId string, kind int) error {
 	return c.Internal.CancelStorageNode(ctx, sectorId, kind)
+}
+func (c *HlmMinerSchedulerStruct) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
+	return c.Internal.HlmSectorGetState(ctx, sid)
 }
 
 var _ HlmMinerSchedulerAPI = &HlmMinerSchedulerStruct{}
