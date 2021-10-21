@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"github.com/filecoin-project/lotus/metrics"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -21,7 +22,7 @@ import (
 	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/cli/util/apiaddr"
-	"github.com/filecoin-project/lotus/metrics"
+	mproxy "github.com/filecoin-project/lotus/metrics/proxy"
 	nauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/gwaylib/errors"
@@ -314,7 +315,7 @@ func startLotusProxy(addr string, a api.FullNode) (string, func() error, error) 
 		http.Handle(path, ah)
 	}
 
-	pma := api.PermissionedFullAPI(metrics.MetricedFullAPI(a))
+	pma := api.PermissionedFullAPI(mproxy.MetricedFullAPI(a))
 
 	serveRpc("/rpc/v1", pma)
 	serveRpc("/rpc/v0", &v0api.WrapperV1Full{FullNode: pma})
