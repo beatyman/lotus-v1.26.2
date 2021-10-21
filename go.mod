@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.1.0
-	contrib.go.opencensus.io/exporter/prometheus v0.1.0
+	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/BurntSushi/toml v0.3.1
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/Gurpartap/async v0.0.0-20180927173644-4f7f499dd9ee
@@ -51,7 +51,7 @@ require (
 	github.com/filecoin-project/specs-actors/v3 v3.1.1
 	github.com/filecoin-project/specs-actors/v4 v4.0.1
 	github.com/filecoin-project/specs-actors/v5 v5.0.4
-	github.com/filecoin-project/specs-actors/v6 v6.0.0-20211001193936-c3afe7fa3c5c
+	github.com/filecoin-project/specs-actors/v6 v6.0.0
 	github.com/filecoin-project/specs-storage v0.1.1-0.20201105051918-5188d9774506
 	github.com/filecoin-project/test-vectors/schema v0.0.5
 	github.com/fsnotify/fsnotify v1.4.9
@@ -70,8 +70,8 @@ require (
 	github.com/hannahhoward/go-pubsub v0.0.0-20200423002714-8d62886cc36e
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
-	github.com/icza/backscanner v0.0.0-20210726202459-ac2ffc679f94
 	github.com/howeyc/gopass v0.0.0-20190910152052-7cb4b85ec19c
+	github.com/icza/backscanner v0.0.0-20210726202459-ac2ffc679f94
 	github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d
 	github.com/ipfs/bbloom v0.0.4
 	github.com/ipfs/go-bitswap v0.3.4
@@ -111,7 +111,7 @@ require (
 	github.com/ipld/go-car/v2 v2.0.3-0.20210811121346-c514a30114d7
 	github.com/ipld/go-codec-dagpb v1.3.0
 	github.com/ipld/go-ipld-prime v0.12.3
-	github.com/ipld/go-ipld-selector-text-lite v0.0.0-20210817134355-4c190a2bb825
+	github.com/ipld/go-ipld-selector-text-lite v0.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.10.2
@@ -124,7 +124,7 @@ require (
 	github.com/libp2p/go-libp2p-kad-dht v0.13.0
 	github.com/libp2p/go-libp2p-mplex v0.4.1
 	github.com/libp2p/go-libp2p-noise v0.2.2
-	github.com/libp2p/go-libp2p-peerstore v0.2.9
+	github.com/libp2p/go-libp2p-peerstore v0.3.0
 	github.com/libp2p/go-libp2p-pubsub v0.5.4
 	github.com/libp2p/go-libp2p-quic-transport v0.11.2
 	github.com/libp2p/go-libp2p-record v0.1.3

@@ -3,9 +3,11 @@ package ffiwrapper
 import (
 	"context"
 	"encoding/xml"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,7 +15,8 @@ import (
 )
 
 type GpuPci struct {
-	PciBus string `xml:"pci_bus"`
+	PciBus    string `xml:"pci_bus"`
+	PciDevice string `xml:"pci_device"`
 	// TODO: more infomation
 }
 
@@ -25,9 +28,14 @@ func (p *GpuPci) ParseBusId() (int, error) {
 	return int(val), nil
 }
 
+func (p *GpuPci) GetPciBusId() string {
+	return fmt.Sprintf("%s:%s", p.PciBus, p.PciDevice)
+}
+
 type GpuInfo struct {
 	Pci GpuPci `xml:"pci"`
 	// TODO: more infomation
+	UUID string `xml:"uuid"`
 }
 
 type GpuXml struct {
@@ -77,12 +85,12 @@ func allocateGpu(ctx context.Context) (string, *GpuInfo, error) {
 	gpuLock.Lock()
 	defer gpuLock.Unlock()
 	for _, gpuInfo := range gpuGroup {
-		keyInt, err := gpuInfo.Pci.ParseBusId()
-		if err != nil {
-			log.Warn(errors.As(err))
-			continue
+		key := gpuInfo.Pci.GetPciBusId()
+		if strings.Index(gpuInfo.UUID, "GPU-") > -1 {
+			uid := strings.TrimPrefix(gpuInfo.UUID, "GPU-")
+			key = fmt.Sprintf("%s@%s", uid, key)
 		}
-		key := strconv.Itoa(keyInt)
+		log.Infof("gpu key : %s", key)
 		using, _ := gpuKeys[key]
 		if using {
 			continue
