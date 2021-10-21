@@ -220,7 +220,7 @@ func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName 
 	dlWorkerId := ""
 	skipDownloadSrv[0] = w.workerCfg.ID
 	// try download from worker
-	dlWorker, err := napi.WorkerPreConnV1(ctx, skipDownloadSrv)
+	dlWorker, err := napi.RetryWorkerPreConnV1(ctx, skipDownloadSrv)
 	if err != nil {
 		if !errors.ErrNoData.Equal(err) {
 			return errors.As(err)
@@ -238,14 +238,14 @@ func (w *worker) fetchParams(ctx context.Context, endpoint, paramsDir, fileName 
 		}
 
 		// return preconn
-		if err := napi.WorkerAddConn(ctx, dlWorker.ID, -1); err != nil {
+		if err := napi.RetryWorkerAddConn(ctx, dlWorker.ID, -1); err != nil {
 			log.Warn(err)
 		}
 	}()
 
 	// try download from miner
 	if len(paramUri) == 0 {
-		minerConns, err := napi.WorkerMinerConn(ctx)
+		minerConns, err := napi.RetryWorkerMinerConn(ctx)
 		if err != nil {
 			return errors.As(err)
 		}

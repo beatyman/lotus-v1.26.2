@@ -22,8 +22,8 @@ type HlmMinerSchedulerAPI interface {
 	WorkerAddress(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 	ActorSectorSize(context.Context, address.Address) (abi.SectorSize, error)
 
-	SelectCommit2Service(context.Context, abi.SectorID) (*ffiwrapper.WorkerCfg, error)
-	UnlockGPUService(ctx context.Context, workerId, taskKey string) error
+	SelectCommit2Service(context.Context, abi.SectorID) (*ffiwrapper.Commit2Worker, error)
+	UnlockGPUService(ctx context.Context, rst *ffiwrapper.Commit2Result) error
 
 	WorkerQueue(context.Context, ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error)
 	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
@@ -44,4 +44,5 @@ type HlmMinerSchedulerAPI interface {
 	PreStorageNode(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error)
 	CommitStorageNode(ctx context.Context, sectorId string, kind int) error
 	CancelStorageNode(ctx context.Context, sectorId string, kind int) error
+	HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error)
 }
