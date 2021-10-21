@@ -9,14 +9,13 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
+	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	mux "github.com/gorilla/mux"
-	"github.com/mitchellh/go-homedir"
-
-	"github.com/filecoin-project/go-jsonrpc/auth"
 	logging "github.com/ipfs/go-log/v2"
+	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -34,7 +33,7 @@ import (
 var log = logging.Logger("main")
 
 var (
-	nodeApi    api.HlmMinerSchedulerAPI
+	nodeApi    *api.RetryHlmMinerSchedulerAPI
 	nodeCloser jsonrpc.ClientCloser
 	nodeCCtx   *cli.Context
 	nodeSync   sync.Mutex
@@ -59,20 +58,10 @@ func ReleaseNodeApi(shutdown bool) {
 
 	if shutdown {
 		closeNodeApi()
-		return
-	}
-
-	ctx := lcli.ReqContext(nodeCCtx)
-
-	// try reconnection
-	_, err := nodeApi.Version(ctx)
-	if err != nil {
-		closeNodeApi()
-		return
 	}
 }
 
-func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
+func GetNodeApi() (*api.RetryHlmMinerSchedulerAPI, error) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
 
@@ -85,7 +74,7 @@ func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
 		closeNodeApi()
 		return nil, errors.As(err)
 	}
-	nodeApi = nApi
+	nodeApi = &api.RetryHlmMinerSchedulerAPI{HlmMinerSchedulerAPI: nApi}
 	nodeCloser = closer
 
 	//v, err := nodeApi.Version(ctx)
@@ -230,7 +219,6 @@ var runCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
-
 		nodeCCtx = cctx
 
 		nodeApi, err := GetNodeApi()
@@ -335,11 +323,7 @@ var runCmd = &cli.Command{
 			WdPoStSrv:          cctx.Bool("wdpost-srv"),
 			WnPoStSrv:          cctx.Bool("wnpost-srv"),
 		}
-		workerApi := &rpcServer{
-			minerRepo:    minerRepo,
-			sb:           minerSealer,
-			storageCache: map[int64]database.StorageInfo{},
-		}
+		workerApi := newRpcServer(workerCfg.ID, minerRepo, minerSealer)
 
 		if err := database.LockMount(minerRepo); err != nil {
 			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())

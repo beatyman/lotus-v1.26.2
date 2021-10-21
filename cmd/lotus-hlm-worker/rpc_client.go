@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
@@ -15,18 +17,39 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+var (
+	rpcClientsRW = &sync.RWMutex{}
+	rpcClients   = make(map[string]*rpcClient)
+)
+
 type rpcClient struct {
 	api.WorkerHlmAPI
 	closer jsonrpc.ClientCloser
 }
 
+func (r *rpcClient) RetryEnable(err error) bool {
+	return err != nil &&
+		(strings.Contains(err.Error(), "websocket connection closed") ||
+			strings.Contains(err.Error(), "connection refused"))
+}
 func (r *rpcClient) Close() error {
 	r.closer()
 	return nil
 }
 
-func ConnectHlmWorker(ctx context.Context, fa api.HlmMinerSchedulerAPI, url string) (*rpcClient, error) {
-	token, err := fa.AuthNew(ctx, []auth.Permission{"admin"}) // using the miner token for worker rpc server.
+func GetWorkerClient(ctx context.Context, mApi *api.RetryHlmMinerSchedulerAPI, url string) (*rpcClient, error) {
+	rpcClientsRW.RLock()
+	cli, ok := rpcClients[url]
+	rpcClientsRW.RUnlock()
+
+	if ok && cli != nil {
+		return cli, nil
+	}
+
+	rpcClientsRW.Lock()
+	defer rpcClientsRW.Unlock()
+
+	token, err := mApi.RetryAuthNew(ctx, []auth.Permission{"admin"}) // using the miner token for worker rpc server.
 	if err != nil {
 		return nil, errors.New("creating auth token for remote connection").As(err)
 	}
@@ -35,42 +58,39 @@ func ConnectHlmWorker(ctx context.Context, fa api.HlmMinerSchedulerAPI, url stri
 	headers.Add("Authorization", "Bearer "+string(token))
 	urlInfo := strings.Split(url, ":")
 	if len(urlInfo) != 2 {
-		panic("error url format")
+		return nil, errors.New("error url format")
 	}
 	rpcUrl := fmt.Sprintf("ws://%s:%s/rpc/v0", urlInfo[0], urlInfo[1])
 
-	wapi, closer, err := client.NewWorkerHlmRPC(ctx, rpcUrl, headers)
+	wApi, closer, err := client.NewWorkerHlmRPC(ctx, rpcUrl, headers)
 	if err != nil {
 		return nil, errors.New("creating jsonrpc client").As(err)
 	}
 
-	return &rpcClient{wapi, closer}, nil
+	cli = &rpcClient{wApi, closer}
+	rpcClients[url] = cli
+	return cli, nil
 }
 
 func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out storage.Commit1Out) (storage.Proof, error) {
-	napi, err := GetNodeApi()
+	mApi, err := GetNodeApi()
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	rCfg, err := napi.SelectCommit2Service(ctx, task.SectorID)
+	c2worker, err := mApi.RetrySelectCommit2Service(ctx, task.SectorID)
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	defer func() {
-		if err := napi.UnlockGPUService(ctx, rCfg.ID, task.Key()); err != nil {
-			log.Warn(errors.As(err))
+	if len(c2worker.Proof) > 0 {
+		if data, err := hex.DecodeString(c2worker.Proof); err == nil {
+			log.Infof("Task(%v) Cached Commit2 Service: %s", task.Key(), c2worker.WorkerId)
+			return data, nil
 		}
-	}()
-
-	log.Infof("Selected Commit2 Service: %s", rCfg.SvcUri)
-
-	// connect to remote worker
-	rClient, err := ConnectHlmWorker(ctx, napi, rCfg.SvcUri)
+	}
+	log.Infof("Task(%v) Selected Commit2 Service: %s", task.Key(), c2worker.Url)
+	cli, err := GetWorkerClient(ctx, mApi, c2worker.Url)
 	if err != nil {
 		return nil, errors.As(err)
 	}
-	defer rClient.Close()
-
-	// do work
-	return rClient.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType}, c1out)
+	return cli.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType, TaskKey: task.Key()}, c1out)
 }
