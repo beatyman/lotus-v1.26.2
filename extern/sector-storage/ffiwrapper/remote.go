@@ -391,7 +391,7 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 
 	for _, r := range remotes {
 		go func(req *req) {
-			defer sb.UnlockGPUService(ctx, req.remote.cfg.ID, req.task.Key())
+			defer sb.UnlockGPUService(ctx, &Commit2Result{WorkerId: req.remote.cfg.ID, TaskKey: req.task.Key()})
 
 			// send to remote worker
 			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
@@ -488,7 +488,7 @@ selectWorker:
 	for _, r := range remotes {
 		go func(req *req) {
 			ctx := context.TODO()
-			defer sb.UnlockGPUService(ctx, req.remote.cfg.ID, req.task.Key())
+			defer sb.UnlockGPUService(ctx, &Commit2Result{WorkerId: req.remote.cfg.ID, TaskKey: req.task.Key()})
 
 			// send to remote worker
 			res, interrupt := sb.TaskSend(ctx, req.remote, *req.task)
@@ -525,45 +525,28 @@ selectWorker:
 	return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, err
 }
 
-var selectCommit2ServiceLock = sync.Mutex{}
-
 // Need call sb.UnlockService to release this selected.
 // if no commit2 service, it will block the function call.
-// TODO: auto unlock service when deadlock happen.
-func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*WorkerCfg, error) {
-	log.Infof("SelectCommit2Service in:s-t%d-%d", sector.Miner, sector.Number)
-	selectCommit2ServiceLock.Lock()
-	defer func() {
-		log.Infof("SelectCommit2Service out:s-t%d-%d", sector.Miner, sector.Number)
-		selectCommit2ServiceLock.Unlock()
-	}()
-
+func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID) (*Commit2Worker, error) {
 	task := WorkerTask{
 		Type:     WorkerCommit,
 		SectorID: sector,
 	}
 	sid := task.SectorName()
 
-	tick := time.Tick(3e9)
-	checking := make(chan bool, 1)
-	checking <- true // not wait for the first request.
-	defer func() {
-		close(checking)
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, errors.New("user canceled").As(sid)
-		case <-tick:
-			checking <- true
-		case <-checking:
-			r, ok := sb.selectGPUService(ctx, sid, task)
-			if !ok {
-				continue
-			}
-			return &r.cfg, nil
-		}
+	//1.优先从缓存获取
+	if wid, prf, ok := c2cache.get(sid); ok {
+		return &Commit2Worker{
+			WorkerId: wid,
+			Proof:    prf,
+		}, nil
 	}
-	return nil, errors.New("not reach here").As(sid)
+	//2.其次选择worker
+	if r, ok := sb.selectGPUService(ctx, sid, task); ok {
+		return &Commit2Worker{
+			WorkerId: r.cfg.ID,
+			Url:      r.cfg.SvcUri,
+		}, nil
+	}
+	return nil, errors.New("idle gpu not found")
 }
