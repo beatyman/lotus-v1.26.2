@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
@@ -82,9 +83,13 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 			return
 		}
 
-		w.c2sidsRW.Lock()
-		delete(w.c2sids, sid)
-		w.c2sidsRW.Unlock()
+		//p1->c2如果断线 会每10s重试一次 所以不能在做完任务后马上删除 10s后p1就可以从miner获取到缓存的结果了
+		go func() {
+			<-time.After(time.Second * 11)
+			w.c2sidsRW.Lock()
+			delete(w.c2sids, sid)
+			w.c2sidsRW.Unlock()
+		}()
 
 		//只能在c2 worker执行UnlockGPUService
 		//不能在p1 worker调用c2完成后执行：会出现p1 worker重启而没执行到这句 造成miner那边维护的c2 worker的busy一直不正确
