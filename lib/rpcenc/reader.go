@@ -49,6 +49,7 @@ var client = func() *http.Client {
 	}
 	c.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		MaxConnsPerHost: 100,
 	}
 	return &c
 }()
