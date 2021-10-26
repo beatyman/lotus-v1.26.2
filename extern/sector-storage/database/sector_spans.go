@@ -22,10 +22,12 @@ const (
 	WorkerCommitRun      = 42
 	workerCommitDone     = 41
 	workerFinalize       = 50
+	workerFinalizeDone   = 51
 	workerUnseal         = 60
 	workerUnsealDone     = 61
 
-	sectorProving = 200
+	sectorSuccess = 200
+	sectorError   = 500
 )
 
 var (
@@ -76,10 +78,8 @@ func (s *SectorSpans) getStep(state int) string {
 		return "Commit"
 	case workerUnseal, workerUnsealDone:
 		return "Unseal"
-	case workerFinalize:
+	case workerFinalize, workerFinalizeDone:
 		return "Finalize"
-	case sectorProving:
-		return "Proving"
 	}
 	return ""
 }
@@ -94,8 +94,9 @@ func (s *SectorSpans) isStepDone(state int) bool {
 		state == workerPreCommit2Done ||
 		state == workerCommitDone ||
 		state == workerUnsealDone ||
-		state == workerFinalize ||
-		state == sectorProving
+		state == workerFinalizeDone ||
+		state == sectorSuccess ||
+		state >= sectorError
 }
 
 func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wInfo *WorkerInfo, wid, msg string, state int) {
@@ -118,7 +119,7 @@ func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wInfo *WorkerInfo, w
 		} else { //starting
 			span.Starting(msg)
 		}
-	} else if state == SECTOR_STATE_FAILED {
+	} else if state >= SECTOR_STATE_FAILED {
 		if step = s.getStep(info.State); len(step) > 0 && !s.isStepDone(info.State) {
 			span := s.getSpan(step, info, wInfo)
 			span.Finish(errors.New(msg))
