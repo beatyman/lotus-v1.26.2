@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
@@ -16,7 +18,20 @@ import (
 	"github.com/gwaylib/errors"
 )
 
+func newRpcServer(id string, repo string, sb *ffiwrapper.Sealer) *rpcServer {
+	out := &rpcServer{
+		workerID:  id,
+		minerRepo: repo,
+		sb:        sb,
+
+		storageCache: map[int64]database.StorageInfo{},
+		c2sids:       make(map[string]abi.SectorID),
+	}
+	return out
+}
+
 type rpcServer struct {
+	workerID  string
 	minerRepo string
 	sb        *ffiwrapper.Sealer
 
@@ -24,42 +39,86 @@ type rpcServer struct {
 	storageVer   int64
 	storageCache map[int64]database.StorageInfo
 
-	c2Lk    sync.Mutex
-	c2Cache map[string]bool
+	c2Lk     sync.Mutex
+	c2Cache  map[string]bool
+	c2sidsRW sync.RWMutex
+	c2sids   map[string]abi.SectorID
 }
 
+func (w *rpcServer) sectorName(sid abi.SectorID) string {
+	return fmt.Sprintf("s-t0%d-%d", sid.Miner, sid.Number)
+}
+
+func (w *rpcServer) getC2sids() []abi.SectorID {
+	w.c2sidsRW.RLock()
+	defer w.c2sidsRW.RUnlock()
+
+	out := make([]abi.SectorID, 0, 0)
+	for _, sid := range w.c2sids {
+		out = append(out, sid)
+	}
+	return out
+}
 func (w *rpcServer) Version(context.Context) (string, error) {
 	return "", nil
 }
 
 func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commit1Out storage.Commit1Out) (storage.Proof, error) {
-	log.Infof("SealCommit2 RPC in:%d", sector)
-	defer log.Infof("SealCommit2 RPC out:%d", sector)
+	var (
+		err  error
+		dump = false //是否重复扇区(重复:正在执行中...)
+		prf  storage.Proof
+		sid  = w.sectorName(sector.SectorID)
+		out  = &ffiwrapper.Commit2Result{
+			WorkerId: w.workerID,
+			TaskKey:  sector.TaskKey,
+			Sid:      sid,
+		}
+	)
 
-	// remove the dumplicate request.
-	w.c2Lk.Lock()
-	if w.c2Cache == nil {
-		w.c2Cache = map[string]bool{}
-	}
-	key := fmt.Sprintf("s-t0%d-%d", sector.Miner, sector.Number)
-	_, ok := w.c2Cache[key]
-	if ok {
-		w.c2Lk.Unlock()
-		return storage.Proof{}, errors.New("sector is sealing").As(key)
-	}
-	w.c2Cache[key] = true
-	w.c2Lk.Unlock()
-
+	log.Infof("SealCommit2 RPC in:%v, current c2sids: %v", sector, w.getC2sids())
 	defer func() {
-		w.c2Lk.Lock()
-		delete(w.c2Cache, key)
-		w.c2Lk.Unlock()
+		log.Infof("SealCommit2 RPC out:%v, current c2sids: %v, error: %v", sector, w.getC2sids(), out.Err)
+		if dump { //正在执行中的任务 不能释放锁
+			return
+		}
+
+		//p1->c2如果断线 会每10s重试一次 所以不能在做完任务后马上删除 10s后p1就可以从miner获取到缓存的结果了
+		go func() {
+			<-time.After(time.Second * 11)
+			w.c2sidsRW.Lock()
+			delete(w.c2sids, sid)
+			w.c2sidsRW.Unlock()
+		}()
+
+		//只能在c2 worker执行UnlockGPUService
+		//不能在p1 worker调用c2完成后执行：会出现p1 worker重启而没执行到这句 造成miner那边维护的c2 worker的busy一直不正确
+		mApi, _ := GetNodeApi()
+		if err := mApi.RetryUnlockGPUService(ctx, out); err != nil {
+			log.Errorf("SealCommit2 unlock gpu service error: %v", err)
+		}
 	}()
 
-	return w.sb.SealCommit2(ctx, storage.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out)
-}
+	w.c2sidsRW.Lock()
+	if _, ok := w.c2sids[sid]; ok {
+		dump = true
+		w.c2sidsRW.Unlock()
+		log.Infof("SealCommit2 RPC dumplicate:%v, current c2sids: %v", sector, w.getC2sids())
+		err = errors.New("sector is sealing").As(sid)
+		out.Err = err.Error()
+		return storage.Proof{}, err
+	}
+	w.c2sids[sid] = sector.SectorID
+	w.c2sidsRW.Unlock()
 
-func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSchedulerAPI) error {
+	if prf, err = w.sb.SealCommit2(ctx, storage.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out); err == nil {
+		out.Proof = hex.EncodeToString(prf)
+	} else {
+		out.Err = err.Error()
+	}
+	return prf, err
+}
+func (w *rpcServer) loadMinerStorage(ctx context.Context, napi *api.RetryHlmMinerSchedulerAPI) error {
 	if err := database.LockMount(w.minerRepo); err != nil {
 		log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, w.minerRepo).Code())
 		return nil
@@ -69,7 +128,7 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi api.HlmMinerSched
 	defer w.storageLk.Unlock()
 
 	// checksum
-	list, err := napi.ChecksumStorage(ctx, w.storageVer)
+	list, err := napi.RetryChecksumStorage(ctx, w.storageVer)
 	if err != nil {
 		return errors.As(err)
 	}
@@ -135,7 +194,7 @@ func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,
 	if err := w.loadMinerStorage(ctx, napi); err != nil {
 		return api.WindowPoStResp{}, errors.As(err)
 	}
-
+	log.Infof("GenerateWindowPoSt: %+v ", sectorInfo)
 	proofs, ignore, err := w.sb.GenerateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 	if err != nil {
 		log.Warnf("ignore len:%d", len(ignore))

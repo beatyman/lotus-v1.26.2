@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -9,24 +10,23 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-jsonrpc"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
-	mux "github.com/gorilla/mux"
-	"github.com/mitchellh/go-homedir"
-
 	"github.com/filecoin-project/go-jsonrpc/auth"
-	logging "github.com/ipfs/go-log/v2"
-	"github.com/urfave/cli/v2"
-	"golang.org/x/xerrors"
-
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/lotus/lib/fileserver"
 	"github.com/filecoin-project/lotus/lib/lotuslog"
 	"github.com/filecoin-project/lotus/node/repo"
+	"github.com/google/gops/agent"
+	mux "github.com/gorilla/mux"
+	logging "github.com/ipfs/go-log/v2"
+	"github.com/mitchellh/go-homedir"
+	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/gwaylib/errors"
 )
@@ -34,7 +34,7 @@ import (
 var log = logging.Logger("main")
 
 var (
-	nodeApi    api.HlmMinerSchedulerAPI
+	nodeApi    *api.RetryHlmMinerSchedulerAPI
 	nodeCloser jsonrpc.ClientCloser
 	nodeCCtx   *cli.Context
 	nodeSync   sync.Mutex
@@ -59,20 +59,10 @@ func ReleaseNodeApi(shutdown bool) {
 
 	if shutdown {
 		closeNodeApi()
-		return
-	}
-
-	ctx := lcli.ReqContext(nodeCCtx)
-
-	// try reconnection
-	_, err := nodeApi.Version(ctx)
-	if err != nil {
-		closeNodeApi()
-		return
 	}
 }
 
-func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
+func GetNodeApi() (*api.RetryHlmMinerSchedulerAPI, error) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
 
@@ -85,7 +75,7 @@ func GetNodeApi() (api.HlmMinerSchedulerAPI, error) {
 		closeNodeApi()
 		return nil, errors.As(err)
 	}
-	nodeApi = nApi
+	nodeApi = &api.RetryHlmMinerSchedulerAPI{HlmMinerSchedulerAPI: nApi}
 	nodeCloser = closer
 
 	//v, err := nodeApi.Version(ctx)
@@ -230,7 +220,26 @@ var runCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
+		//start gops
+		if err := agent.Listen(agent.Options{}); err != nil {
+			return err
+		}
 
+		//init env for rust
+		{
+			if err := os.Setenv("Lotus_Parallel_AddPiece", fmt.Sprintf("%v", cctx.Uint("parallel-addpiece"))); err != nil {
+				return err
+			}
+			if err := os.Setenv("Lotus_Parallel_PreCommit1", fmt.Sprintf("%v", cctx.Uint("parallel-precommit1"))); err != nil {
+				return err
+			}
+			if err := os.Setenv("Lotus_Parallel_PreCommit2", fmt.Sprintf("%v", cctx.Uint("parallel-precommit2"))); err != nil {
+				return err
+			}
+			if err := os.Setenv("Lotus_Parallel_Commit", fmt.Sprintf("%v", cctx.Uint("parallel-commit"))); err != nil {
+				return err
+			}
+		}
 		nodeCCtx = cctx
 
 		nodeApi, err := GetNodeApi()
@@ -335,11 +344,7 @@ var runCmd = &cli.Command{
 			WdPoStSrv:          cctx.Bool("wdpost-srv"),
 			WnPoStSrv:          cctx.Bool("wnpost-srv"),
 		}
-		workerApi := &rpcServer{
-			minerRepo:    minerRepo,
-			sb:           minerSealer,
-			storageCache: map[int64]database.StorageInfo{},
-		}
+		workerApi := newRpcServer(workerCfg.ID, minerRepo, minerSealer)
 
 		if err := database.LockMount(minerRepo); err != nil {
 			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())
