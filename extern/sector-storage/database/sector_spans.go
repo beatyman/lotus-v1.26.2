@@ -78,7 +78,7 @@ func (s *SectorSpans) getStep(state int) string {
 		return "Commit"
 	case workerUnseal, workerUnsealDone:
 		return "Unseal"
-	case workerFinalize, workerFinalizeDone:
+	case workerFinalize, workerFinalizeDone, sectorSuccess:
 		return "Finalize"
 	}
 	return ""
