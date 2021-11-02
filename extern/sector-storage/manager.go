@@ -19,6 +19,7 @@ import (
 	"github.com/filecoin-project/go-statestore"
 	"github.com/filecoin-project/specs-storage/storage"
 
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
@@ -106,11 +107,11 @@ type SealerConfig struct {
 	ParallelFetchLimit int
 
 	// Local worker config
-	AllowAddPiece   bool
-	AllowPreCommit1 bool
-	AllowPreCommit2 bool
-	AllowCommit     bool
-	AllowUnseal     bool
+	AllowAddPiece               bool
+	AllowPreCommit1             bool
+	AllowPreCommit2             bool
+	AllowCommit                 bool
+	AllowUnseal                 bool
 	RemoteSeal                  bool
 	RemoteWnPoSt                int
 	RemoteWdPoSt                int
@@ -630,7 +631,17 @@ func (m *Manager) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 }
 
 func (m *Manager) ReleaseUnsealed(ctx context.Context, sector storage.SectorRef, safeToFree []storage.Range) error {
-	return nil
+	var (
+		err error
+		sid = storage.SectorName(sector.ID)
+	)
+	defer func() {
+		err = database.UpdateSectorMonitorState(sid, "", "proving", database.SectorProvingDone)
+	}()
+	if err = database.UpdateSectorMonitorState(sid, "", "proving", database.SectorProving); err != nil {
+		return err
+	}
+	return err
 }
 
 func (m *Manager) Remove(ctx context.Context, sector storage.SectorRef) error {

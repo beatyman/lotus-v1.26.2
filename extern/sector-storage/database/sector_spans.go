@@ -28,6 +28,9 @@ const (
 
 	sectorSuccess = 200
 	sectorError   = 500
+
+	SectorProving     = 300
+	SectorProvingDone = 301
 )
 
 var (
@@ -80,6 +83,8 @@ func (s *SectorSpans) getStep(state int) string {
 		return "Unseal"
 	case workerFinalize, workerFinalizeDone, sectorSuccess:
 		return "Finalize"
+	case SectorProving, SectorProvingDone:
+		return "Proving"
 	}
 	return ""
 }
@@ -95,6 +100,7 @@ func (s *SectorSpans) isStepDone(state int) bool {
 		state == workerCommitDone ||
 		state == workerUnsealDone ||
 		state == workerFinalizeDone ||
+		state == SectorProvingDone ||
 		state == sectorSuccess ||
 		state >= sectorError
 }
