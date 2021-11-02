@@ -130,13 +130,13 @@ func (l *hlmWorker) ReleaseUnsealed(ctx context.Context, sector abi.SectorID, sa
 func (l *hlmWorker) Remove(ctx context.Context, sector storage.SectorRef) error {
 	var err error
 
-	if rerr := l.storage.Remove(ctx, sector.ID, storiface.FTSealed, true); rerr != nil {
+	if rerr := l.storage.Remove(ctx, sector.ID, storiface.FTSealed, true, nil); rerr != nil {
 		err = multierror.Append(err, xerrors.Errorf("removing sector (sealed): %w", rerr))
 	}
-	if rerr := l.storage.Remove(ctx, sector.ID, storiface.FTCache, true); rerr != nil {
+	if rerr := l.storage.Remove(ctx, sector.ID, storiface.FTCache, true, nil); rerr != nil {
 		err = multierror.Append(err, xerrors.Errorf("removing sector (cache): %w", rerr))
 	}
-	if rerr := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true); rerr != nil {
+	if rerr := l.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true, nil); rerr != nil {
 		err = multierror.Append(err, xerrors.Errorf("removing sector (unsealed): %w", rerr))
 	}
 	var rerr error
