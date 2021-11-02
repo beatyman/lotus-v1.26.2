@@ -59,7 +59,7 @@ require (
 	github.com/go-kit/kit v0.10.0
 	github.com/golang/mock v1.6.0
 	github.com/google/gops v0.3.21
-	github.com/google/uuid v1.2.0
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
 	github.com/gwaylib/database v0.0.0-20191004162319-8535ba649f9c
@@ -112,6 +112,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.12.3
 	github.com/ipld/go-ipld-selector-text-lite v0.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f // indirect
 	github.com/lib/pq v1.10.2
 	github.com/libp2p/go-buffer-pool v0.0.2
 	github.com/libp2p/go-eventbus v0.2.1
@@ -147,9 +148,12 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/raulk/clock v1.1.0
 	github.com/raulk/go-watchdog v1.0.1
+	github.com/shirou/gopsutil v2.18.12+incompatible
+	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.0
+	github.com/ufilesdk-dev/us3-qiniu-go-sdk v0.2.0
 	github.com/urfave/cli/v2 v2.2.0
 	github.com/whyrusleeping/bencher v0.0.0-20190829221104-bb6607aa8bba
 	github.com/whyrusleeping/cbor-gen v0.0.0-20210713220151-be142a5ae1a8

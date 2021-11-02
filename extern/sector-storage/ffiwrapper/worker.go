@@ -2,15 +2,11 @@ package ffiwrapper
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/filecoin-project/go-state-types/abi"
-	buriedmodel "github.com/filecoin-project/lotus/buried/model"
-	"github.com/filecoin-project/lotus/lib/report"
 	"math"
 	"math/rand"
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
