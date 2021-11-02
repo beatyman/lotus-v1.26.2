@@ -83,6 +83,7 @@ func GetNodeApi() (*api.RetryHlmMinerSchedulerAPI, error) {
 
 	nApi, closer, err := lcli.GetHlmMinerSchedulerAPI(nodeCCtx)
 	if err != nil {
+		closeNodeApi()
 		return nil, errors.As(err)
 	}
 	nodeApi = &api.RetryHlmMinerSchedulerAPI{HlmMinerSchedulerAPI: nApi}
@@ -225,7 +226,6 @@ var runCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
-
 		//start gops
 		if err := agent.Listen(agent.Options{}); err != nil {
 			return err
@@ -246,7 +246,6 @@ var runCmd = &cli.Command{
 				return err
 			}
 		}
-
 		nodeCCtx = cctx
 
 		nodeApi, err := GetNodeApi()

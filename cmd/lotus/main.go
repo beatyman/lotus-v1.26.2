@@ -71,6 +71,12 @@ func main() {
 		EnableBashCompletion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
+				Name:    "panic-reports",
+				EnvVars: []string{"LOTUS_PANIC_REPORT_PATH"},
+				Hidden:  true,
+				Value:   "~/.lotus", // should follow --repo default
+			},
+			&cli.StringFlag{
 				Name:    "repo",
 				EnvVars: []string{"LOTUS_PATH"},
 				Hidden:  true,
@@ -86,6 +92,14 @@ func main() {
 				Usage: "if true, will ignore pre-send checks",
 			},
 			cliutil.FlagVeryVerbose,
+		},
+		After: func(c *cli.Context) error {
+			if r := recover(); r != nil {
+				// Generate report in LOTUS_PATH and re-raise panic
+				build.GeneratePanicReport(c.String("panic-reports"), c.String("repo"), c.App.Name)
+				panic(r)
+			}
+			return nil
 		},
 
 		Commands: append(local, lcli.Commands...),
