@@ -440,10 +440,20 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 	}, nil
 }
 
-func UpdateSectorMonitorState(sid, wid, msg string, state int) error {
+func UploadSectorProvingState(sid string) (err error) {
+	defer func() {
+		err = UploadSectorMonitorState(sid, "", "proving", SectorProvingDone)
+	}()
+	if err = UploadSectorMonitorState(sid, "", "proving", SectorProving); err != nil {
+		return err
+	}
+	return err
+}
+
+func UploadSectorMonitorState(sid, wid, msg string, state int) error {
 	if info, err := GetSectorInfo(sid); err != nil {
 		return err
-	} else if info != nil {
+	} else if info != nil && (info.State < state || state == 0) { //第一次下发任务的时候 才上报span(避免同一个任务上报多次)
 		wInfo, _ := GetWorkerInfo(wid)
 		ssm.OnSectorStateChange(info, wInfo, wid, msg, state)
 	}
@@ -451,11 +461,8 @@ func UpdateSectorMonitorState(sid, wid, msg string, state int) error {
 }
 
 func UpdateSectorState(sid, wid, msg string, state int) error {
-	if info, err := GetSectorInfo(sid); err != nil {
+	if err := UploadSectorMonitorState(sid, wid, msg, state); err != nil {
 		return err
-	} else if info != nil {
-		wInfo, _ := GetWorkerInfo(wid)
-		ssm.OnSectorStateChange(info, wInfo, wid, msg, state)
 	}
 
 	mdb := GetDB()
