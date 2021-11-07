@@ -57,20 +57,23 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 	defer returnGpu(gpuKey)
 
 	programName := os.Args[0]
+	if task.SectorRepairStatus == 2 {
+		programName = "./lotus-worker-repair"
+	}
 	unixAddr := filepath.Join(os.TempDir(), ".p2-"+uuid.New().String())
 	defer os.Remove(unixAddr)
 
 	var cmd *exec.Cmd
 	if os.Getenv("LOTUS_WORKER_P2_CPU_LIST") != "" {
-		cpuList:=os.Getenv("LOTUS_WORKER_P2_CPU_LIST")
-		log.Infof("Lock P2 cpu list: %v ",cpuList)
-		cmd = exec.CommandContext(ctx, "taskset","-c",cpuList,programName,
+		cpuList := os.Getenv("LOTUS_WORKER_P2_CPU_LIST")
+		log.Infof("Lock P2 cpu list: %v ", cpuList)
+		cmd = exec.CommandContext(ctx, "taskset", "-c", cpuList, programName,
 			"precommit2",
 			"--worker-repo", repo,
 			"--name", task.SectorName(),
 			"--addr", unixAddr,
 		)
-	}else {
+	} else {
 		cmd = exec.CommandContext(ctx, programName,
 			"precommit2",
 			"--worker-repo", repo,

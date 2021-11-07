@@ -162,6 +162,8 @@ type WorkerTask struct {
 	// SectorInfo same as winning PoSt
 	// Randomness same as winning PoSt
 
+	//扇区修复  0： 默认状态， 1.扇区修复标准状态， 2. 扇区修复执行指定二进制文件
+	SectorRepairStatus int
 }
 
 func ParseTaskKey(key string) (string, int, error) {
@@ -467,7 +469,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		}
 		if wTask.State <= WorkerFinalize {
 			// maxTaskNum has changed to less, so only load a part
-			if wTask.State < WorkerFinalize  {//启动load全部任务
+			if wTask.State < WorkerFinalize { //启动load全部任务
 				break
 			}
 			r.lock.Lock()

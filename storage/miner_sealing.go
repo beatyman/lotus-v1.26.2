@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/buried/utils"
 
 	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
@@ -185,8 +186,18 @@ func (m *Miner) ExitPledgeSector() error {
 	return m.sealing.ExitPledgeSector()
 }
 func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64) error {
+	//获取程序目录
+	var currentDir, parentDir, path string
+	currentDir = utils.GetCurrentDirectory()
+	parentDir = utils.GetParentDirectory(currentDir)
+	path = utils.GetParentDirectory(parentDir)
+
 	id, err := storage.ParseSectorID(sid)
+	errStr := ""
+	faultPath := path + "/var/log/sector_rebuild_fault.log"
 	if err != nil {
+		errStr = "sector_fault_扇区编号为：【" + id.Number.String() + "】失败，方法为: storage.ParseSectorID(sid)，失败信息为：" + err.Error()
+		utils.Tracefile(errStr, faultPath)
 		return errors.As(err)
 	}
 
@@ -194,8 +205,12 @@ func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64
 	if err != nil {
 		return errors.As(err)
 	}
+
 	minerInfo, err := sm.api.StateMinerInfo(ctx, sm.sealing.Address(), types.EmptyTSK)
 	if err != nil {
+		errStr = "sector_fault_扇区编号为：【" + id.Number.String() + "】失败，方法为: sm.api.StateMinerInfo(ctx, sm.sealing.Address(), types.EmptyTSK)，失败信息为：" + err.Error()
+		utils.Tracefile(errStr, faultPath)
+		database.RebuildSectorDone(sid)
 		return errors.As(err)
 	}
 
@@ -222,25 +237,61 @@ func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64
 		if err != nil {
 			return errors.As(err)
 		}
-		rspco, err := sealer.SealPreCommit1(ctx, sector, sectorInfo.TicketValue, pieceInfo)
+
+		rspco, err := execSealPreCommit1(0, ctx, sealer, sector, sectorInfo.TicketValue, pieceInfo, faultPath)
 		if err != nil {
-			return errors.As(err)
+			errStr = "sector_fault_扇区编号为：【" + id.Number.String() + "】失败，方法为：execSealPreCommit1(0,ctx, sealer, sector, sectorInfo.TicketValue, pieceInfo)，失败信息为：" + err.Error()
+			utils.Tracefile(errStr, faultPath)
+			database.RebuildSectorDone(sid)
+			return errors.As(err, errStr)
 		}
-		_, err = sealer.SealPreCommit2(ctx, sector, rspco)
+
+		p2Out, err := execSealPreCommit2(0, ctx, sealer, sector, rspco, faultPath)
 		if err != nil {
-			return errors.As(err)
+			errStr = "sector_fault_扇区编号为：【" + id.Number.String() + "】失败，方法为：sealer.SealPreCommit2(ctx, sector, rspco)，失败信息为：" + err.Error()
+			utils.Tracefile(errStr, faultPath)
+			database.RebuildSectorDone(sid)
+			return errors.As(err, errStr)
 		}
+		log.Info("p2Out===================", p2Out.Unsealed.String(), "=================sectorStatus===========", sectorInfo.CommD.String())
+		if p2Out.Unsealed.String() != sectorInfo.CommD.String() {
+			errStrP2 := "sector_fault_===================sector exec repair==========================" + id.Number.String() + "============" +
+				p2Out.Unsealed.String() + "===" + sectorInfo.CommD.String()
+			sector.SectorRepairStatus = 2
+			//p2Out2, err := sealer.SealPreCommit2(ctx, sector, rspco)
+			p2Out2, err := execSealPreCommit2(0, ctx, sealer, sector, rspco, faultPath)
+			if err != nil {
+				errStr = "sector_fault_扇区编号为：【" + id.Number.String() + "】执行第二次P2失败，方法为：sealer.SealPreCommit2(ctx, sector, rspco)，失败信息为：" + err.Error()
+				utils.Tracefile(errStr, faultPath)
+				database.RebuildSectorDone(sid)
+				return errors.As(err, errStr)
+			}
+			if p2Out2.Unsealed.String() != sectorInfo.CommD.String() {
+				errStr = "sector_fault_扇区编号为：【" + id.Number.String() + "】失败，失败信息为： 两次重算P2得到的CommD 不一致，" + errStrP2 + "===" + p2Out2.Unsealed.String() + "====" + sectorInfo.CommD.String()
+				utils.Tracefile(errStr, faultPath)
+				database.RebuildSectorDone(sid)
+				return errors.New("sector_fault_=====================Sector cannot be recovered=====================")
+			}
+
+		}
+
 		// update storage
 		if err := database.SetSectorSealedStorage(sid, storageId); err != nil {
+			errStr = "sector_fault_扇区编号为：【" + id.Number.String() + "】失败，方法为：database.SetSectorSealedStorage(sid, storageId)，失败信息为：" + err.Error()
+			utils.Tracefile(errStr, faultPath)
 			return errors.As(err)
 		}
 		// do finalize
 		if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
+			errStr = "sector_fault_扇区编号为：【" + id.Number.String() + "】失败，方法为：sealer.FinalizeSector(ctx, sector, nil)，失败信息为：" + err.Error()
+			utils.Tracefile(errStr, faultPath)
 			return errors.As(err)
 		}
 		if err := database.RebuildSectorDone(sid); err != nil {
 			return errors.As(err)
 		}
+		successMsg := "扇区" + id.Number.String() + "恢复成功"
+		utils.Tracefile(successMsg, path+"/var/log/sector_rebuild_success.log")
 		return nil
 	}
 
@@ -253,6 +304,47 @@ func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64
 	}()
 
 	return nil
+}
+
+func execSealPreCommit1(retryCount int64, ctx context.Context, sealer *ffiwrapper.Sealer,
+	sector storage.SectorRef, ticketValue abi.SealRandomness, pieceInfo []abi.PieceInfo, faultPath string) (storage.PreCommit1Out, error) {
+	rspco, err := sealer.SealPreCommit1(ctx, sector, ticketValue, pieceInfo)
+	retryCount++
+	log.Error("======================================================", retryCount)
+	if retryCount > 3 {
+		errStr := ""
+		if err != nil {
+			errStr = "sector_fault_扇区编号为：【" + sector.ID.Number.String() + "】失败，方法为：sealer.SealPreCommit1(ctx, sector, ticketValue, pieceInfo)，失败信息为：" + err.Error()
+			log.Error("=================================================", err)
+		}
+		utils.Tracefile(errStr, faultPath)
+		return rspco, errors.New("error retryCount 3")
+	}
+	if err != nil {
+		return execSealPreCommit1(retryCount, ctx, sealer, sector, ticketValue, pieceInfo, faultPath)
+	}
+	return rspco, nil
+}
+
+func execSealPreCommit2(retryCount int64, ctx context.Context, sealer *ffiwrapper.Sealer,
+	sector storage.SectorRef, rspco storage.PreCommit1Out, faultPath string) (storage.SectorCids, error) {
+	p2Out, err := sealer.SealPreCommit2(ctx, sector, rspco)
+	retryCount++
+	if retryCount > 3 {
+		errStr := ""
+		if err != nil {
+			errStr = "sector_fault_扇区编号为：【" + sector.ID.Number.String() + "】失败，方法为：sealer.SealPreCommit1(ctx, sector, ticketValue, pieceInfo)，失败信息为：" + err.Error()
+			log.Error("=================================================", err)
+		}
+		utils.Tracefile(errStr, faultPath)
+		return p2Out, errors.New("error retryCount 3")
+	}
+	if err != nil {
+		errStr := "sector_fault_扇区编号为：【" + sector.ID.Number.String() + "】失败，方法为：sealer.SealPreCommit2(ctx, sector, rspco)，失败信息为：" + err.Error()
+		utils.Tracefile(errStr, faultPath)
+		return execSealPreCommit2(retryCount, ctx, sealer, sector, rspco, faultPath)
+	}
+	return p2Out, nil
 }
 
 // implements by hlm end
