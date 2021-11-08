@@ -310,7 +310,6 @@ func execSealPreCommit1(retryCount int64, ctx context.Context, sealer *ffiwrappe
 	sector storage.SectorRef, ticketValue abi.SealRandomness, pieceInfo []abi.PieceInfo, faultPath string) (storage.PreCommit1Out, error) {
 	rspco, err := sealer.SealPreCommit1(ctx, sector, ticketValue, pieceInfo)
 	retryCount++
-	log.Error("======================================================", retryCount)
 	if retryCount > 3 {
 		errStr := ""
 		if err != nil {
