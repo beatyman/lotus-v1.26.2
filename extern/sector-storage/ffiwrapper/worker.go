@@ -1184,9 +1184,6 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 				task.ret <- sb.errTask(task, errors.As(err))
 				return
 			}
-			if err := database.UploadSectorProvingState(ss.SectorInfo.ID); err != nil {
-				log.Errorw("upload sector proving state error", "sid", ss.SectorInfo.ID, "err", err)
-			}
 			r.freeTask(ss.SectorInfo.ID)
 			task.ret <- sb.errTask(task, nil)
 			return
@@ -1237,6 +1234,9 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 				sectorId, r.cfg.ID,
 				fmt.Sprintf("done:%d", task.task.Type), database.SECTOR_STATE_DONE); err != nil {
 				res = sb.errTask(task, errors.As(err))
+			}
+			if err := database.UploadSectorProvingState(ss.SectorInfo.ID); err != nil {
+				log.Errorw("upload sector proving state error", "sid", ss.SectorInfo.ID, "err", err)
 			}
 			r.freeTask(sectorId)
 		} else if ss.SectorInfo.State < database.SECTOR_STATE_MOVE {
