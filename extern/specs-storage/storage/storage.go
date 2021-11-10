@@ -16,6 +16,9 @@ type SectorRef struct {
 	ID        abi.SectorID
 	ProofType abi.RegisteredSealProof
 	SectorFile
+
+	//扇区修复  0： 默认状态， 1.扇区修复标准状态， 2. 扇区修复执行指定二进制文件
+	SectorRepairStatus int
 }
 
 type ProofSectorInfo struct {

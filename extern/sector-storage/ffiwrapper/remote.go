@@ -185,6 +185,8 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 			SectorID:     sector.ID,
 
 			PreCommit1Out: phase1Out,
+
+			SectorRepairStatus: sector.SectorRepairStatus,
 		},
 		ret: make(chan SealRes),
 	}

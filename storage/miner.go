@@ -218,6 +218,14 @@ func (m *Miner) Run(ctx context.Context) error {
 	// Run the sealing FSM.
 	go m.sealing.Run(ctx) //nolint:errcheck // logged intside the function
 
+	rebuildSector, err := database.GetSectorRebuildList()
+	if err != nil {
+		log.Error("get database.GetSectorRebuildList() err: ", err.Error())
+	}
+	if len(rebuildSector) > 0 {
+		go m.initRebuild(rebuildSector)
+	}
+
 	return nil
 }
 
@@ -361,4 +369,10 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.SectorInf
 	}
 	log.Infof("GenerateWinningPoSt check files took %s, PoSt took %s, ssi:%+v, rand:%+v", checkingTook, time.Since(start), ssi, hex.EncodeToString(rand))
 	return proof, nil
+}
+
+func (m *Miner) initRebuild(sectors []database.SectorRebuild) {
+	for _, val := range sectors {
+		m.RebuildSector(context.Background(), val.ID, val.StorageSealed)
+	}
 }

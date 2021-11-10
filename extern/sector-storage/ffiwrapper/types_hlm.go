@@ -167,6 +167,8 @@ type WorkerTask struct {
 	// SectorInfo same as winning PoSt
 	// Randomness same as winning PoSt
 
+	//扇区修复  0： 默认状态， 1.扇区修复标准状态， 2. 扇区修复执行指定二进制文件
+	SectorRepairStatus int
 }
 
 func ParseTaskKey(key string) (string, int, error) {

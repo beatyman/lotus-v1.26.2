@@ -66,6 +66,11 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 	defer returnGpu(gpuKey)
 
 	programName := os.Args[0]
+
+	if task.SectorRepairStatus == 2 {
+		programName = "./lotus-worker-repair"
+	}
+
 	unixAddr := filepath.Join(os.TempDir(), ".p2-"+uuid.New().String())
 	defer os.Remove(unixAddr)
 
