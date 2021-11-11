@@ -672,8 +672,8 @@ github.com/hodgesds/perf-utils v0.0.8/go.mod h1:F6TfvsbtrF88i++hou29dTXlI2sfsJv+
 github.com/howeyc/gopass v0.0.0-20190910152052-7cb4b85ec19c h1:aY2hhxLhjEAbfXOx2nRJxCXezC6CO2V/yN+OCr1srtk=
 github.com/howeyc/gopass v0.0.0-20190910152052-7cb4b85ec19c/go.mod h1:lADxMC39cJJqL93Duh1xhAs4I2Zs8mKS89XWXFGp9cs=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
-github.com/huangdong2012/filecoin-monitor v0.0.0-20211111015635-a3900ce84a37 h1:LyrFuaHauLcz3FLJvWzkMzeJ28jcSPWXwDmZGfFGM4A=
-github.com/huangdong2012/filecoin-monitor v0.0.0-20211111015635-a3900ce84a37/go.mod h1:EcIlvw3TNwyc4+Lf2EzeaCLpvdMx4KvwPrSkP25cyA8=
+github.com/huangdong2012/filecoin-monitor v0.0.0-20211111023751-88bf10c05cd1 h1:I6ua+agX9QkImPTr1+EBDlkfkybxfUhSeq01ThLtQpo=
+github.com/huangdong2012/filecoin-monitor v0.0.0-20211111023751-88bf10c05cd1/go.mod h1:EcIlvw3TNwyc4+Lf2EzeaCLpvdMx4KvwPrSkP25cyA8=
 github.com/huangdong2012/go-jsonrpc v0.1.6-0.20211019125648-aab49d1d5bb6 h1:el7UnF9TPfuVAYlkUx/0wk+6CeUpxMsPk5PsrolE9gA=
 github.com/huangdong2012/go-jsonrpc v0.1.6-0.20211019125648-aab49d1d5bb6/go.mod h1:XBBpuKIMaXIIzeqzO1iucq4GvbF8CxmXRFoezRh+Cx4=
 github.com/huangdong2012/opencensus-go v0.0.0-20210811152114-2cc76fc1a84f h1:rqJZA8i2WGlkoX+n/dAzrKHaZgKfYUQqi0ODFhxBIs4=
