@@ -27,20 +27,25 @@ import (
 )
 
 type hlmWorker struct {
-	remoteCfg  ffiwrapper.RemoteCfg
-	storage    stores.Store
-	localStore *stores.Local
-	sindex     stores.SectorIndex
-
-	sb *ffiwrapper.Sealer
+	remoteCfg       ffiwrapper.RemoteCfg
+	storage         stores.Store
+	localStore      *stores.Local
+	sindex          stores.SectorIndex
+	noSwap          bool
+	envLookup       EnvFunc
+	ignoreResources bool
+	sb              *ffiwrapper.Sealer
 }
 
 func NewHlmWorker(remoteCfg ffiwrapper.RemoteCfg, store stores.Store, local *stores.Local, sindex stores.SectorIndex) (*hlmWorker, error) {
 	w := &hlmWorker{
-		remoteCfg:  remoteCfg,
-		storage:    store,
-		localStore: local,
-		sindex:     sindex,
+		remoteCfg:       remoteCfg,
+		storage:         store,
+		localStore:      local,
+		sindex:          sindex,
+		envLookup:       os.LookupEnv,
+		noSwap:          true,
+		ignoreResources: true,
 	}
 	sb, err := ffiwrapper.New(remoteCfg, w)
 	if err != nil {
@@ -217,7 +222,7 @@ func (l *hlmWorker) UnsealPiece(ctx context.Context, sector storage.SectorRef, i
 	return l.sb.UnsealPiece(ctx, sector, index, size, randomness, cid)
 }
 
-func (l *hlmWorker) ReadPiece(ctx context.Context, sector storage.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error) {
+func (l *hlmWorker) ReadPiece(ctx context.Context, sector storage.SectorRef, index storiface.UnpaddedByteIndex, startOffset uint64, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error) {
 	var err error
 	sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
 	if err != nil {
@@ -263,28 +268,77 @@ func (l *hlmWorker) Info(context.Context) (storiface.WorkerInfo, error) {
 		log.Errorf("getting gpu devices failed: %+v", err)
 	}
 
-	h, err := sysinfo.Host()
-	if err != nil {
-		return storiface.WorkerInfo{}, xerrors.Errorf("getting host info: %w", err)
-	}
-
-	mem, err := h.Memory()
+	memPhysical, memUsed, memSwap, memSwapUsed, err := l.memInfo()
 	if err != nil {
 		return storiface.WorkerInfo{}, xerrors.Errorf("getting memory info: %w", err)
 	}
 
-	memSwap := mem.VirtualTotal
+	resEnv, err := storiface.ParseResourceEnv(func(key, def string) (string, bool) {
+		return l.envLookup(key)
+	})
+	if err != nil {
+		return storiface.WorkerInfo{}, xerrors.Errorf("interpreting resource env vars: %w", err)
+	}
 
 	return storiface.WorkerInfo{
-		Hostname: hostname,
+		Hostname:        hostname,
+		IgnoreResources: l.ignoreResources,
 		Resources: storiface.WorkerResources{
-			MemPhysical: mem.Total,
+			MemPhysical: memPhysical,
+			MemUsed:     memUsed,
 			MemSwap:     memSwap,
-			MemReserved: mem.VirtualUsed + mem.Total - mem.Available, // TODO: sub this process
+			MemSwapUsed: memSwapUsed,
 			CPUs:        uint64(runtime.NumCPU()),
 			GPUs:        gpus,
+			Resources:   resEnv,
 		},
 	}, nil
+}
+
+func (l *hlmWorker) memInfo() (memPhysical, memUsed, memSwap, memSwapUsed uint64, err error) {
+	h, err := sysinfo.Host()
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	mem, err := h.Memory()
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	memPhysical = mem.Total
+	// mem.Available is memory available without swapping, it is more relevant for this calculation
+	memUsed = mem.Total - mem.Available
+	memSwap = mem.VirtualTotal
+	memSwapUsed = mem.VirtualUsed
+
+	if cgMemMax, cgMemUsed, cgSwapMax, cgSwapUsed, err := cgroupV1Mem(); err == nil {
+		if cgMemMax > 0 && cgMemMax < memPhysical {
+			memPhysical = cgMemMax
+			memUsed = cgMemUsed
+		}
+		if cgSwapMax > 0 && cgSwapMax < memSwap {
+			memSwap = cgSwapMax
+			memSwapUsed = cgSwapUsed
+		}
+	}
+
+	if cgMemMax, cgMemUsed, cgSwapMax, cgSwapUsed, err := cgroupV2Mem(); err == nil {
+		if cgMemMax > 0 && cgMemMax < memPhysical {
+			memPhysical = cgMemMax
+			memUsed = cgMemUsed
+		}
+		if cgSwapMax > 0 && cgSwapMax < memSwap {
+			memSwap = cgSwapMax
+			memSwapUsed = cgSwapUsed
+		}
+	}
+
+	if l.noSwap {
+		memSwap = 0
+		memSwapUsed = 0
+	}
+
+	return memPhysical, memUsed, memSwap, memSwapUsed, nil
 }
 
 func (l *hlmWorker) Closing(ctx context.Context) (<-chan struct{}, error) {

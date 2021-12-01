@@ -207,6 +207,7 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 			}
 
 			gotCur = false
+			log.Info("restarting window post scheduler")
 		}
 
 		select {

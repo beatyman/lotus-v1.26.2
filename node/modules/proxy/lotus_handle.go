@@ -32,7 +32,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/paych"
 	"github.com/filecoin-project/lotus/chain/types"
-	marketevents "github.com/filecoin-project/lotus/markets/loggers"
 )
 
 // TODO: rebuild the go-jsonrpc to make proxy
@@ -53,7 +52,7 @@ type jwtPayload struct {
 }
 
 // rebuild by zhoushuyue
-func (s *LotusImpl)LogAlerts(p0 context.Context) ([]alerting.Alert, error) {
+func (s *LotusImpl) LogAlerts(p0 context.Context) ([]alerting.Alert, error) {
 	return bestNodeApi().LogAlerts(p0)
 }
 func (s *LotusImpl) Closing(p0 context.Context) (<-chan struct{}, error) {
@@ -257,11 +256,12 @@ func (s *LotusImpl) ChainGetParentReceipts(p0 context.Context, p1 cid.Cid) ([]*t
 func (s *LotusImpl) ChainGetPath(p0 context.Context, p1 types.TipSetKey, p2 types.TipSetKey) ([]*api.HeadChange, error) {
 	return bestNodeApi().ChainGetPath(p0, p1, p2)
 }
-func (s *LotusImpl)StateGetRandomnessFromTickets(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
+func (s *LotusImpl) StateGetRandomnessFromTickets(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
 	return bestNodeApi().StateGetRandomnessFromTickets(p0, p1, p2, p3, p4)
 }
+
 // StateGetRandomnessFromBeacon is used to sample the beacon for randomness.
-func (s *LotusImpl)StateGetRandomnessFromBeacon(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
+func (s *LotusImpl) StateGetRandomnessFromBeacon(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
 	return bestNodeApi().StateGetRandomnessFromBeacon(p0, p1, p2, p3, p4)
 }
 func (s *LotusImpl) ChainGetTipSet(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) {
@@ -271,7 +271,7 @@ func (s *LotusImpl) ChainGetTipSet(p0 context.Context, p1 types.TipSetKey) (*typ
 func (s *LotusImpl) ChainGetTipSetByHeight(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) {
 	return bestNodeApi().ChainGetTipSetByHeight(p0, p1, p2)
 }
-func (s *LotusImpl)ChainGetTipSetAfterHeight(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error){
+func (s *LotusImpl) ChainGetTipSetAfterHeight(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) {
 	return bestNodeApi().ChainGetTipSetAfterHeight(p0, p1, p2)
 }
 func (s *LotusImpl) ChainHasObj(p0 context.Context, p1 cid.Cid) (bool, error) {
@@ -373,21 +373,26 @@ func (s *LotusImpl) ClientQueryAsk(p0 context.Context, p1 peer.ID, p2 address.Ad
 func (s *LotusImpl) ClientRemoveImport(p0 context.Context, p1 imports.ID) error {
 	return bestNodeApi().ClientRemoveImport(p0, p1)
 }
-
+func (s *LotusImpl) ClientExport(p0 context.Context, p1 api.ExportRef, p2 api.FileRef) error {
+	return bestNodeApi().ClientExport(p0, p1, p2)
+}
 func (s *LotusImpl) ClientRestartDataTransfer(p0 context.Context, p1 datatransfer.TransferID, p2 peer.ID, p3 bool) error {
 	return bestNodeApi().ClientRestartDataTransfer(p0, p1, p2, p3)
 }
 
-func (s *LotusImpl) ClientRetrieve(p0 context.Context, p1 api.RetrievalOrder, p2 *api.FileRef) error {
-	return bestNodeApi().ClientRetrieve(p0, p1, p2)
+func (s *LotusImpl) ClientRetrieve(p0 context.Context, p1 api.RetrievalOrder) (*api.RestrievalRes, error) {
+	return bestNodeApi().ClientRetrieve(p0, p1)
 }
 
 func (s *LotusImpl) ClientRetrieveTryRestartInsufficientFunds(p0 context.Context, p1 address.Address) error {
 	return bestNodeApi().ClientRetrieveTryRestartInsufficientFunds(p0, p1)
 }
 
-func (s *LotusImpl) ClientRetrieveWithEvents(p0 context.Context, p1 api.RetrievalOrder, p2 *api.FileRef) (<-chan marketevents.RetrievalEvent, error) {
-	return bestNodeApi().ClientRetrieveWithEvents(p0, p1, p2)
+func (s *LotusImpl) ClientRetrieveWait(p0 context.Context, p1 retrievalmarket.DealID) error {
+	return bestNodeApi().ClientRetrieveWait(p0, p1)
+}
+func (s *LotusImpl) MsigCancelTxnHash(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 types.BigInt, p5 address.Address, p6 uint64, p7 []byte) (*api.MessagePrototype, error) {
+	return bestNodeApi().MsigCancelTxnHash(p0, p1, p2, p3, p4, p5, p6, p7)
 }
 
 // ClientListRetrievals returns information about retrievals made by the local client
@@ -530,9 +535,8 @@ func (s *LotusImpl) MsigApprove(p0 context.Context, p1 address.Address, p2 uint6
 func (s *LotusImpl) MsigApproveTxnHash(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 address.Address, p5 types.BigInt, p6 address.Address, p7 uint64, p8 []byte) (*api.MessagePrototype, error) {
 	return bestNodeApi().MsigApproveTxnHash(p0, p1, p2, p3, p4, p5, p6, p7, p8)
 }
-
-func (s *LotusImpl) MsigCancel(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 types.BigInt, p5 address.Address, p6 uint64, p7 []byte) (*api.MessagePrototype, error) {
-	return bestNodeApi().MsigCancel(p0, p1, p2, p3, p4, p5, p6, p7)
+func (s *LotusImpl) MsigCancel(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address) (*api.MessagePrototype, error) {
+	return bestNodeApi().MsigCancel(p0, p1, p2, p3)
 }
 
 func (s *LotusImpl) MsigCreate(p0 context.Context, p1 uint64, p2 []address.Address, p3 abi.ChainEpoch, p4 types.BigInt, p5 address.Address, p6 types.BigInt) (*api.MessagePrototype, error) {
@@ -674,7 +678,7 @@ func (s *LotusImpl) StateDealProviderCollateralBounds(p0 context.Context, p1 abi
 func (s *LotusImpl) StateDecodeParams(p0 context.Context, p1 address.Address, p2 abi.MethodNum, p3 []byte, p4 types.TipSetKey) (interface{}, error) {
 	return bestNodeApi().StateDecodeParams(p0, p1, p2, p3, p4)
 }
-func (s *LotusImpl)StateEncodeParams(p0 context.Context, p1 cid.Cid, p2 abi.MethodNum, p3 json.RawMessage) ([]byte, error) {
+func (s *LotusImpl) StateEncodeParams(p0 context.Context, p1 cid.Cid, p2 abi.MethodNum, p3 json.RawMessage) ([]byte, error) {
 	return bestNodeApi().StateEncodeParams(p0, p1, p2, p3)
 }
 func (s *LotusImpl) StateGetActor(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) {
@@ -908,13 +912,14 @@ func (s *LotusImpl) WalletValidateAddress(p0 context.Context, p1 string) (addres
 func (s *LotusImpl) WalletVerify(p0 context.Context, p1 address.Address, p2 []byte, p3 *crypto.Signature) (bool, error) {
 	return bestNodeApi().WalletVerify(p0, p1, p2, p3)
 }
-func (s *LotusImpl)ChainCheckBlockstore(p0 context.Context) error{
+func (s *LotusImpl) ChainCheckBlockstore(p0 context.Context) error {
 	return bestNodeApi().ChainCheckBlockstore(p0)
 }
-func (s *LotusImpl)ChainBlockstoreInfo(p0 context.Context) (map[string]interface{}, error){
+func (s *LotusImpl) ChainBlockstoreInfo(p0 context.Context) (map[string]interface{}, error) {
 	return bestNodeApi().ChainBlockstoreInfo(p0)
 }
+
 // ChainGetMessagesInTipset returns message stores in current tipset
-func (s *LotusImpl)ChainGetMessagesInTipset(p0 context.Context, p1 types.TipSetKey) ([]api.Message, error) {
-	return bestNodeApi().ChainGetMessagesInTipset(p0,p1)
+func (s *LotusImpl) ChainGetMessagesInTipset(p0 context.Context, p1 types.TipSetKey) ([]api.Message, error) {
+	return bestNodeApi().ChainGetMessagesInTipset(p0, p1)
 }

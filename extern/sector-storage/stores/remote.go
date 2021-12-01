@@ -283,7 +283,7 @@ func (r *Remote) fetch(ctx context.Context, url, outname string) error {
 
 	switch mediatype {
 	case "application/x-tar":
-		return tarutil.ExtractTar(resp.Body, outname)
+		return tarutil.ExtractTar(resp.Body, outname, make([]byte, CopyBuf))
 	case "application/octet-stream":
 		f, err := os.Create(outname)
 		if err != nil {
@@ -307,7 +307,6 @@ func (r *Remote) checkAllocated(ctx context.Context, url string, spt abi.Registe
 		return false, xerrors.Errorf("request: %w", err)
 	}
 	req.Header = r.auth.Clone()
-	fmt.Printf("req using header: %#v \n", r.auth)
 	req = req.WithContext(ctx)
 
 	resp, err := http.DefaultClient.Do(req)
