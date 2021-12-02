@@ -233,20 +233,18 @@ func (l *hlmWorker) ReadPiece(ctx context.Context, sector storage.SectorRef, ind
 	}
 	// unseal data will expire by 30 days if no visitor.
 	l.sb.ExpireAllMarketRetrieve()
-
 	// try read the exist unsealed.
-	r, done, err := l.sb.PieceReader(ctx, sector, index, size)
+	r, done, err := l.sb.PieceReader(ctx, sector, index, startOffset,size)
 	if err != nil {
 		return nil, false, errors.As(err)
 	} else if done {
 		return r, true, nil
 	}
-
 	// unsealed not found, do unseal and then read it.
 	if err := l.sb.UnsealPiece(ctx, sector, index, size, ticket, unsealed); err != nil {
 		return nil, false, errors.As(err, sector, index, size, unsealed)
 	}
-	return l.sb.PieceReader(ctx, sector, index, size)
+	return l.sb.PieceReader(ctx, sector, index,startOffset, size)
 }
 
 func (l *hlmWorker) TaskTypes(context.Context) (map[sealtasks.TaskType]struct{}, error) {
