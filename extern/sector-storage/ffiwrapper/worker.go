@@ -1272,7 +1272,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		(task.Type == WorkerPreCommit2 && count >= r.cfg.ParallelPrecommit2) ||
 		(task.Type == WorkerCommit && count >= r.cfg.ParallelCommit) {
 		log.Infow("task over limit", "worker-id", r.cfg.ID, "task-key", task.Key(), "count", count)
-		return SealRes{}, false
+		return SealRes{}, true
 	}
 
 	taskKey := task.Key()
