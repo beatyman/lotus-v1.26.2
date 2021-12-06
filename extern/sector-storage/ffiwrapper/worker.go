@@ -388,6 +388,7 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 
 		sealTasks:   make(chan WorkerTask),
 		busyOnTasks: map[string]WorkerTask{},
+		lock:        sync.RWMutex{},
 
 		release: func() {
 			log.Infof("worker(%v) release", rmt.cfg.ID)
@@ -1257,7 +1258,23 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 }
 
 func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res SealRes, interrupt bool) {
-	log.Infow("task sending", "worker-id", r.cfg.ID, "task-key", task.Key(), "max-p1", r.cfg.ParallelPrecommit1, "max-p2", r.cfg.ParallelPrecommit2)
+	total, count := 0, 0
+	r.lock.RLock()
+	for _, t := range r.busyOnTasks {
+		if total += 1; t.Type == task.Type && t.Key() != task.Key() {
+			count += 1
+		}
+	}
+	r.lock.RUnlock()
+	if total >= r.cfg.MaxTaskNum ||
+		(task.Type == WorkerPledge && count >= r.cfg.ParallelPledge) ||
+		(task.Type == WorkerPreCommit1 && count >= r.cfg.ParallelPrecommit1) ||
+		(task.Type == WorkerPreCommit2 && count >= r.cfg.ParallelPrecommit2) ||
+		(task.Type == WorkerCommit && count >= r.cfg.ParallelCommit) {
+		log.Infow("task over limit", "worker-id", r.cfg.ID, "task-key", task.Key(), "count", count)
+		return SealRes{}, false
+	}
+
 	taskKey := task.Key()
 	resCh := make(chan SealRes)
 
