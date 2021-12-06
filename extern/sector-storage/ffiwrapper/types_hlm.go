@@ -419,6 +419,7 @@ func (r *remote) freeTask(sid string) bool {
 
 //根据worker上报的状态恢复因checkCache或ctx.Done()加1的任务
 func (r *remote) checkBusy(wBusy []string) {
+	log.Infow("check busy starting...", "worker-busy", wBusy)
 	if len(wBusy) == 0 {
 		return
 	}
@@ -431,11 +432,16 @@ func (r *remote) checkBusy(wBusy []string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
+	minerTaskKeys := make([]string, 0, 0)
 	for sn, task := range r.busyOnTasks {
 		if _, ok := dict[sn]; ok && int(task.Type)%10 > 0 {
+			log.Infow("check busy for", "task-key", task.Key())
 			task.Type -= 1
+			r.busyOnTasks[sn] = task
 		}
+		minerTaskKeys = append(minerTaskKeys, task.Key())
 	}
+	log.Infow("check busy finish", "miner-busy", minerTaskKeys)
 }
 func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error) {
 	// restore from database
