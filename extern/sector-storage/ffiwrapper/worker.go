@@ -319,21 +319,22 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		if err != nil {
 			log.Infof("AddWorker(%v): worker(%v) error(%v)", cfg.Retry, cfg.ID, err)
 			return
-		} else {
-			log.Infof("AddWorker(%v): worker(%v) success(%v)", cfg.Retry, cfg.ID, string(kind))
 		}
 
 		if rmt != nil {
 			//1.加载busy状态
+			log.Infow("AddWorker of before load-busy", "wid", cfg.ID, "retry", cfg.Retry, "worker-busy", cfg.Busy)
 			if err = sb.loadBusyStatus(kind, rmt, cfg); err != nil {
 				log.Infof("AddWorker(%v): worker(%v) load busy status error(%v)", cfg.Retry, cfg.ID, err)
 				return
 			}
 			//2.设置worker为在线状态(需要放在最后一步)
+			log.Infow("AddWorker of after load-busy", "wid", cfg.ID, "retry", cfg.Retry, "worker-busy", cfg.Busy)
 			if err = sb.onlineWorker(oriCtx, rmt, cfg); err != nil {
 				log.Infof("AddWorker(%v): worker(%v) online error(%v)", cfg.Retry, cfg.ID, err)
 				return
 			}
+			log.Infow("AddWorker online finish", "wid", cfg.ID, "retry", cfg.Retry)
 		}
 	}()
 
@@ -444,7 +445,7 @@ func (sb *Sealer) offlineWorkerLoop(ctx context.Context, rmt *remote) {
 	defer log.Infow("offline worker loop exit", "worker-id", rmt.cfg.ID)
 
 	for {
-		<-time.After(time.Second * 5) //检测worker是否掉线的间隔
+		<-time.After(time.Second * 3) //检测worker是否掉线的间隔
 		if rmt.isOfflineState() {
 			continue
 		}
@@ -972,13 +973,13 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			//log.Infof("limit parallel-addpiece:%s", r.cfg.ID)
 			return
 		}
-		if fullCache, err := r.checkCache(false, nil); err != nil {
-			log.Error(errors.As(err))
-			return
-		} else if fullCache {
-			//log.Infof("checkPledge fullCache:%s", r.cfg.ID)
-			return
-		}
+		//if fullCache, err := r.checkCache(false, nil); err != nil {
+		//	log.Error(errors.As(err))
+		//	return
+		//} else if fullCache {
+		//	//log.Infof("checkPledge fullCache:%s", r.cfg.ID)
+		//	return
+		//}
 
 		//log.Infof("checkPledge:%d,queue:%d", _pledgeWait, len(_pledgeTasks))
 
@@ -1098,12 +1099,11 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		default:
 			// sleep for controlling the loop
-			time.Sleep(10 * time.Second)
-			if r.isOfflineState() {
-				continue
-			}
-
+			time.Sleep(5 * time.Second)
 			for i := 0; i < r.cfg.MaxTaskNum; i++ {
+				if r.isOfflineState() {
+					continue
+				}
 				if atomic.LoadInt32(&sb.pauseSeal) != 0 {
 					// pause the seal
 					continue
@@ -1111,6 +1111,9 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 
 				checkFinalize()
 				for _, check := range checkFunc {
+					if r.isOfflineState() {
+						continue
+					}
 					check()
 				}
 			}
@@ -1266,6 +1269,14 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 }
 
 func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res SealRes, interrupt bool) {
+	mBusy := make([]string, 0, 0)
+	r.lock.RLock()
+	for _, t := range r.busyOnTasks {
+		mBusy = append(mBusy, t.Key())
+	}
+	r.lock.RUnlock()
+	log.Infow("task sending", "worker-id", r.cfg.ID, "task-key", task.Key(), "miner-busy", mBusy)
+
 	taskKey := task.Key()
 	resCh := make(chan SealRes)
 

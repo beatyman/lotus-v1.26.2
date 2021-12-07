@@ -247,7 +247,7 @@ func (w *WorkerRemoteStats) String() string {
 
 type remote struct {
 	ctx     context.Context
-	lock    sync.Mutex
+	lock    sync.RWMutex
 	cfg     WorkerCfg
 	release func()
 
@@ -324,6 +324,10 @@ func (r *remote) fakeFullTask() bool {
 
 // for control the memory
 func (r *remote) LimitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
+	if r.isOfflineState() {
+		return true
+	}
+
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	return r.limitParallel(typ, isSrvCalled)
@@ -424,6 +428,7 @@ func (r *remote) freeTask(sid string) bool {
 
 //根据worker上报的状态恢复因checkCache或ctx.Done()加1的任务
 func (r *remote) checkBusy(wBusy []string) {
+	log.Infow("check busy starting", "worker-id", r.cfg.ID, "worker-busy", wBusy)
 	if len(wBusy) == 0 {
 		return
 	}
@@ -436,11 +441,23 @@ func (r *remote) checkBusy(wBusy []string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
+	minerTaskKeys := make([]string, 0, 0)
+	fixTaskKeys := make([]string, 0, 0)
+	lostTaskKeys := make([]string, 0, 0)
 	for sn, task := range r.busyOnTasks {
+		minerTaskKeys = append(minerTaskKeys, task.Key())
 		if _, ok := dict[sn]; ok && int(task.Type)%10 > 0 {
 			task.Type -= 1
+			r.busyOnTasks[sn] = task
+			fixTaskKeys = append(fixTaskKeys, task.Key())
 		}
 	}
+	for sn, _ := range dict {
+		if _, ok := r.busyOnTasks[sn]; !ok {
+			lostTaskKeys = append(lostTaskKeys, sn)
+		}
+	}
+	log.Infow("check busy finish", "worker-id", r.cfg.ID, "miner-busy", minerTaskKeys, "fix-busy", fixTaskKeys, "lost-sector", lostTaskKeys)
 }
 
 func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error) {
