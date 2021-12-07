@@ -409,6 +409,7 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 	log.Infof("worker(%v) init (busy status: %v)", cfg.ID, rmt.busyOnTasks)
 	return rmt, nil
 }
+
 func (sb *Sealer) onlineWorker(oriCtx context.Context, rmt *remote, cfg WorkerCfg) error {
 	if rmt == nil {
 		return fmt.Errorf("remote is nil on onlineWorker")
@@ -1258,22 +1259,13 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 }
 
 func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res SealRes, interrupt bool) {
-	total, count := 0, 0
+	mBusy := make([]string, 0, 0)
 	r.lock.RLock()
 	for _, t := range r.busyOnTasks {
-		if total += 1; t.Type == task.Type && t.Key() != task.Key() {
-			count += 1
-		}
+		mBusy = append(mBusy, t.Key())
 	}
 	r.lock.RUnlock()
-	if total >= r.cfg.MaxTaskNum ||
-		(task.Type == WorkerPledge && count >= r.cfg.ParallelPledge) ||
-		(task.Type == WorkerPreCommit1 && count >= r.cfg.ParallelPrecommit1) ||
-		(task.Type == WorkerPreCommit2 && count >= r.cfg.ParallelPrecommit2) ||
-		(task.Type == WorkerCommit && count >= r.cfg.ParallelCommit) {
-		log.Infow("task over limit", "worker-id", r.cfg.ID, "task-key", task.Key(), "count", count)
-		return SealRes{}, true
-	}
+	log.Infow("task sending", "worker-id", r.cfg.ID, "task-key", task.Key(), "miner-busy", mBusy)
 
 	taskKey := task.Key()
 	resCh := make(chan SealRes)

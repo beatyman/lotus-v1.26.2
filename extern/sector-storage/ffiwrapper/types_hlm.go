@@ -423,7 +423,7 @@ func (r *remote) freeTask(sid string) bool {
 
 //根据worker上报的状态恢复因checkCache或ctx.Done()加1的任务
 func (r *remote) checkBusy(wBusy []string) {
-	log.Infow("check busy starting...", "worker-id", r.cfg.ID, "worker-busy", wBusy)
+	log.Infow("check busy starting", "worker-id", r.cfg.ID, "worker-busy", wBusy)
 	if len(wBusy) == 0 {
 		return
 	}
@@ -437,16 +437,24 @@ func (r *remote) checkBusy(wBusy []string) {
 	defer r.lock.Unlock()
 
 	minerTaskKeys := make([]string, 0, 0)
+	fixTaskKeys := make([]string, 0, 0)
+	lostTaskKeys := make([]string, 0, 0)
 	for sn, task := range r.busyOnTasks {
+		minerTaskKeys = append(minerTaskKeys, task.Key())
 		if _, ok := dict[sn]; ok && int(task.Type)%10 > 0 {
-			log.Infow("check busy for", "worker-id", r.cfg.ID, "task-key", task.Key())
 			task.Type -= 1
 			r.busyOnTasks[sn] = task
+			fixTaskKeys = append(fixTaskKeys, task.Key())
 		}
-		minerTaskKeys = append(minerTaskKeys, task.Key())
 	}
-	log.Infow("check busy finish", "worker-id", r.cfg.ID, "miner-busy", minerTaskKeys)
+	for sn, _ := range dict {
+		if _, ok := r.busyOnTasks[sn]; !ok {
+			lostTaskKeys = append(lostTaskKeys, sn)
+		}
+	}
+	log.Infow("check busy finish", "worker-id", r.cfg.ID, "miner-busy", minerTaskKeys, "fix-busy", fixTaskKeys, "lost-sector", lostTaskKeys)
 }
+
 func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error) {
 	// restore from database
 	history, err := database.GetWorking(r.cfg.ID)
@@ -478,10 +486,6 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 			continue
 		}
 		if wTask.State <= WorkerFinalize {
-			// maxTaskNum has changed to less, so only load a part
-			if wTask.State < WorkerFinalize { //启动load全部任务
-				break
-			}
 			r.lock.Lock()
 			_, ok := r.busyOnTasks[wTask.ID]
 			if !ok {
