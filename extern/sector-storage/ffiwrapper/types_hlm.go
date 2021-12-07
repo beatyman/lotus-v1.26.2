@@ -487,19 +487,16 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 		}
 		if wTask.State <= WorkerFinalize {
 			r.lock.Lock()
-			_, ok := r.busyOnTasks[wTask.ID]
-			if !ok {
-				// if no data in busy, restore from db, and waitting retry from storage-fsm
-				stateOff := 0
-				if (wTask.State % 10) == 0 {
-					stateOff = 1
-				}
-				r.busyOnTasks[wTask.ID] = WorkerTask{
-					Type:     WorkerTaskType(wTask.State + stateOff),
-					SectorID: abi.SectorID(sectorID(wTask.ID)),
-					WorkerID: wTask.WorkerId,
-					// others not implement yet, it should be update by doSealTask()
-				}
+			// if no data in busy, restore from db, and waitting retry from storage-fsm
+			stateOff := 0
+			if (wTask.State % 10) == 0 {
+				stateOff = 1
+			}
+			r.busyOnTasks[wTask.ID] = WorkerTask{
+				Type:     WorkerTaskType(wTask.State + stateOff),
+				SectorID: abi.SectorID(sectorID(wTask.ID)),
+				WorkerID: wTask.WorkerId,
+				// others not implement yet, it should be update by doSealTask()
 			}
 			r.lock.Unlock()
 		}
