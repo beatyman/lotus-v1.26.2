@@ -1324,10 +1324,10 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	//worker重连的时候，需要先online完成 才能TaskDone 否则busy状态可能不一致
 	if r, ok := _remotes.Load(res.WorkerCfg.ID); ok {
 		if rmt := r.(*remote); rmt.isOfflineState() {
-			return fmt.Errorf("worker current offline")
+			return fmt.Errorf("connection refused")
 		}
 	} else {
-		return fmt.Errorf("worker current offline")
+		return fmt.Errorf("connection refused")
 	}
 	_remoteResultLk.Lock()
 	rres, ok := _remoteResult[res.TaskID]
