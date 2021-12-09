@@ -447,13 +447,13 @@ func (r *remote) checkBusy(wBusy []string) {
 	for sn, task := range r.busyOnTasks {
 		minerTaskKeys = append(minerTaskKeys, task.Key())
 		if _, ok := dict[sn]; ok && int(task.Type)%10 > 0 {
-			_remoteResultLk.Lock()
-			_remoteResult[task.Key()] = make(chan SealRes)
-			_remoteResultLk.Unlock()
-
 			task.Type -= 1
 			r.busyOnTasks[sn] = task
 			fixTaskKeys = append(fixTaskKeys, task.Key())
+
+			_remoteResultLk.Lock()
+			_remoteResult[task.Key()] = make(chan SealRes)
+			_remoteResultLk.Unlock()
 		}
 	}
 	for sn, _ := range dict {
