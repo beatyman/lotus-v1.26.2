@@ -520,6 +520,10 @@ func (sb *Sealer) loadBusyStatus(kind WorkerQueueKind, rmt *remote, cfg WorkerCf
 			if _, err := rmt.checkCache(true, nil); err != nil {
 				return err
 			}
+
+			_remoteResultLk.Lock()
+			_remoteResult = make(map[string]chan<- SealRes)
+			_remoteResultLk.Unlock()
 		case WorkerQueueKind_WorkerReConnect:
 			rmt.checkBusy(cfg.Busy)
 		}
