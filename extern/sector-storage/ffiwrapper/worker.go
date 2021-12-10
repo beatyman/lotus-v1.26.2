@@ -1284,14 +1284,22 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	_remoteResult[taskKey] = resCh
 	_remoteResultLk.Unlock()
 
+	r.offlineRW.RLock()
+	cycle, retry := r.cfg.Cycle, r.cfg.Retry
+	r.offlineRW.RUnlock()
 	defer func() {
-		state := int(task.Type) + 1
-		r.UpdateTask(task.SectorName(), state) // set state to done
+		r.offlineRW.RLock()
+		cycleCurr, retryCurr := r.cfg.Cycle, r.cfg.Retry
+		r.offlineRW.RUnlock()
+		if cycleCurr == cycle && retryCurr == retry { //当前没有重新上线
+			state := int(task.Type) + 1
+			r.UpdateTask(task.SectorName(), state) // set state to done
 
-		log.Infof("Delete task waiting :%s", taskKey)
-		_remoteResultLk.Lock()
-		delete(_remoteResult, taskKey)
-		_remoteResultLk.Unlock()
+			log.Infof("Delete task waiting :%s", taskKey)
+			_remoteResultLk.Lock()
+			delete(_remoteResult, taskKey)
+			_remoteResultLk.Unlock()
+		}
 	}()
 
 	// send the task to daemon work.
