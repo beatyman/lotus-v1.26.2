@@ -640,7 +640,7 @@ func (r *Remote) Reader(ctx context.Context, s storage.SectorRef, offset, size a
 				pf = nil
 
 				if f == nil {
-					f, err = r.pfHandler.OpenPartialFile(abi.PaddedPieceSize(ssize), path)
+					f, err = r.pfHandler.OpenPartialFile(abi.PaddedPieceSize(ssize), sector)
 					if err != nil {
 						return nil, xerrors.Errorf("opening partial file: %w", err)
 					}

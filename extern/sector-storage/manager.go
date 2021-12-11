@@ -2,6 +2,7 @@ package sectorstorage
 
 import (
 	"context"
+	"github.com/filecoin-project/dagstore/mount"
 	"io"
 	"net/http"
 	"sync"
@@ -241,8 +242,8 @@ func (m *Manager) schedFetch(sector storage.SectorRef, ft storiface.SectorFileTy
 	}
 }
 
-func (m *Manager) ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, startOffset uint64, pieceSize abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error) {
-	return m.hlmWorker.ReadPiece(ctx, sector, pieceOffset, startOffset, pieceSize, ticket, unsealed)
+func (m *Manager)ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error){
+	return m.hlmWorker.ReadPiece(ctx, sector, pieceOffset,size,ticket,unsealed)
 }
 
 // SectorsUnsealPiece will Unseal the Sealed sector file for the given sector.

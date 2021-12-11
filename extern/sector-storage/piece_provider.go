@@ -20,7 +20,7 @@ import (
 type Unsealer interface {
 	// SectorsUnsealPiece will Unseal a Sealed sector file for the given sector.
 	SectorsUnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error
-	ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, startOffset uint64, pieceSize abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error)
+	ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error)
 }
 
 type PieceProvider interface {
@@ -164,7 +164,7 @@ func (p *pieceProvider) ReadPiece(ctx context.Context, sector storage.SectorRef,
 	if err := size.Validate(); err != nil {
 		return nil, false, xerrors.Errorf("size is not a valid piece size: %w", err)
 	}
-
+	return p.uns.ReadPiece(ctx,sector,pieceOffset,size,ticket,unsealed)
 	r, err := p.tryReadUnsealedPiece(ctx, unsealed, sector, pieceOffset, size)
 
 	log.Debugf("result of first tryReadUnsealedPiece: r=%+v, err=%s", r, err)
