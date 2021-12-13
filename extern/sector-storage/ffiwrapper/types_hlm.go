@@ -262,7 +262,10 @@ type remote struct {
 	disable     bool                  // disable for new sector task
 	offline     int32                 //当前是否断线
 	offlineRW   sync.RWMutex          //上线和下线的操作需要锁住
-	srvConn     int64
+
+	srvConn int64
+
+	dictBusy map[string]string
 }
 
 func (r *remote) isOfflineState() bool {
@@ -445,10 +448,6 @@ func (r *remote) checkBusy(wBusy []string) {
 			task.Type -= 1
 			r.busyOnTasks[sn] = task
 			fixTaskKeys = append(fixTaskKeys, task.Key())
-
-			_remoteResultLk.Lock()
-			_remoteResult[task.Key()] = make(chan SealRes)
-			_remoteResultLk.Unlock()
 		}
 	}
 	for sn, _ := range dict {
