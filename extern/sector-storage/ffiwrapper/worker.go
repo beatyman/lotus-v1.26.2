@@ -322,6 +322,11 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		}
 
 		if rmt != nil {
+			rmt.dictBusy = make(map[string]string)
+			for _, typ := range cfg.Busy {
+				rmt.dictBusy[typ] = typ
+			}
+
 			//1.加载busy状态
 			log.Infow("AddWorker of before load-busy", "wid", cfg.ID, "retry", cfg.Retry, "worker-busy", cfg.Busy)
 			if err = sb.loadBusyStatus(kind, rmt, cfg); err != nil {
@@ -516,10 +521,6 @@ func (sb *Sealer) loadBusyStatus(kind WorkerQueueKind, rmt *remote, cfg WorkerCf
 			if _, err := rmt.checkCache(true, nil); err != nil {
 				return err
 			}
-
-			_remoteResultLk.Lock()
-			_remoteResult = make(map[string]chan<- SealRes)
-			_remoteResultLk.Unlock()
 		case WorkerQueueKind_WorkerReConnect:
 			rmt.checkBusy(cfg.Busy)
 		}
@@ -973,118 +974,188 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			//log.Infow("DEBUG:", "fullTask", len(r.busyOnTasks), "maxTask", r.maxTaskNum)
 			return
 		}
-		if r.LimitParallel(WorkerPledge, false) {
-			//log.Infof("limit parallel-addpiece:%s", r.cfg.ID)
-			return
-		}
-		//if fullCache, err := r.checkCache(false, nil); err != nil {
-		//	log.Error(errors.As(err))
-		//	return
-		//} else if fullCache {
-		//	//log.Infof("checkPledge fullCache:%s", r.cfg.ID)
-		//	return
-		//}
 
-		//log.Infof("checkPledge:%d,queue:%d", _pledgeWait, len(_pledgeTasks))
-
+		var (
+			wc *workerCall
+			fn func()
+		)
 		select {
 		case task := <-r.pledgeChan:
-			atomic.AddInt32(&(r.pledgeWait), -1)
-			sb.pubPledgeEvent(task.task)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&(r.pledgeWait), -1)
+				sb.pubPledgeEvent(task.task)
+			}
 		case task := <-pledgeTasks:
-			atomic.AddInt32(&_pledgeWait, -1)
-			sb.pubPledgeEvent(task.task)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_pledgeWait, -1)
+				sb.pubPledgeEvent(task.task)
+			}
 		default:
 			// nothing in chan
+		}
+		if wc == nil || fn == nil {
+			return
+		}
+		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPledge, false) {
+			fn()
+			sb.doSealTask(ctx, r, *wc)
+		} else {
+			sb.returnTask(*wc)
 		}
 	}
 	checkPreCommit1 := func() {
-		// search checking is the remote busying
-		if r.LimitParallel(WorkerPreCommit1, false) {
-			//log.Infof("limit parallel-precommit:%s", r.cfg.ID)
-			return
-		}
-
+		var (
+			wc *workerCall
+			fn func()
+		)
 		select {
 		case task := <-r.precommit1Chan:
-			atomic.AddInt32(&_precommit1Wait, -1)
-			atomic.AddInt32(&(r.precommit1Wait), -1)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_precommit1Wait, -1)
+				atomic.AddInt32(&(r.precommit1Wait), -1)
+			}
 		case task := <-precommit1Tasks:
-			atomic.AddInt32(&_precommit1Wait, -1)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_precommit1Wait, -1)
+			}
 		default:
 			// nothing in chan
+		}
+		if wc == nil || fn == nil {
+			return
+		}
+		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPreCommit1, false) {
+			fn()
+			sb.doSealTask(ctx, r, *wc)
+		} else {
+			sb.returnTask(*wc)
 		}
 	}
 	checkPreCommit2 := func() {
-		if r.LimitParallel(WorkerPreCommit2, false) {
-			return
-		}
+		var (
+			wc *workerCall
+			fn func()
+		)
 		select {
 		case task := <-r.precommit2Chan:
-			atomic.AddInt32(&_precommit2Wait, -1)
-			atomic.AddInt32(&(r.precommit2Wait), -1)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_precommit2Wait, -1)
+				atomic.AddInt32(&(r.precommit2Wait), -1)
+			}
 		case task := <-precommit2Tasks:
-			atomic.AddInt32(&_precommit2Wait, -1)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_precommit2Wait, -1)
+			}
 		default:
 			// nothing in chan
+		}
+		if wc == nil || fn == nil {
+			return
+		}
+		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPreCommit2, false) {
+			fn()
+			sb.doSealTask(ctx, r, *wc)
+		} else {
+			sb.returnTask(*wc)
 		}
 	}
 	checkCommit := func() {
-		// log.Infof("checkCommit:%s", r.cfg.ID)
-		if r.LimitParallel(WorkerCommit, false) {
-			return
-		}
-
+		var (
+			wc *workerCall
+			fn func()
+		)
 		select {
 		case task := <-r.commitChan:
-			atomic.AddInt32(&_commitWait, -1)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_commitWait, -1)
+			}
 		case task := <-commitTasks:
-			atomic.AddInt32(&_commitWait, -1)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_commitWait, -1)
+			}
 		default:
 			// nothing in chan
+		}
+		if wc == nil || fn == nil {
+			return
+		}
+		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerCommit, false) {
+			fn()
+			sb.doSealTask(ctx, r, *wc)
+		} else {
+			sb.returnTask(*wc)
 		}
 	}
 	checkFinalize := func() {
-		// for debug
-		//log.Infof("finalize wait:%d,rQueue:%d,gQueue:%d", _finalizeWait, len(r.finalizeChan), len(finalizeTasks))
-		if r.LimitParallel(WorkerFinalize, false) {
-			return
-		}
-
+		var (
+			wc *workerCall
+			fn func()
+		)
 		select {
 		case task := <-r.finalizeChan:
-			atomic.AddInt32(&_finalizeWait, -1)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_finalizeWait, -1)
+			}
 		case task := <-finalizeTasks:
-			atomic.AddInt32(&_finalizeWait, -1)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_finalizeWait, -1)
+			}
 		default:
 			// nothing in chan
+		}
+		if wc == nil || fn == nil {
+			return
+		}
+		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerFinalize, false) {
+			fn()
+			sb.doSealTask(ctx, r, *wc)
+		} else {
+			sb.returnTask(*wc)
 		}
 	}
 	checkUnseal := func() {
-		// log.Infof("checkCommit:%s", r.cfg.ID)
-		if r.LimitParallel(WorkerUnseal, false) {
-			return
-		}
-
+		var (
+			wc *workerCall
+			fn func()
+		)
 		select {
 		case task := <-r.unsealChan:
-			atomic.AddInt32(&_unsealWait, -1)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_unsealWait, -1)
+			}
 		case task := <-unsealTasks:
-			atomic.AddInt32(&_unsealWait, -1)
-			sb.doSealTask(ctx, r, task)
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_unsealWait, -1)
+			}
 		default:
 			// nothing in chan
+		}
+		if wc == nil || fn == nil {
+			return
+		}
+		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerUnseal, false) {
+			fn()
+			sb.doSealTask(ctx, r, *wc)
+		} else {
+			sb.returnTask(*wc)
 		}
 	}
 	checkFunc := []func(){
@@ -1298,17 +1369,17 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	cycle, retry := r.cfg.Cycle, r.cfg.Retry
 	r.offlineRW.RUnlock()
 	defer func() {
+		_remoteResultLk.Lock()
+		delete(_remoteResult, taskKey)
+		_remoteResultLk.Unlock()
+
 		r.offlineRW.RLock()
 		cycleCurr, retryCurr := r.cfg.Cycle, r.cfg.Retry
 		r.offlineRW.RUnlock()
 		if cycleCurr == cycle && retryCurr == retry { //当前没有重新上线
 			state := int(task.Type) + 1
 			r.UpdateTask(task.SectorName(), state) // set state to done
-
 			log.Infof("Delete task waiting :%s", taskKey)
-			_remoteResultLk.Lock()
-			delete(_remoteResult, taskKey)
-			_remoteResultLk.Unlock()
 		}
 	}()
 
