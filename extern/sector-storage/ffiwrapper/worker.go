@@ -1404,14 +1404,18 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 
 // export for rpc service
 func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
+	var (
+		rmt *remote
+	)
 	//worker重连的时候，需要先online完成 才能TaskDone 否则busy状态可能不一致
 	if r, ok := _remotes.Load(res.WorkerCfg.ID); ok {
-		if rmt := r.(*remote); rmt.isOfflineState() {
+		if rmt = r.(*remote); rmt.isOfflineState() {
 			return fmt.Errorf("connection refused")
 		}
 	} else {
 		return fmt.Errorf("connection refused")
 	}
+
 	_remoteResultLk.Lock()
 	rres, ok := _remoteResult[res.TaskID]
 	_remoteResultLk.Unlock()
@@ -1422,6 +1426,7 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 		log.Errorf("Not expect here:%+v", res)
 		return nil
 	}
+
 	if size := len(res.Err); size > 0 {
 		log.Errorw("Task done error", "task-id", res.TaskID, "err", res.Err)
 		if limit := 200; size > limit { //状态机在处理太长的错误的时候会报错 导致任务无法重做 故此处截取错误信息(200个字符)
@@ -1430,10 +1435,14 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	} else {
 		log.Infow("Task done success", "task-id", res.TaskID)
 	}
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case rres <- res:
+		if arr := strings.Split(res.TaskID, "_"); len(arr) > 1 {
+			delete(rmt.dictBusy, arr[0])
+		}
 		return nil
 	}
 }
