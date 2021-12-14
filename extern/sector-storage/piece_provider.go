@@ -3,7 +3,11 @@ package sectorstorage
 import (
 	"bufio"
 	"context"
+	"fmt"
+	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
@@ -19,7 +23,7 @@ import (
 type Unsealer interface {
 	// SectorsUnsealPiece will Unseal a Sealed sector file for the given sector.
 	SectorsUnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error
-	ReadPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error)
+//	ReadPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error)
 }
 
 type PieceProvider interface {
@@ -92,6 +96,7 @@ func (p *pieceProvider) tryReadUnsealedPiece(ctx context.Context, sector storage
 	return r, cancel, nil
 }
 
+
 // ReadPiece is used to read an Unsealed piece at the given offset and of the given size from a Sector
 // If an Unsealed sector file exists with the Piece Unsealed in it, we'll use that for the read.
 // Otherwise, we will Unseal a Sealed sector file for the given sector and read the Unsealed piece from it.
@@ -99,7 +104,13 @@ func (p *pieceProvider) tryReadUnsealedPiece(ctx context.Context, sector storage
 // the returned boolean parameter will be set to true.
 // If we have an existing unsealed file containing the given piece, the returned boolean will be set to false.
 func (p *pieceProvider) ReadPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error) {
-	return p.uns.ReadPiece(ctx, sector, offset, size, ticket, unsealed)
+	up := os.Getenv("US3")
+	if up != "" {
+		sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
+		unsealed := filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
+		return partialfile.ReadPieceQiniu(ctx, unsealed,sector,offset,size)
+	}
+	//return p.uns.ReadPiece(ctx, sector, offset, size, ticket, unsealed)
 
 	if err := offset.Valid(); err != nil {
 		return nil, false, xerrors.Errorf("offset is not valid: %w", err)
