@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1415,9 +1416,12 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 
 // export for rpc service
 func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
+	var (
+		rmt *remote
+	)
 	//worker重连的时候，需要先online完成 才能TaskDone 否则busy状态可能不一致
 	if r, ok := _remotes.Load(res.WorkerCfg.ID); ok {
-		if rmt := r.(*remote); rmt.isOfflineState() {
+		if rmt = r.(*remote); rmt.isOfflineState() {
 			return fmt.Errorf("connection refused")
 		}
 	} else {
@@ -1448,6 +1452,9 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case rres <- res:
+		if arr := strings.Split(res.TaskID, "_"); len(arr) > 1 {
+			delete(rmt.dictBusy, arr[0])
+		}
 		return nil
 	}
 }
