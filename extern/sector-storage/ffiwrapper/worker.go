@@ -904,6 +904,7 @@ func (sb *Sealer) toRemoteChan(task workerCall, r *remote) {
 	}
 	return
 }
+
 func (sb *Sealer) returnTask(task workerCall) {
 	var ret chan workerCall
 	switch task.task.Type {
@@ -924,6 +925,36 @@ func (sb *Sealer) returnTask(task workerCall) {
 		ret = _finalizeTasks
 	case WorkerUnseal:
 		atomic.AddInt32(&_unsealWait, 1)
+		ret = _unsealTasks
+	default:
+		log.Error("unknown task type", task.task.Type)
+	}
+
+	go func() {
+		// need sleep for the return task, or it will fall in a loop.
+		time.Sleep(30e9)
+		select {
+		case ret <- task:
+		case <-sb.stopping:
+			return
+		}
+	}()
+}
+
+func (sb *Sealer) returnTaskWithoutCounter(task workerCall) {
+	var ret chan workerCall
+	switch task.task.Type {
+	case WorkerPledge:
+		ret = _pledgeTasks
+	case WorkerPreCommit1:
+		ret = _precommit1Tasks
+	case WorkerPreCommit2:
+		ret = _precommit2Tasks
+	case WorkerCommit:
+		ret = _commitTasks
+	case WorkerFinalize:
+		ret = _finalizeTasks
+	case WorkerUnseal:
 		ret = _unsealTasks
 	default:
 		log.Error("unknown task type", task.task.Type)
@@ -1002,7 +1033,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
-			sb.returnTask(*wc)
+			sb.returnTaskWithoutCounter(*wc)
 		}
 	}
 	checkPreCommit1 := func() {
@@ -1033,7 +1064,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
-			sb.returnTask(*wc)
+			sb.returnTaskWithoutCounter(*wc)
 		}
 	}
 	checkPreCommit2 := func() {
@@ -1064,7 +1095,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
-			sb.returnTask(*wc)
+			sb.returnTaskWithoutCounter(*wc)
 		}
 	}
 	checkCommit := func() {
@@ -1094,7 +1125,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
-			sb.returnTask(*wc)
+			sb.returnTaskWithoutCounter(*wc)
 		}
 	}
 	checkFinalize := func() {
@@ -1124,7 +1155,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
-			sb.returnTask(*wc)
+			sb.returnTaskWithoutCounter(*wc)
 		}
 	}
 	checkUnseal := func() {
@@ -1154,7 +1185,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
-			sb.returnTask(*wc)
+			sb.returnTaskWithoutCounter(*wc)
 		}
 	}
 	checkFunc := []func(){
@@ -1440,7 +1471,7 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case rres <- res:
-		if arr := strings.Split(res.TaskID, "_"); len(arr) > 1 {
+		if arr := strings.Split(res.TaskID, "_"); len(arr) > 0 {
 			delete(rmt.dictBusy, arr[0])
 		}
 		return nil
