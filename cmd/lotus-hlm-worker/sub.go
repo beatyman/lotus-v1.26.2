@@ -179,7 +179,7 @@ loop:
 				return errors.New("task invalid").As(task)
 			}
 
-			log.Infof("New task: %s, sector %s, action: %d", task.Key(), task.SectorName(), task.Type)
+			log.Infof("New task: %s, sector %s, action: %d, busy: %v", task.Key(), task.SectorName(), task.Type, w.busyTasks())
 			go func(task ffiwrapper.WorkerTask) {
 				taskKey := task.Key()
 				w.workMu.Lock()
