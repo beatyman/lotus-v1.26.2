@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
+	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/buried/utils"
+	"github.com/google/uuid"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
@@ -37,7 +37,7 @@ type worker struct {
 	rpcServer *rpcServer
 	workerCfg ffiwrapper.WorkerCfg
 
-	workMu  sync.Mutex
+	workMu  sync.RWMutex
 	workOn  map[string]ffiwrapper.WorkerTask // task key
 	sealers map[string]*ffiwrapper.Sealer
 
@@ -132,7 +132,6 @@ func acceptJobs(ctx context.Context,
 	}
 	log.Infof("scanDisk : %v", diskSectors)
 
-
 	workerCfg.Cycle = uuid.New().String() //唯一标识一次启动
 	for i := 0; true; i++ {
 		if i > 0 {
@@ -160,6 +159,9 @@ func acceptJobs(ctx context.Context,
 	return nil
 }
 func (w *worker) busyTasks() []string {
+	w.workMu.RLock()
+	defer w.workMu.RUnlock()
+
 	out := make([]string, 0, 0)
 	for _, task := range w.workOn {
 		out = append(out, task.SectorName())
