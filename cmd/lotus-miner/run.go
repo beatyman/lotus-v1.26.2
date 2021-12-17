@@ -76,7 +76,6 @@ var runCmd = &cli.Command{
 			tag.Insert(metrics.Commit, build.CurrentCommit),
 			tag.Insert(metrics.NodeType, "miner"),
 		)
-
 		// implement by hlm
 		// use the cluster proxy if it's exist.
 		if err := cliutil.ConnectLotusProxy(cctx); err != nil {
