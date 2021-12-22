@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/monitor"
+	"huangdong2012/filecoin-monitor/model"
 	"os"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -35,6 +37,7 @@ func main() {
 	if AdvanceBlockCmd != nil {
 		local = append(local, AdvanceBlockCmd)
 	}
+	monitor.Init(model.PackageKind_Lotus, "")
 
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {

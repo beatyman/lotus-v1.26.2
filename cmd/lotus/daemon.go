@@ -20,6 +20,7 @@ import (
 	paramfetch "github.com/filecoin-project/go-paramfetch"
 	metricsprom "github.com/ipfs/go-metrics-prometheus"
 	"github.com/mitchellh/go-homedir"
+	"github.com/filecoin-project/lotus/monitor"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 	"go.opencensus.io/plugin/runmetrics"
@@ -365,6 +366,10 @@ var DaemonCmd = &cli.Command{
 		if err != nil {
 			return xerrors.Errorf("getting api endpoint: %w", err)
 		}
+
+
+		//start mpool stat monitor
+		monitor.StartMPoolMonitor(api)
 
 		//
 		// Instantiate JSON-RPC endpoint.

@@ -10,6 +10,9 @@ import (
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/gwaylib/errors"
 	"github.com/urfave/cli/v2"
+	"github.com/filecoin-project/lotus/monitor"
+	"huangdong2012/filecoin-monitor/model"
+	"huangdong2012/filecoin-monitor/trace/spans"
 )
 
 var hlmWorkerCmd = &cli.Command{
@@ -273,6 +276,16 @@ var enableHLMWorkerCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
+		addr, _ := nodeApi.ActorAddress(ctx)
+		//添加监控
+		kind := model.PackageKind_Miner
+
+		monitor.Init(kind, addr.String())
+		_, span := spans.NewWorkerOperationSpan(context.Background())
+		span.SetWorkNo(workerId)
+		span.SetState(false)
+		span.End()
+
 		return nodeApi.WorkerDisable(ctx, workerId, false)
 	},
 }
@@ -292,6 +305,15 @@ var disableHLMWorkerCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
+		addr, _ := nodeApi.ActorAddress(ctx)
+		//添加监控
+		kind := model.PackageKind_Miner
+
+		monitor.Init(kind, addr.String())
+		_, span := spans.NewWorkerOperationSpan(context.Background())
+		span.SetWorkNo(workerId)
+		span.SetState(true)
+		span.End()
 		return nodeApi.WorkerDisable(ctx, workerId, true)
 	},
 }

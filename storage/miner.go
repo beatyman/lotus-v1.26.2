@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"encoding/hex"
+	"github.com/filecoin-project/lotus/monitor"
+	"huangdong2012/filecoin-monitor/model"
 	"time"
 
 	"github.com/filecoin-project/go-bitfield"
@@ -169,7 +171,8 @@ func NewMiner(api fullNodeFilteredAPI,
 		journal:        journal,
 		sealingEvtType: journal.RegisterEventType("storage", "sealing_states"),
 	}
-
+	//此处和miner.miner的new方法都会执行monitor.Init(once保证了monitor只会初始化一次)
+	monitor.Init(model.PackageKind_Miner, maddr.String())
 	return m, nil
 }
 

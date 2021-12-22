@@ -28,6 +28,7 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/lotus/node/repo"
+	"github.com/google/gops/agent"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
@@ -62,6 +63,11 @@ var runCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		//start gops
+		if err := agent.Listen(agent.Options{}); err != nil {
+			return err
+		}
+
 		if !cctx.Bool("enable-gpu-proving") {
 			err := os.Setenv("BELLMAN_NO_GPU", "true")
 			if err != nil {
