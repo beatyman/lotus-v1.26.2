@@ -333,7 +333,7 @@ func (m *Miner) mine(ctx context.Context) {
 		mineCtx, span = spans.NewMineSpan(mineCtx)
 		go func() {
 			span.Starting("")
-			took, b, err := m.mineOne(mineCtx, &oldbase, &lastBase, nextRound)
+			took, b, err := m.mineOne(mineCtx, &oldbase, &lastBase, nextRound, span)
 			if err != nil {
 				span.Finish(err)
 				if err := database.AddWinErr(nextRound); err != nil {
