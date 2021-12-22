@@ -1,6 +1,7 @@
 package buried
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/filecoin-project/lotus/buried/miner"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
