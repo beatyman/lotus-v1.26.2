@@ -3,6 +3,10 @@ package storage
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"fmt"
+	"huangdong2012/filecoin-monitor/trace/spans"
+	"strings"
 	"sync"
 	"time"
 
@@ -104,14 +108,15 @@ func (s *WindowPoStScheduler) runGeneratePoST(
 	ts *types.TipSet,
 	deadline *dline.Info,
 ) ([]miner.SubmitWindowedPoStParams, error) {
-	ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.generatePoST")
-	defer span.End()
+	s.ResetLog(deadline.Index)
+	//ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.generatePoST")
+	//defer span.End()
 
   s.ResetLog(deadline.Index)
 
 	posts, err := s.runPoStCycle(ctx, *deadline, ts)
 	if err != nil {
-    log.Error(s.PutLogf(deadline.Index, "runPoStCycle failed: %+v", err))
+    	log.Error(s.PutLogf(deadline.Index, "runPoStCycle failed: %+v", err))
 		return nil, err
 	}
 
@@ -519,8 +524,6 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 		return s.runHlmPoStCycle(ctx, di, ts)
 	}
 
-	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
-	defer span.End()
 
 	go func() {
 		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
@@ -634,6 +637,21 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 		postSkipped := bitfield.New()
 		somethingToProve := false
 
+		var batchPartitionIndexes []string
+		for idx := 0; idx < len(batch); idx++ {
+			batchPartitionIndexes = append(batchPartitionIndexes, fmt.Sprintf("%v", batchPartitionStartIdx+idx))
+		}
+		ctx, span := spans.NewWindowPostSpan(ctx)
+		span.SetDeadline(int(di.Index))
+		span.SetPartitions(strings.Join(batchPartitionIndexes, ","))
+		span.SetPartitionCount(len(batch))
+		span.SetOpenEpoch(int64(di.Open))
+		span.SetCloseEpoch(int64(di.Close))
+		span.SetWorkerEnable(false)
+		span.Starting("")
+		spanHasFinish := false
+
+
 		// Retry until we run out of sectors to prove.
 		for retries := 0; ; retries++ {
 			skipCount := uint64(0)
@@ -688,13 +706,21 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 				})
 			}
 
+			span.SetSectorCount(len(sinfos))
+			span.SetSkipCount(int(skipCount))
+
+
 			if len(sinfos) == 0 {
 				// nothing to prove for this batch
 				log.Info(s.PutLogf(di.Index, "no sector info for deadline:%d", di.Index))
+				spanHasFinish = true
+				span.Finish(fmt.Errorf("no sector info for deadline:%d", di.Index))
 				break
 			}
 
 			// Generate proof
+			span.SetHeight(int64(ts.Height()))
+			span.SetRand(hex.EncodeToString(rand))
 			log.Info(s.PutLogw(di.Index, "running window post",
 				"chain-random", rand,
 				"deadline", di,
@@ -705,18 +731,23 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 
 			mid, err := address.IDFromAddress(s.actor)
 			if err != nil {
+				span.Finish(err)
 				return nil, err
 			}
 
 			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, append(abi.PoStRandomness{}, rand...))
 			elapsed := time.Since(tsStart)
+			span.SetGenerateElapsed(int64(elapsed))
+			span.SetErrorCount(len(ps))
 
 			log.Info(s.PutLogw(di.Index, "computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand))
 
 			if err == nil {
 				// If we proved nothing, something is very wrong.
 				if len(postOut) == 0 {
-					return nil, xerrors.Errorf("received no proofs back from generate window post")
+					err = xerrors.Errorf("received no proofs back from generate window post")
+					span.Finish(err)
+					return nil, err
 				}
 
 				clSectors := []proof.SectorInfo{}
@@ -730,11 +761,13 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 
 				headTs, err := s.api.ChainHead(ctx)
 				if err != nil {
+					span.Finish(err)
 					return nil, xerrors.Errorf("getting current head: %w", err)
 				}
 
 				checkRand, err := s.api.StateGetRandomnessFromBeacon(ctx, crypto.DomainSeparationTag_WindowedPoStChallengeSeed, di.Challenge, buf.Bytes(), headTs.Key())
 				if err != nil {
+					span.Finish(err)
 					return nil, xerrors.Errorf("failed to get chain randomness from beacon for window post (ts=%d; deadline=%d): %w", ts.Height(), di, err)
 				}
 
@@ -771,7 +804,9 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 			if len(ps) == 0 {
 				// If we didn't skip any new sectors, we failed
 				// for some other reason and we need to abort.
-				return nil, xerrors.Errorf("running window post failed: %w", err)
+				err = xerrors.Errorf("running window post failed: %w", err)
+				span.Finish(err)
+				return nil, err
 			}
 			// TODO: maybe mark these as faulty somewhere?
 
@@ -783,12 +818,17 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 			// deadline after the deadline has ended.
 			if ctx.Err() != nil {
 				log.Warn(s.PutLogw(di.Index, "aborting PoSt due to context cancellation", "error", ctx.Err(), "deadline", di.Index))
+				span.Finish(ctx.Err())
 				return nil, ctx.Err()
 			}
 
 			for _, sector := range ps {
 				postSkipped.Set(uint64(sector.Number))
 			}
+		}
+
+		if !spanHasFinish {
+			span.Finish(nil)
 		}
 
 		// Nothing to prove for this batch, try the next batch

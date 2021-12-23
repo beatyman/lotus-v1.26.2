@@ -1,12 +1,20 @@
 package utils
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/gwaylib/errors"
 	"github.com/gwaylib/log"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -97,4 +105,101 @@ func GetCurrentDirectory() string {
 		log.Fatal(err)
 	}
 	return strings.Replace(dir, "\\", "/", -1)
+}
+
+func ExeSysCommand(cmdStr string) string {
+	cmd := exec.Command("sh", "-c", cmdStr)
+	opBytes, err := cmd.Output()
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	smartctlInfo := strings.Trim(string(opBytes), "\n")
+	return smartctlInfo
+}
+
+func RequsetUrl(method string, url string, token string, dataJson string) ([]byte, error) {
+	buffer := bytes.NewBuffer([]byte(dataJson))
+	request, err := http.NewRequest(method, url, buffer)
+	if err != nil {
+		return nil, errors.As(err, "http.NewRequest failure", method, url, dataJson)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+token)
+	client := http.Client{}
+	resp, err := client.Do(request.WithContext(context.TODO()))
+	if err != nil {
+		return nil, errors.As(err, method, url, dataJson)
+	}
+	defer resp.Body.Close()
+	respBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.As(err, "ioutil.ReadAll failure")
+	}
+	return respBytes, nil
+}
+
+func GetMinerAddr() string {
+	url, token, err := GetWorkerAddrAndToken()
+	if err != nil {
+		log.Error("err ===============GetWorkerAddrAndToken()===================", err)
+		return ""
+	}
+	data := new(DataJson)
+	data.Method = "Filecoin.ActorAddress"
+	dataByte, _ := json.Marshal(data)
+	str, err := RequsetUrl("POST", url, token, string(dataByte))
+	if err != nil {
+		log.Error("err ===============RequsetUrl(POST, url, token, string(dataByte))===================", err)
+		return ""
+	}
+
+	var resp ActorAddressResp
+	if err = json.Unmarshal(str, &resp); err != nil {
+		log.Error("err ===============json.Unmarshal(str, &resp)===================", err)
+		return ""
+	}
+	return resp.Result
+}
+
+func GetWorkerAddrAndToken() (api string, token string, err error) {
+	//path := "/data/sdb/lotus-user-1/"
+	path := "/data/sdb/lotus-user-1/.lotusstorage"
+
+	tokenPath := path + "/worker_token"
+	urlPath := path + "/worker_api"
+	tokenBytes, err := ioutil.ReadFile(tokenPath)
+	if err != nil {
+		log.Error("err ===============ioutil.ReadFile(tokenPath)===================", err)
+		return "", "", err
+	}
+	token = string(tokenBytes)
+	token = strings.Trim(token, "")
+	token = strings.Trim(token, "\n")
+	token = strings.Trim(token, "\\n")
+	urlBytes, err := ioutil.ReadFile(urlPath)
+	if err != nil {
+		log.Error("err ===============ioutil.ReadFile(urlPath)===================", err)
+		return "", "", err
+	}
+
+	addr := string(urlBytes)
+	//str := "/ip4/10.41.1.14/tcp/11234/http"
+	split := strings.Split(addr, "/")
+	api = "http://" + split[2] + ":" + split[4] + "/rpc/v0"
+
+	return api, token, nil
+}
+
+type DataJson struct {
+	Jsonrpc string        `json:"jsonrpc"`
+	Method  string        `json:"method"`
+	Params  []interface{} `json:"params"`
+	Id      uint64        `json:"id"`
+}
+
+type ActorAddressResp struct {
+	Jsonrpc string `json:"jsonrpc"`
+	Result  string `json:"result"`
+	Id      uint64 `json:"id"`
 }

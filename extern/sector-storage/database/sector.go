@@ -424,7 +424,30 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 	}, nil
 }
 
+func UploadSectorProvingState(sid string) (err error) {
+	defer func() {
+		err = UploadSectorMonitorState(sid, "", "proving", SectorProvingDone)
+	}()
+	if err = UploadSectorMonitorState(sid, "", "proving", SectorProving); err != nil {
+		return err
+	}
+	return err
+}
+
+func UploadSectorMonitorState(sid, wid, msg string, state int) error {
+	if info, err := GetSectorInfo(sid); err != nil {
+		return err
+	} else if info != nil && (info.State < state || state == 0) { //第一次下发任务的时候 才上报span(避免同一个任务上报多次)
+		wInfo, _ := GetWorkerInfo(wid)
+		ssm.OnSectorStateChange(info, wInfo, wid, msg, state)
+	}
+	return nil
+}
+
 func UpdateSectorState(sid, wid, msg string, state int) error {
+	if err := UploadSectorMonitorState(sid, wid, msg, state); err != nil {
+		return err
+	}
 	mdb := GetDB()
 	if _, err := mdb.Exec(`
 UPDATE
@@ -555,7 +578,7 @@ func SetSectorSealedStorage(sid string, storage uint64) error {
 		return errors.As(err, sid, storage)
 	}
 	sectorFileCacheLk.Lock()
-	delete(sectorFileCaches,sid)
+	delete(sectorFileCaches, sid)
 	sectorFileCacheLk.Unlock()
 	return nil
 }

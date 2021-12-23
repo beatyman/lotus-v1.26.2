@@ -2,7 +2,13 @@ package main
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/buried"
+	"github.com/filecoin-project/lotus/buried/utils"
+	"github.com/filecoin-project/lotus/monitor"
+
 	"fmt"
+	"github.com/filecoin-project/lotus/lib/tracing"
+	"huangdong2012/filecoin-monitor/model"
 	"net"
 	"net/http"
 	"os"
@@ -217,6 +223,11 @@ var runCmd = &cli.Command{
 			Value: false,
 			Usage: "Open wining PoSt service",
 		},
+		&cli.StringFlag{
+			Name:  "timer",
+			Usage: "Timer time try. The time is minutes. The default is 1 minutes",
+			Value: "1",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
@@ -346,6 +357,28 @@ var runCmd = &cli.Command{
 		}
 		workerApi := newRpcServer(workerCfg.ID, minerRepo, minerSealer)
 
+		minerNo := utils.GetMinerAddr()
+		log.Infof("==============get addr :%s", minerNo)
+		//添加监控
+		kind := model.PackageKind_Worker
+		if workerCfg.WdPoStSrv {
+			kind = model.PackageKind_WorkerWdPost
+		} else if workerCfg.WnPoStSrv {
+			kind = model.PackageKind_WorkerWnPost
+		}
+		monitor.Init(kind, minerNo)
+		jaeger := tracing.SetupJaegerTracing("worker")
+		defer func() {
+			if jaeger != nil {
+				jaeger.Flush()
+			}
+		}()
+
+		timer := cctx.Int64("timer")
+		go func() {
+			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, minerNo)
+		}()
+
 		if err := database.LockMount(minerRepo); err != nil {
 			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())
 		}
@@ -384,7 +417,6 @@ var runCmd = &cli.Command{
 				os.Exit(1)
 			}
 		}()
-
 		log.Info("starting acceptJobs")
 		if err := acceptJobs(ctx,
 			workerApi,
