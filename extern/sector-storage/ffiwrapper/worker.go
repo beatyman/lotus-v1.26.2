@@ -555,10 +555,6 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		rs = append(rs, _r)
 		return true
 	})
-	for _, _r := range rs {
-		msg += _r.cfg.ID + ","
-	}
-	log.Infof("task(%v) select gpu with c2workers: %v", task.SectorID, msg)
 
 	//2.根据已分发的任务数"降序"排序c2 worker
 	sort.Slice(rs, func(i, j int) bool {
@@ -880,6 +876,10 @@ func (sb *Sealer) toRemoteOwner(task workerCall) {
 }
 
 func (sb *Sealer) toRemoteChan(task workerCall, r *remote) {
+	if r.isOfflineState() {
+		return
+	}
+
 	switch task.task.Type {
 	case WorkerPledge:
 		atomic.AddInt32(&(r.pledgeWait), 1)
@@ -1031,10 +1031,13 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		log.Infow("pledge task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPledge, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
+			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 		} else {
+			log.Infow("pledge task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 			sb.returnTaskWithoutCounter(*wc)
 		}
 	}
@@ -1207,20 +1210,13 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		default:
 			// sleep for controlling the loop
 			time.Sleep(5 * time.Second)
-			for i := 0; i < r.cfg.MaxTaskNum; i++ {
-				if r.isOfflineState() {
-					continue
-				}
-				if atomic.LoadInt32(&sb.pauseSeal) != 0 {
-					// pause the seal
-					continue
-				}
+			if r.isOfflineState() || atomic.LoadInt32(&sb.pauseSeal) != 0 {
+				continue
+			}
 
-				checkFinalize()
-				for _, check := range checkFunc {
-					if r.isOfflineState() {
-						continue
-					}
+			checkFinalize()
+			for _, check := range checkFunc {
+				if !r.isOfflineState() {
 					check()
 				}
 			}
@@ -1376,13 +1372,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 }
 
 func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res SealRes, interrupt bool) {
-	mBusy := make([]string, 0, 0)
-	r.lock.RLock()
-	for _, t := range r.busyOnTasks {
-		mBusy = append(mBusy, t.Key())
-	}
-	r.lock.RUnlock()
-	log.Infow("task sending", "worker-id", r.cfg.ID, "task-key", task.Key(), "miner-busy", mBusy)
+	log.Infow("task sending", "worker-id", r.cfg.ID, "task-key", task.Key())
 
 	taskKey := task.Key()
 	resCh := make(chan SealRes)
@@ -1459,6 +1449,12 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 		return fmt.Errorf("connection refused")
 	}
 
+	defer func() {
+		if arr := strings.Split(res.TaskID, "_"); len(arr) > 0 {
+			delete(rmt.dictBusy, arr[0])
+		}
+	}()
+
 	_remoteResultLk.Lock()
 	rres, ok := _remoteResult[res.TaskID]
 	_remoteResultLk.Unlock()
@@ -1483,9 +1479,6 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case rres <- res:
-		if arr := strings.Split(res.TaskID, "_"); len(arr) > 0 {
-			delete(rmt.dictBusy, arr[0])
-		}
 		return nil
 	}
 }
