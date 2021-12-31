@@ -353,9 +353,6 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	busyWindowPoSt := 0
 	sumWorkingTask := 0
 	realWorking := 0
-
-	r.lock.RLock()
-	defer r.lock.RUnlock()
 	for _, val := range r.busyOnTasks {
 		if val.Type%10 == 0 {
 			sumWorkingTask++
