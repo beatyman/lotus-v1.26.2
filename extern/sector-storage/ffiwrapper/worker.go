@@ -963,8 +963,6 @@ func (sb *Sealer) returnTaskWithoutCounter(task workerCall) {
 	}
 
 	go func() {
-		// need sleep for the return task, or it will fall in a loop.
-		time.Sleep(30e9)
 		select {
 		case ret <- task:
 		case <-sb.stopping:
@@ -1003,7 +1001,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	checkPledge := func() {
 		// search checking is the remote busying
 		if r.fakeFullTask() || r.disable {
-			//log.Infow("DEBUG:", "fullTask", len(r.busyOnTasks), "maxTask", r.maxTaskNum)
+			log.Infow("pledge task fake", "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
 			return
 		}
 
@@ -1028,6 +1026,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// nothing in chan
 		}
 		if wc == nil || fn == nil {
+			log.Infow("pledge task not-task", "worker-id", r.cfg.ID)
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
@@ -1038,7 +1037,9 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 		} else {
 			log.Infow("pledge task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+			wc.task.WorkerID = ""
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkPreCommit1 := func() {
@@ -1070,6 +1071,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			sb.doSealTask(ctx, r, *wc)
 		} else {
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkPreCommit2 := func() {
@@ -1101,6 +1103,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			sb.doSealTask(ctx, r, *wc)
 		} else {
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkCommit := func() {
@@ -1131,6 +1134,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			sb.doSealTask(ctx, r, *wc)
 		} else {
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkFinalize := func() {
@@ -1161,6 +1165,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			sb.doSealTask(ctx, r, *wc)
 		} else {
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkUnseal := func() {
@@ -1191,6 +1196,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			sb.doSealTask(ctx, r, *wc)
 		} else {
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkFunc := []func(){
