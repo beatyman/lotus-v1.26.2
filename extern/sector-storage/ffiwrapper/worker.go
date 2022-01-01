@@ -1001,7 +1001,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	checkPledge := func() {
 		// search checking is the remote busying
 		if r.fakeFullTask() || r.disable {
-			log.Infow("pledge task fake", "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
+			//log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
 			return
 		}
 
@@ -1063,13 +1063,17 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// nothing in chan
 		}
 		if wc == nil || fn == nil {
+			log.Infow("p1 task not-task", "worker-id", r.cfg.ID)
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		log.Infow("p1 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPreCommit1, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
+			log.Infow("p1 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 		} else {
+			log.Infow("p1 task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 			sb.returnTaskWithoutCounter(*wc)
 			time.Sleep(time.Second * 3)
 		}
@@ -1095,13 +1099,17 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// nothing in chan
 		}
 		if wc == nil || fn == nil {
+			log.Infow("p2 task not-task", "worker-id", r.cfg.ID)
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		log.Infow("p2 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPreCommit2, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
+			log.Infow("p2 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 		} else {
+			log.Infow("p2 task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 			sb.returnTaskWithoutCounter(*wc)
 			time.Sleep(time.Second * 3)
 		}
@@ -1444,15 +1452,28 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 // export for rpc service
 func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	var (
-		rmt *remote
+		rmt     *remote
+		errConn = fmt.Errorf("connection refused")
 	)
 	//worker重连的时候，需要先online完成 才能TaskDone 否则busy状态可能不一致
 	if r, ok := _remotes.Load(res.WorkerCfg.ID); ok {
 		if rmt = r.(*remote); rmt.isOfflineState() {
-			return fmt.Errorf("connection refused")
+			return errConn
 		}
 	} else {
-		return fmt.Errorf("connection refused")
+		return errConn
+	}
+
+	_remoteResultLk.Lock()
+	rres, ok := _remoteResult[res.TaskID]
+	_remoteResultLk.Unlock()
+	if !ok { //data not found时，让worker等待状态机重新下发任务，然后再做WorkerDone
+		//return errors.ErrNoData.As(res.TaskID)
+		return errConn
+	}
+	if rres == nil {
+		log.Errorf("Not expect here:%+v", res)
+		return nil
 	}
 
 	defer func() {
@@ -1460,18 +1481,6 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 			delete(rmt.dictBusy, arr[0])
 		}
 	}()
-
-	_remoteResultLk.Lock()
-	rres, ok := _remoteResult[res.TaskID]
-	_remoteResultLk.Unlock()
-	if !ok {
-		return errors.ErrNoData.As(res.TaskID)
-	}
-	if rres == nil {
-		log.Errorf("Not expect here:%+v", res)
-		return nil
-	}
-
 	if size := len(res.Err); size > 0 {
 		log.Errorw("Task done error", "task-id", res.TaskID, "err", res.Err)
 		if limit := 200; size > limit { //状态机在处理太长的错误的时候会报错 导致任务无法重做 故此处截取错误信息(200个字符)
