@@ -855,33 +855,20 @@ func (sb *Sealer) toRemoteFree(task workerCall) {
 }
 
 func (sb *Sealer) toRemoteOwner(task workerCall) {
-	r, ok := _remotes.Load(task.task.WorkerID)
-	if !ok {
-		log.Warnf(
-			"no worker(%s,%s) for toOwner, return task:%s",
-			task.task.WorkerID, task.task.SectorStorage.WorkerInfo.Ip, task.task.Key(),
-		)
-
+	if r, ok := _remotes.Load(task.task.WorkerID); !ok {
 		// clear this on worker online.
 		sb.offlineWorker.Store(task.task.WorkerID, task.task.SectorStorage.WorkerInfo)
 
 		//已绑定了worker的刷单任务 不返回全局队列（防止阻塞刷单循环）其他情况的任务都返回全局队列
-		if task.task.Type == WorkerPledge && len(task.task.WorkerID) > 0 {
-			atomic.AddInt32(&_pledgeWait, 1)
-		} else {
+		if !(task.task.Type == WorkerPledge && len(task.task.WorkerID) > 0) {
 			sb.returnTask(task)
 		}
-
-		return
+	} else {
+		sb.toRemoteChan(task, r.(*remote))
 	}
-	sb.toRemoteChan(task, r.(*remote))
 }
 
 func (sb *Sealer) toRemoteChan(task workerCall, r *remote) {
-	if r.isOfflineState() {
-		return
-	}
-
 	switch task.task.Type {
 	case WorkerPledge:
 		atomic.AddInt32(&(r.pledgeWait), 1)
