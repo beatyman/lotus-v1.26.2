@@ -866,7 +866,9 @@ func (sb *Sealer) toRemoteOwner(task workerCall) {
 		sb.offlineWorker.Store(task.task.WorkerID, task.task.SectorStorage.WorkerInfo)
 
 		//已绑定了worker的刷单任务 不返回全局队列（防止阻塞刷单循环）其他情况的任务都返回全局队列
-		if !(task.task.Type == WorkerPledge && len(task.task.WorkerID) > 0) {
+		if task.task.Type == WorkerPledge && len(task.task.WorkerID) > 0 {
+			atomic.AddInt32(&_pledgeWait, 1)
+		} else {
 			sb.returnTask(task)
 		}
 
@@ -1026,7 +1028,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// nothing in chan
 		}
 		if wc == nil || fn == nil {
-			log.Infow("pledge task not-task", "worker-id", r.cfg.ID)
+			//log.Infow("pledge task not-task", "worker-id", r.cfg.ID)
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
@@ -1063,7 +1065,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// nothing in chan
 		}
 		if wc == nil || fn == nil {
-			log.Infow("p1 task not-task", "worker-id", r.cfg.ID)
+			//log.Infow("p1 task not-task", "worker-id", r.cfg.ID)
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
@@ -1099,7 +1101,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// nothing in chan
 		}
 		if wc == nil || fn == nil {
-			log.Infow("p2 task not-task", "worker-id", r.cfg.ID)
+			//log.Infow("p2 task not-task", "worker-id", r.cfg.ID)
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
@@ -1467,9 +1469,8 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	_remoteResultLk.Lock()
 	rres, ok := _remoteResult[res.TaskID]
 	_remoteResultLk.Unlock()
-	if !ok { //data not found时，让worker等待状态机重新下发任务，然后再做WorkerDone
-		//return errors.ErrNoData.As(res.TaskID)
-		return errConn
+	if !ok {
+		return errors.ErrNoData.As(res.TaskID)
 	}
 	if rres == nil {
 		log.Errorf("Not expect here:%+v", res)
