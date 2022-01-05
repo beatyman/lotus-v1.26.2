@@ -378,11 +378,14 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 		}
 	}()
 
+	_tmpPledgeTasksRW.Lock()
+	defer _tmpPledgeTasksRW.Unlock()
+
 	ctx, cancel := context.WithCancel(context.Background()) //注意：此处不能用oriCtx作为父parent 因为worker实现了断线重连
 	rmt = &remote{
 		ctx:            oriCtx, //这个上下文必须要是jsonrpc的上下文 用于捕获连接是否断开
 		cfg:            cfg,
-		pledgeChan:     make(chan workerCall, 10),
+		pledgeChan:     make(chan workerCall, len(_tmpPledgeTasks[cfg.ID])+10),
 		precommit1Chan: make(chan workerCall, 10),
 		precommit2Chan: make(chan workerCall, 10),
 		commitChan:     make(chan workerCall, 10),
@@ -404,6 +407,13 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 			_remotes.Delete(cfg.ID)
 		},
 	}
+
+	//加载worker连接miner之前的pledge任务
+	for _, task := range _tmpPledgeTasks[cfg.ID] {
+		rmt.pledgeChan <- task
+	}
+	_tmpPledgeTasks[cfg.ID] = make([]workerCall, 0, 0)
+
 	_remotes.Store(cfg.ID, rmt)
 	go sb.loopWorker(ctx, rmt, cfg)
 	go sb.offlineWorkerLoop(ctx, rmt)
@@ -860,7 +870,11 @@ func (sb *Sealer) toRemoteOwner(task workerCall) {
 		sb.offlineWorker.Store(task.task.WorkerID, task.task.SectorStorage.WorkerInfo)
 
 		//已绑定了worker的刷单任务 不返回全局队列（防止阻塞刷单循环）其他情况的任务都返回全局队列
-		if !(task.task.Type == WorkerPledge && len(task.task.WorkerID) > 0) {
+		if task.task.Type == WorkerPledge && len(task.task.WorkerID) > 0 {
+			_tmpPledgeTasksRW.Lock()
+			_tmpPledgeTasks[task.task.WorkerID] = append(_tmpPledgeTasks[task.task.WorkerID], task)
+			_tmpPledgeTasksRW.Unlock()
+		} else {
 			sb.returnTask(task)
 		}
 	} else {
