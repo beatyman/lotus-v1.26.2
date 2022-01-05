@@ -33,6 +33,9 @@ var (
 	_finalizeTasks   = make(chan workerCall)
 	_unsealTasks     = make(chan workerCall)
 
+	_tmpPledgeTasks   = make(map[string][]workerCall)
+	_tmpPledgeTasksRW = &sync.RWMutex{}
+
 	_remotes        = sync.Map{}
 	_remoteResultLk = sync.RWMutex{}
 	_remoteResult   = make(map[string]chan<- SealRes)

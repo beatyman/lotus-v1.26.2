@@ -468,8 +468,53 @@ func s3_etag(path string, partSize int) string {
 }
 
 func ComputeEtagLocal(filename string) (string, error) {
-	return s3_etag(filename, int(BSIZE)), nil
+	return s3_etag_v2(filename, int(BSIZE)), nil
 }
+//ucloud优化版本
+func s3_etag_v2(path string, partSize int) string {
+	var (
+		err           error
+		file          *os.File
+		fileInfo      os.FileInfo
+		fileSize      int64
+		parts         int
+		contentToHash []byte
+	)
+	file, err = os.Open(path)
+	if err != nil {
+		return err.Error()
+	}
+	defer file.Close()
+	fileInfo, err = file.Stat()
+	fileSize = fileInfo.Size()
+	if fileSize > int64(partSize) {
+		buffer := make([]byte, partSize)
+		for {
+			readLen, err := file.Read(buffer)
+			if err != nil {
+				if err != io.EOF {
+					fmt.Println(err)
+				}
+				break
+			}
+			partHash := md5.Sum(buffer[0:readLen])
+			contentToHash = append(contentToHash, partHash[:]...)
+			parts++
+		}
+	} else {
+		contentToHash, err = ioutil.ReadFile(path)
+		if err != nil {
+			return err.Error()
+		}
+	}
+	hash := md5.Sum(contentToHash)
+	etag := fmt.Sprintf("%x", hash)
+	if parts > 0 {
+		etag += fmt.Sprintf("-%d", parts)
+	}
+	return etag
+}
+
 func GetEtagFromServer(ctx context.Context, key string) (string, error) {
 	up := os.Getenv("US3")
 	if up == "" {
