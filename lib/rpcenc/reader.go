@@ -2,6 +2,7 @@ package rpcenc
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,6 +46,9 @@ var client = func() *http.Client {
 	c := *http.DefaultClient
 	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
+	}
+	c.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	return &c
 }()

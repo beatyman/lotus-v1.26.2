@@ -61,7 +61,7 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 	gpuKey, _, err := allocateGpu(ctx)
 	if err != nil {
 		log.Errorw("allocate gpu error", "task-key", task.Key(), "err", errors.As(err))
-		return storage.SectorCids{}, errors.As(err)
+		//return storage.SectorCids{}, errors.As(err)
 	}
 	defer returnGpu(gpuKey)
 

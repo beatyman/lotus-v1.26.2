@@ -213,10 +213,13 @@ var setAskCmd = &cli.Command{
 			Usage:       "Set maximum piece size (w/bit-padding, in bytes) in ask to `SIZE`",
 			DefaultText: "miner sector size",
 		},
+		&cli.StringFlag{
+			Name: "miner_api",
+			EnvVars: []string{"MINER_API_INFO"},
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := lcli.DaemonContext(cctx)
-
 		minerApi, closer, err := lcli.GetStorageMinerAPI(cctx)
 		if err != nil {
 			return err
