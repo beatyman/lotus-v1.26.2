@@ -270,7 +270,8 @@ type remote struct {
 
 	srvConn int64
 
-	dictBusy map[string]string
+	dictBusy   map[string]string
+	dictBusyRW sync.RWMutex
 }
 
 func (r *remote) isOfflineState() bool {

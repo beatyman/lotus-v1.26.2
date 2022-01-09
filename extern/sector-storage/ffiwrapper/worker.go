@@ -323,10 +323,12 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		}
 
 		if rmt != nil {
+			rmt.dictBusyRW.Lock()
 			rmt.dictBusy = make(map[string]string)
 			for _, typ := range cfg.Busy {
 				rmt.dictBusy[typ] = typ
 			}
+			rmt.dictBusyRW.Unlock()
 
 			//1.加载busy状态
 			log.Infow("AddWorker of before load-busy", "wid", cfg.ID, "retry", cfg.Retry, "worker-busy", cfg.Busy)
@@ -1034,7 +1036,10 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
 		log.Infow("pledge task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPledge, false) {
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerPledge, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
@@ -1071,7 +1076,10 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
 		log.Infow("p1 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPreCommit1, false) {
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerPreCommit1, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 			log.Infow("p1 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
@@ -1107,7 +1115,10 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
 		log.Infow("p2 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPreCommit2, false) {
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerPreCommit2, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 			log.Infow("p2 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
@@ -1140,7 +1151,10 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerCommit, false) {
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerCommit, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
@@ -1171,7 +1185,10 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerFinalize, false) {
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerFinalize, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
@@ -1202,7 +1219,10 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerUnseal, false) {
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerUnseal, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
@@ -1470,8 +1490,9 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	_remoteResultLk.Lock()
 	rres, ok := _remoteResult[res.TaskID]
 	_remoteResultLk.Unlock()
-	if !ok {
-		return errors.ErrNoData.As(res.TaskID)
+	if !ok { //等待fsm触发任务重做->_remoteResult[res.TaskID]有值->TaskDone成功
+		return errConn
+		//return errors.ErrNoData.As(res.TaskID)
 	}
 	if rres == nil {
 		log.Errorf("Not expect here:%+v", res)
@@ -1480,7 +1501,9 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 
 	defer func() {
 		if arr := strings.Split(res.TaskID, "_"); len(arr) > 0 {
+			rmt.dictBusyRW.Lock()
 			delete(rmt.dictBusy, arr[0])
+			rmt.dictBusyRW.Unlock()
 		}
 	}()
 	if size := len(res.Err); size > 0 {
