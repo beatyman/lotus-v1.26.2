@@ -492,6 +492,18 @@ func (w *worker) removeDataLayer(ctx context.Context, cacheDir string, removeC1c
 					filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
 					files = append(files, filename)
 				}
+				if strings.Contains(v.Name(), "data-layer") {
+					filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
+					files = append(files, filename)
+				}
+				if strings.Contains(v.Name(), "tree-d") {
+					filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
+					files = append(files, filename)
+				}
+				if strings.Contains(v.Name(), "tree-c") {
+					filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
+					files = append(files, filename)
+				}
 			}
 		}
 	}
