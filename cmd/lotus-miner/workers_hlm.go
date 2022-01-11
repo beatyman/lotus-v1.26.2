@@ -13,9 +13,6 @@ import (
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/gwaylib/errors"
 	"github.com/urfave/cli/v2"
-	"github.com/filecoin-project/lotus/monitor"
-	"huangdong2012/filecoin-monitor/model"
-	"huangdong2012/filecoin-monitor/trace/spans"
 )
 
 var hlmWorkerCmd = &cli.Command{
