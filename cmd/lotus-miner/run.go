@@ -5,21 +5,13 @@ import (
 	_ "net/http/pprof"
 	"os"
 
-	"github.com/filecoin-project/lotus/api/v1api"
-
-	"github.com/filecoin-project/lotus/api/v0api"
-
-	"github.com/multiformats/go-multiaddr"
-	"github.com/urfave/cli/v2"
-	"go.opencensus.io/stats"
-	"go.opencensus.io/stats/view"
-	"go.opencensus.io/tag"
-	"golang.org/x/xerrors"
-
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/v0api"
+	"github.com/filecoin-project/lotus/api/v1api"
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
@@ -29,9 +21,13 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/google/gops/agent"
-
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/gwaylib/errors"
+	"github.com/multiformats/go-multiaddr"
+	"github.com/urfave/cli/v2"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/tag"
+	"golang.org/x/xerrors"
 )
 
 var runCmd = &cli.Command{
@@ -80,16 +76,11 @@ var runCmd = &cli.Command{
 			tag.Insert(metrics.Commit, build.CurrentCommit),
 			tag.Insert(metrics.NodeType, "miner"),
 		)
-
 		// implement by hlm
 		// use the cluster proxy if it's exist.
 		if err := cliutil.ConnectLotusProxy(cctx); err != nil {
 			log.Infof("lotus proxy is off:%s", err.Error())
 		}
-		// init storage database
-		// TODO: already implement in init.go, so remove this checking in running?
-		database.InitDB(minerRepoPath)
-		// implement by hlm end.
 
 		// Register all metric views
 		if err := view.Register(
@@ -166,33 +157,38 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		if cfg.Subsystems.EnableMining {
+			// init hlm resouce, by zhoushuyue
+			if err := r.IsLocked(); err != nil {
+				return err
+			}
+			// init storage database
+			// TODO: already implement in init.go, so remove this checking in running?
+			database.InitDB(minerRepoPath)
+			// implement by hlm end.
 
-		// init hlm resouce, by zhoushuyue
-		if err := r.IsLocked(); err != nil {
-			return err
-		}
-		if err := database.LockMount(minerRepoPath); err != nil {
-			log.Fatalf(" database.LockMount(minerRepoPath): %v", err)
-			return err
-		}
-		defer database.UnlockMount(minerRepoPath)
+			if err := database.LockMount(minerRepoPath); err != nil {
+				log.Fatalf(" database.LockMount(minerRepoPath): %v", err)
+				return err
+			}
+			defer database.UnlockMount(minerRepoPath)
 
-		log.Info("Mount all storage")
-		if err := database.ChangeSealedStorageAuth(ctx); err != nil {
-			return errors.As(err)
+			log.Info("Mount all storage")
+			if err := database.ChangeSealedStorageAuth(ctx); err != nil {
+				return errors.As(err)
+			}
+			// mount nfs storage node
+			if err := database.MountAllStorage(false); err != nil {
+				return errors.As(err)
+			}
+			log.Info("Clean storage worker")
+			// clean storage cur_work cause by no worker on starting.
+			if err := database.ClearStorageWork(); err != nil {
+				return errors.As(err)
+			}
+			log.Info("Check done")
+			// end by zhoushuyue
 		}
-		// mount nfs storage node
-		if err := database.MountAllStorage(false); err != nil {
-			return errors.As(err)
-		}
-		log.Info("Clean storage worker")
-		// clean storage cur_work cause by no worker on starting.
-		if err := database.ClearStorageWork(); err != nil {
-			return errors.As(err)
-		}
-		log.Info("Check done")
-		// end by zhoushuyue
-
 		shutdownChan := make(chan struct{})
 		var minerapi api.StorageMiner
 		stop, err := node.New(ctx,
@@ -246,24 +242,32 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return fmt.Errorf("failed to start json-rpc endpoint: %s", err)
 		}
-
-		// open this rpc for worker.
-		scSrv, err := listenSchedulerApi(cctx, r, minerapi.(*impl.StorageMinerAPI))
-		if err != nil {
-			return errors.As(err)
-		}
-		go func() {
-			if err := scSrv.Serve(); err != nil {
-				log.Fatal(err)
+		if cfg.Subsystems.EnableMining {
+			// open this rpc for worker.
+			scSrv, err := listenSchedulerApi(cctx, r, minerapi.(*impl.StorageMinerAPI))
+			if err != nil {
+				return errors.As(err)
 			}
-		}()
-		// Monitor for shutdown.
-		finishCh := node.MonitorShutdown(shutdownChan,
-			node.ShutdownHandler{Component: "rpc server", StopFunc: rpcStopper},
-			node.ShutdownHandler{Component: "miner", StopFunc: stop},
-			node.ShutdownHandler{Component: "scheduler", StopFunc: scSrv.Shutdown},
-		)
-		<-finishCh
+			go func() {
+				if err := scSrv.Serve(); err != nil {
+					log.Fatal(err)
+				}
+			}()
+			// Monitor for shutdown.
+			finishCh := node.MonitorShutdown(shutdownChan,
+				node.ShutdownHandler{Component: "rpc server", StopFunc: rpcStopper},
+				node.ShutdownHandler{Component: "miner", StopFunc: stop},
+				node.ShutdownHandler{Component: "scheduler", StopFunc: scSrv.Shutdown},
+			)
+			<-finishCh
+		} else {
+			// Monitor for shutdown.
+			finishCh := node.MonitorShutdown(shutdownChan,
+				node.ShutdownHandler{Component: "rpc server", StopFunc: rpcStopper},
+				node.ShutdownHandler{Component: "miner", StopFunc: stop},
+			)
+			<-finishCh
+		}
 		return nil
 	},
 }

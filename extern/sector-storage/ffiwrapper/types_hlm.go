@@ -87,6 +87,7 @@ type Commit2Result struct {
 	Proof      string //hex.EncodeToString(storage.Proof)
 	FinishTime time.Time
 }
+
 type WorkerCfg struct {
 	ID string // worker id, default is empty for same worker.
 	IP string // worker current ip
@@ -106,11 +107,13 @@ type WorkerCfg struct {
 	Commit2Srv bool // need ParallelCommit2 > 0
 	WdPoStSrv  bool
 	WnPoStSrv  bool
-	Cycle      string         //每次启动(或重启)后生成的uuid(Cycle+Retry 唯一标识一次连接)
-	Retry      int            //worker断线重连次数 0:第一次连接（不是重连）
-	Busy       []string       //p1 worker正在执行中的任务(miner重启->worker重连时需要: checkCache + Busy 恢复miner的busy状态)
-	C2Sids     []abi.SectorID //c2 worker正在执行的扇区id (c2断线重连后需要恢复busyOnTasks)
+
+	Cycle  string         //每次启动(或重启)后生成的uuid(Cycle+Retry 唯一标识一次连接)
+	Retry  int            //worker断线重连次数 0:第一次连接（不是重连）
+	Busy   []string       //p1 worker正在执行中的任务(miner重启->worker重连时需要: checkCache + Busy 恢复miner的busy状态)
+	C2Sids []abi.SectorID //c2 worker正在执行的扇区id (c2断线重连后需要恢复busyOnTasks)
 }
+
 type WorkerQueueKind string
 
 const (
@@ -267,7 +270,8 @@ type remote struct {
 
 	srvConn int64
 
-	dictBusy map[string]string
+	dictBusy   map[string]string
+	dictBusyRW sync.RWMutex
 }
 
 func (r *remote) isOfflineState() bool {
@@ -293,6 +297,7 @@ func (r *remote) taskEnable(task WorkerTask) bool {
 	}
 	return true
 }
+
 func (r *remote) busyOn(sid string) bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -306,15 +311,12 @@ func (r *remote) fullTask() bool {
 	defer r.lock.Unlock()
 	return len(r.busyOnTasks) >= r.cfg.MaxTaskNum
 }
+
 func (r *remote) fakeFullTask() bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	count := 0
-	for sid := range r.busyOnTasks {
-		task, ok := r.busyOnTasks[sid]
-		if !ok {
-			continue
-		}
+	for _, task := range r.busyOnTasks {
 		//只计算P1,P2任务
 		if task.Type < WorkerPreCommit2Done {
 			count++
@@ -418,6 +420,7 @@ func (r *remote) UpdateTask(sid string, state int) bool {
 	return ok
 
 }
+
 func (r *remote) freeTask(sid string) bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -491,6 +494,12 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 			continue
 		}
 		if wTask.State <= WorkerFinalize {
+			// maxTaskNum has changed to less, so only load a part
+			/*
+				if wTask.State < WorkerFinalize && len(r.busyOnTasks) >= r.cfg.MaxTaskNum {
+					break
+				}
+			*/
 			r.lock.Lock()
 			// if no data in busy, restore from db, and waitting retry from storage-fsm
 			stateOff := 0

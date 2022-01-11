@@ -37,7 +37,6 @@ import (
 	"github.com/filecoin-project/lotus/journal"
 
 	logging "github.com/ipfs/go-log/v2"
-	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
@@ -75,6 +74,7 @@ func NewMiner(api v1api.FullNode, epp gen.WinningPoStProver, addr address.Addres
 	if err != nil {
 		panic(err)
 	}
+
 	//此处和storage.miner的new方法都会执行monitor.Init(once保证了monitor只会初始化一次)
 	monitor.Init(model.PackageKind_Miner, addr.String())
 	return &Miner{
@@ -215,9 +215,6 @@ func nextRoundTime(base *MiningBase) time.Time {
 //      we will select that tipset on the next iteration of the loop, thus
 //      discarding our null round.
 func (m *Miner) mine(ctx context.Context) {
-	ctx, span := trace.StartSpan(ctx, "/mine")
-	defer span.End()
-
 	go m.doWinPoStWarmup(ctx)
 
 	var lastBase MiningBase
@@ -637,9 +634,9 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	if len(bvals) > 0 {
 		rbase = bvals[len(bvals)-1]
 	}
+
 	span.SetBeaconEpoch(int64(rbase.Round))
 	span.SetBeacon(hex.EncodeToString(rbase.Data))
-
 	ticket, err := m.computeTicket(ctx, &rbase, base, mbi)
 	if err != nil {
 		err = xerrors.Errorf("scratching ticket failed: %w", err)

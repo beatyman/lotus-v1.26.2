@@ -110,6 +110,7 @@ func (sb *Sealer) WorkerStats() WorkerStats {
 			workerDisabled++
 			continue
 		}
+
 		r, ok := _remotes.Load(info.ID)
 		if ok { //连上过miner
 			if r.(*remote).isOfflineState() { //当前断线
@@ -322,10 +323,12 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 		}
 
 		if rmt != nil {
+			rmt.dictBusyRW.Lock()
 			rmt.dictBusy = make(map[string]string)
 			for _, typ := range cfg.Busy {
 				rmt.dictBusy[typ] = typ
 			}
+			rmt.dictBusyRW.Unlock()
 
 			//1.加载busy状态
 			log.Infow("AddWorker of before load-busy", "wid", cfg.ID, "retry", cfg.Retry, "worker-busy", cfg.Busy)
@@ -377,11 +380,14 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 		}
 	}()
 
+	_tmpPledgeTasksRW.Lock()
+	defer _tmpPledgeTasksRW.Unlock()
+
 	ctx, cancel := context.WithCancel(context.Background()) //注意：此处不能用oriCtx作为父parent 因为worker实现了断线重连
 	rmt = &remote{
 		ctx:            oriCtx, //这个上下文必须要是jsonrpc的上下文 用于捕获连接是否断开
 		cfg:            cfg,
-		pledgeChan:     make(chan workerCall, 10),
+		pledgeChan:     make(chan workerCall, len(_tmpPledgeTasks[cfg.ID])+10),
 		precommit1Chan: make(chan workerCall, 10),
 		precommit2Chan: make(chan workerCall, 10),
 		commitChan:     make(chan workerCall, 10),
@@ -390,7 +396,6 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 
 		sealTasks:   make(chan WorkerTask),
 		busyOnTasks: map[string]WorkerTask{},
-		lock:        sync.RWMutex{},
 
 		release: func() {
 			log.Infof("worker(%v) release", rmt.cfg.ID)
@@ -404,6 +409,13 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 			_remotes.Delete(cfg.ID)
 		},
 	}
+
+	//加载worker连接miner之前的pledge任务
+	for _, task := range _tmpPledgeTasks[cfg.ID] {
+		rmt.pledgeChan <- task
+	}
+	_tmpPledgeTasks[cfg.ID] = make([]workerCall, 0, 0)
+
 	_remotes.Store(cfg.ID, rmt)
 	go sb.loopWorker(ctx, rmt, cfg)
 	go sb.offlineWorkerLoop(ctx, rmt)
@@ -531,7 +543,6 @@ func (sb *Sealer) loadBusyStatus(kind WorkerQueueKind, rmt *remote, cfg WorkerCf
 }
 
 // call UnlockService to release
-// call UnlockService to release
 func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerTask) (*remote, bool) {
 	_remoteGpuLk.Lock()
 	defer _remoteGpuLk.Unlock()
@@ -556,10 +567,6 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		rs = append(rs, _r)
 		return true
 	})
-	for _, _r := range rs {
-		msg += _r.cfg.ID + ","
-	}
-	log.Infof("task(%v) select gpu with c2workers: %v", task.SectorID, msg)
 
 	//2.根据已分发的任务数"降序"排序c2 worker
 	sort.Slice(rs, func(i, j int) bool {
@@ -585,6 +592,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		r.lock.Lock()
 		r.busyOnTasks[sid] = task // make busy
 		r.lock.Unlock()
+
 		if err := database.UploadSectorMonitorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun); err != nil {
 			log.Error("UpdateSectorState Err, sectorId:%d, error:%v:", task.SectorID, err)
 		}
@@ -593,6 +601,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 
 	return r, r != nil
 }
+
 func (sb *Sealer) UnlockGPUService(ctx context.Context, rst *Commit2Result) error {
 	_remoteGpuLk.Lock()
 	defer _remoteGpuLk.Unlock()
@@ -858,23 +867,21 @@ func (sb *Sealer) toRemoteFree(task workerCall) {
 }
 
 func (sb *Sealer) toRemoteOwner(task workerCall) {
-	r, ok := _remotes.Load(task.task.WorkerID)
-	if !ok {
-		log.Warnf(
-			"no worker(%s,%s) for toOwner, return task:%s",
-			task.task.WorkerID, task.task.SectorStorage.WorkerInfo.Ip, task.task.Key(),
-		)
-
+	if r, ok := _remotes.Load(task.task.WorkerID); !ok {
 		// clear this on worker online.
 		sb.offlineWorker.Store(task.task.WorkerID, task.task.SectorStorage.WorkerInfo)
+
 		//已绑定了worker的刷单任务 不返回全局队列（防止阻塞刷单循环）其他情况的任务都返回全局队列
-		if !(task.task.Type == WorkerPledge && len(task.task.WorkerID) > 0) {
+		if task.task.Type == WorkerPledge && len(task.task.WorkerID) > 0 {
+			_tmpPledgeTasksRW.Lock()
+			_tmpPledgeTasks[task.task.WorkerID] = append(_tmpPledgeTasks[task.task.WorkerID], task)
+			_tmpPledgeTasksRW.Unlock()
+		} else {
 			sb.returnTask(task)
 		}
-
-		return
+	} else {
+		sb.toRemoteChan(task, r.(*remote))
 	}
-	sb.toRemoteChan(task, r.(*remote))
 }
 
 func (sb *Sealer) toRemoteChan(task workerCall, r *remote) {
@@ -961,8 +968,6 @@ func (sb *Sealer) returnTaskWithoutCounter(task workerCall) {
 	}
 
 	go func() {
-		// need sleep for the return task, or it will fall in a loop.
-		time.Sleep(30e9)
 		select {
 		case ret <- task:
 		case <-sb.stopping:
@@ -1001,7 +1006,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	checkPledge := func() {
 		// search checking is the remote busying
 		if r.fakeFullTask() || r.disable {
-			//log.Infow("DEBUG:", "fullTask", len(r.busyOnTasks), "maxTask", r.maxTaskNum)
+			//log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
 			return
 		}
 
@@ -1026,14 +1031,23 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// nothing in chan
 		}
 		if wc == nil || fn == nil {
+			//log.Infow("pledge task not-task", "worker-id", r.cfg.ID)
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPledge, false) {
+		log.Infow("pledge task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerPledge, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
+			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 		} else {
+			log.Infow("pledge task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+			wc.task.WorkerID = ""
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkPreCommit1 := func() {
@@ -1057,14 +1071,22 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// nothing in chan
 		}
 		if wc == nil || fn == nil {
+			//log.Infow("p1 task not-task", "worker-id", r.cfg.ID)
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPreCommit1, false) {
+		log.Infow("p1 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerPreCommit1, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
+			log.Infow("p1 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 		} else {
+			log.Infow("p1 task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkPreCommit2 := func() {
@@ -1088,14 +1110,22 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			// nothing in chan
 		}
 		if wc == nil || fn == nil {
+			//log.Infow("p2 task not-task", "worker-id", r.cfg.ID)
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerPreCommit2, false) {
+		log.Infow("p2 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerPreCommit2, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
+			log.Infow("p2 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 		} else {
+			log.Infow("p2 task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkCommit := func() {
@@ -1121,11 +1151,15 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerCommit, false) {
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerCommit, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkFinalize := func() {
@@ -1151,11 +1185,15 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerFinalize, false) {
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerFinalize, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkUnseal := func() {
@@ -1181,11 +1219,15 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		if _, ok := r.dictBusy[wc.task.SectorName()]; ok || !r.LimitParallel(WorkerUnseal, false) {
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerUnseal, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
 			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	checkFunc := []func(){
@@ -1205,20 +1247,13 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		default:
 			// sleep for controlling the loop
 			time.Sleep(5 * time.Second)
-			for i := 0; i < r.cfg.MaxTaskNum; i++ {
-				if r.isOfflineState() {
-					continue
-				}
-				if atomic.LoadInt32(&sb.pauseSeal) != 0 {
-					// pause the seal
-					continue
-				}
+			if r.isOfflineState() || atomic.LoadInt32(&sb.pauseSeal) != 0 {
+				continue
+			}
 
-				checkFinalize()
-				for _, check := range checkFunc {
-					if r.isOfflineState() {
-						continue
-					}
+			checkFinalize()
+			for _, check := range checkFunc {
+				if !r.isOfflineState() {
 					check()
 				}
 			}
@@ -1256,9 +1291,15 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 
 	switch task.task.Type {
 	case WorkerPledge:
+		// not the task owner
+		if len(task.task.WorkerID) > 0 && task.task.WorkerID != r.cfg.ID {
+			go sb.toRemoteOwner(task)
+			return
+		}
+
 		if r.fakeFullTask() {
 			time.Sleep(30e9)
-			log.Warnf("return task:%s", r.cfg.ID, task.task.Key())
+			log.Warnf("return task: %v, %v", r.cfg.ID, task.task.Key())
 			sb.returnTask(task)
 			return
 		}
@@ -1368,13 +1409,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 }
 
 func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res SealRes, interrupt bool) {
-	mBusy := make([]string, 0, 0)
-	r.lock.RLock()
-	for _, t := range r.busyOnTasks {
-		mBusy = append(mBusy, t.Key())
-	}
-	r.lock.RUnlock()
-	log.Infow("task sending", "worker-id", r.cfg.ID, "task-key", task.Key(), "miner-busy", mBusy)
+	log.Infow("task sending", "worker-id", r.cfg.ID, "task-key", task.Key())
 
 	taskKey := task.Key()
 	resCh := make(chan SealRes)
@@ -1432,6 +1467,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 		return SealRes{}, true
 	case res := <-resCh:
 		// send the result back to the caller
+		log.Infof("task return result:%v", taskKey)
 		return res, false
 	}
 }
@@ -1439,28 +1475,37 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 // export for rpc service
 func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	var (
-		rmt *remote
+		rmt     *remote
+		errConn = fmt.Errorf("connection refused")
 	)
 	//worker重连的时候，需要先online完成 才能TaskDone 否则busy状态可能不一致
 	if r, ok := _remotes.Load(res.WorkerCfg.ID); ok {
 		if rmt = r.(*remote); rmt.isOfflineState() {
-			return fmt.Errorf("connection refused")
+			return errConn
 		}
 	} else {
-		return fmt.Errorf("connection refused")
+		return errConn
 	}
 
 	_remoteResultLk.Lock()
 	rres, ok := _remoteResult[res.TaskID]
 	_remoteResultLk.Unlock()
-	if !ok {
-		return errors.ErrNoData.As(res.TaskID)
+	if !ok { //等待fsm触发任务重做->_remoteResult[res.TaskID]有值->TaskDone成功
+		return errConn
+		//return errors.ErrNoData.As(res.TaskID)
 	}
 	if rres == nil {
 		log.Errorf("Not expect here:%+v", res)
 		return nil
 	}
 
+	defer func() {
+		if arr := strings.Split(res.TaskID, "_"); len(arr) > 0 {
+			rmt.dictBusyRW.Lock()
+			delete(rmt.dictBusy, arr[0])
+			rmt.dictBusyRW.Unlock()
+		}
+	}()
 	if size := len(res.Err); size > 0 {
 		log.Errorw("Task done error", "task-id", res.TaskID, "err", res.Err)
 		if limit := 200; size > limit { //状态机在处理太长的错误的时候会报错 导致任务无法重做 故此处截取错误信息(200个字符)
@@ -1474,9 +1519,6 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case rres <- res:
-		if arr := strings.Split(res.TaskID, "_"); len(arr) > 0 {
-			delete(rmt.dictBusy, arr[0])
-		}
 		return nil
 	}
 }

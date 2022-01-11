@@ -108,31 +108,9 @@ func acceptJobs(ctx context.Context,
 		}
 	}
 
-	diskSectors, err := scanDisk()
-	if err != nil {
-		log.Error("NewAllocate ", err)
-		return errors.As(err)
+	if err = w.initDisk(ctx); err != nil {
+		return err
 	}
-	for _, sectors := range diskSectors {
-		for sid, _ := range sectors {
-			info, err := api.HlmSectorGetState(ctx, sid)
-			if err != nil {
-				log.Error("NewAllocate ", err)
-				continue
-			}
-			//已经做完C2
-			if info.State >= ffiwrapper.WorkerCommitDone {
-				localSectors.WriteMap(sid, info.State)
-			} else if info.State <= ffiwrapper.WorkerPreCommit2Done {
-				//还做完P2 算500G
-				localSectors.WriteMap(sid, info.State)
-			} else {
-				localSectors.WriteMap(sid, info.State)
-				//还在做C1,或者C2,如果本地map没有标记C1,没做完算500G,已经做完算50G
-			}
-		}
-	}
-	log.Infof("scanDisk : %v", diskSectors)
 
 	workerCfg.Cycle = uuid.New().String() //唯一标识一次启动
 	for i := 0; true; i++ {
@@ -158,8 +136,10 @@ func acceptJobs(ctx context.Context,
 			break
 		}
 	}
+
 	return nil
 }
+
 func (w *worker) busyTasks() []string {
 	w.workMu.RLock()
 	defer w.workMu.RUnlock()
@@ -170,13 +150,43 @@ func (w *worker) busyTasks() []string {
 	}
 	return out
 }
+
+func (w *worker) initDisk(ctx context.Context) error {
+	api, _ := GetNodeApi()
+	diskSectors, err := scanDisk()
+	if err != nil {
+		return errors.As(err)
+	}
+
+	for _, sectors := range diskSectors {
+		for sid, _ := range sectors {
+			info, err := api.RetryHlmSectorGetState(ctx, sid)
+			if err != nil {
+				log.Error("NewAllocate ", err)
+				continue
+			}
+			//已经做完C2
+			if info.State >= ffiwrapper.WorkerCommitDone {
+				localSectors.WriteMap(sid, info.State)
+			} else if info.State <= ffiwrapper.WorkerPreCommit2Done {
+				//还做完P2 算500G
+				localSectors.WriteMap(sid, info.State)
+			} else {
+				localSectors.WriteMap(sid, info.State)
+				//还在做C1,或者C2,如果本地map没有标记C1,没做完算500G,已经做完算50G
+			}
+		}
+	}
+	log.Infof("scanDisk : %v", diskSectors)
+	return nil
+}
+
 func (w *worker) processJobs(ctx context.Context, tasks <-chan ffiwrapper.WorkerTask) error {
 loop:
 	for {
 		select {
 		case task, ok := <-tasks:
 			if !ok {
-				log.Error("tasks chan closed")
 				return fmt.Errorf("tasks chan closed")
 			}
 			if task.SectorID.Miner == 0 {
@@ -208,12 +218,15 @@ loop:
 				w.workerDone(ctx, task, res)
 				log.Infof("Task %s done, err: %+v", task.Key(), res.GoErr)
 			}(task)
+
 		case <-ctx.Done():
 			break loop
 		}
 	}
+
 	return nil
 }
+
 func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res ffiwrapper.SealRes) {
 	api, err := GetNodeApi()
 	if err != nil {
@@ -253,7 +266,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 		TaskID:    task.Key(),
 		WorkerCfg: w.workerCfg,
 	}
-
 	defer span.Finish(res.GoErr)
 
 	switch task.Type {
@@ -285,7 +297,6 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	}
 	api, err := GetNodeApi()
 	if err != nil {
-		ReleaseNodeApi(false)
 		return errRes(errors.As(err, w.workerCfg), &res)
 	}
 	// clean cache before working.
@@ -482,7 +493,7 @@ reAllocate:
 				log.Error("=============================WriteSector C1 ===err: ", err)
 			}
 		}
-		w.removeDataLayer(ctx, sector.CachePath())
+		w.removeDataLayer(ctx, sector.CachePath(), false)
 		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerCommitDone)
 		// if local gpu no set, using remotes .
 		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
@@ -508,7 +519,7 @@ reAllocate:
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
 		//fix sector rebuild tool : disk space full
-		w.removeDataLayer(ctx, sector.CachePath())
+		w.removeDataLayer(ctx, sector.CachePath(), true)
 		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerFinalize)
 		sealedFile := sealer.SectorPath("sealed", task.SectorName())
 		_, err := os.Stat(string(sealedFile))
@@ -518,10 +529,10 @@ reAllocate:
 			}
 			// no file to finalize, just return done.
 		} else {
-			if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
+			if err := w.pushCache(ctx, sealer, task, false); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			if err := w.pushCache(ctx, sealer, task, false); err != nil {
+			if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 		}

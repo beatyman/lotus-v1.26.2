@@ -11,6 +11,7 @@ import (
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/gwaylib/errors"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
@@ -64,7 +65,15 @@ func writeTrailer(maxPieceSize int64, w fsutil.PartialFile, r rlepluslazy.RunIte
 
 	return w.Truncate(maxPieceSize + int64(rb) + 4)
 }
-
+// fileExists checks if a file exists and is not a directory before we
+// try using it to prevent further errors.
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
+}
 func CreateUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.SectorRef) (*PartialFile, error) {
 	path := sector.UnsealedFile()
 	var f fsutil.PartialFile
@@ -149,6 +158,25 @@ func OpenUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.Se
 		if _, err := f.Stat(); err != nil {
 			log.Warn(errors.As(err))
 			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+		}
+	case database.MOUNT_TYPE_OSS:
+		if fileExists(path) {
+			f2, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint
+			if err != nil {
+				return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+			}
+			f = f2
+		} else {
+			dir, _ := filepath.Split(path)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				log.Warnf("MkdirAll err: %s", err)
+			}
+			d := operation.NewDownloaderV2()
+			f2, err := d.DownloadFile(path, path)
+			if err != nil {
+				return nil, xerrors.Errorf("download partial file '%s': %w", path, err)
+			}
+			f = f2
 		}
 	default:
 		osfile, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint

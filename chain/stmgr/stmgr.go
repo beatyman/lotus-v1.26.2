@@ -405,3 +405,4 @@ func (sm *StateManager) GetRandomnessFromTickets(ctx context.Context, personaliz
 
 	return r.GetChainRandomnessV1(ctx, personalization, randEpoch, entropy)
 }
+

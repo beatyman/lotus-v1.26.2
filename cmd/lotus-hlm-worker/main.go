@@ -4,11 +4,10 @@ import (
 	"context"
 	"github.com/filecoin-project/lotus/buried"
 	"github.com/filecoin-project/lotus/buried/utils"
-	"github.com/filecoin-project/lotus/monitor"
-
-	"fmt"
 	"github.com/filecoin-project/lotus/lib/tracing"
+	"github.com/filecoin-project/lotus/monitor"
 	"huangdong2012/filecoin-monitor/model"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -29,12 +28,17 @@ import (
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/google/gops/agent"
 	mux "github.com/gorilla/mux"
+	"github.com/gwaylib/errors"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/mitchellh/go-homedir"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v8/kodocli"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
+)
 
-	"github.com/gwaylib/errors"
+const (
+	QINIU_VIRTUAL_MOUNTPOINT = "/data/oss/qiniu/"
 )
 
 var log = logging.Logger("main")
@@ -54,6 +58,7 @@ func closeNodeApi() {
 	nodeCloser = nil
 }
 
+//shutdown之外的地方都需要复用api（断线重连）不能关闭连接
 func ReleaseNodeApi(shutdown bool) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
@@ -83,16 +88,6 @@ func GetNodeApi() (*api.RetryHlmMinerSchedulerAPI, error) {
 	}
 	nodeApi = &api.RetryHlmMinerSchedulerAPI{HlmMinerSchedulerAPI: nApi}
 	nodeCloser = closer
-
-	//v, err := nodeApi.Version(ctx)
-	//if err != nil {
-	//	closeNodeApi()
-	//	return nil, errors.As(err)
-	//}
-	//if v.APIVersion != build.APIVersion {
-	//	closeNodeApi()
-	//	return nil, xerrors.Errorf("lotus-storage-miner API version doesn't match: local: ", api.Version{APIVersion: build.APIVersion})
-	//}
 
 	return nodeApi, nil
 }
@@ -279,10 +274,25 @@ var runCmd = &cli.Command{
 			return err
 		}
 
+		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
+		defer cancel()
+
+		apitemp, err := GetNodeApi()
+		if err != nil {
+			return errors.As(err)
+		}
+		ss, err := apitemp.PreStorageNode(ctx, "", "", database.STORAGE_KIND_SEALED)
+		if err != nil {
+			return errors.As(err)
+		}
+		if ss.MountType == database.MOUNT_TYPE_OSS {
+			cctx.Set("storage-repo", QINIU_VIRTUAL_MOUNTPOINT)
+		}
 		sealedRepo, err := homedir.Expand(cctx.String("storage-repo"))
 		if err != nil {
 			return err
 		}
+
 		idFile := cctx.String("id-file")
 		if len(idFile) == 0 {
 			idFile = "~/.lotusworker/worker.id"
@@ -291,9 +301,6 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-
-		ctx, cancel := context.WithCancel(lcli.ReqContext(nodeCCtx))
-		defer cancel()
 
 		log.Infof("getting miner actor")
 		act, err := nodeApi.ActorAddress(ctx)
@@ -379,6 +386,7 @@ var runCmd = &cli.Command{
 			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, minerNo)
 		}()
 
+
 		if err := database.LockMount(minerRepo); err != nil {
 			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())
 		}
@@ -417,6 +425,10 @@ var runCmd = &cli.Command{
 				os.Exit(1)
 			}
 		}()
+		//设置日志级别
+		elog := kodocli.NewLogger()
+		elog.SetLevel(kodocli.LOG_LEVEL_ERROR)
+		operation.SetLogger(elog)
 		log.Info("starting acceptJobs")
 		if err := acceptJobs(ctx,
 			workerApi,
@@ -432,7 +444,7 @@ var runCmd = &cli.Command{
 			log.Warn(err)
 			ReleaseNodeApi(true)
 		}
-		if err := srv.Shutdown(context.TODO()); err != nil {
+		if err := srv.Shutdown(ctx); err != nil {
 			log.Errorf("shutting down RPC server failed: %s", err)
 		}
 		log.Info("worker exit")

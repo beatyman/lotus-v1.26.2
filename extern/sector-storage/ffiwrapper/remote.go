@@ -33,6 +33,9 @@ var (
 	_finalizeTasks   = make(chan workerCall)
 	_unsealTasks     = make(chan workerCall)
 
+	_tmpPledgeTasks   = make(map[string][]workerCall)
+	_tmpPledgeTasksRW = &sync.RWMutex{}
+
 	_remotes        = sync.Map{}
 	_remoteResultLk = sync.RWMutex{}
 	_remoteResult   = make(map[string]chan<- SealRes)
@@ -139,10 +142,9 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 	call := workerCall{
 		task: WorkerTask{
 			TraceContext: propagation.Inject(ctx), //传播trace-id
-
-			Type:      WorkerPreCommit1,
-			ProofType: sector.ProofType,
-			SectorID:  sector.ID,
+			Type:         WorkerPreCommit1,
+			ProofType:    sector.ProofType,
+			SectorID:     sector.ID,
 
 			SealTicket: ticket,
 			Pieces:     pieces,

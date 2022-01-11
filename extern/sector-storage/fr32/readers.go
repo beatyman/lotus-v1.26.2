@@ -1,19 +1,25 @@
 package fr32
 
 import (
+	"bytes"
 	"io"
+	"io/ioutil"
 	"math/bits"
 
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 )
 
 type unpadReader struct {
 	src io.ReadCloser
 
-	left uint64
-	work []byte
+	left       uint64
+	work       []byte
+	offset     int64
+	path       string
+	downloader *operation.Downloader
 }
 
 func NewUnpadReader(src io.ReadCloser, sz abi.PaddedPieceSize) (io.ReadCloser, error) {
@@ -32,6 +38,22 @@ func NewUnpadReader(src io.ReadCloser, sz abi.PaddedPieceSize) (io.ReadCloser, e
 }
 func (r *unpadReader) Close() error {
 	return r.src.Close()
+}
+
+func NewUnpadReaderV2(sz abi.PaddedPieceSize, downloader *operation.Downloader, offset int64, path string) (io.ReadCloser, error) {
+	if err := sz.Validate(); err != nil {
+		return nil, xerrors.Errorf("bad piece size: %w", err)
+	}
+
+	buf := make([]byte, MTTresh*mtChunkCount(sz))
+	return &unpadReader{
+		src:        ioutil.NopCloser(bytes.NewReader([]byte{})),
+		left:       uint64(sz),
+		work:       buf,
+		offset:     offset,
+		path:       path,
+		downloader: downloader,
+	}, nil
 }
 
 func (r *unpadReader) Read(out []byte) (int, error) {
@@ -53,8 +75,19 @@ func (r *unpadReader) Read(out []byte) (int, error) {
 	}
 
 	r.left -= uint64(todo)
-
-	n, err := io.ReadAtLeast(r.src, r.work[:todo], int(todo))
+	var n int
+	var err error
+	if r.path != "" {
+		size := len(r.work[:todo])
+		var data []byte
+		_, data, err = r.downloader.DownloadRangeBytes(r.path, r.offset, int64(size))
+		if err == nil {
+			n = copy(r.work[:todo], data)
+		}
+		r.offset += int64(n)
+	} else {
+		n, err = io.ReadAtLeast(r.src, r.work[:todo], int(todo))
+	}
 	if err != nil && err != io.EOF {
 		return n, err
 	}

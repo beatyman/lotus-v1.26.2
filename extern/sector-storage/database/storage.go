@@ -22,6 +22,7 @@ const (
 	MOUNT_TYPE_GFS    = "glusterfs"
 	MOUNT_TYPE_HLM    = "hlm-storage"
 	MOUNT_TYPE_CUSTOM = "custom"
+	MOUNT_TYPE_OSS    = "oss"
 )
 
 type StorageMountPoint struct {

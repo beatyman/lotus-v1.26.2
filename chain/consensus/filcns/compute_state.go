@@ -202,6 +202,7 @@ func (t *TipSetExecutor) ApplyBlocks(ctx context.Context, sm *stmgr.StateManager
 			}
 			processedMsgs[m.Cid()] = struct{}{}
 		}
+
 		ctx, span := spans.NewAwardSpan(ctx)
 		span.SetSystemActorAddr(builtin.SystemActorAddr.String())
 		span.SetMinerID(b.Miner.String())
@@ -213,6 +214,7 @@ func (t *TipSetExecutor) ApplyBlocks(ctx context.Context, sm *stmgr.StateManager
 		span.SetReward(gasReward.Uint64())
 		span.SetWinCount(b.WinCount)
 		span.Starting("")
+
 		params, err := actors.SerializeParams(&reward.AwardBlockRewardParams{
 			Miner:     b.Miner,
 			Penalty:   penalty,
@@ -237,12 +239,12 @@ func (t *TipSetExecutor) ApplyBlocks(ctx context.Context, sm *stmgr.StateManager
 		}
 		ret, actErr := vmi.ApplyImplicitMessage(ctx, rwMsg)
 		if actErr != nil {
-			span.Finish(err)
+			span.Finish(actErr)
 			return cid.Undef, cid.Undef, xerrors.Errorf("failed to apply reward message for miner %s: %w", b.Miner, actErr)
 		}
 		if em != nil {
-			span.Finish(err)
 			if err := em.MessageApplied(ctx, ts, rwMsg.Cid(), rwMsg, ret, true); err != nil {
+				span.Finish(err)
 				return cid.Undef, cid.Undef, xerrors.Errorf("callback failed on reward message: %w", err)
 			}
 		}
@@ -251,8 +253,8 @@ func (t *TipSetExecutor) ApplyBlocks(ctx context.Context, sm *stmgr.StateManager
 			err := xerrors.Errorf("reward application message failed (exit %d): %s", ret.ExitCode, ret.ActorErr)
 			span.Finish(err)
 			return cid.Undef, cid.Undef, err
-			//return cid.Undef, cid.Undef, xerrors.Errorf("reward application message failed (exit %d): %s", ret.ExitCode, ret.ActorErr)
 		}
+
 		span.Finish(nil)
 	}
 

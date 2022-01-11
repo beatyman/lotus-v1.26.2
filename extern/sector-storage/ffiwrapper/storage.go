@@ -22,6 +22,10 @@ func (sb *Sealer) SectorPath(typ, sid string) string {
 }
 
 func (sb *Sealer) MakeLink(task *WorkerTask) error {
+	up := os.Getenv("US3")
+	if up != "" {
+		return nil
+	}
 	sectorName := sectorName(task.SectorID)
 
 	// get path

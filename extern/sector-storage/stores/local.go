@@ -3,18 +3,23 @@ package stores
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/bits"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
+
+	pathx "path"
 
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
@@ -289,8 +294,47 @@ func (st *Local) Redeclare(ctx context.Context) error {
 
 	return nil
 }
-
+func loadSectors(prefix string) []string {
+	fmt.Println("prefix", prefix)
+	lister := operation.NewListerV2()
+	files := lister.ListPrefix(strings.TrimLeft(prefix, "/"))
+	fmt.Println(files)
+	return files
+}
 func (st *Local) declareSectors(ctx context.Context, p string, id ID, primary bool) error {
+	if os.Getenv("US3") != "" {
+		sectors := loadSectors(p)
+		for _, v := range sectors {
+			if strings.Contains(v, storiface.FTSealed.String()) {
+				sector, err := storiface.ParseSectorID(pathx.Base(v))
+				fmt.Println(sector, err)
+				if err != nil {
+					continue
+				}
+
+				if err := st.index.StorageDeclareSector(ctx, id, sector, storiface.FTSealed, primary); err != nil {
+					return xerrors.Errorf("declare sector %d(t:%d) -> %s: %w", v, storiface.FTSealed, id, err)
+				}
+
+				if err := st.index.StorageDeclareSector(ctx, id, sector, storiface.FTCache, primary); err != nil {
+					return xerrors.Errorf("declare sector %d(t:%d) -> %s: %w", v, storiface.FTCache, id, err)
+				}
+			}
+
+			if strings.Contains(v, storiface.FTUnsealed.String()) {
+				sector, err := storiface.ParseSectorID(pathx.Base(v))
+				fmt.Println(sector, err)
+				if err != nil {
+					continue
+				}
+
+				if err := st.index.StorageDeclareSector(ctx, id, sector, storiface.FTUnsealed, primary); err != nil {
+					return xerrors.Errorf("dfaults.go:135eclare sector %d(t:%d) -> %s: %w", v, storiface.FTUnsealed, id, err)
+				}
+			}
+		}
+	}
+
 	for _, t := range storiface.PathTypes {
 		ents, err := ioutil.ReadDir(filepath.Join(p, t.String()))
 		if err != nil {

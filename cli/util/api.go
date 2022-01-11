@@ -338,7 +338,6 @@ func GetStorageMinerAPI(ctx *cli.Context, opts ...GetStorageMinerOption) (api.St
 	for _, opt := range opts {
 		opt(&options)
 	}
-
 	if tn, ok := ctx.App.Metadata["testnode-storage"]; ok {
 		return tn.(api.StorageMiner), func() {}, nil
 	}
@@ -347,7 +346,15 @@ func GetStorageMinerAPI(ctx *cli.Context, opts ...GetStorageMinerOption) (api.St
 	if err != nil {
 		return nil, nil, err
 	}
-
+	if ai:=ctx.String("miner_api"); ai!=""  {
+		ai := strings.TrimSpace(ctx.String("miner_api"))
+		info := ParseApiInfo(ai)
+		addr, err = info.DialArgs("v0",repo.StorageMiner)
+		if err != nil {
+			return nil, nil, err
+		}
+		headers=info.AuthHeader()
+	}
 	if options.PreferHttp {
 		u, err := url.Parse(addr)
 		if err != nil {
@@ -438,7 +445,6 @@ func GetMarketsAPI(ctx *cli.Context) (api.StorageMiner, jsonrpc.ClientCloser, er
 	if err != nil {
 		return nil, nil, err
 	}
-
 	if IsVeryVerbose {
 		_, _ = fmt.Fprintln(ctx.App.Writer, "using markets API v0 endpoint:", addr)
 	}

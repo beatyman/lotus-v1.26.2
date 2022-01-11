@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"path/filepath"
-	"sync"
-	"time"
-
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/gwaylib/errors"
 )
@@ -39,8 +39,6 @@ type rpcServer struct {
 	storageVer   int64
 	storageCache map[int64]database.StorageInfo
 
-	c2Lk     sync.Mutex
-	c2Cache  map[string]bool
 	c2sidsRW sync.RWMutex
 	c2sids   map[string]abi.SectorID
 }
@@ -59,6 +57,7 @@ func (w *rpcServer) getC2sids() []abi.SectorID {
 	}
 	return out
 }
+
 func (w *rpcServer) Version(context.Context) (string, error) {
 	return "", nil
 }
@@ -118,7 +117,12 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 	}
 	return prf, err
 }
+
 func (w *rpcServer) loadMinerStorage(ctx context.Context, napi *api.RetryHlmMinerSchedulerAPI) error {
+	up := os.Getenv("US3")
+	if up != "" {
+		return nil
+	}
 	if err := database.LockMount(w.minerRepo); err != nil {
 		log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, w.minerRepo).Code())
 		return nil

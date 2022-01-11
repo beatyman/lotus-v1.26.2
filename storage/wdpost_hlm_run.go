@@ -3,11 +3,11 @@ package storage
 import (
 	"bytes"
 	"context"
-	"time"
 	"encoding/hex"
 	"fmt"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	"strings"
+	"time"
 
 	"github.com/gwaylib/errors"
 
@@ -20,7 +20,6 @@ import (
 	"github.com/filecoin-project/go-state-types/dline"
 	"github.com/ipfs/go-cid"
 
-	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/specs-actors/v3/actors/runtime/proof"
@@ -46,9 +45,6 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 	log.Infof("WPoStPeriodDeadlines:%d, WPoStProvingPeriod=%d, WPoStChallengeWindow=%d, WPoStChallengeLookback=%d FaultDeclarationCutoff=%d",
 		di.WPoStPeriodDeadlines, di.WPoStPeriodDeadlines, di.WPoStChallengeWindow, di.WPoStChallengeLookback, di.FaultDeclarationCutoff,
 	)
-
-	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
-	defer span.End()
 
 	go func() {
 		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
@@ -238,6 +234,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 			if len(sinfos) == 0 {
 				// nothing to prove for this batch
 				log.Info(s.PutLogf(di.Index, "no sector info for deadline:%d", di.Index))
+
 				spanHasFinish = true
 				span.Finish(fmt.Errorf("no sector info for deadline:%d", di.Index))
 				break

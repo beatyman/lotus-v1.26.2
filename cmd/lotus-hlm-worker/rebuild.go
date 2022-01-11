@@ -3,22 +3,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sync"
-	"time"
-
 	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
+	"io/ioutil"
+	"path/filepath"
+	"sync"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
 	"github.com/filecoin-project/specs-storage/storage"
-
-	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 )
 
 type RebuildTask struct {
@@ -281,57 +276,21 @@ var rebuildCmd = &cli.Command{
 					continue
 				}
 
-				// TODO: transfer the data
-				if len(taskList.TransfUri) > 0 {
-					for {
-						time.Sleep(1e9)
-
-						sid := storage.SectorName(sector.ID)
-						auth := hlmclient.NewAuthClient(taskList.AuthUri, taskList.AuthMd5)
-						token, err := auth.NewFileToken(ctx, sid)
-						if err != nil {
-							log.Error(errors.As(err, sid))
-							continue
-						}
-						defer auth.DeleteFileToken(ctx, sid)
-
-						fc := hlmclient.NewHttpClient(taskList.TransfUri, sid, string(token))
-
-						// send the cache
-						log.Infof("upload cache of %s", sid)
-						cacheFromPath := sealer.SectorPath("cache", sid)
-						if err := fc.Upload(ctx, cacheFromPath, filepath.Join("cache", sid)); err != nil {
-							log.Error(errors.As(err))
-							continue
-						}
-
-						// send the sealed
-						log.Infof("upload sealed of %s", sid)
-						sealedFromPath := sealer.SectorPath("sealed", sid)
-						if err := fc.Upload(ctx, sealedFromPath, filepath.Join("sealed", sid)); err != nil {
-							log.Error(errors.As(err))
-							continue
-						}
-
-						// delete
-						repo := sealer.RepoPath()
-						log.Infof("Remove sector:%s,%s", repo, sid)
-						if err := os.Remove(filepath.Join(repo, "sealed", sid)); err != nil {
-							log.Error(errors.As(err, sid))
-						}
-						if err := os.RemoveAll(filepath.Join(repo, "cache", sid)); err != nil {
-							log.Error(errors.As(err, sid))
-						}
-						if err := os.Remove(filepath.Join(repo, "unsealed", sid)); err != nil {
-							log.Error(errors.As(err, sid))
-						}
-						if err := diskPool.Delete(sid); err != nil {
-							log.Error(errors.As(err))
-						}
-						break
-					}
+				sid := storage.SectorName(sector.ID)
+				mountDir := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid)
+				// send the sealed
+				sealedFromPath := sealer.SectorPath("sealed", sid)
+				sealedToPath := filepath.Join(mountDir, "sealed")
+				w:=worker{}
+				if err := w.upload(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+					log.Error(err)
 				}
-
+				// send the cache
+				cacheFromPath := sealer.SectorPath("cache", sid)
+				cacheToPath := filepath.Join(mountDir, "cache", sid)
+				if err := w.upload(ctx, cacheFromPath, cacheToPath); err != nil {
+					log.Error(err)
+				}
 				result <- task
 			}
 		}()

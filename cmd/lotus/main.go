@@ -39,6 +39,7 @@ func main() {
 	}
 	monitor.Init(model.PackageKind_Lotus, "")
 
+	monitor.Init(model.PackageKind_Lotus, "")
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {
 		if jaeger != nil {

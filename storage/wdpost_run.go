@@ -109,14 +109,10 @@ func (s *WindowPoStScheduler) runGeneratePoST(
 	deadline *dline.Info,
 ) ([]miner.SubmitWindowedPoStParams, error) {
 	s.ResetLog(deadline.Index)
-	//ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.generatePoST")
-	//defer span.End()
-
-  s.ResetLog(deadline.Index)
 
 	posts, err := s.runPoStCycle(ctx, *deadline, ts)
 	if err != nil {
-    	log.Error(s.PutLogf(deadline.Index, "runPoStCycle failed: %+v", err))
+		log.Error(s.PutLogf(deadline.Index, "runPoStCycle failed: %+v", err))
 		return nil, err
 	}
 
@@ -524,7 +520,6 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 		return s.runHlmPoStCycle(ctx, di, ts)
 	}
 
-
 	go func() {
 		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
 
@@ -651,7 +646,6 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 		span.Starting("")
 		spanHasFinish := false
 
-
 		// Retry until we run out of sectors to prove.
 		for retries := 0; ; retries++ {
 			skipCount := uint64(0)
@@ -709,10 +703,10 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 			span.SetSectorCount(len(sinfos))
 			span.SetSkipCount(int(skipCount))
 
-
 			if len(sinfos) == 0 {
 				// nothing to prove for this batch
 				log.Info(s.PutLogf(di.Index, "no sector info for deadline:%d", di.Index))
+
 				spanHasFinish = true
 				span.Finish(fmt.Errorf("no sector info for deadline:%d", di.Index))
 				break
@@ -739,7 +733,6 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 			elapsed := time.Since(tsStart)
 			span.SetGenerateElapsed(int64(elapsed))
 			span.SetErrorCount(len(ps))
-
 			log.Info(s.PutLogw(di.Index, "computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand))
 
 			if err == nil {
@@ -826,7 +819,6 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 				postSkipped.Set(uint64(sector.Number))
 			}
 		}
-
 		if !spanHasFinish {
 			span.Finish(nil)
 		}

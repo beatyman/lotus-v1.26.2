@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"net/http"
-	"strings"
-	"sync"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
@@ -15,6 +12,9 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
+	"net/http"
+	"strings"
+	"sync"
 )
 
 var (
@@ -31,10 +31,6 @@ func (r *rpcClient) RetryEnable(err error) bool {
 	return err != nil &&
 		(strings.Contains(err.Error(), "websocket connection closed") ||
 			strings.Contains(err.Error(), "connection refused"))
-}
-func (r *rpcClient) Close() error {
-	r.closer()
-	return nil
 }
 
 func GetWorkerClient(ctx context.Context, mApi *api.RetryHlmMinerSchedulerAPI, url string) (*rpcClient, error) {
@@ -53,7 +49,6 @@ func GetWorkerClient(ctx context.Context, mApi *api.RetryHlmMinerSchedulerAPI, u
 	if err != nil {
 		return nil, errors.New("creating auth token for remote connection").As(err)
 	}
-
 	headers := http.Header{}
 	headers.Add("Authorization", "Bearer "+string(token))
 	urlInfo := strings.Split(url, ":")
@@ -61,14 +56,13 @@ func GetWorkerClient(ctx context.Context, mApi *api.RetryHlmMinerSchedulerAPI, u
 		return nil, errors.New("error url format")
 	}
 	rpcUrl := fmt.Sprintf("ws://%s:%s/rpc/v0", urlInfo[0], urlInfo[1])
-
 	wApi, closer, err := client.NewWorkerHlmRPC(ctx, rpcUrl, headers)
 	if err != nil {
 		return nil, errors.New("creating jsonrpc client").As(err)
 	}
-
 	cli = &rpcClient{wApi, closer}
 	rpcClients[url] = cli
+
 	return cli, nil
 }
 
@@ -77,6 +71,7 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out s
 	if err != nil {
 		return nil, errors.As(err)
 	}
+
 	c2worker, err := mApi.RetrySelectCommit2Service(ctx, task.SectorID)
 	if err != nil {
 		return nil, errors.As(err)
@@ -87,6 +82,7 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out s
 			return data, nil
 		}
 	}
+
 	log.Infof("Task(%v) Selected Commit2 Service: %s", task.Key(), c2worker.Url)
 	cli, err := GetWorkerClient(ctx, mApi, c2worker.Url)
 	if err != nil {

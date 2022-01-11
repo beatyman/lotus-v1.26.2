@@ -111,6 +111,7 @@ require (
 	github.com/ipld/go-ipld-prime v0.12.3
 	github.com/ipld/go-ipld-selector-text-lite v0.0.0
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f // indirect
 	github.com/lib/pq v1.10.2
 	github.com/libp2p/go-buffer-pool v0.0.2
 	github.com/libp2p/go-eventbus v0.2.1
@@ -151,6 +152,7 @@ require (
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.0
+	github.com/ufilesdk-dev/us3-qiniu-go-sdk v0.2.0
 	github.com/urfave/cli/v2 v2.2.0
 	github.com/whyrusleeping/bencher v0.0.0-20190829221104-bb6607aa8bba
 	github.com/whyrusleeping/cbor-gen v0.0.0-20210713220151-be142a5ae1a8
@@ -176,6 +178,10 @@ require (
 	gotest.tools v2.2.0+incompatible
 	huangdong2012/filecoin-monitor v0.0.0-00010101000000-000000000000
 )
+
+replace github.com/libp2p/go-libp2p-yamux => github.com/libp2p/go-libp2p-yamux v0.5.1
+
+replace github.com/filecoin-project/lotus => ./
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
