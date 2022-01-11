@@ -535,6 +535,9 @@ reAllocate:
 			if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
+			if err := w.RemoveRepoSector(ctx, sealer.RepoPath(), task.SectorName()); err != nil {
+				log.Warn(errors.As(err))
+			}
 		}
 	case ffiwrapper.WorkerUnseal:
 		if err := sealer.UnsealPiece(ctx, sector, task.UnsealOffset, task.UnsealSize, task.SealRandomness, task.Commd); err != nil {
@@ -542,6 +545,9 @@ reAllocate:
 		}
 		if err := w.pushCache(ctx, sealer, task, true); err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
+		}
+		if err := w.RemoveRepoSector(ctx, sealer.RepoPath(), task.SectorName()); err != nil {
+			log.Warn(errors.As(err))
 		}
 	}
 
