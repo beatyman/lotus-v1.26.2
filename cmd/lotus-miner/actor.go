@@ -263,7 +263,7 @@ var actorWithdrawCmd = &cli.Command{
 			amount = abi.TokenAmount(f)
 
 			if amount.GreaterThan(available) {
-				return xerrors.Errorf("can't withdraw more funds than available; requested: %s; available: %s", amount, available)
+				return xerrors.Errorf("can't withdraw more funds than available; requested: %s; available: %s", types.FIL(amount), types.FIL(available))
 			}
 		}
 
@@ -317,6 +317,7 @@ var actorWithdrawCmd = &cli.Command{
 
 		// wait for it to get mined into a block
 		fmt.Printf("waiting for %d epochs for confirmation..\n", uint64(cctx.Int("confidence")))
+
 		wait, err := api.StateWaitMsg(ctx, smsg.Cid(), uint64(cctx.Int("confidence")))
 		if err != nil {
 			return err
@@ -339,9 +340,9 @@ var actorWithdrawCmd = &cli.Command{
 				return err
 			}
 
-			fmt.Printf("Successfully withdrew %s FIL\n", withdrawn)
+			fmt.Printf("Successfully withdrew %s \n", types.FIL(withdrawn))
 			if withdrawn.LessThan(amount) {
-				fmt.Printf("Note that this is less than the requested amount of %s FIL\n", amount)
+				fmt.Printf("Note that this is less than the requested amount of %s\n", types.FIL(amount))
 			}
 		}
 
@@ -763,12 +764,6 @@ var actorSetOwnerCmd = &cli.Command{
 			return fmt.Errorf("must pass new owner address and sender address")
 		}
 
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-
 		api, acloser, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {
 			return err
@@ -797,7 +792,7 @@ var actorSetOwnerCmd = &cli.Command{
 			return err
 		}
 
-		maddr, err := nodeApi.ActorAddress(ctx)
+		maddr, err := getActorAddress(ctx, cctx)
 		if err != nil {
 			return err
 		}

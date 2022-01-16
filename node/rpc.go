@@ -3,8 +3,6 @@ package node
 import (
 	"context"
 	"encoding/json"
-	nauth "github.com/filecoin-project/lotus/node/modules/auth"
-	"github.com/gwaylib/errors"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -28,7 +26,11 @@ import (
 	"github.com/filecoin-project/lotus/api/v1api"
 	"github.com/filecoin-project/lotus/lib/rpcenc"
 	"github.com/filecoin-project/lotus/metrics"
+	"github.com/filecoin-project/lotus/metrics/proxy"
 	"github.com/filecoin-project/lotus/node/impl"
+	"github.com/filecoin-project/lotus/node/impl/client"
+	nauth "github.com/filecoin-project/lotus/node/modules/auth"
+	"github.com/gwaylib/errors"
 )
 
 var rpclog = logging.Logger("rpc")
@@ -63,7 +65,6 @@ func ServeRPC(h http.Handler, id, repo string, addr multiaddr.Multiaddr) (StopFu
 	}
 	go func() {
 		err = srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
-		//err = srv.Serve(manet.NetListener(lst))
 		if err != http.ErrServerClosed {
 			rpclog.Warnf("rpc server failed: %s", err)
 		}
@@ -88,7 +89,7 @@ func FullNodeHandler(a v1api.FullNode, permissioned bool, opts ...jsonrpc.Server
 		m.Handle(path, handler)
 	}
 
-	fnapi := metrics.MetricedFullAPI(a)
+	fnapi := proxy.MetricedFullAPI(a)
 	if permissioned {
 		fnapi = api.PermissionedFullAPI(fnapi)
 	}
@@ -98,14 +99,22 @@ func FullNodeHandler(a v1api.FullNode, permissioned bool, opts ...jsonrpc.Server
 
 	// Import handler
 	handleImportFunc := handleImport(a.(*impl.FullNodeAPI))
+	handleExportFunc := handleExport(a.(*impl.FullNodeAPI))
 	if permissioned {
 		importAH := &auth.Handler{
 			Verify: a.AuthVerify,
 			Next:   handleImportFunc,
 		}
 		m.Handle("/rest/v0/import", importAH)
+
+		exportAH := &auth.Handler{
+			Verify: a.AuthVerify,
+			Next:   handleExportFunc,
+		}
+		m.Handle("/rest/v0/export", exportAH)
 	} else {
 		m.HandleFunc("/rest/v0/import", handleImportFunc)
+		m.HandleFunc("/rest/v0/export", handleExportFunc)
 	}
 
 	// debugging
@@ -123,7 +132,7 @@ func FullNodeHandler(a v1api.FullNode, permissioned bool, opts ...jsonrpc.Server
 func MinerHandler(a api.StorageMiner, permissioned bool) (http.Handler, error) {
 	m := mux.NewRouter()
 
-	mapi := metrics.MetricedStorMinerAPI(a)
+	mapi := proxy.MetricedStorMinerAPI(a)
 	if permissioned {
 		mapi = api.PermissionedStorMinerAPI(mapi)
 	}
@@ -173,6 +182,34 @@ func handleImport(a *impl.FullNodeAPI) func(w http.ResponseWriter, r *http.Reque
 		err = json.NewEncoder(w).Encode(struct{ Cid cid.Cid }{c})
 		if err != nil {
 			rpclog.Errorf("/rest/v0/import: Writing response failed: %+v", err)
+			return
+		}
+	}
+}
+
+func handleExport(a *impl.FullNodeAPI) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			w.WriteHeader(404)
+			return
+		}
+		if !auth.HasPerm(r.Context(), nil, api.PermWrite) {
+			w.WriteHeader(401)
+			_ = json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: missing write permission"})
+			return
+		}
+
+		var eref api.ExportRef
+		if err := json.Unmarshal([]byte(r.FormValue("export")), &eref); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		car := r.FormValue("car") == "true"
+
+		err := a.ClientExportInto(r.Context(), eref, car, client.ExportDest{Writer: w})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}

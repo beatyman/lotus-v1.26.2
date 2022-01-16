@@ -98,7 +98,7 @@ func (m *Sealing) padSector(ctx context.Context, sectorID storage.SectorRef, exi
 		if err != nil {
 			return nil, xerrors.Errorf("add piece: %w", err)
 		}
-		if !expectCid.Equals(expectCid) {
+		if !expectCid.Equals(ppi.PieceCID) {
 			return nil, xerrors.Errorf("got unexpected padding piece CID: expected:%s, got:%s", expectCid, ppi.PieceCID)
 		}
 
@@ -602,7 +602,7 @@ func (m *Sealing) handleCommitting(ctx statemachine.Context, sector SectorInfo) 
 		}
 
 		if err := m.checkCommit(ctx.Context(), sector, proof, tok); err != nil {
-			return ctx.Send(SectorComputeProofFailed{xerrors.Errorf("commit check error: %w", err)})
+			return ctx.Send(SectorCommitFailed{xerrors.Errorf("commit check error: %w", err)})
 		}
 	}
 

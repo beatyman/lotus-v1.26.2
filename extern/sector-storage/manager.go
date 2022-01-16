@@ -2,6 +2,7 @@ package sectorstorage
 
 import (
 	"context"
+	"github.com/filecoin-project/dagstore/mount"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"io"
 	"net/http"
@@ -53,12 +54,7 @@ type SectorManager interface {
 	FaultTracker
 }
 
-type WorkerID uuid.UUID // worker session UUID
 var ClosedWorkerID = uuid.UUID{}
-
-func (w WorkerID) String() string {
-	return uuid.UUID(w).String()
-}
 
 type Manager struct {
 	hlmWorker *hlmWorker
@@ -247,8 +243,8 @@ func (m *Manager) schedFetch(sector storage.SectorRef, ft storiface.SectorFileTy
 	}
 }
 
-func (m *Manager) ReadPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error) {
-	return m.hlmWorker.ReadPiece(ctx, sector, offset, size, ticket, unsealed)
+func (m *Manager)ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error){
+	return m.hlmWorker.ReadPiece(ctx, sector, pieceOffset,size,ticket,unsealed)
 }
 func (m *Manager) ReadPieceStorageInfo(ctx context.Context, sector storage.SectorRef) (database.SectorStorage, error) {
 	return m.hlmWorker.ReadPieceStorageInfo(ctx, sector)
@@ -649,13 +645,13 @@ func (m *Manager) Remove(ctx context.Context, sector storage.SectorRef) error {
 
 	var err error
 
-	if rerr := m.storage.Remove(ctx, sector.ID, storiface.FTSealed, true); rerr != nil {
+	if rerr := m.storage.Remove(ctx, sector.ID, storiface.FTSealed, true, nil); rerr != nil {
 		err = multierror.Append(err, xerrors.Errorf("removing sector (sealed): %w", rerr))
 	}
-	if rerr := m.storage.Remove(ctx, sector.ID, storiface.FTCache, true); rerr != nil {
+	if rerr := m.storage.Remove(ctx, sector.ID, storiface.FTCache, true, nil); rerr != nil {
 		err = multierror.Append(err, xerrors.Errorf("removing sector (cache): %w", rerr))
 	}
-	if rerr := m.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true); rerr != nil {
+	if rerr := m.storage.Remove(ctx, sector.ID, storiface.FTUnsealed, true, nil); rerr != nil {
 		err = multierror.Append(err, xerrors.Errorf("removing sector (unsealed): %w", rerr))
 	}
 

@@ -19,6 +19,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/specs-storage/storage"
 )
 
@@ -412,6 +413,10 @@ var provingCheckProvableCmd = &cli.Command{
 			Name:  "slow",
 			Usage: "run slower checks",
 		},
+		&cli.StringFlag{
+			Name:  "storage-id",
+			Usage: "filter sectors by storage path (path id)",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.Args().Len() != 1 {
@@ -460,6 +465,21 @@ var provingCheckProvableCmd = &cli.Command{
 		tw := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
 		_, _ = fmt.Fprintln(tw, "deadline\tpartition\tsector\tstatus")
 
+		var filter map[abi.SectorID]struct{}
+
+		if cctx.IsSet("storage-id") {
+			sl, err := sapi.StorageList(ctx)
+			if err != nil {
+				return err
+			}
+			decls := sl[stores.ID(cctx.String("storage-id"))]
+
+			filter = map[abi.SectorID]struct{}{}
+			for _, decl := range decls {
+				filter[decl.SectorID] = struct{}{}
+			}
+		}
+
 		for parIdx, par := range partitions {
 			sectors := make(map[abi.SectorNumber]struct{})
 
@@ -470,6 +490,17 @@ var provingCheckProvableCmd = &cli.Command{
 
 			var tocheck []storage.SectorRef
 			for _, info := range sectorInfos {
+				si := abi.SectorID{
+					Miner:  abi.ActorID(mid),
+					Number: info.SectorNumber,
+				}
+
+				if filter != nil {
+					if _, found := filter[si]; !found {
+						continue
+					}
+				}
+
 				sectors[info.SectorNumber] = struct{}{}
 
 				id := abi.SectorID{
@@ -481,8 +512,8 @@ var provingCheckProvableCmd = &cli.Command{
 					return errors.As(err)
 				}
 				tocheck = append(tocheck, storage.SectorRef{
-					ProofType:  info.SealProof,
-					ID:         id,
+					ProofType: info.SealProof,
+					ID:        si,
 					SectorFile: *sFile,
 				})
 			}
