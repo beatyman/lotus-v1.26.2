@@ -533,20 +533,21 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 	//}
 	//defer srcDone()
 	up := os.Getenv("US3")
+	var sealed *os.File
 	if up != "" {
 		d := operation.NewDownloaderV2()
-		sealed, err := d.DownloadFile(sPath.Sealed, sPath.Sealed)
+		sealed, err = d.DownloadFile(sPath.Sealed, sPath.Sealed)
 		if err != nil {
 			return xerrors.Errorf("opening sealed file: %w", err)
 		}
-	}else {
-		sealed, err := os.OpenFile(sPath.Sealed, os.O_RDONLY, 0644) // nolint:gosec
+		defer sealed.Close() // nolint
+	} else {
+		sealed, err = os.OpenFile(sPath.Sealed, os.O_RDONLY, 0644) // nolint:gosec
 		if err != nil {
 			return xerrors.Errorf("opening sealed file: %w", err)
 		}
+		defer sealed.Close() // nolint
 	}
-
-	defer sealed.Close() // nolint
 
 	var at, nextat abi.PaddedPieceSize
 	first := true
@@ -651,22 +652,41 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 
 	return nil
 }
-func (sb *Sealer) ReadPieceQiniu(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error){
+func (sb *Sealer) ReadPieceQiniu(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error) {
 	p, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, storiface.FTNone, storiface.PathStorage)
 	if err != nil {
-		return nil,false, xerrors.Errorf("acquire unsealed sector path: %w", err)
+		return nil, false, xerrors.Errorf("acquire unsealed sector path: %w", err)
 	}
 	defer done()
 	sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
 	p.Cache = filepath.Join(sp, storiface.FTCache.String(), storiface.SectorName(sector.ID))
 	p.Sealed = filepath.Join(sp, storiface.FTSealed.String(), storiface.SectorName(sector.ID))
 	p.Unsealed = filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
-	return partialfile.ReadPieceQiniu(ctx, p.Unsealed,sector,offset,size)
+	return partialfile.ReadPieceQiniu(ctx, p.Unsealed, sector, offset, size)
 }
-func (sb *Sealer)PieceReader(ctx context.Context, sector storage.SectorRef, offset, size abi.PaddedPieceSize) (func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error),bool, error) {
+func (sb *Sealer) PieceReader(ctx context.Context, sector storage.SectorRef, offset, size abi.PaddedPieceSize) (func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error), bool, error) {
 	up := os.Getenv("US3")
 	if up != "" {
-		return sb.ReadPieceQiniu(ctx, sector, offset, size)
+		return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
+			sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
+			unsealed := filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
+			index := storiface.UnpaddedByteIndex(storiface.PaddedByteIndex(offset) + startOffsetAligned)
+			offset := size - abi.PaddedPieceSize(startOffsetAligned)
+			r, _, err := partialfile.ReadPieceQiniu(ctx, unsealed, sector, index, offset.Unpadded())
+			if err != nil {
+				log.Error(err)
+				return nil, err
+			}
+			return struct {
+				io.Reader
+				io.Closer
+			}{
+				Reader: r,
+				Closer: funcCloser(func() error {
+					return nil
+				}),
+			}, nil
+		}, true, nil
 	}
 	log.Infof("DEBUG:PieceReader in, sector:%+v", sector)
 	defer log.Infof("DEBUG:PieceReader out, sector:%+v", sector)
@@ -691,13 +711,13 @@ func (sb *Sealer)PieceReader(ctx context.Context, sector storage.SectorRef, offs
 	ok, err := pf.HasAllocated(storiface.UnpaddedByteIndex(offset.Unpadded()), size.Unpadded())
 	if err != nil {
 		_ = pf.Close()
-		return nil, false,err
+		return nil, false, err
 	}
 	if !ok {
 		_ = pf.Close()
-		return nil, false,nil
+		return nil, false, nil
 	}
-	return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error){
+	return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
 		r, err := pf.Reader(storiface.PaddedByteIndex(offset)+startOffsetAligned, size-abi.PaddedPieceSize(startOffsetAligned))
 		if err != nil {
 			_ = pf.Close()
@@ -714,7 +734,7 @@ func (sb *Sealer)PieceReader(ctx context.Context, sector storage.SectorRef, offs
 				return nil
 			}),
 		}, nil
-	},true,nil
+	}, true, nil
 }
 
 type funcCloser func() error

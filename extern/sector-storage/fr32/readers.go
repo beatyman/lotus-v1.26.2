@@ -22,6 +22,10 @@ type unpadReader struct {
 	downloader *operation.Downloader
 }
 
+func (r *unpadReader) Close() error {
+	return nil
+}
+
 func BufSize(sz abi.PaddedPieceSize) int {
 	return int(MTTresh * mtChunkCount(sz))
 }
