@@ -3,17 +3,15 @@ package sectorstorage
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
-	"fmt"
-	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
-	"io"
-	"os"
-	"os"
-	"path/filepath"
-
+	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
+	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/filecoin-project/dagstore/mount"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -165,20 +163,158 @@ var _ io.Closer = funcCloser(nil)
 // If we do NOT have an existing unsealed file  containing the given piece thus causing us to schedule an Unseal,
 // the returned boolean parameter will be set to true.
 // If we have an existing unsealed file containing the given piece, the returned boolean will be set to false.
+func (p *pieceProvider) PieceReader(ctx context.Context, sector storage.SectorRef, offset, size abi.PaddedPieceSize) (func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error), bool, error) {
+	log.Infof("DEBUG:PieceReader in, sector:%+v", sector)
+	defer log.Infof("DEBUG:PieceReader out, sector:%+v", sector)
+	// uprade SectorRef
+	log.Info("Try ReadPiece Start")
+	info, err := p.uns.ReadPieceStorageInfo(ctx, sector)
+	if err != nil {
+		log.Error(err)
+		return nil, false, err
+	} else {
+		log.Infof("%+v", info)
+	}
+	log.Info("Try ReadPiece End")
+
+	ssize, err := sector.ProofType.SectorSize()
+	if err != nil {
+		return nil, false, err
+	}
+	maxPieceSize := abi.PaddedPieceSize(ssize)
+	log.Info("Start OpenUnsealedPartialFileV2")
+	var pf *partialfile.PartialFile
+	if info.UnsealedStorage.MountType == database.MOUNT_TYPE_OSS {
+		up := os.Getenv("US3")
+		if up != "" {
+			sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
+			unsealed := filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
+			return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
+				size := size - abi.PaddedPieceSize(startOffsetAligned)
+				offset := storiface.UnpaddedByteIndex(storiface.PaddedByteIndex(offset) + startOffsetAligned)
+				r, _, err := partialfile.ReadPieceQiniu(ctx, unsealed, sector, offset, size.Unpadded())
+				if err != nil {
+					log.Error(err)
+					return nil, err
+				}
+				return struct {
+					io.Reader
+					io.Closer
+				}{
+					Reader: r,
+					Closer: funcCloser(func() error {
+						return nil
+					}),
+				}, nil
+			}, true, nil
+		} else {
+			return nil, false, xerrors.Errorf("opening partial file: %w", err)
+		}
+		log.Info("Over OpenUnsealedPartialFileV2")
+	} else {
+		pf, err = partialfile.OpenUnsealedPartialFileV2(maxPieceSize, sector, info)
+		if err != nil {
+			if xerrors.Is(err, os.ErrNotExist) {
+				return nil, false, nil
+			}
+			return nil, false, xerrors.Errorf("opening partial file: %w", err)
+		}
+	}
+
+	ok, err := pf.HasAllocated(storiface.UnpaddedByteIndex(offset.Unpadded()), size.Unpadded())
+	if err != nil {
+		_ = pf.Close()
+		return nil, false, err
+	}
+	if !ok {
+		_ = pf.Close()
+		return nil, false, nil
+	}
+	return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
+		r, err := pf.Reader(storiface.PaddedByteIndex(offset)+startOffsetAligned, size-abi.PaddedPieceSize(startOffsetAligned))
+		if err != nil {
+			_ = pf.Close()
+			return nil, err
+		}
+		return struct {
+			io.Reader
+			io.Closer
+		}{
+			Reader: r,
+			Closer: funcCloser(func() error {
+				// if we already have a reader cached, close this one
+				_ = pf.Close()
+				return nil
+			}),
+		}, nil
+	}, true, nil
+}
+func (p *pieceProvider) readPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
+	// try read the exist unsealed.
+	ctx, cancel := context.WithCancel(ctx)
+	rg, done, err := p.PieceReader(ctx, sector, abi.PaddedPieceSize(pieceOffset.Padded()), size.Padded())
+	if err != nil {
+		cancel()
+		return nil, false, errors.As(err)
+	} else if done {
+		cancel()
+		buf := make([]byte, fr32.BufSize(size.Padded()))
+		pr, err := (&pieceReader{
+			ctx: ctx,
+			getReader: func(ctx context.Context, startOffset uint64) (io.ReadCloser, error) {
+				startOffsetAligned := storiface.UnpaddedByteIndex(startOffset / 127 * 127) // floor to multiple of 127
+
+				r, err := rg(startOffsetAligned.Padded())
+				if err != nil {
+					return nil, xerrors.Errorf("getting reader at +%d: %w", startOffsetAligned, err)
+				}
+
+				upr, err := fr32.NewUnpadReaderBuf(r, size.Padded(), buf)
+				if err != nil {
+					r.Close() // nolint
+					return nil, xerrors.Errorf("creating unpadded reader: %w", err)
+				}
+
+				bir := bufio.NewReaderSize(upr, 127)
+				if startOffset > uint64(startOffsetAligned) {
+					if _, err := bir.Discard(int(startOffset - uint64(startOffsetAligned))); err != nil {
+						r.Close() // nolint
+						return nil, xerrors.Errorf("discarding bytes for startOffset: %w", err)
+					}
+				}
+				return struct {
+					io.Reader
+					io.Closer
+				}{
+					Reader: bir,
+					Closer: funcCloser(func() error {
+						return r.Close()
+					}),
+				}, nil
+			},
+			len:      size,
+			onClose:  cancel,
+			pieceCid: unsealed,
+		}).init()
+		if err != nil || pr == nil { // pr == nil to make sure we don't return typed nil
+			cancel()
+			return nil, true, err
+		}
+		cancel()
+		return pr, true, nil
+	}
+	cancel()
+	return nil, false, errors.New("readPiece not done")
+}
 func (p *pieceProvider) ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
+
 	if err := pieceOffset.Valid(); err != nil {
 		return nil, false, xerrors.Errorf("pieceOffset is not valid: %w", err)
 	}
 	if err := size.Validate(); err != nil {
 		return nil, false, xerrors.Errorf("size is not a valid piece size: %w", err)
 	}
-	up := os.Getenv("US3")
-	if up != "" {
-		sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
-		unsealed := filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
-		return partialfile.ReadPieceQiniu(ctx, unsealed,sector,offset,size)
-	}
-	return p.uns.ReadPiece(ctx,sector,pieceOffset,size,ticket,unsealed)
+	return p.readPiece(ctx, sector, pieceOffset, size, ticket, unsealed)
 	r, err := p.tryReadUnsealedPiece(ctx, unsealed, sector, pieceOffset, size)
 
 	log.Debugf("result of first tryReadUnsealedPiece: r=%+v, err=%s", r, err)

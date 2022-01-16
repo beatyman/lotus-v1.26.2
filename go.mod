@@ -178,8 +178,8 @@ require (
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gotest.tools v2.2.0+incompatible
-	lukechampine.com/blake3 v1.1.7 // indirect
 	huangdong2012/filecoin-monitor v0.0.0-00010101000000-000000000000
+	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
 replace github.com/libp2p/go-libp2p-yamux => github.com/libp2p/go-libp2p-yamux v0.5.1
