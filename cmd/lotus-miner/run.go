@@ -76,11 +76,14 @@ var runCmd = &cli.Command{
 			tag.Insert(metrics.Commit, build.CurrentCommit),
 			tag.Insert(metrics.NodeType, "miner"),
 		)
+
 		// implement by hlm
 		// use the cluster proxy if it's exist.
 		if err := cliutil.ConnectLotusProxy(cctx); err != nil {
 			log.Infof("lotus proxy is off:%s", err.Error())
 		}
+
+		// implement by hlm end.
 
 		// Register all metric views
 		if err := view.Register(
@@ -165,7 +168,6 @@ var runCmd = &cli.Command{
 			// init storage database
 			// TODO: already implement in init.go, so remove this checking in running?
 			database.InitDB(minerRepoPath)
-			// implement by hlm end.
 
 			if err := database.LockMount(minerRepoPath); err != nil {
 				log.Fatalf(" database.LockMount(minerRepoPath): %v", err)
@@ -189,6 +191,7 @@ var runCmd = &cli.Command{
 			log.Info("Check done")
 			// end by zhoushuyue
 		}
+
 		shutdownChan := make(chan struct{})
 		var minerapi api.StorageMiner
 		stop, err := node.New(ctx,
@@ -242,6 +245,7 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return fmt.Errorf("failed to start json-rpc endpoint: %s", err)
 		}
+
 		if cfg.Subsystems.EnableMining {
 			// open this rpc for worker.
 			scSrv, err := listenSchedulerApi(cctx, r, minerapi.(*impl.StorageMinerAPI))
@@ -260,12 +264,14 @@ var runCmd = &cli.Command{
 				node.ShutdownHandler{Component: "scheduler", StopFunc: scSrv.Shutdown},
 			)
 			<-finishCh
+
 		} else {
 			// Monitor for shutdown.
 			finishCh := node.MonitorShutdown(shutdownChan,
 				node.ShutdownHandler{Component: "rpc server", StopFunc: rpcStopper},
 				node.ShutdownHandler{Component: "miner", StopFunc: stop},
 			)
+
 			<-finishCh
 		}
 		return nil

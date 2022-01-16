@@ -85,6 +85,7 @@ type HttpClient struct {
 }
 
 func NewHttpClient(host, sid, token string) *HttpClient {
+	http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 100
 	return &HttpClient{Host: host, Sid: sid, Token: token}
 }
 

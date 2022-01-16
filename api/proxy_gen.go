@@ -5,6 +5,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"time"
 
 	"github.com/filecoin-project/go-address"
@@ -794,9 +795,9 @@ type StorageMinerStruct struct {
 
 		SectorsSummary func(p0 context.Context) (map[SectorState]int, error) `perm:"read"`
 
-		SectorsUnsealPiece func(p0 context.Context, p1 storage.SectorRef, p2 storiface.UnpaddedByteIndex, p3 abi.UnpaddedPieceSize, p4 abi.SealRandomness, p5 *cid.Cid) error `perm:"admin"`
-
-		SectorsUpdate func(p0 context.Context, p1 abi.SectorNumber, p2 SectorState) error `perm:"admin"`
+		SectorsUnsealPiece   func(p0 context.Context, p1 storage.SectorRef, p2 storiface.UnpaddedByteIndex, p3 abi.UnpaddedPieceSize, p4 abi.SealRandomness, p5 *cid.Cid) error `perm:"admin"`
+		ReadPieceStorageInfo func(p0 context.Context, p1 storage.SectorRef) (database.SectorStorage, error)                                                                     `perm:"admin"`
+		SectorsUpdate        func(p0 context.Context, p1 abi.SectorNumber, p2 SectorState) error                                                                                `perm:"admin"`
 
 		StorageAddLocal func(p0 context.Context, p1 string) error `perm:"admin"`
 
@@ -4641,7 +4642,15 @@ func (s *StorageMinerStruct) SectorsUnsealPiece(p0 context.Context, p1 storage.S
 func (s *StorageMinerStub) SectorsUnsealPiece(p0 context.Context, p1 storage.SectorRef, p2 storiface.UnpaddedByteIndex, p3 abi.UnpaddedPieceSize, p4 abi.SealRandomness, p5 *cid.Cid) error {
 	return ErrNotSupported
 }
-
+func (s *StorageMinerStruct) ReadPieceStorageInfo(p0 context.Context, p1 storage.SectorRef) (database.SectorStorage, error) {
+	if s.Internal.ReadPieceStorageInfo == nil {
+		return *new(database.SectorStorage), ErrNotSupported
+	}
+	return s.Internal.ReadPieceStorageInfo(p0, p1)
+}
+func (s *StorageMinerStub) ReadPieceStorageInfo(p0 context.Context, p1 storage.SectorRef) (database.SectorStorage, error) {
+	return *new(database.SectorStorage), ErrNotSupported
+}
 func (s *StorageMinerStruct) SectorsUpdate(p0 context.Context, p1 abi.SectorNumber, p2 SectorState) error {
 	if s.Internal.SectorsUpdate == nil {
 		return ErrNotSupported

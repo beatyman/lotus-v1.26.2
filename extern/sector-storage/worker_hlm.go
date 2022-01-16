@@ -224,7 +224,13 @@ func (l *hlmWorker) Remove(ctx context.Context, sector storage.SectorRef) error 
 func (l *hlmWorker) UnsealPiece(ctx context.Context, sector storage.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, cid cid.Cid) error {
 	return l.sb.UnsealPiece(ctx, sector, index, size, randomness, cid)
 }
-
+func (l *hlmWorker) ReadPieceStorageInfo(ctx context.Context, sector storage.SectorRef) (database.SectorStorage, error) {
+	info, err := database.GetSectorStorage(storage.SectorName(sector.ID))
+	if err != nil {
+		return database.SectorStorage{}, err
+	}
+	return *info, nil
+}
 func (l *hlmWorker)readPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error)  {
 	// try read the exist unsealed.
 	ctx, cancel := context.WithCancel(ctx)

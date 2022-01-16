@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"net/http"
 	"os"
 	"sort"
@@ -224,6 +225,9 @@ func (sm *StorageMinerAPI) SectorAddPieceToAny(ctx context.Context, size abi.Unp
 
 func (sm *StorageMinerAPI) SectorsUnsealPiece(ctx context.Context, sector sto.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error {
 	return sm.StorageMgr.SectorsUnsealPiece(ctx, sector, offset, size, randomness, commd)
+}
+func (sm *StorageMinerAPI) ReadPieceStorageInfo(ctx context.Context, sector sto.SectorRef) (database.SectorStorage, error) {
+	return sm.StorageMgr.ReadPieceStorageInfo(ctx, sector)
 }
 
 // List all staged sectors

@@ -70,10 +70,11 @@ type StorageInfo struct {
 	MountOpt       string    `db:"mount_opt"`
 	MountAuthUri   string    `db:"mount_auth_uri"`
 	Version        int64     `db:"ver"`
+	MountAuth      string    `db:"mount_auth"`
 }
 type StorageAuth struct {
 	StorageInfo
-	MountAuth string `db:"mount_auth"` // TODO: make auth scope
+	// TODO: make auth scope
 }
 
 func (s *StorageInfo) SetLastInsertId(id int64, err error) {

@@ -3,9 +3,12 @@ package sectorstorage
 import (
 	"bufio"
 	"context"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"fmt"
 	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"io"
+	"os"
 	"os"
 	"path/filepath"
 
@@ -24,7 +27,8 @@ import (
 type Unsealer interface {
 	// SectorsUnsealPiece will Unseal a Sealed sector file for the given sector.
 	SectorsUnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error
-	ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error)
+	//ReadPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error)
+	ReadPieceStorageInfo(ctx context.Context, sector storage.SectorRef) (database.SectorStorage, error)
 }
 
 type PieceProvider interface {
@@ -162,7 +166,6 @@ var _ io.Closer = funcCloser(nil)
 // the returned boolean parameter will be set to true.
 // If we have an existing unsealed file containing the given piece, the returned boolean will be set to false.
 func (p *pieceProvider) ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
-
 	if err := pieceOffset.Valid(); err != nil {
 		return nil, false, xerrors.Errorf("pieceOffset is not valid: %w", err)
 	}
