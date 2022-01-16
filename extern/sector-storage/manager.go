@@ -2,6 +2,7 @@ package sectorstorage
 
 import (
 	"context"
+	"github.com/filecoin-project/dagstore/mount"
 	"io"
 	"net/http"
 	"sync"
@@ -52,12 +53,7 @@ type SectorManager interface {
 	FaultTracker
 }
 
-type WorkerID uuid.UUID // worker session UUID
 var ClosedWorkerID = uuid.UUID{}
-
-func (w WorkerID) String() string {
-	return uuid.UUID(w).String()
-}
 
 type Manager struct {
 	hlmWorker *hlmWorker
@@ -246,8 +242,8 @@ func (m *Manager) schedFetch(sector storage.SectorRef, ft storiface.SectorFileTy
 	}
 }
 
-func (m *Manager) ReadPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error) {
-	return m.hlmWorker.ReadPiece(ctx, sector, offset, size, ticket, unsealed)
+func (m *Manager)ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error){
+	return m.hlmWorker.ReadPiece(ctx, sector, pieceOffset,size,ticket,unsealed)
 }
 
 // SectorsUnsealPiece will Unseal the Sealed sector file for the given sector.

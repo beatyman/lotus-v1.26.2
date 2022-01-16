@@ -13,7 +13,7 @@ import (
 )
 
 type unpadReader struct {
-	src io.ReadCloser
+	src io.Reader
 
 	left       uint64
 	work       []byte
@@ -22,12 +22,20 @@ type unpadReader struct {
 	downloader *operation.Downloader
 }
 
-func NewUnpadReader(src io.ReadCloser, sz abi.PaddedPieceSize) (io.ReadCloser, error) {
+func BufSize(sz abi.PaddedPieceSize) int {
+	return int(MTTresh * mtChunkCount(sz))
+}
+
+func NewUnpadReader(src io.Reader, sz abi.PaddedPieceSize) (io.Reader, error) {
+	buf := make([]byte, BufSize(sz))
+
+	return NewUnpadReaderBuf(src, sz, buf)
+}
+
+func NewUnpadReaderBuf(src io.Reader, sz abi.PaddedPieceSize, buf []byte) (io.Reader, error) {
 	if err := sz.Validate(); err != nil {
 		return nil, xerrors.Errorf("bad piece size: %w", err)
 	}
-
-	buf := make([]byte, MTTresh*mtChunkCount(sz))
 
 	return &unpadReader{
 		src: src,
@@ -35,9 +43,6 @@ func NewUnpadReader(src io.ReadCloser, sz abi.PaddedPieceSize) (io.ReadCloser, e
 		left: uint64(sz),
 		work: buf,
 	}, nil
-}
-func (r *unpadReader) Close() error {
-	return r.src.Close()
 }
 
 func NewUnpadReaderV2(sz abi.PaddedPieceSize, downloader *operation.Downloader, offset int64, path string) (io.ReadCloser, error) {

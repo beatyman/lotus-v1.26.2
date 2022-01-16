@@ -28,6 +28,7 @@ import (
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/metrics/proxy"
 	"github.com/filecoin-project/lotus/node/impl"
+	"github.com/filecoin-project/lotus/node/impl/client"
 	nauth "github.com/filecoin-project/lotus/node/modules/auth"
 	"github.com/gwaylib/errors"
 )
@@ -98,14 +99,22 @@ func FullNodeHandler(a v1api.FullNode, permissioned bool, opts ...jsonrpc.Server
 
 	// Import handler
 	handleImportFunc := handleImport(a.(*impl.FullNodeAPI))
+	handleExportFunc := handleExport(a.(*impl.FullNodeAPI))
 	if permissioned {
 		importAH := &auth.Handler{
 			Verify: a.AuthVerify,
 			Next:   handleImportFunc,
 		}
 		m.Handle("/rest/v0/import", importAH)
+
+		exportAH := &auth.Handler{
+			Verify: a.AuthVerify,
+			Next:   handleExportFunc,
+		}
+		m.Handle("/rest/v0/export", exportAH)
 	} else {
 		m.HandleFunc("/rest/v0/import", handleImportFunc)
+		m.HandleFunc("/rest/v0/export", handleExportFunc)
 	}
 
 	// debugging
@@ -173,6 +182,34 @@ func handleImport(a *impl.FullNodeAPI) func(w http.ResponseWriter, r *http.Reque
 		err = json.NewEncoder(w).Encode(struct{ Cid cid.Cid }{c})
 		if err != nil {
 			rpclog.Errorf("/rest/v0/import: Writing response failed: %+v", err)
+			return
+		}
+	}
+}
+
+func handleExport(a *impl.FullNodeAPI) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			w.WriteHeader(404)
+			return
+		}
+		if !auth.HasPerm(r.Context(), nil, api.PermWrite) {
+			w.WriteHeader(401)
+			_ = json.NewEncoder(w).Encode(struct{ Error string }{"unauthorized: missing write permission"})
+			return
+		}
+
+		var eref api.ExportRef
+		if err := json.Unmarshal([]byte(r.FormValue("export")), &eref); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		car := r.FormValue("car") == "true"
+
+		err := a.ClientExportInto(r.Context(), eref, car, client.ExportDest{Writer: w})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}

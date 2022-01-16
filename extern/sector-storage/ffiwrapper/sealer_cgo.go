@@ -7,6 +7,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -529,13 +532,20 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storage.SectorRef, off
 	//	return xerrors.Errorf("acquire sealed sector paths: %w", err)
 	//}
 	//defer srcDone()
-
-	//sealed, err := os.OpenFile(sPath.Sealed, os.O_RDONLY, 0644) // nolint:gosec
-	d := operation.NewDownloaderV2()
-	sealed, err := d.DownloadFile(sPath.Sealed, sPath.Sealed)
-	if err != nil {
-		return xerrors.Errorf("opening sealed file: %w", err)
+	up := os.Getenv("US3")
+	if up != "" {
+		d := operation.NewDownloaderV2()
+		sealed, err := d.DownloadFile(sPath.Sealed, sPath.Sealed)
+		if err != nil {
+			return xerrors.Errorf("opening sealed file: %w", err)
+		}
+	}else {
+		sealed, err := os.OpenFile(sPath.Sealed, os.O_RDONLY, 0644) // nolint:gosec
+		if err != nil {
+			return xerrors.Errorf("opening sealed file: %w", err)
+		}
 	}
+
 	defer sealed.Close() // nolint
 
 	var at, nextat abi.PaddedPieceSize
@@ -653,79 +663,68 @@ func (sb *Sealer) ReadPieceQiniu(ctx context.Context, sector storage.SectorRef, 
 	p.Unsealed = filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
 	return partialfile.ReadPieceQiniu(ctx, p.Unsealed,sector,offset,size)
 }
-func (sb *Sealer) PieceReader(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error) {
+func (sb *Sealer)PieceReader(ctx context.Context, sector storage.SectorRef, offset, size abi.PaddedPieceSize) (func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error),bool, error) {
 	up := os.Getenv("US3")
 	if up != "" {
-	   return sb.ReadPieceQiniu(ctx, sector, offset, size)
+		return sb.ReadPieceQiniu(ctx, sector, offset, size)
 	}
-
 	log.Infof("DEBUG:PieceReader in, sector:%+v", sector)
 	defer log.Infof("DEBUG:PieceReader out, sector:%+v", sector)
-
 	// uprade SectorRef
 	var err error
 	sector, err = database.FillSectorFile(sector, sb.RepoPath())
 	if err != nil {
 		return nil, false, errors.As(err)
 	}
-
 	ssize, err := sector.ProofType.SectorSize()
 	if err != nil {
 		return nil, false, err
 	}
 	maxPieceSize := abi.PaddedPieceSize(ssize)
-
 	pf, err := partialfile.OpenUnsealedPartialFile(maxPieceSize, sector)
 	if err != nil {
 		if xerrors.Is(err, os.ErrNotExist) {
 			return nil, false, nil
 		}
-
 		return nil, false, xerrors.Errorf("opening partial file: %w", err)
 	}
-
-	ok, err := pf.HasAllocated(offset, size)
+	ok, err := pf.HasAllocated(storiface.UnpaddedByteIndex(offset.Unpadded()), size.Unpadded())
 	if err != nil {
 		_ = pf.Close()
-		return nil, false, err
+		return nil, false,err
 	}
-
 	if !ok {
 		_ = pf.Close()
-		return nil, false, nil
+		return nil, false,nil
 	}
+	return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error){
+		r, err := pf.Reader(storiface.PaddedByteIndex(offset)+startOffsetAligned, size-abi.PaddedPieceSize(startOffsetAligned))
+		if err != nil {
+			_ = pf.Close()
+			return nil, err
+		}
+		return struct {
+			io.Reader
+			io.Closer
+		}{
+			Reader: r,
+			Closer: funcCloser(func() error {
+				// if we already have a reader cached, close this one
+				_ = pf.Close()
+				return nil
+			}),
+		}, nil
+	},true,nil
+}
 
-	f, err := pf.Reader(offset.Padded(), size.Padded())
-	if err != nil {
-		_ = pf.Close()
-		return nil, false, xerrors.Errorf("getting partial file reader: %w", err)
-	}
+type funcCloser func() error
 
-	upr, err := fr32.NewUnpadReader(f, size.Padded())
-	if err != nil {
-		return nil, false, xerrors.Errorf("creating unpadded reader: %w", err)
-	}
-	return upr, true, nil
-
+func (f funcCloser) Close() error {
+	return f()
 }
 func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {
 	log.Infof("DEBUG:ReadPiece in, sector:%+v", sector)
 	defer log.Infof("DEBUG:ReadPiece out, sector:%+v", sector)
-
-	upr, exist, err := sb.PieceReader(ctx, sector, offset, size)
-	if err != nil {
-		return exist, err
-	}
-
-	if _, err := io.CopyN(writer, upr, int64(size)); err != nil {
-		_ = upr.Close()
-		return false, xerrors.Errorf("reading unsealed file: %w", err)
-	}
-
-	if err := upr.Close(); err != nil {
-		return false, xerrors.Errorf("closing partial file: %w", err)
-	}
-
 	return true, nil
 }
 
@@ -787,8 +786,18 @@ func (sb *Sealer) sealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 	if err != nil {
 		return nil, xerrors.Errorf("presealing sector %d (%s): %w", sector.ID.Number, paths.Unsealed, err)
 	}
-	return p1o, nil
+
+	p1odec := map[string]interface{}{}
+	if err := json.Unmarshal(p1o, &p1odec); err != nil {
+		return nil, xerrors.Errorf("unmarshaling pc1 output: %w", err)
+	}
+
+	p1odec["_lotus_SealRandomness"] = ticket
+
+	return json.Marshal(&p1odec)
 }
+
+var PC2CheckRounds = 3
 
 func (sb *Sealer) sealPreCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.PreCommit1Out) (storage.SectorCids, error) {
 
@@ -803,6 +812,50 @@ func (sb *Sealer) sealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 	sealedCID, unsealedCID, err := ffi.SealPreCommitPhase2(phase1Out, paths.Cache, paths.Sealed)
 	if err != nil {
 		return storage.SectorCids{}, xerrors.Errorf("presealing sector %d (%s): %w", sector.ID.Number, paths.Unsealed, err)
+	}
+
+	ssize, err := sector.ProofType.SectorSize()
+	if err != nil {
+		return storage.SectorCids{}, xerrors.Errorf("get ssize: %w", err)
+	}
+
+	p1odec := map[string]interface{}{}
+	if err := json.Unmarshal(phase1Out, &p1odec); err != nil {
+		return storage.SectorCids{}, xerrors.Errorf("unmarshaling pc1 output: %w", err)
+	}
+
+	var ticket abi.SealRandomness
+	ti, found := p1odec["_lotus_SealRandomness"]
+
+	if found {
+		ticket, err = base64.StdEncoding.DecodeString(ti.(string))
+		if err != nil {
+			return storage.SectorCids{}, xerrors.Errorf("decoding ticket: %w", err)
+		}
+
+		for i := 0; i < PC2CheckRounds; i++ {
+			var sd [32]byte
+			_, _ = rand.Read(sd[:])
+
+			_, err := ffi.SealCommitPhase1(
+				sector.ProofType,
+				sealedCID,
+				unsealedCID,
+				paths.Cache,
+				paths.Sealed,
+				sector.ID.Number,
+				sector.ID.Miner,
+				ticket,
+				sd[:],
+				[]abi.PieceInfo{{Size: abi.PaddedPieceSize(ssize), PieceCID: unsealedCID}},
+			)
+			if err != nil {
+				log.Warn("checking PreCommit failed: ", err)
+				log.Warnf("num:%d tkt:%v seed:%v sealedCID:%v, unsealedCID:%v", sector.ID.Number, ticket, sd[:], sealedCID, unsealedCID)
+
+				return storage.SectorCids{}, xerrors.Errorf("checking PreCommit failed: %w", err)
+			}
+		}
 	}
 
 	return storage.SectorCids{

@@ -1,7 +1,10 @@
 package sectorstorage
 
 import (
+	"bufio"
 	"context"
+	"github.com/filecoin-project/dagstore/mount"
+	"github.com/filecoin-project/lotus/extern/sector-storage/fr32"
 	"io"
 	"os"
 	"runtime"
@@ -27,20 +30,25 @@ import (
 )
 
 type hlmWorker struct {
-	remoteCfg  ffiwrapper.RemoteCfg
-	storage    stores.Store
-	localStore *stores.Local
-	sindex     stores.SectorIndex
-
-	sb *ffiwrapper.Sealer
+	remoteCfg       ffiwrapper.RemoteCfg
+	storage         stores.Store
+	localStore      *stores.Local
+	sindex          stores.SectorIndex
+	noSwap          bool
+	envLookup       EnvFunc
+	ignoreResources bool
+	sb              *ffiwrapper.Sealer
 }
 
 func NewHlmWorker(remoteCfg ffiwrapper.RemoteCfg, store stores.Store, local *stores.Local, sindex stores.SectorIndex) (*hlmWorker, error) {
 	w := &hlmWorker{
-		remoteCfg:  remoteCfg,
-		storage:    store,
-		localStore: local,
-		sindex:     sindex,
+		remoteCfg:       remoteCfg,
+		storage:         store,
+		localStore:      local,
+		sindex:          sindex,
+		envLookup:       os.LookupEnv,
+		noSwap:          true,
+		ignoreResources: true,
 	}
 	sb, err := ffiwrapper.New(remoteCfg, w)
 	if err != nil {
@@ -217,7 +225,65 @@ func (l *hlmWorker) UnsealPiece(ctx context.Context, sector storage.SectorRef, i
 	return l.sb.UnsealPiece(ctx, sector, index, size, randomness, cid)
 }
 
-func (l *hlmWorker) ReadPiece(ctx context.Context, sector storage.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (io.ReadCloser, bool, error) {
+func (l *hlmWorker)readPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error)  {
+	// try read the exist unsealed.
+	ctx, cancel := context.WithCancel(ctx)
+	rg, done, err := l.sb.PieceReader(ctx, sector, abi.PaddedPieceSize(pieceOffset.Padded()), size.Padded())
+	if err != nil {
+		cancel()
+		return nil, false, errors.As(err)
+	} else if done {
+		cancel()
+		buf := make([]byte, fr32.BufSize(size.Padded()))
+		pr, err := (&pieceReader{
+			ctx: ctx,
+			getReader: func(ctx context.Context, startOffset uint64) (io.ReadCloser, error) {
+				startOffsetAligned := storiface.UnpaddedByteIndex(startOffset / 127 * 127) // floor to multiple of 127
+
+				r, err := rg(startOffsetAligned.Padded())
+				if err != nil {
+					return nil, xerrors.Errorf("getting reader at +%d: %w", startOffsetAligned, err)
+				}
+
+				upr, err := fr32.NewUnpadReaderBuf(r, size.Padded(), buf)
+				if err != nil {
+					r.Close() // nolint
+					return nil, xerrors.Errorf("creating unpadded reader: %w", err)
+				}
+
+				bir := bufio.NewReaderSize(upr, 127)
+				if startOffset > uint64(startOffsetAligned) {
+					if _, err := bir.Discard(int(startOffset - uint64(startOffsetAligned))); err != nil {
+						r.Close() // nolint
+						return nil, xerrors.Errorf("discarding bytes for startOffset: %w", err)
+					}
+				}
+				return struct {
+					io.Reader
+					io.Closer
+				}{
+					Reader: bir,
+					Closer: funcCloser(func() error {
+						return r.Close()
+					}),
+				}, nil
+			},
+			len:      size,
+			onClose:  cancel,
+			pieceCid: unsealed,
+		}).init()
+		if err != nil || pr == nil { // pr == nil to make sure we don't return typed nil
+			cancel()
+			return nil,true, err
+		}
+		cancel()
+		return pr, true, nil
+	}
+	cancel()
+	return nil,false,errors.New("readPiece not done")
+}
+func (l *hlmWorker)ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error){
+	// acquire a lock purely for reading unsealed sectors
 	var err error
 	sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
 	if err != nil {
@@ -228,20 +294,17 @@ func (l *hlmWorker) ReadPiece(ctx context.Context, sector storage.SectorRef, ind
 	}
 	// unseal data will expire by 30 days if no visitor.
 	l.sb.ExpireAllMarketRetrieve()
-
-	// try read the exist unsealed.
-	r, done, err := l.sb.PieceReader(ctx, sector, index, size)
+	r, done, err := l.readPiece(ctx, sector, pieceOffset, size,ticket,unsealed)
 	if err != nil {
 		return nil, false, errors.As(err)
 	} else if done {
 		return r, true, nil
 	}
-
 	// unsealed not found, do unseal and then read it.
-	if err := l.sb.UnsealPiece(ctx, sector, index, size, ticket, unsealed); err != nil {
-		return nil, false, errors.As(err, sector, index, size, unsealed)
+	if err := l.sb.UnsealPiece(ctx, sector,pieceOffset, size,ticket, unsealed); err != nil {
+		return nil, false, errors.As(err, sector, pieceOffset,size, unsealed)
 	}
-	return l.sb.PieceReader(ctx, sector, index, size)
+	return l.readPiece(ctx, sector, pieceOffset, size,ticket,unsealed)
 }
 
 func (l *hlmWorker) TaskTypes(context.Context) (map[sealtasks.TaskType]struct{}, error) {
@@ -263,28 +326,77 @@ func (l *hlmWorker) Info(context.Context) (storiface.WorkerInfo, error) {
 		log.Errorf("getting gpu devices failed: %+v", err)
 	}
 
-	h, err := sysinfo.Host()
-	if err != nil {
-		return storiface.WorkerInfo{}, xerrors.Errorf("getting host info: %w", err)
-	}
-
-	mem, err := h.Memory()
+	memPhysical, memUsed, memSwap, memSwapUsed, err := l.memInfo()
 	if err != nil {
 		return storiface.WorkerInfo{}, xerrors.Errorf("getting memory info: %w", err)
 	}
 
-	memSwap := mem.VirtualTotal
+	resEnv, err := storiface.ParseResourceEnv(func(key, def string) (string, bool) {
+		return l.envLookup(key)
+	})
+	if err != nil {
+		return storiface.WorkerInfo{}, xerrors.Errorf("interpreting resource env vars: %w", err)
+	}
 
 	return storiface.WorkerInfo{
-		Hostname: hostname,
+		Hostname:        hostname,
+		IgnoreResources: l.ignoreResources,
 		Resources: storiface.WorkerResources{
-			MemPhysical: mem.Total,
+			MemPhysical: memPhysical,
+			MemUsed:     memUsed,
 			MemSwap:     memSwap,
-			MemReserved: mem.VirtualUsed + mem.Total - mem.Available, // TODO: sub this process
+			MemSwapUsed: memSwapUsed,
 			CPUs:        uint64(runtime.NumCPU()),
 			GPUs:        gpus,
+			Resources:   resEnv,
 		},
 	}, nil
+}
+
+func (l *hlmWorker) memInfo() (memPhysical, memUsed, memSwap, memSwapUsed uint64, err error) {
+	h, err := sysinfo.Host()
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	mem, err := h.Memory()
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	memPhysical = mem.Total
+	// mem.Available is memory available without swapping, it is more relevant for this calculation
+	memUsed = mem.Total - mem.Available
+	memSwap = mem.VirtualTotal
+	memSwapUsed = mem.VirtualUsed
+
+	if cgMemMax, cgMemUsed, cgSwapMax, cgSwapUsed, err := cgroupV1Mem(); err == nil {
+		if cgMemMax > 0 && cgMemMax < memPhysical {
+			memPhysical = cgMemMax
+			memUsed = cgMemUsed
+		}
+		if cgSwapMax > 0 && cgSwapMax < memSwap {
+			memSwap = cgSwapMax
+			memSwapUsed = cgSwapUsed
+		}
+	}
+
+	if cgMemMax, cgMemUsed, cgSwapMax, cgSwapUsed, err := cgroupV2Mem(); err == nil {
+		if cgMemMax > 0 && cgMemMax < memPhysical {
+			memPhysical = cgMemMax
+			memUsed = cgMemUsed
+		}
+		if cgSwapMax > 0 && cgSwapMax < memSwap {
+			memSwap = cgSwapMax
+			memSwapUsed = cgSwapUsed
+		}
+	}
+
+	if l.noSwap {
+		memSwap = 0
+		memSwapUsed = 0
+	}
+
+	return memPhysical, memUsed, memSwap, memSwapUsed, nil
 }
 
 func (l *hlmWorker) Closing(ctx context.Context) (<-chan struct{}, error) {
