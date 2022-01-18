@@ -458,9 +458,6 @@ repush:
 			time.Sleep(60e9)
 			goto repush
 		}
-		if err := w.RemoveRepoSector(ctx, workerSB.RepoPath(), task.SectorName()); err != nil {
-			log.Warn(errors.As(err))
-		}
 	}
 	return nil
 }
@@ -492,6 +489,18 @@ func (w *worker) removeDataLayer(ctx context.Context, cacheDir string, removeC1c
 			}
 			if removeC1cache {
 				if strings.Contains(v.Name(), "c1.out") {
+					filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
+					files = append(files, filename)
+				}
+				if strings.Contains(v.Name(), "data-layer") {
+					filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
+					files = append(files, filename)
+				}
+				if strings.Contains(v.Name(), "tree-d") {
+					filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
+					files = append(files, filename)
+				}
+				if strings.Contains(v.Name(), "tree-c") {
 					filename := strings.TrimRight(cacheDir, "/") + "/" + v.Name()
 					files = append(files, filename)
 				}
