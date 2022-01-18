@@ -860,7 +860,19 @@ func (m *Sealing) handleFinalizeSector(ctx statemachine.Context, sector SectorIn
 	if err != nil {
 		return xerrors.Errorf("getting sealing config: %w", err)
 	}
-
+	if cfg.FinalizeEarly {
+		sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSectorID(sector.SectorNumber)))
+		if err != nil {
+			log.Warn(errors.As(err))
+		} else {
+			if sInfo.State == database.SECTOR_STATE_DONE {
+				log.Infof("sector  (%+v) done", sector.SectorNumber)
+				return ctx.Send(SectorFinalized{})
+			} else if sInfo.State > database.SECTOR_STATE_DONE {
+				log.Infof("sector  (%+v)  failed need repair ", sector.SectorNumber)
+			}
+		}
+	}
 	if err := m.sealer.FinalizeSector(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), sector.keepUnsealedRanges(false, cfg.AlwaysKeepUnsealedCopy)); err != nil {
 		return ctx.Send(SectorFinalizeFailed{xerrors.Errorf("finalize sector: %w", err)})
 	}
