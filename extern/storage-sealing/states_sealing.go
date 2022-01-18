@@ -865,6 +865,7 @@ func (m *Sealing) handleFinalizeSector(ctx statemachine.Context, sector SectorIn
 		log.Warn(errors.As(err))
 	} else {
 		if sInfo.State >= database.SECTOR_STATE_DONE {
+			log.Infof("sector  (%+v) done or failed need repair ", sector.SectorNumber)
 			return nil
 		}
 	}
