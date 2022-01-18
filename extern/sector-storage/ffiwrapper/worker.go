@@ -1305,8 +1305,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		}
 	default:
 		// not the task owner
-		if len(task.task.WorkerID) > 0 && task.task.WorkerID != r.cfg.ID && (task.task.SectorStorage.SectorInfo.State < database.SECTOR_STATE_MOVE ||
-			task.task.SectorStorage.SectorInfo.State == database.SECTOR_STATE_PUSH) {
+		if len(task.task.WorkerID) > 0 && task.task.WorkerID != r.cfg.ID {
 			go sb.toRemoteOwner(task)
 			return
 		}
