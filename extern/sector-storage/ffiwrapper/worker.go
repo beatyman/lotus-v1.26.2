@@ -1297,7 +1297,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			return
 		}
 
-		if r.fakeFullTask() {
+		if r.fakeFullTask() && !r.busyOn(task.task.SectorName()) {
 			time.Sleep(30e9)
 			log.Warnf("return task: %v, %v", r.cfg.ID, task.task.Key())
 			sb.returnTask(task)
@@ -1305,8 +1305,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		}
 	default:
 		// not the task owner
-		if len(task.task.WorkerID) > 0 && task.task.WorkerID != r.cfg.ID && (task.task.SectorStorage.SectorInfo.State < database.SECTOR_STATE_MOVE ||
-			task.task.SectorStorage.SectorInfo.State == database.SECTOR_STATE_PUSH) {
+		if len(task.task.WorkerID) > 0 && task.task.WorkerID != r.cfg.ID {
 			go sb.toRemoteOwner(task)
 			return
 		}
@@ -1491,8 +1490,8 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	rres, ok := _remoteResult[res.TaskID]
 	_remoteResultLk.Unlock()
 	if !ok { //等待fsm触发任务重做->_remoteResult[res.TaskID]有值->TaskDone成功
-		return errConn
-		//return errors.ErrNoData.As(res.TaskID)
+		//return errConn //对WorkerDone放行
+		return errors.ErrNoData.As(res.TaskID)
 	}
 	if rres == nil {
 		log.Errorf("Not expect here:%+v", res)
