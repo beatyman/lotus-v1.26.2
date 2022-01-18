@@ -1490,8 +1490,8 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	rres, ok := _remoteResult[res.TaskID]
 	_remoteResultLk.Unlock()
 	if !ok { //等待fsm触发任务重做->_remoteResult[res.TaskID]有值->TaskDone成功
-		return errConn
-		//return errors.ErrNoData.As(res.TaskID)
+		//return errConn //对WorkerDone放行
+		return errors.ErrNoData.As(res.TaskID)
 	}
 	if rres == nil {
 		log.Errorf("Not expect here:%+v", res)
