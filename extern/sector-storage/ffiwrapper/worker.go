@@ -1297,7 +1297,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			return
 		}
 
-		if r.fakeFullTask() {
+		if r.fakeFullTask() && !r.busyOn(task.task.SectorName()) {
 			time.Sleep(30e9)
 			log.Warnf("return task: %v, %v", r.cfg.ID, task.task.Key())
 			sb.returnTask(task)
