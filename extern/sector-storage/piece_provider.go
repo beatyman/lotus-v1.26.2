@@ -175,7 +175,6 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storage.SectorRe
 	} else {
 		log.Infof("%+v", info)
 	}
-	log.Info("Try ReadPiece End")
 
 	ssize, err := sector.ProofType.SectorSize()
 	if err != nil {
@@ -236,6 +235,7 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storage.SectorRe
 	return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
 		r, err := pf.Reader(storiface.PaddedByteIndex(offset)+startOffsetAligned, size-abi.PaddedPieceSize(startOffsetAligned))
 		if err != nil {
+			log.Error(err)
 			_ = pf.Close()
 			return nil, err
 		}
@@ -245,6 +245,7 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storage.SectorRe
 		}{
 			Reader: r,
 			Closer: funcCloser(func() error {
+				log.Info("close ====================================")
 				// if we already have a reader cached, close this one
 				_ = pf.Close()
 				return nil

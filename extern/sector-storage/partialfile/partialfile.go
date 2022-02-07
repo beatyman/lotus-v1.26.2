@@ -251,6 +251,7 @@ func OpenUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.Se
 		return nil
 	}()
 	if err != nil {
+		log.Error(err)
 		_ = f.Close()
 		return nil, err
 	}
