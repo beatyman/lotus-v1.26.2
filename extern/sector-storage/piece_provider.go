@@ -214,6 +214,7 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storage.SectorRe
 	} else {
 		pf, err = partialfile.OpenUnsealedPartialFileV2(maxPieceSize, sector, info)
 		if err != nil {
+			log.Error(err)
 			if xerrors.Is(err, os.ErrNotExist) {
 				return nil, false, nil
 			}
@@ -223,10 +224,12 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storage.SectorRe
 
 	ok, err := pf.HasAllocated(storiface.UnpaddedByteIndex(offset.Unpadded()), size.Unpadded())
 	if err != nil {
+		log.Error(err)
 		_ = pf.Close()
 		return nil, false, err
 	}
 	if !ok {
+		log.Info("!ok: =============== ")
 		_ = pf.Close()
 		return nil, false, nil
 	}
@@ -254,9 +257,11 @@ func (p *pieceProvider) readPiece(ctx context.Context, sector storage.SectorRef,
 	ctx, cancel := context.WithCancel(ctx)
 	rg, done, err := p.PieceReader(ctx, sector, abi.PaddedPieceSize(pieceOffset.Padded()), size.Padded())
 	if err != nil {
+		log.Error(err)
 		cancel()
 		return nil, false, errors.As(err)
 	} else if done {
+		log.Infof("done: ================== %+v", done)
 		cancel()
 		buf := make([]byte, fr32.BufSize(size.Padded()))
 		pr, err := (&pieceReader{
