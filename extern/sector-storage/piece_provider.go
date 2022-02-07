@@ -247,7 +247,7 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storage.SectorRe
 			Closer: funcCloser(func() error {
 				log.Info("close ====================================")
 				// if we already have a reader cached, close this one
-				_ = pf.Close()
+				//_ = pf.Close()
 				return nil
 			}),
 		}, nil
