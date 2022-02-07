@@ -3,6 +3,7 @@ package partialfile
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"golang.org/x/xerrors"
 	"io"
 	"os"
@@ -65,6 +66,7 @@ func writeTrailer(maxPieceSize int64, w fsutil.PartialFile, r rlepluslazy.RunIte
 
 	return w.Truncate(maxPieceSize + int64(rb) + 4)
 }
+
 // fileExists checks if a file exists and is not a directory before we
 // try using it to prevent further errors.
 func fileExists(filename string) bool {
@@ -262,7 +264,10 @@ func OpenUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.Se
 }
 func OpenUnsealedPartialFileV2(maxPieceSize abi.PaddedPieceSize, sector storage.SectorRef, ss database.SectorStorage) (*PartialFile, error) {
 	log.Infof("%+v", sector)
-	path := sector.UnsealedFile()
+	//分开部署时候需要mount
+	sectorName := storage.SectorName(sector.ID)
+	path := filepath.Join(ss.UnsealedStorage.MountDir, fmt.Sprintf("%d", ss.UnsealedStorage.ID), "unsealed", sectorName)
+	//path := sector.UnsealedFile()
 	log.Info(path)
 	var f fsutil.PartialFile
 	switch ss.UnsealedStorage.MountType {
