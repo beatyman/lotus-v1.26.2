@@ -374,7 +374,10 @@ func OpenUnsealedPartialFileV2(maxPieceSize abi.PaddedPieceSize, sector storage.
 }
 
 func (pf *PartialFile) Close() error {
-	return pf.file.Close()
+	if pf.file != nil {
+		return pf.file.Close()
+	}
+	return nil
 }
 
 func (pf *PartialFile) Writer(offset storiface.PaddedByteIndex, size abi.PaddedPieceSize) (io.Writer, error) {
