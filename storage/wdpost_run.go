@@ -22,8 +22,8 @@ import (
 	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
-	proof2 "github.com/filecoin-project/specs-actors/v2/actors/runtime/proof"
 	"github.com/filecoin-project/specs-actors/v3/actors/runtime/proof"
+	proof7 "github.com/filecoin-project/specs-actors/v7/actors/runtime/proof"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -708,14 +708,23 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 				return nil, err
 			}
 
-			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, append(abi.PoStRandomness{}, rand...))
+			defer func() {
+				if r := recover(); r != nil {
+					log.Errorf("recover: %s", r)
+				}
+			}()
+			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), xsinfos, append(abi.PoStRandomness{}, rand...))
 			elapsed := time.Since(tsStart)
 
 			log.Info(s.PutLogw(di.Index, "computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand))
-
+			if err != nil {
+				log.Errorf("error generating window post: %s", err)
+			}
 			if err == nil {
+
 				// If we proved nothing, something is very wrong.
 				if len(postOut) == 0 {
+					log.Errorf("len(postOut) == 0")
 					return nil, xerrors.Errorf("received no proofs back from generate window post")
 				}
 
@@ -767,7 +776,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 			}
 
 			// Proof generation failed, so retry
-
+			log.Debugf("Proof generation failed, retry")
 			if len(ps) == 0 {
 				// If we didn't skip any new sectors, we failed
 				// for some other reason and we need to abort.
@@ -795,10 +804,8 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 		if !somethingToProve {
 			continue
 		}
-
 		posts = append(posts, params)
 	}
-
 	return posts, nil
 }
 
@@ -869,18 +876,20 @@ func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, 
 		return nil, nil
 	}
 
-	substitute := proof2.SectorInfo{
+	substitute := proof7.ExtendedSectorInfo{
 		SectorNumber: sset[0].SectorNumber,
 		SealedCID:    sset[0].SealedCID,
 		SealProof:    sset[0].SealProof,
+		SectorKey:    sset[0].SectorKeyCID,
 	}
 
-	sectorByID := make(map[uint64]proof2.SectorInfo, len(sset))
+	sectorByID := make(map[uint64]proof7.ExtendedSectorInfo, len(sset))
 	for _, sector := range sset {
-		sectorByID[uint64(sector.SectorNumber)] = proof2.SectorInfo{
+		sectorByID[uint64(sector.SectorNumber)] = proof7.ExtendedSectorInfo{
 			SectorNumber: sector.SectorNumber,
 			SealedCID:    sector.SealedCID,
 			SealProof:    sector.SealProof,
+			SectorKey:    sector.SectorKeyCID,
 		}
 	}
 
