@@ -60,10 +60,9 @@ func defCommon() Common {
 			},
 			AnnounceAddresses:   []string{},
 			NoAnnounceAddresses: []string{},
-
-			ConnMgrLow:   150,
-			ConnMgrHigh:  180,
-			ConnMgrGrace: Duration(20 * time.Second),
+			ConnMgrLow:          15,
+			ConnMgrHigh:         50,
+			ConnMgrGrace:        Duration(20 * time.Second),
 		},
 		Pubsub: Pubsub{
 			Bootstrapper: false,
@@ -122,7 +121,7 @@ func DefaultStorageMiner() *StorageMiner {
 			DisableCollateralFallback:  false,
 
 			BatchPreCommits:    false,
-			MinPreCommitBatch:   1,
+			MinPreCommitBatch:  1,
 			MaxPreCommitBatch:  miner5.PreCommitSectorBatchMaxSize, // up to 256 sectors
 			PreCommitBatchWait: Duration(24 * time.Hour),           // this should be less than 31.5 hours, which is the expiration of a precommit ticket
 			// XXX snap deals wait deals slack if first
@@ -152,9 +151,9 @@ func DefaultStorageMiner() *StorageMiner {
 			AllowUnseal:              true,
 			AllowReplicaUpdate:       true,
 			AllowProveReplicaUpdate2: true,
-			RemoteSeal:      false,
-			RemoteWnPoSt:    0,
-			RemoteWdPoSt:    0,
+			RemoteSeal:               false,
+			RemoteWnPoSt:             0,
+			RemoteWdPoSt:             0,
 			// Default to 10 - tcp should still be able to figure this out, and
 			// it's the ratio between 10gbit / 1gbit
 			ParallelFetchLimit: 10,

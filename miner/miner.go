@@ -639,7 +639,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	tSeed := build.Clock.Now()
 	nv, err := m.api.StateNetworkVersion(ctx, base.TipSet.Key())
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	postProof, err := m.epp.ComputeProof(ctx, mbi.Sectors, prand, round, nv)

@@ -19,6 +19,7 @@ require (
 	github.com/containerd/cgroups v0.0.0-20201119153540-4cbc285b3327
 	github.com/coreos/go-systemd/v22 v22.3.2
 	github.com/dchest/blake2b v1.0.0
+	github.com/detailyang/go-fallocate v0.0.0-20180908115635-432fa640bd2e
 	github.com/dgraph-io/badger/v2 v2.2007.2
 	github.com/docker/go-units v0.4.0
 	github.com/drand/drand v1.2.1
@@ -190,3 +191,5 @@ replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-2021
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
+
+replace github.com/filecoin-project/specs-actors/v7 => github.com/filecoin-project/specs-actors/v7 v7.0.0-rc1

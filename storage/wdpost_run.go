@@ -107,11 +107,11 @@ func (s *WindowPoStScheduler) runGeneratePoST(
 	ctx, span := trace.StartSpan(ctx, "WindowPoStScheduler.generatePoST")
 	defer span.End()
 
-  s.ResetLog(deadline.Index)
+	s.ResetLog(deadline.Index)
 
 	posts, err := s.runPoStCycle(ctx, *deadline, ts)
 	if err != nil {
-    log.Error(s.PutLogf(deadline.Index, "runPoStCycle failed: %+v", err))
+		log.Error(s.PutLogf(deadline.Index, "runPoStCycle failed: %+v", err))
 		return nil, err
 	}
 
@@ -713,7 +713,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, di dline.Info, t
 					log.Errorf("recover: %s", r)
 				}
 			}()
-			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), xsinfos, append(abi.PoStRandomness{}, rand...))
+			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, append(abi.PoStRandomness{}, rand...))
 			elapsed := time.Since(tsStart)
 
 			log.Info(s.PutLogw(di.Index, "computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand))
