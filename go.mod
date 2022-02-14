@@ -19,6 +19,7 @@ require (
 	github.com/containerd/cgroups v0.0.0-20201119153540-4cbc285b3327
 	github.com/coreos/go-systemd/v22 v22.3.2
 	github.com/dchest/blake2b v1.0.0
+	github.com/detailyang/go-fallocate v0.0.0-20180908115635-432fa640bd2e
 	github.com/dgraph-io/badger/v2 v2.2007.2
 	github.com/docker/go-units v0.4.0
 	github.com/drand/drand v1.2.1
@@ -41,8 +42,8 @@ require (
 	github.com/filecoin-project/go-fil-markets v1.13.4
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/filecoin-project/go-padreader v0.0.1
-	github.com/filecoin-project/go-paramfetch v0.0.2
-	github.com/filecoin-project/go-state-types v0.1.1
+	github.com/filecoin-project/go-paramfetch v0.0.4
+	github.com/filecoin-project/go-state-types v0.1.3
 	github.com/filecoin-project/go-statemachine v1.0.1
 	github.com/filecoin-project/go-statestore v0.1.1
 	github.com/filecoin-project/go-storedcounter v0.0.0-20200421200003-1c99c62e8a5b
@@ -52,7 +53,8 @@ require (
 	github.com/filecoin-project/specs-actors/v4 v4.0.1
 	github.com/filecoin-project/specs-actors/v5 v5.0.4
 	github.com/filecoin-project/specs-actors/v6 v6.0.1
-	github.com/filecoin-project/specs-storage v0.1.1-0.20201105051918-5188d9774506
+	github.com/filecoin-project/specs-actors/v7 v7.0.0-rc1
+	github.com/filecoin-project/specs-storage v0.2.0
 	github.com/filecoin-project/test-vectors/schema v0.0.5
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gbrlsnchs/jwt/v3 v3.0.1
@@ -169,7 +171,7 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20211209171907-798191bca915
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
-	golang.org/x/tools v0.1.5
+	golang.org/x/tools v0.1.7
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/ini.v1 v1.62.0 // indirect
@@ -189,3 +191,5 @@ replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-2021
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
+
+replace github.com/filecoin-project/specs-actors/v7 => github.com/filecoin-project/specs-actors/v7 v7.0.0-rc1
