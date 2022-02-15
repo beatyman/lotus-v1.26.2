@@ -11,39 +11,39 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
-	proof5 "github.com/filecoin-project/specs-actors/v5/actors/runtime/proof"
+	ffiproof "github.com/filecoin-project/specs-actors/v5/actors/runtime/proof"
+	"github.com/filecoin-project/specs-actors/v7/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 )
 
-func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof5.PoStProof, error) {
+func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	randomness[31] &= 0x3f
-	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
+	privsectors, skipped, done, err := sb.pubExtendedSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWinningPoStProof) // TODO: FAULTS?
 	if err != nil {
 		return nil, err
 	}
+	defer done()
+	if len(skipped) > 0 {
+		return nil, xerrors.Errorf("pubSectorToPriv skipped sectors: %+v", skipped)
+	}
+
 	return ffi.GenerateWinningPoSt(minerID, privsectors, randomness)
 }
 
-func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof5.PoStProof, []abi.SectorID, error) {
-	sb.postLk.Lock()
-	defer sb.postLk.Unlock()
-
-	AssertGPU(ctx)
-
+func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
 	randomness[31] &= 0x3f
-	privsectors, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
+	privsectors, skipped, done, err := sb.pubExtendedSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("gathering sector info: %w", err)
 	}
+	//todo fix zhangxin
+	defer done()
 
-	// delay for 2k testing
-	//	if sb.ssize == 2048 {
-	//		delay := 6 * time.Minute
-	//		log.Warnf("delay for 2k testing:%s", delay)
-	//		time.Sleep(delay)
-	//	}
+	if len(skipped) > 0 {
+		return nil, skipped, xerrors.Errorf("pubSectorToPriv skipped some sectors")
+	}
 
 	proof, faulty, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
 
@@ -54,46 +54,87 @@ func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 			Number: f,
 		})
 	}
-
 	return proof, faultyIDs, err
 }
 
-func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []storage.ProofSectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, error) {
+func (sb *Sealer) pubExtendedSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []storage.ProofSectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, []abi.SectorID, func(), error) {
 	fmap := map[abi.SectorNumber]struct{}{}
 	for _, fault := range faults {
 		fmap[fault] = struct{}{}
 	}
 
+	var doneFuncs []func()
+	done := func() {
+		for _, df := range doneFuncs {
+			df()
+		}
+	}
+
+	var skipped []abi.SectorID
 	var out []ffi.PrivateSectorInfo
 	for _, s := range sectorInfo {
 		if _, faulty := fmap[s.ID.Number]; faulty {
 			continue
 		}
-
 		paths := storiface.SectorPaths{
 			ID:       s.SectorID(),
 			Unsealed: s.UnsealedFile(),
 			Sealed:   s.SealedFile(),
 			Cache:    s.CachePath(),
 		}
+		//todo fix zhangxin
+		/*
+		sid := storage.SectorRef{
+			ID:        abi.SectorID{Miner: mid, Number: s.SectorNumber},
+			ProofType: s.SealProof,
+		}
+		proveUpdate := s.SectorKey != nil
+		var cache string
+		var sealed string
+		if proveUpdate {
+			log.Debugf("Posting over updated sector for sector id: %d", s.SectorNumber)
+			paths, d, err := sb.sectors.AcquireSector(ctx, sid, storiface.FTUpdateCache|storiface.FTUpdate, 0, storiface.PathStorage)
+			if err != nil {
+				log.Warnw("failed to acquire FTUpdateCache and FTUpdate of sector, skipping", "sector", sid.ID, "error", err)
+				skipped = append(skipped, sid.ID)
+				continue
+			}
+			doneFuncs = append(doneFuncs, d)
+			cache = paths.UpdateCache
+			sealed = paths.Update
+		} else {
+			log.Debugf("Posting over sector key sector for sector id: %d", s.SectorNumber)
+			paths, d, err := sb.sectors.AcquireSector(ctx, sid, storiface.FTCache|storiface.FTSealed, 0, storiface.PathStorage)
+			if err != nil {
+				log.Warnw("failed to acquire FTCache and FTSealed of sector, skipping", "sector", sid.ID, "error", err)
+				skipped = append(skipped, sid.ID)
+				continue
+			}
+			doneFuncs = append(doneFuncs, d)
+			cache = paths.Cache
+			sealed = paths.Sealed
+		}
+		*/
 		postProofType, err := rpt(s.ProofType)
 		if err != nil {
-			return ffi.SortedPrivateSectorInfo{}, xerrors.Errorf("acquiring registered PoSt proof from sector info %+v: %w", s, err)
+			done()
+			return ffi.SortedPrivateSectorInfo{}, nil, nil, xerrors.Errorf("acquiring registered PoSt proof from sector info %+v: %w", s, err)
 		}
 
+		ffiInfo := ffiproof.SectorInfo{
+			SealProof:    s.ProofType,
+			SectorNumber: s.ID.Number,
+			SealedCID:    s.SealedCID,
+		}
 		out = append(out, ffi.PrivateSectorInfo{
 			CacheDirPath:     paths.Cache,
 			PoStProofType:    postProofType,
 			SealedSectorPath: paths.Sealed,
-			SectorInfo: proof5.SectorInfo{
-				SealProof:    s.ProofType,
-				SectorNumber: s.ID.Number,
-				SealedCID:    s.SealedCID,
-			},
+			SectorInfo:       ffiInfo,
 		})
 	}
 
-	return ffi.NewSortedPrivateSectorInfo(out...), nil
+	return ffi.NewSortedPrivateSectorInfo(out...), skipped, done, nil
 }
 
 var _ Verifier = ProofVerifier
@@ -102,15 +143,19 @@ type proofVerifier struct{}
 
 var ProofVerifier = proofVerifier{}
 
-func (proofVerifier) VerifySeal(info proof5.SealVerifyInfo) (bool, error) {
+func (proofVerifier) VerifySeal(info proof.SealVerifyInfo) (bool, error) {
 	return ffi.VerifySeal(info)
 }
 
-func (proofVerifier) VerifyAggregateSeals(aggregate proof5.AggregateSealVerifyProofAndInfos) (bool, error) {
+func (proofVerifier) VerifyAggregateSeals(aggregate proof.AggregateSealVerifyProofAndInfos) (bool, error) {
 	return ffi.VerifyAggregateSeals(aggregate)
 }
 
-func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info proof5.WinningPoStVerifyInfo) (bool, error) {
+func (proofVerifier) VerifyReplicaUpdate(update proof.ReplicaUpdateInfo) (bool, error) {
+	return ffi.SectorUpdate.VerifyUpdateProof(update)
+}
+
+func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info proof.WinningPoStVerifyInfo) (bool, error) {
 	info.Randomness[31] &= 0x3f
 	_, span := trace.StartSpan(ctx, "VerifyWinningPoSt")
 	defer span.End()
@@ -118,7 +163,7 @@ func (proofVerifier) VerifyWinningPoSt(ctx context.Context, info proof5.WinningP
 	return ffi.VerifyWinningPoSt(info)
 }
 
-func (proofVerifier) VerifyWindowPoSt(ctx context.Context, info proof5.WindowPoStVerifyInfo) (bool, error) {
+func (proofVerifier) VerifyWindowPoSt(ctx context.Context, info proof.WindowPoStVerifyInfo) (bool, error) {
 	info.Randomness[31] &= 0x3f
 	_, span := trace.StartSpan(ctx, "VerifyWindowPoSt")
 	defer span.End()

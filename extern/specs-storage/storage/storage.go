@@ -7,7 +7,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ipfs/go-cid"
 
-	proof "github.com/filecoin-project/specs-actors/v5/actors/runtime/proof"
+	proof "github.com/filecoin-project/specs-actors/v7/actors/runtime/proof"
 )
 
 type Data = io.Reader
@@ -24,6 +24,7 @@ type SectorRef struct {
 type ProofSectorInfo struct {
 	SectorRef
 	SealedCID cid.Cid // CommR
+	SectorKey *cid.Cid
 }
 
 type Storage interface {
@@ -55,6 +56,14 @@ type Range struct {
 	Size   abi.UnpaddedPieceSize
 }
 
+type ReplicaUpdateProof []byte
+type ReplicaVanillaProofs [][]byte
+
+type ReplicaUpdateOut struct {
+	NewSealed   cid.Cid
+	NewUnsealed cid.Cid
+}
+
 type Sealer interface {
 	PledgeSector(ctx context.Context, sectorID SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error)
 
@@ -73,7 +82,21 @@ type Sealer interface {
 	//  (called by the fsm on restart, allows storage to keep no persistent
 	//   state about unsealed fast-retrieval copies)
 	ReleaseUnsealed(ctx context.Context, sector SectorRef, safeToFree []Range) error
+	ReleaseSectorKey(ctx context.Context, sector SectorRef) error
+	ReleaseReplicaUpgrade(ctx context.Context, sector SectorRef) error
 
 	// Removes all data associated with the specified sector
 	Remove(ctx context.Context, sector SectorRef) error
+
+	// Generate snap deals replica update
+	ReplicaUpdate(ctx context.Context, sector SectorRef, pieces []abi.PieceInfo) (ReplicaUpdateOut, error)
+
+	// Prove that snap deals replica was done correctly
+	ProveReplicaUpdate1(ctx context.Context, sector SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (ReplicaVanillaProofs, error)
+	ProveReplicaUpdate2(ctx context.Context, sector SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs ReplicaVanillaProofs) (ReplicaUpdateProof, error)
+
+	// GenerateSectorKeyFromData computes sector key given unsealed data and updated replica
+	GenerateSectorKeyFromData(ctx context.Context, sector SectorRef, unsealed cid.Cid) error
+
+	FinalizeReplicaUpdate(ctx context.Context, sector SectorRef, keepUnsealed []Range) error
 }
