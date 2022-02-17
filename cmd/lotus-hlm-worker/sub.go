@@ -6,6 +6,7 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/buried/utils"
 	"github.com/google/uuid"
+	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	"io/ioutil"
@@ -259,6 +260,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	span.SetMaxTaskCount(int64(w.workerCfg.MaxTaskNum))
 	span.SetWindowPostEnable(w.workerCfg.WdPoStSrv)
 	span.SetWinningPostEnable(w.workerCfg.WnPoStSrv)
+	span.AddAttributes(trace.BoolAttribute("snap", task.Snap))
 	span.Starting("task start...")
 
 	res := ffiwrapper.SealRes{
@@ -441,102 +443,149 @@ reAllocate:
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 		utils.DeleteC1Out(sector)
 	case ffiwrapper.WorkerPreCommit2:
-		//out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
-		out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
-		res.PreCommit2Out = out
-		if err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
-		}
-		var commR = out.Sealed.String()
-		var redoTimes int64
-		var errCommR string
-		switch w.ssize {
-		case 64 * GB:
-			errCommR = "bagboea4b5abcbybig6p4wwrozr7zdzj62afkq3kwjfb4ywla5hly7ir6wcivrg3p"
-		case 32 * GB:
-			errCommR = "bagboea4b5abcaefyn3i26gpj4odjnnceqc6uju4jfuzf5cw7zq3t3uw6welsdwyd"
-		}
-		for strings.EqualFold(commR, errCommR) && redoTimes < 2 {
-			redoTimes++
-			log.Infof("WARN###: Redo P2 : times %v ", redoTimes)
+		if task.Snap {
+			if err := w.fetchUnseal(ctx, sealer, task); err != nil {
+				return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
+			}
+			if err := w.fetchSealed(ctx, sealer, task); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			log.Info("fetch cache, sealed files form remote storage")
+			out, err := sealer.ReplicaUpdate(ctx, sector, task.Pieces)
+			res.ReplicaUpdateOut = out
+			if err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+		} else {
+			//out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
 			out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
 			res.PreCommit2Out = out
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			commR = out.Sealed.String()
+			var commR = out.Sealed.String()
+			var redoTimes int64
+			var errCommR string
+			switch w.ssize {
+			case 64 * GB:
+				errCommR = "bagboea4b5abcbybig6p4wwrozr7zdzj62afkq3kwjfb4ywla5hly7ir6wcivrg3p"
+			case 32 * GB:
+				errCommR = "bagboea4b5abcaefyn3i26gpj4odjnnceqc6uju4jfuzf5cw7zq3t3uw6welsdwyd"
+			}
+			for strings.EqualFold(commR, errCommR) && redoTimes < 2 {
+				redoTimes++
+				log.Infof("WARN###: Redo P2 : times %v ", redoTimes)
+				out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
+				res.PreCommit2Out = out
+				if err != nil {
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
+				commR = out.Sealed.String()
+			}
 		}
 	case ffiwrapper.WorkerCommit:
-		pieceInfo := task.Pieces
-		cids := &task.Cids
-		//判断C1输出文件是否存在，如果存在，则跳过C1
-		pathTxt := sector.CachePath() + "/c1.out"
-		isExist, err := ffiwrapper.PathExists(pathTxt)
-		if err != nil {
-			log.Error("Read C1  PathExists Err :", err)
-		}
-		var c1Out []byte
-		if isExist {
-			c1Out, err = ioutil.ReadFile(pathTxt)
+		if task.Snap {
+			vanillaProofs, err := sealer.ProveReplicaUpdate1(ctx, sector, task.SectorKey, task.NewSealed, task.NewUnsealed)
 			if err != nil {
-				log.Error("Read c1.out Err ", err)
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			log.Info(sector.CachePath() + " ==========c1 retry")
+			out, err := sealer.ProveReplicaUpdate2(ctx, sector, task.SectorKey, task.NewSealed, task.NewUnsealed, vanillaProofs)
+			res.ProveReplicaUpdateOut = out
+			if err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
 		} else {
-			c1Out, err = sealer.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+			pieceInfo := task.Pieces
+			cids := &task.Cids
+			//判断C1输出文件是否存在，如果存在，则跳过C1
+			pathTxt := sector.CachePath() + "/c1.out"
+			isExist, err := ffiwrapper.PathExists(pathTxt)
 			if err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
+				log.Error("Read C1  PathExists Err :", err)
 			}
-			err = ffiwrapper.WriteSectorCC(pathTxt, c1Out)
-			if err != nil {
-				log.Error("=============================WriteSector C1 ===err: ", err)
-			}
-		}
-		w.removeDataLayer(ctx, sector.CachePath(), false)
-		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerCommitDone)
-		// if local gpu no set, using remotes .
-		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
-			for {
-				res.Commit2Out, err = CallCommit2Service(ctx, task, c1Out)
+			var c1Out []byte
+			if isExist {
+				c1Out, err = ioutil.ReadFile(pathTxt)
 				if err != nil {
-					log.Warn(errors.As(err))
-					time.Sleep(10e9)
-					continue
+					log.Error("Read c1.out Err ", err)
+					return errRes(errors.As(err, w.workerCfg), &res)
 				}
-				break
+				log.Info(sector.CachePath() + " ==========c1 retry")
+			} else {
+				c1Out, err = sealer.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
+				if err != nil {
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
+				err = ffiwrapper.WriteSectorCC(pathTxt, c1Out)
+				if err != nil {
+					log.Error("=============================WriteSector C1 ===err: ", err)
+				}
 			}
-		}
-		// call gpu service failed, using local instead.
-		if len(res.Commit2Out) == 0 {
-			res.Commit2Out, err = sealer.SealCommit2(ctx, sector, c1Out)
-			if err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
+			w.removeDataLayer(ctx, sector.CachePath(), false)
+			localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerCommitDone)
+			// if local gpu no set, using remotes .
+			if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
+				for {
+					res.Commit2Out, err = CallCommit2Service(ctx, task, c1Out)
+					if err != nil {
+						log.Warn(errors.As(err))
+						time.Sleep(10e9)
+						continue
+					}
+					break
+				}
+			}
+			// call gpu service failed, using local instead.
+			if len(res.Commit2Out) == 0 {
+				res.Commit2Out, err = sealer.SealCommit2(ctx, sector, c1Out)
+				if err != nil {
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
 			}
 		}
 	// SPEC: cancel deal with worker finalize, because it will post failed when commit2 is online and finalize is interrupt.
 	// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
-		//fix sector rebuild tool : disk space full
-		w.removeDataLayer(ctx, sector.CachePath(), true)
-		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerFinalize)
-		sealedFile := sealer.SectorPath("sealed", task.SectorName())
-		_, err := os.Stat(string(sealedFile))
-		if err != nil {
-			if !os.IsNotExist(err) {
-				return errRes(errors.As(err, sealedFile), &res)
+		if task.Snap {
+			updateFile := sealer.SectorPath("update", task.SectorName())
+			_, err := os.Stat(string(updateFile))
+			if err != nil {
+				if !os.IsNotExist(err) {
+					return errRes(errors.As(err, updateFile), &res)
+				}
+				// no file to finalize, just return done.
+			} else {
+				if err := sealer.FinalizeReplicaUpdate(ctx, sector, nil); err != nil {
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
+				//push update updateCache 到远程存储
+				log.Info("push update , updateCache to remote storage")
+				if err := w.pushUpdateCache(ctx, sealer, task, false); err != nil {
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
 			}
-			// no file to finalize, just return done.
 		} else {
-			if err := w.pushCache(ctx, sealer, task, false); err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
-			if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
-			if err := w.RemoveRepoSector(ctx, sealer.RepoPath(), task.SectorName()); err != nil {
-				log.Warn(errors.As(err))
+			//fix sector rebuild tool : disk space full
+			w.removeDataLayer(ctx, sector.CachePath(), true)
+			localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerFinalize)
+			sealedFile := sealer.SectorPath("sealed", task.SectorName())
+			_, err := os.Stat(string(sealedFile))
+			if err != nil {
+				if !os.IsNotExist(err) {
+					return errRes(errors.As(err, sealedFile), &res)
+				}
+				// no file to finalize, just return done.
+			} else {
+				if err := w.pushCache(ctx, sealer, task, false); err != nil {
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
+				if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
+				if err := w.RemoveRepoSector(ctx, sealer.RepoPath(), task.SectorName()); err != nil {
+					log.Warn(errors.As(err))
+				}
 			}
 		}
 	case ffiwrapper.WorkerUnseal:

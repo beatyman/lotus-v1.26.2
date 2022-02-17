@@ -124,6 +124,7 @@ const (
 
 type WorkerTask struct {
 	TraceContext string //用于span传播
+	Snap         bool   //true: snap升级的任务 false:普通密封任务
 
 	Type WorkerTaskType
 	// TaskID uint64 // using SecotrID instead
@@ -156,6 +157,11 @@ type WorkerTask struct {
 
 	// commit2
 	Commit1Out storage.Commit1Out
+
+	// proveReplicaUpdate
+	SectorKey   cid.Cid
+	NewSealed   cid.Cid
+	NewUnsealed cid.Cid
 
 	// winning PoSt
 	SectorInfo []storage.ProofSectorInfo
@@ -488,6 +494,7 @@ func (r *remote) checkCache(restore bool, ignore []string) (full bool, err error
 				wTask.ID, wTask.WorkerId,
 				"release addpiece by history",
 				database.SECTOR_STATE_FAILED,
+				wTask.Snap,
 			); err != nil {
 				return false, errors.As(err, r.cfg.ID)
 			}
@@ -532,6 +539,9 @@ type SealRes struct {
 	PreCommit1Out storage.PreCommit1Out
 	PreCommit2Out storage.SectorCids
 	Commit2Out    storage.Proof
+	//snap
+	ReplicaUpdateOut      storage.ReplicaUpdateOut
+	ProveReplicaUpdateOut storage.ReplicaUpdateProof
 
 	WinningPoStProofOut []proof.PoStProof
 

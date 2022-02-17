@@ -183,7 +183,9 @@ require (
 	huangdong2012/filecoin-monitor v0.0.0-00010101000000-000000000000
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
+
 replace github.com/libp2p/go-libp2p-yamux => github.com/libp2p/go-libp2p-yamux v0.5.1
+
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
 replace github.com/filecoin-project/specs-storage => ./extern/specs-storage
@@ -198,6 +200,7 @@ replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
 
 replace github.com/filecoin-project/specs-actors/v7 => github.com/filecoin-project/specs-actors/v7 v7.0.0-rc1
+
 replace huangdong2012/filecoin-monitor => github.com/huangdong2012/filecoin-monitor v0.0.0-20211111023751-88bf10c05cd1
 
 replace go.opencensus.io => github.com/huangdong2012/opencensus-go v0.0.0-20210811152114-2cc76fc1a84f

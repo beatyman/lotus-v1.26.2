@@ -2,6 +2,8 @@ package sealing
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/gwaylib/errors"
 	"sort"
 	"time"
 
@@ -226,6 +228,24 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 		}
 
 		log.Infow("Add deal data piece", "deal", deal.deal.DealID, "sector", sector.SectorNumber)
+		if database.HasDB() {
+			sName := storage.SectorName(m.minerSectorID(sector.SectorNumber))
+			unsealedStorageId := int64(0)
+			log.Info("judge========================================")
+			tx, unsealedStorage, err := database.PrepareStorage(sName, "", database.STORAGE_KIND_UNSEALED)
+			if err != nil {
+				return errors.As(err)
+			}
+			if err := tx.Commit(); err != nil {
+				tx.Rollback()
+				return errors.As(err)
+			}
+			unsealedStorageId = unsealedStorage.ID
+			log.Infof("SetSectorUnSealedStorage================: %+v", unsealedStorageId)
+			if err := database.SetSectorUnSealedStorage(sName, uint64(unsealedStorageId)); err != nil {
+				return errors.As(err)
+			}
+		}
 		ppi, err := m.sealer.AddPiece(sectorstorage.WithPriority(ctx.Context(), DealSectorPriority),
 			m.minerSector(sector.SectorType, sector.SectorNumber),
 			pieceSizes,

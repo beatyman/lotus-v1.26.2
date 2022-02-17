@@ -48,7 +48,7 @@ func (s *SectorSpans) removeSpan(id, step string) {
 	s.spans.Delete(key)
 }
 
-func (s *SectorSpans) getSpan(step string, info *SectorInfo, wInfo *WorkerInfo) *spans.SectorSpan {
+func (s *SectorSpans) getSpan(step string, info *SectorInfo, wInfo *WorkerInfo, snap int) *spans.SectorSpan {
 	key := fmt.Sprintf("%v-%v", info.ID, step)
 	if val, ok := s.spans.Load(key); ok {
 		return val.(*spans.SectorSpan)
@@ -61,6 +61,7 @@ func (s *SectorSpans) getSpan(step string, info *SectorInfo, wInfo *WorkerInfo) 
 	span.SetSealedStorageID(strconv.FormatInt(info.StorageSealed, 10))
 	span.SetUnSealedStorageID(strconv.FormatInt(info.StorageUnsealed, 10))
 	span.SetWorkNo(info.WorkerId)
+	span.AddAttributes(trace.BoolAttribute("snap", snap == 1))
 	if wInfo != nil {
 		span.SetWorkIP(wInfo.Ip)
 	}
@@ -105,13 +106,13 @@ func (s *SectorSpans) isStepDone(state int) bool {
 		state >= sectorError
 }
 
-func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wInfo *WorkerInfo, wid, msg string, state int) {
+func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wInfo *WorkerInfo, wid, msg string, state, snap int) {
 	if info == nil {
 		return
 	}
 
 	if step := s.getStep(state); len(step) > 0 {
-		if span := s.getSpan(step, info, wInfo); s.isStepDone(state) { //finish
+		if span := s.getSpan(step, info, wInfo, snap); s.isStepDone(state) { //finish
 			span.Finish(nil)
 			s.removeSpan(info.ID, step)
 		} else if s.isStepRunning(state) { //running
@@ -127,7 +128,7 @@ func (s *SectorSpans) OnSectorStateChange(info *SectorInfo, wInfo *WorkerInfo, w
 		}
 	} else if state >= SECTOR_STATE_FAILED {
 		if step = s.getStep(info.State); len(step) > 0 && !s.isStepDone(info.State) {
-			span := s.getSpan(step, info, wInfo)
+			span := s.getSpan(step, info, wInfo, snap)
 			span.Finish(errors.New(msg))
 			s.removeSpan(info.ID, step)
 		}

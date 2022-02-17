@@ -92,9 +92,14 @@ func (sb *Sealer) PledgeSector(ctx context.Context, sector storage.SectorRef, ex
 		return sb.pledgeSector(ctx, sector, existingPieceSizes, sizes...)
 	}
 
+	snap := false
+	if v := ctx.Value("SNAP"); v != nil {
+		snap = v.(bool)
+	}
 	call := workerCall{
 		// no need worker id
 		task: WorkerTask{
+			Snap:               snap,
 			Type:               WorkerPledge,
 			ProofType:          sector.ProofType,
 			SectorID:           sector.ID,

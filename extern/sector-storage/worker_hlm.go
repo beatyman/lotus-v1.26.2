@@ -131,6 +131,30 @@ func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storage.SectorRef
 	return nil
 }
 
+//snap start
+
+func (l *hlmWorker) ReplicaUpdate(ctx context.Context, sector storage.SectorRef, pieces []abi.PieceInfo) (out storage.ReplicaUpdateOut, err error) {
+	return l.sb.ReplicaUpdate(ctx, sector, pieces)
+}
+
+func (l *hlmWorker) ProveReplicaUpdate1(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storage.ReplicaVanillaProofs, error) {
+	return l.sb.ProveReplicaUpdate1(ctx, sector, sectorKey, newSealed, newUnsealed)
+}
+
+func (l *hlmWorker) ProveReplicaUpdate2(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs storage.ReplicaVanillaProofs) (storage.ReplicaUpdateProof, error) {
+	return l.sb.ProveReplicaUpdate2(ctx, sector, sectorKey, newSealed, newUnsealed, vanillaProofs)
+}
+
+func (m *hlmWorker) ProveReplicaUpdate(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storage.ReplicaUpdateProof, error) {
+	return m.sb.ProveReplicaUpdate(ctx, sector, sectorKey, newSealed, newUnsealed)
+}
+
+func (m *hlmWorker) FinalizeReplicaUpdate(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {
+	return m.sb.FinalizeReplicaUpdate(ctx, sector, keepUnsealed)
+}
+
+//snap end
+
 func (l *hlmWorker) ReleaseUnsealed(ctx context.Context, sector abi.SectorID, safeToFree []storage2.Range) error {
 	return xerrors.Errorf("implement me")
 }
@@ -231,7 +255,7 @@ func (l *hlmWorker) ReadPieceStorageInfo(ctx context.Context, sector storage.Sec
 	}
 	return *info, nil
 }
-func (l *hlmWorker)readPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error)  {
+func (l *hlmWorker) readPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
 	// try read the exist unsealed.
 	ctx, cancel := context.WithCancel(ctx)
 	rg, done, err := l.sb.PieceReader(ctx, sector, abi.PaddedPieceSize(pieceOffset.Padded()), size.Padded())
@@ -280,15 +304,15 @@ func (l *hlmWorker)readPiece(ctx context.Context, sector storage.SectorRef, piec
 		}).init()
 		if err != nil || pr == nil { // pr == nil to make sure we don't return typed nil
 			cancel()
-			return nil,true, err
+			return nil, true, err
 		}
 		cancel()
 		return pr, true, nil
 	}
 	cancel()
-	return nil,false,errors.New("readPiece not done")
+	return nil, false, errors.New("readPiece not done")
 }
-func (l *hlmWorker)ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error){
+func (l *hlmWorker) ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
 	// acquire a lock purely for reading unsealed sectors
 	var err error
 	sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
@@ -300,17 +324,17 @@ func (l *hlmWorker)ReadPiece(ctx context.Context, sector storage.SectorRef, piec
 	}
 	// unseal data will expire by 30 days if no visitor.
 	l.sb.ExpireAllMarketRetrieve()
-	r, done, err := l.readPiece(ctx, sector, pieceOffset, size,ticket,unsealed)
+	r, done, err := l.readPiece(ctx, sector, pieceOffset, size, ticket, unsealed)
 	if err != nil {
 		return nil, false, errors.As(err)
 	} else if done {
 		return r, true, nil
 	}
 	// unsealed not found, do unseal and then read it.
-	if err := l.sb.UnsealPiece(ctx, sector,pieceOffset, size,ticket, unsealed); err != nil {
-		return nil, false, errors.As(err, sector, pieceOffset,size, unsealed)
+	if err := l.sb.UnsealPiece(ctx, sector, pieceOffset, size, ticket, unsealed); err != nil {
+		return nil, false, errors.As(err, sector, pieceOffset, size, unsealed)
 	}
-	return l.readPiece(ctx, sector, pieceOffset, size,ticket,unsealed)
+	return l.readPiece(ctx, sector, pieceOffset, size, ticket, unsealed)
 }
 
 func (l *hlmWorker) TaskTypes(context.Context) (map[sealtasks.TaskType]struct{}, error) {

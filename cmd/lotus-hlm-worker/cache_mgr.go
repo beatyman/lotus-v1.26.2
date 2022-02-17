@@ -31,6 +31,12 @@ func (w *worker) removeRepoSector(ctx context.Context, repo, sid string) error {
 	if err := os.Remove(filepath.Join(repo, "unsealed", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
+	if err := os.Remove(filepath.Join(repo, "update", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
+	if err := os.RemoveAll(filepath.Join(repo, "update-cache", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
 	if err := w.diskPool.Delete(sid); err != nil {
 		log.Error(errors.As(err))
 	}
@@ -383,7 +389,7 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		// fetch cache file
 		cacheFromPath := filepath.Join(mountDir, "cache", sid)
 		cacheToPath := workerSB.SectorPath("cache", sid)
-		if err := w.download(ctx, cacheFromPath, filepath.Join(cacheToPath, sid)); err != nil {
+		if err := w.download(ctx, cacheFromPath, cacheToPath); err != nil {
 			return errors.As(err)
 		}
 	default:
@@ -515,4 +521,142 @@ func (w *worker) removeDataLayer(ctx context.Context, cacheDir string, removeC1c
 		}
 	}
 	log.Infof("remove files: %v ", files)
+}
+func (w *worker) pushUpdateCache(ctx context.Context, workerSB *ffiwrapper.Sealer, task ffiwrapper.WorkerTask, unsealedOnly bool) error {
+repush:
+	select {
+	case <-ctx.Done():
+		return ffiwrapper.ErrWorkerExit.As(task)
+	default:
+		// TODO: check cache is support two task
+		api, err := GetNodeApi()
+		if err != nil {
+			log.Warn(errors.As(err))
+			goto repush
+		}
+
+		w.diskPool.UpdateState(task.SectorName(), database.SECTOR_STATE_PUSH)
+
+		// release the worker when pushing happened
+		if err := api.RetryWorkerUnlock(ctx, w.workerCfg.ID, task.Key(), "pushing commit", database.SECTOR_STATE_PUSH); err != nil {
+			log.Warn(errors.As(err))
+
+			if errors.ErrNoData.Equal(err) {
+				// drop data
+				return nil
+			}
+
+			goto repush
+		}
+
+		if !unsealedOnly {
+			if err := w.pushUpdate(ctx, workerSB, task); err != nil {
+				log.Error(errors.As(err, task))
+				time.Sleep(60e9)
+				goto repush
+			}
+		}
+		if err := w.pushUnsealed(ctx, workerSB, task); err != nil {
+			log.Error(errors.As(err, task))
+			time.Sleep(60e9)
+			goto repush
+		}
+		if err := w.RemoveRepoSector(ctx, workerSB.RepoPath(), task.SectorName()); err != nil {
+			log.Warn(errors.As(err))
+		}
+	}
+	return nil
+}
+func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, task ffiwrapper.WorkerTask) error {
+	sid := task.SectorName()
+	log.Infof("pushUpdate:%+v", sid)
+	defer log.Infof("pushUpdate exit:%+v", sid)
+
+	api, err := GetNodeApi()
+	if err != nil {
+		return errors.As(err)
+	}
+	ss, err := api.RetryPreStorageNode(ctx, sid, w.workerCfg.IP, database.STORAGE_KIND_SEALED)
+	if err != nil {
+		return errors.As(err)
+	}
+	switch ss.MountType {
+	case database.MOUNT_TYPE_HLM:
+		tmpAuth, err := api.RetryNewHLMStorageTmpAuth(ctx, ss.ID, sid)
+		if err != nil {
+			return errors.As(err)
+		}
+		fc := hlmclient.NewHttpClient(ss.MountTransfUri, sid, tmpAuth)
+
+		// send the sealed
+		sealedFromPath := workerSB.SectorPath("update", sid)
+		if err := fc.Upload(ctx, sealedFromPath, filepath.Join("update", sid)); err != nil {
+			return errors.As(err)
+		}
+		// send the cache
+		cacheFromPath := workerSB.SectorPath("update-cache", sid)
+		if err := fc.Upload(ctx, cacheFromPath, filepath.Join("update-cache", sid)); err != nil {
+			return errors.As(err)
+		}
+		if err := api.RetryDelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
+			log.Warn(errors.As(err))
+		}
+	case database.MOUNT_TYPE_OSS:
+		mountDir := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid)
+		// send the sealed
+		sealedFromPath := workerSB.SectorPath("update", sid)
+		sealedToPath := filepath.Join(mountDir, "update")
+		if err := w.upload(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+			return errors.As(err)
+		}
+
+		// send the cache
+		cacheFromPath := workerSB.SectorPath("update-cache", sid)
+		cacheToPath := filepath.Join(mountDir, "update-cache", sid)
+		if err := w.upload(ctx, cacheFromPath, cacheToPath); err != nil {
+			return errors.As(err)
+		}
+	default:
+		mountUri := ss.MountTransfUri
+		mountDir := filepath.Join(w.sealedRepo, sid)
+		if err := w.mountRemote(
+			ctx,
+			sid,
+			ss.MountType,
+			mountUri,
+			mountDir,
+			ss.MountOpt,
+		); err != nil {
+			return errors.As(err)
+		}
+
+		// send the sealed
+		sealedFromPath := workerSB.SectorPath("update", sid)
+		sealedToPath := filepath.Join(mountDir, "update")
+		if err := os.MkdirAll(sealedToPath, 0755); err != nil {
+			return errors.As(err)
+		}
+		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+			return errors.As(err)
+		}
+
+		// send the cache
+		cacheFromPath := workerSB.SectorPath("update-cache", sid)
+		cacheToPath := filepath.Join(mountDir, "update-cache", sid)
+		if err := os.MkdirAll(cacheToPath, 0755); err != nil {
+			return errors.As(err)
+		}
+		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+			return errors.As(err)
+		}
+
+		if err := w.umountRemote(sid, mountDir); err != nil {
+			return errors.As(err)
+		}
+	}
+
+	if err := api.RetryCommitStorageNode(ctx, sid, database.STORAGE_KIND_SEALED); err != nil {
+		return errors.As(err)
+	}
+	return nil
 }

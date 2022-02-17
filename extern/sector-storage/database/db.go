@@ -40,6 +40,9 @@ func InitDB(repo string) {
 	if _, err := db.Exec(tb_sector_sql); err != nil {
 		panic(err)
 	}
+	if _, err := db.Exec(tb_sector_snap_sql); err != nil {
+		fmt.Println(err.Error())
+	}
 	if _, err := db.Exec(tb_sector_rebuild_sql); err != nil {
 		panic(err)
 	}

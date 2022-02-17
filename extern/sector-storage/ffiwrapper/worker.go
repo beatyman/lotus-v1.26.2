@@ -593,7 +593,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		r.busyOnTasks[sid] = task // make busy
 		r.lock.Unlock()
 
-		if err := database.UploadSectorMonitorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun); err != nil {
+		if err := database.UploadSectorMonitorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun, database.GetSectorSnapValue(task.Snap)); err != nil {
 			log.Error("UpdateSectorState Err, sectorId:%d, error:%v:", task.SectorID, err)
 		}
 	}
@@ -666,7 +666,7 @@ func (sb *Sealer) UpdateSectorState(sid, memo string, state int, force, reset bo
 		newState = newState + sInfo.State
 	}
 
-	if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, newState); err != nil {
+	if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, newState, sInfo.Snap); err != nil {
 		return working, errors.As(err)
 	}
 
@@ -698,7 +698,7 @@ func (sb *Sealer) GcTimeoutTask(stopTime time.Time) ([]string, error) {
 			memo := fmt.Sprintf("%s,cause by: %d", task.Key(), newStat)
 
 			result = append(result, memo)
-			if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, newStat); err != nil {
+			if err := database.UpdateSectorState(sid, sInfo.WorkerId, memo, newStat, sInfo.Snap); err != nil {
 				return nil, errors.As(err)
 			}
 		}
@@ -782,7 +782,10 @@ func (sb *Sealer) UnlockWorker(ctx context.Context, workerId, taskKey, memo stri
 	if err != nil {
 		return errors.As(err, workerId, taskKey, memo)
 	}
-
+	sInfo, err := database.GetSectorInfo(sid)
+	if err != nil {
+		return errors.As(err, sid, memo)
+	}
 	if !r.freeTask(sid) {
 		// worker has free
 		return nil
@@ -790,7 +793,7 @@ func (sb *Sealer) UnlockWorker(ctx context.Context, workerId, taskKey, memo stri
 
 	log.Infof("Release task by UnlockWorker:%s, %+v", taskKey, r.cfg)
 	// release and waiting the next
-	if err := database.UpdateSectorState(sid, workerId, memo, state); err != nil {
+	if err := database.UpdateSectorState(sid, workerId, memo, state, sInfo.Snap); err != nil {
 		return errors.As(err)
 	}
 	return nil
@@ -801,9 +804,12 @@ func (sb *Sealer) LockWorker(ctx context.Context, workerId, taskKey, memo string
 	if err != nil {
 		return errors.As(err)
 	}
-
+	sInfo, err := database.GetSectorInfo(sid)
+	if err != nil {
+		return errors.As(err, sid, memo)
+	}
 	// save worker id
-	if err := database.UpdateSectorState(sid, workerId, memo, status); err != nil {
+	if err := database.UpdateSectorState(sid, workerId, memo, status, sInfo.Snap); err != nil {
 		return errors.As(err, taskKey, memo)
 	}
 	// TODO: busy to r.busyOnTask?
@@ -1322,7 +1328,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		if task.task.Type == WorkerFinalize && (r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv) {
 			if err := database.UpdateSectorState(
 				ss.SectorInfo.ID, r.cfg.ID,
-				fmt.Sprintf("done:%d", task.task.Type), database.SECTOR_STATE_DONE); err != nil {
+				fmt.Sprintf("done:%d", task.task.Type), database.SECTOR_STATE_DONE, database.GetSectorSnapValue(task.task.Snap)); err != nil {
 				task.ret <- sb.errTask(task, errors.As(err))
 				return
 			}
@@ -1333,7 +1339,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		// end fix bug
 	}
 	// update status
-	if err := database.UpdateSectorState(ss.SectorInfo.ID, r.cfg.ID, "task in", int(task.task.Type)); err != nil {
+	if err := database.UpdateSectorState(ss.SectorInfo.ID, r.cfg.ID, "task in", int(task.task.Type), database.GetSectorSnapValue(task.task.Snap)); err != nil {
 		log.Warn(err)
 		task.ret <- sb.errTask(task, err)
 		return
@@ -1374,10 +1380,10 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			}
 			if err := database.UpdateSectorState(
 				sectorId, r.cfg.ID,
-				fmt.Sprintf("done:%d", task.task.Type), database.SECTOR_STATE_DONE); err != nil {
+				fmt.Sprintf("done:%d", task.task.Type), database.SECTOR_STATE_DONE, database.GetSectorSnapValue(task.task.Snap)); err != nil {
 				res = sb.errTask(task, errors.As(err))
 			}
-			if err := database.UploadSectorProvingState(ss.SectorInfo.ID); err != nil {
+			if err := database.UploadSectorProvingState(ss.SectorInfo.ID, database.GetSectorSnapValue(task.task.Snap)); err != nil {
 				log.Errorw("upload sector proving state error", "sid", ss.SectorInfo.ID, "err", err)
 			}
 			r.freeTask(sectorId)
@@ -1385,7 +1391,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 			state := int(res.Type) + 1
 			if err := database.UpdateSectorState(
 				sectorId, r.cfg.ID,
-				"transfer mission", state); err != nil {
+				"transfer mission", state, database.GetSectorSnapValue(task.task.Snap)); err != nil {
 				res = sb.errTask(task, errors.As(err))
 			}
 		}

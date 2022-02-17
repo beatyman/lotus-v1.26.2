@@ -277,6 +277,7 @@ func CopyFile(ctx context.Context, from, to string, t ...*Transferer) error {
 	for _, src := range source {
 		toFile := strings.Replace(src, from, to, 1)
 		tCtx, cancel := context.WithTimeout(ctx, time.Hour)
+		log.Infof("src: %+v ,toFile : %+v", src, toFile)
 		if err := copyfunc.copy(tCtx, src, toFile); err != nil {
 			cancel()
 			log.Warn(errors.As(err))
@@ -318,13 +319,13 @@ func uploadToOSS(ctx context.Context, from, to string) error {
 	if err != nil {
 		return errors.As(err)
 	}
-	log.Infof("etagLocal: %+v",etagLocal)
+	log.Infof("etagLocal: %+v", etagLocal)
 	etagRemote, err := GetEtagFromServer2(ctx, to[1:])
 	if err != nil {
 		return errors.As(err)
 	}
 	if !strings.EqualFold(etagLocal, etagRemote) {
-		return errors.New(fmt.Sprintf("file %+v etag not match: local: %+v ,remote: %+v",from, etagLocal, etagRemote))
+		return errors.New(fmt.Sprintf("file %+v etag not match: local: %+v ,remote: %+v", from, etagLocal, etagRemote))
 	}
 	log.Infof("finish upload :  %s to %s ,err: %+v  ", from, to, err)
 	if conf2.Delete {
@@ -337,8 +338,8 @@ func uploadToOSS(ctx context.Context, from, to string) error {
 
 // download file from local to US3 oss cluste
 func downloadFromOSS(ctx context.Context, from, to string) error {
+	log.Infof("from = %+v, to = %+v,", from, to)
 	up := os.Getenv("US3")
-
 	if up == "" {
 		fmt.Println("please set US3 environment variable first!")
 		return errors.New("connot find US3 environment variable")
@@ -348,13 +349,6 @@ func downloadFromOSS(ctx context.Context, from, to string) error {
 		log.Error("load config error", err)
 		return errors.As(err)
 	}
-	/*
-		if conf2.Sim {
-					submitPathOut(paths)
-							return
-									}
-	*/
-
 	downloader := operation.NewDownloader(conf2)
 	_, err = downloader.DownloadFile(from, to)
 	if err != nil {

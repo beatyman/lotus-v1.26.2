@@ -68,6 +68,9 @@ CREATE INDEX IF NOT EXISTS sector_info_idx2 ON sector_info(state,state_time);
 CREATE INDEX IF NOT EXISTS sector_info_idx3 ON sector_info(storage_sealed,state);
 CREATE INDEX IF NOT EXISTS sector_info_idx4 ON sector_info(storage_unsealed,state);
 `
+	// for snap upgrade
+	tb_sector_snap_sql = `alter table sector_info add snap integer default 0 not null;`
+
 	tb_sector_rebuild_sql = `
 CREATE TABLE IF NOT EXISTS sector_rebuild (
 	id TEXT NOT NULL PRIMARY KEY, /* s-t01001-1 */

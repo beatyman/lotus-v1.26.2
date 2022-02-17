@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v7/kodo"
+	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/fileserver"
@@ -203,23 +207,82 @@ func (w *worker) upload(ctx context.Context, fromPath, toPath string) error {
 }
 
 func (w *worker) download(ctx context.Context, fromPath, toPath string) error {
-	/*stat, err := os.Stat(fromPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return errors.ErrNoData.As(fromPath)
-		}
-		return err
-	}*/
-
-	log.Infof("download from: %s, to: %s", fromPath, toPath)
-	/*if stat.IsDir() {
-		if err := CopyFile(ctx, fromPath+"/", toPath+"/", NewTransferer(downloadFromOSS)); err != nil {
+	if len(fromPath) > 1 {
+		needDownloads, err := GetDownloadFilesKeys(ctx, fromPath[1:])
+		if err != nil {
 			return err
 		}
-	} else {*/
-	if err := CopyFile(ctx, fromPath, toPath, NewTransferer(travelFileEmpty, downloadFromOSS)); err != nil {
-		return err
+		if len(needDownloads) > 0 {
+			log.Infof("download %+v  to  %+v ", needDownloads, toPath)
+			tCtx, cancel := context.WithTimeout(ctx, time.Hour)
+			if len(needDownloads) == 1 {
+				if err := downloadFromOSS(tCtx, needDownloads[0], toPath); err != nil {
+					cancel()
+					return errors.As(err, w.workerCfg.IP)
+				}
+			} else {
+				if err := os.RemoveAll(toPath); err != nil {
+					log.Warn(err)
+				}
+				if err := os.MkdirAll(toPath, 0755); err != nil {
+					cancel()
+					return errors.As(err, w.workerCfg.IP)
+				}
+				for _, need := range needDownloads {
+					dstPath := filepath.Join(toPath, filepath.Base(need))
+					if err := downloadFromOSS(tCtx, need, dstPath); err != nil {
+						cancel()
+						return errors.As(err, w.workerCfg.IP)
+					}
+				}
+			}
+			cancel()
+		}
 	}
-	//}
+	log.Infof("download from: %s, to: %s", fromPath, toPath)
 	return nil
+}
+
+// 遍历对象存储下载的key
+func GetDownloadFilesKeys(ctx context.Context, key string) ([]string, error) {
+	prefix := path.Dir(key)
+	log.Infof("prefix: %+v ,key: %+v ", prefix, key)
+	up := os.Getenv("US3")
+	if up == "" {
+		return []string{}, errors.New("US3 Config Not Found")
+	}
+	config, err := operation.Load(up)
+	if err != nil {
+		return []string{}, err
+	}
+	cfg := kodo.Config{
+		AccessKey: config.Ak,
+		SecretKey: config.Sk,
+		RSHost:    config.RsHosts[0],  //stat 主要用这个
+		RSFHost:   config.RsfHosts[0], //列表主要靠这个配置
+		UpHosts:   config.UpHosts,
+	}
+	client := kodo.NewWithoutZone(&cfg)
+	bucket, err := client.BucketWithSafe(config.Bucket)
+	if err != nil {
+		return []string{}, err
+	}
+	marker := ""
+	result := make([]string, 0)
+	for {
+		r, _, out, err := bucket.List(ctx, prefix, "", marker, 1000)
+		if err != nil && err != io.EOF {
+			time.Sleep(time.Second)
+			log.Errorf("get file %+v etag err: %+v", key, err.Error())
+			continue
+		}
+		for _, v := range r {
+			result = append(result, v.Key)
+		}
+		if out == "" {
+			break
+		}
+		marker = out
+	}
+	return result, nil
 }

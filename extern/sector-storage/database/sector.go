@@ -30,6 +30,7 @@ type SectorInfo struct {
 	StorageUnsealed int64     `db:"storage_unsealed"`
 	WorkerId        string    `db:"worker_id"`
 	State           int       `db:"state,0"`
+	Snap            int       `db:"snap,0"`
 	StateTime       time.Time `db:"state_time"`
 	StateTimes      int       `db:"state_times"`
 	CreateTime      time.Time `db:"created_at"`
@@ -437,28 +438,35 @@ func GetSectorStorage(id string) (*SectorStorage, error) {
 	}, nil
 }
 
-func UploadSectorProvingState(sid string) (err error) {
+func GetSectorSnapValue(snap bool) int {
+	if snap {
+		return 1
+	}
+	return 0
+}
+
+func UploadSectorProvingState(sid string, snap int) (err error) {
 	defer func() {
-		err = UploadSectorMonitorState(sid, "", "proving", SectorProvingDone)
+		err = UploadSectorMonitorState(sid, "", "proving", SectorProvingDone, snap)
 	}()
-	if err = UploadSectorMonitorState(sid, "", "proving", SectorProving); err != nil {
+	if err = UploadSectorMonitorState(sid, "", "proving", SectorProving, snap); err != nil {
 		return err
 	}
 	return err
 }
 
-func UploadSectorMonitorState(sid, wid, msg string, state int) error {
+func UploadSectorMonitorState(sid, wid, msg string, state, snap int) error {
 	if info, err := GetSectorInfo(sid); err != nil {
 		return err
 	} else if info != nil && (info.State < state || state == 0) { //第一次下发任务的时候 才上报span(避免同一个任务上报多次)
 		wInfo, _ := GetWorkerInfo(wid)
-		ssm.OnSectorStateChange(info, wInfo, wid, msg, state)
+		ssm.OnSectorStateChange(info, wInfo, wid, msg, state, snap)
 	}
 	return nil
 }
 
-func UpdateSectorState(sid, wid, msg string, state int) error {
-	if err := UploadSectorMonitorState(sid, wid, msg, state); err != nil {
+func UpdateSectorState(sid, wid, msg string, state, snap int) error {
+	if err := UploadSectorMonitorState(sid, wid, msg, state, snap); err != nil {
 		return err
 	}
 
@@ -469,13 +477,14 @@ UPDATE
 SET
 	worker_id=?,
 	state=?,
+    snap=?,
 	state_time=?,
 	state_msg=?,
 	state_times=state_times+1
 WHERE
 	id=?
 	
-`, wid, state, time.Now(), msg, sid); err != nil {
+`, wid, state, snap, time.Now(), msg, sid); err != nil {
 		return errors.As(err)
 	}
 	return nil
@@ -589,6 +598,16 @@ func RebuildSectorDone(sid string) error {
 func SetSectorSealedStorage(sid string, storage uint64) error {
 	mdb := GetDB()
 	if _, err := mdb.Exec("UPDATE sector_info SET storage_sealed=? WHERE id=?", storage, sid); err != nil {
+		return errors.As(err, sid, storage)
+	}
+	sectorFileCacheLk.Lock()
+	delete(sectorFileCaches, sid)
+	sectorFileCacheLk.Unlock()
+	return nil
+}
+func SetSectorUnSealedStorage(sid string, storage uint64) error {
+	mdb := GetDB()
+	if _, err := mdb.Exec("UPDATE sector_info SET storage_unsealed=? WHERE id=?", storage, sid); err != nil {
 		return errors.As(err, sid, storage)
 	}
 	sectorFileCacheLk.Lock()
