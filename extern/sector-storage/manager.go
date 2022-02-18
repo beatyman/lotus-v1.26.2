@@ -103,13 +103,14 @@ type SealerConfig struct {
 	ParallelFetchLimit int
 
 	// Local worker config
-	AllowAddPiece               bool
-	AllowPreCommit1             bool
-	AllowPreCommit2             bool
-	AllowCommit                 bool
-	AllowUnseal                 bool
-	AllowReplicaUpdate          bool
-	AllowProveReplicaUpdate2    bool
+	AllowAddPiece            bool
+	AllowPreCommit1          bool
+	AllowPreCommit2          bool
+	AllowCommit              bool
+	AllowUnseal              bool
+	AllowReplicaUpdate       bool
+	AllowProveReplicaUpdate2 bool
+	AllowRegenSectorKey      bool
 	RemoteSeal                  bool
 	RemoteWnPoSt                int
 	RemoteWdPoSt                int
@@ -196,6 +197,9 @@ func New(ctx context.Context, lstor *stores.Local, stor *stores.Remote, ls store
 	}
 	if sc.AllowProveReplicaUpdate2 {
 		localTasks = append(localTasks, sealtasks.TTProveReplicaUpdate2)
+	}
+	if sc.AllowRegenSectorKey {
+		localTasks = append(localTasks, sealtasks.TTRegenSectorKey)
 	}
 
 	wcfg := WorkerConfig{

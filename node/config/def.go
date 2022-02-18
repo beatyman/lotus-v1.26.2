@@ -151,6 +151,7 @@ func DefaultStorageMiner() *StorageMiner {
 			AllowUnseal:              true,
 			AllowReplicaUpdate:       true,
 			AllowProveReplicaUpdate2: true,
+			AllowRegenSectorKey:      true,
 			RemoteSeal:               false,
 			RemoteWnPoSt:             0,
 			RemoteWdPoSt:             0,
