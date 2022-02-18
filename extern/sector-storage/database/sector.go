@@ -465,6 +465,23 @@ func UploadSectorMonitorState(sid, wid, msg string, state, snap int) error {
 	return nil
 }
 
+func UpdateSectorAbortSnapState(sid string) error {
+	mdb := GetDB()
+	if _, err := mdb.Exec(`
+UPDATE
+	sector_info
+SET
+	state=200,
+    snap=0,
+WHERE
+	id=?
+	
+`, sid); err != nil {
+		return errors.As(err)
+	}
+	return nil
+}
+
 func UpdateSectorState(sid, wid, msg string, state, snap int) error {
 	if err := UploadSectorMonitorState(sid, wid, msg, state, snap); err != nil {
 		return err

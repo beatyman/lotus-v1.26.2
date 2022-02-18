@@ -103,14 +103,14 @@ type SealerConfig struct {
 	ParallelFetchLimit int
 
 	// Local worker config
-	AllowAddPiece            bool
-	AllowPreCommit1          bool
-	AllowPreCommit2          bool
-	AllowCommit              bool
-	AllowUnseal              bool
-	AllowReplicaUpdate       bool
-	AllowProveReplicaUpdate2 bool
-	AllowRegenSectorKey      bool
+	AllowAddPiece               bool
+	AllowPreCommit1             bool
+	AllowPreCommit2             bool
+	AllowCommit                 bool
+	AllowUnseal                 bool
+	AllowReplicaUpdate          bool
+	AllowProveReplicaUpdate2    bool
+	AllowRegenSectorKey         bool
 	RemoteSeal                  bool
 	RemoteWnPoSt                int
 	RemoteWdPoSt                int
@@ -890,12 +890,15 @@ func (m *Manager) ReleaseReplicaUpgrade(ctx context.Context, sector storage.Sect
 	if err := m.index.StorageLock(ctx, sector.ID, storiface.FTNone, storiface.FTUpdateCache|storiface.FTUpdate); err != nil {
 		return xerrors.Errorf("acquiring sector lock: %w", err)
 	}
-
 	if err := m.storage.Remove(ctx, sector.ID, storiface.FTUpdateCache, true, nil); err != nil {
 		return xerrors.Errorf("removing update cache: %w", err)
 	}
 	if err := m.storage.Remove(ctx, sector.ID, storiface.FTUpdate, true, nil); err != nil {
 		return xerrors.Errorf("removing update: %w", err)
+	}
+	//update sqlite state to prove(200)
+	if err := database.UpdateSectorAbortSnapState(storage.SectorName(sector.ID)); err != nil {
+		return err
 	}
 	return nil
 }

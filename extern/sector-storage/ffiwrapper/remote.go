@@ -80,8 +80,13 @@ func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 }
 
 func (sb *Sealer) PledgeSector(ctx context.Context, sector storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
-	log.Infof("DEBUG:PledgeSector in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
-	defer log.Infof("DEBUG:PledgeSector out,%+v", sector.ID)
+	snap := false
+	if v := ctx.Value("SNAP"); v != nil {
+		snap = v.(bool)
+	}
+
+	log.Infof("DEBUG:PledgeSector in(remote:%t),%+v, snap(%v)", sb.remoteCfg.SealSector, sector.ID, snap)
+	defer log.Infof("DEBUG:PledgeSector out,%+v, snap(%v)", sector.ID, snap)
 	if len(sizes) == 0 {
 		log.Infof("No sizes for pledge %+v", sector.ID)
 		return nil, nil
@@ -92,10 +97,6 @@ func (sb *Sealer) PledgeSector(ctx context.Context, sector storage.SectorRef, ex
 		return sb.pledgeSector(ctx, sector, existingPieceSizes, sizes...)
 	}
 
-	snap := false
-	if v := ctx.Value("SNAP"); v != nil {
-		snap = v.(bool)
-	}
 	call := workerCall{
 		// no need worker id
 		task: WorkerTask{

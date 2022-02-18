@@ -1041,16 +1041,16 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		log.Infow("pledge task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+		log.Infow("pledge task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 		r.dictBusyRW.RLock()
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
 		if ok || !r.LimitParallel(WorkerPledge, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
-			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 		} else {
-			log.Infow("pledge task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+			log.Infow("pledge task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 			wc.task.WorkerID = ""
 			sb.returnTaskWithoutCounter(*wc)
 			time.Sleep(time.Second * 3)
@@ -1081,16 +1081,16 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		log.Infow("p1 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+		log.Infow("p1 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 		r.dictBusyRW.RLock()
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
 		if ok || !r.LimitParallel(WorkerPreCommit1, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
-			log.Infow("p1 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+			log.Infow("p1 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 		} else {
-			log.Infow("p1 task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+			log.Infow("p1 task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 			sb.returnTaskWithoutCounter(*wc)
 			time.Sleep(time.Second * 3)
 		}
@@ -1120,16 +1120,16 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
-		log.Infow("p2 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+		log.Infow("p2 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 		r.dictBusyRW.RLock()
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
 		if ok || !r.LimitParallel(WorkerPreCommit2, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
-			log.Infow("p2 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+			log.Infow("p2 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 		} else {
-			log.Infow("p2 task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key())
+			log.Infow("p2 task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 			sb.returnTaskWithoutCounter(*wc)
 			time.Sleep(time.Second * 3)
 		}
@@ -1414,7 +1414,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 }
 
 func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res SealRes, interrupt bool) {
-	log.Infow("task sending", "worker-id", r.cfg.ID, "task-key", task.Key())
+	log.Infow("task sending", "worker-id", r.cfg.ID, "task-key", task.Key(), "snap", task.Snap)
 
 	taskKey := task.Key()
 	resCh := make(chan SealRes)
@@ -1448,13 +1448,13 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	}()
 
 	// send the task to daemon work.
-	log.Infof("DEBUG: send task %s to %s (locked:%s)", task.Key(), r.cfg.ID, task.WorkerID)
+	log.Infof("DEBUG: send task %s to %s (locked:%s) (snap:%v)", task.Key(), r.cfg.ID, task.WorkerID, task.Snap)
 	select {
 	case <-ctx.Done():
-		log.Infof("user canceled:%s", taskKey)
+		log.Infof("user canceled:%s (snap:%v)", taskKey, task.Snap)
 		return SealRes{}, true
 	case <-r.ctx.Done():
-		log.Infof("worker canceled:%s", taskKey)
+		log.Infof("worker canceled:%s (snap:%v)", taskKey, task.Snap)
 		return SealRes{}, true
 	case r.sealTasks <- task:
 	}
@@ -1462,17 +1462,17 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	// wait for the TaskDone called
 	select {
 	case <-ctx.Done():
-		log.Infof("user canceled:%s", taskKey)
+		log.Infof("user canceled:%s (snap:%v)", taskKey, task.Snap)
 		return SealRes{}, true
 	case <-r.ctx.Done():
-		log.Infof("worker canceled:%s", taskKey)
+		log.Infof("worker canceled:%s (snap:%v)", taskKey, task.Snap)
 		return SealRes{}, true
 	case <-sb.stopping:
-		log.Infof("sb stoped:%s", taskKey)
+		log.Infof("sb stoped:%s (snap:%v)", taskKey, task.Snap)
 		return SealRes{}, true
 	case res := <-resCh:
 		// send the result back to the caller
-		log.Infof("task return result:%v", taskKey)
+		log.Infof("task return result:%v (snap:%v)", taskKey, task.Snap)
 		return res, false
 	}
 }
