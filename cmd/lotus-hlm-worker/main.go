@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/filecoin-project/lotus/buried"
 	"github.com/filecoin-project/lotus/buried/utils"
-	worker2 "github.com/filecoin-project/lotus/buried/worker"
 	"github.com/filecoin-project/lotus/lib/tracing"
 	"github.com/filecoin-project/lotus/monitor"
 	"huangdong2012/filecoin-monitor/model"
@@ -349,32 +347,32 @@ var runCmd = &cli.Command{
 		}
 
 		// init worker configuration
-		//workerCfg := ffiwrapper.WorkerCfg{
-		//	ID:                 workerId,
-		//	IP:                 netIp,
-		//	SvcUri:             serverAddr,
-		//	MaxTaskNum:         int(cctx.Uint("max-tasks")),
-		//	CacheMode:          int(cctx.Uint("cache-mode")),
-		//	TransferBuffer:     int(cctx.Uint("transfer-buffer")),
-		//	ParallelPledge:     int(cctx.Uint("parallel-addpiece")),
-		//	ParallelPrecommit1: int(cctx.Uint("parallel-precommit1")),
-		//	ParallelPrecommit2: int(cctx.Uint("parallel-precommit2")),
-		//	ParallelCommit:     int(cctx.Uint("parallel-commit")),
-		//	Commit2Srv:         cctx.Bool("commit2-srv"),
-		//	WdPoStSrv:          cctx.Bool("wdpost-srv"),
-		//	WnPoStSrv:          cctx.Bool("wnpost-srv"),
-		//}
-		workerCfg := worker2.GetConfigWorker(cctx, workerId, netIp, serverAddr)
-		cfgbyte, _ := json.Marshal(workerCfg)
-		log.Info(string(cfgbyte), "=============================22222222222")
+		workerCfg := ffiwrapper.WorkerCfg{
+			ID:                 workerId,
+			IP:                 netIp,
+			SvcUri:             serverAddr,
+			MaxTaskNum:         int(cctx.Uint("max-tasks")),
+			CacheMode:          int(cctx.Uint("cache-mode")),
+			TransferBuffer:     int(cctx.Uint("transfer-buffer")),
+			ParallelPledge:     int(cctx.Uint("parallel-addpiece")),
+			ParallelPrecommit1: int(cctx.Uint("parallel-precommit1")),
+			ParallelPrecommit2: int(cctx.Uint("parallel-precommit2")),
+			ParallelCommit:     int(cctx.Uint("parallel-commit")),
+			Commit2Srv:         cctx.Bool("commit2-srv"),
+			WdPoStSrv:          cctx.Bool("wdpost-srv"),
+			WnPoStSrv:          cctx.Bool("wnpost-srv"),
+		}
+		//workerCfg := worker2.GetConfigWorker(cctx, workerId, netIp, serverAddr)
+		//cfgbyte, _ := json.Marshal(workerCfg)
+		//log.Info(string(cfgbyte), "=============================22222222222")
 		workerApi := newRpcServer(workerCfg.ID, minerRepo, minerSealer)
 
 		minerNo := utils.GetMinerAddr()
 		log.Infof("==============get addr :%s", minerNo)
 
-		go func() {
-			worker2.InitWatch(ctx, workerId, nodeApi)
-		}()
+		//go func() {
+		//	worker2.InitWatch(ctx, workerId, nodeApi)
+		//}()
 		//添加监控
 		kind := model.PackageKind_Worker
 		if workerCfg.WdPoStSrv {
