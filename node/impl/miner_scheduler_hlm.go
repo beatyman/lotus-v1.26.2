@@ -92,6 +92,10 @@ func (hs *HlmMinerScheduler) WorkerDone(ctx context.Context, res ffiwrapper.Seal
 	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskDone(ctx, res)
 }
 
+func (hs *HlmMinerScheduler) WorkerFileWatch(ctx context.Context, res ffiwrapper.WorkerCfg) error {
+	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).WorkerFileWatch(ctx, res)
+}
+
 func (hs *HlmMinerScheduler) WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error) {
 	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).TaskWorkingById(sid)
 }
@@ -151,6 +155,12 @@ func (hs *HlmMinerScheduler) CancelStorageNode(ctx context.Context, sectorId str
 }
 func (hs *HlmMinerScheduler) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
 	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).HlmSectorGetState(sid)
+}
+func (hs *HlmMinerScheduler) GetWorkerBusyTask(ctx context.Context, wid string) (int, error) {
+	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).GetWorkerBusyTask(ctx, wid)
+}
+func (hs *HlmMinerScheduler) RequestDisableWorker(ctx context.Context, wid string) error {
+	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RequestDisableWorker(ctx, wid)
 }
 
 // for build testing

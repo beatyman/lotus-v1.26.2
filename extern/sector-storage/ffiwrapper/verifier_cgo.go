@@ -76,6 +76,7 @@ func (sb *Sealer) pubExtendedSectorToPriv(ctx context.Context, mid abi.ActorID, 
 		if _, faulty := fmap[s.ID.Number]; faulty {
 			continue
 		}
+
 		paths := storiface.SectorPaths{
 			ID:       s.SectorID(),
 			Unsealed: s.UnsealedFile(),

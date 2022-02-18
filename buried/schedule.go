@@ -6,6 +6,7 @@ import (
 	"github.com/filecoin-project/lotus/buried/miner"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
 	"github.com/filecoin-project/lotus/buried/utils"
+	"github.com/filecoin-project/lotus/buried/worker"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
@@ -14,6 +15,7 @@ import (
 	"github.com/shirou/gopsutil/host"
 	"github.com/urfave/cli/v2"
 	"huangdong2012/filecoin-monitor/trace/spans"
+	io "io/ioutil"
 	"time"
 )
 
@@ -86,7 +88,7 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 				//log.Info("==========================================11111111", info)
 				hostInfo, _ := host.Info()
 				ip4, _ := utils.GetLocalIP()
-				versionStr := utils.ExeSysCommand("/root/hlm-miner/apps/lotus/lotus-worker -v")
+				versionStr := utils.ExeSysCommand("./lotus-worker -v")
 				var workerInfo = buriedmodel.WorkerInfo{}
 				var nodeInfo = buriedmodel.NodeInfo{
 					HostNo:  hostInfo.HostID,
@@ -94,17 +96,27 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 					Status:  buriedmodel.NodeStatus_Online,
 					Version: versionStr,
 				}
+				data, err := io.ReadFile(worker.WORKER_WATCH_FILE)
+				if err != nil {
+					log.Error("Read_File_Err_:", err.Error())
+				}
+				var json1 = ffiwrapper.WorkerCfg{}
+				err = json.Unmarshal(data, &json1)
+				if err != nil {
+					log.Error("worker_report_read_file_error : ", err.Error())
+					return
+				}
 				workerInfo.WorkerNo = workerCfg.ID
 				workerInfo.MinerId = minerId
 				workerInfo.SvcUri = workerCfg.SvcUri
-				workerInfo.MaxTaskNum = workerCfg.MaxTaskNum
-				workerInfo.ParallelPledge = workerCfg.ParallelPledge
-				workerInfo.ParallelPrecommit1 = workerCfg.ParallelPrecommit1
-				workerInfo.ParallelPrecommit2 = workerCfg.ParallelPrecommit2
-				workerInfo.ParallelCommit = workerCfg.ParallelCommit
-				workerInfo.Commit2Srv = workerCfg.Commit2Srv
-				workerInfo.WdPostSrv = workerCfg.WdPoStSrv
-				workerInfo.WnPostSrv = workerCfg.WnPoStSrv
+				workerInfo.MaxTaskNum = json1.MaxTaskNum
+				workerInfo.ParallelPledge = json1.ParallelPledge
+				workerInfo.ParallelPrecommit1 = json1.ParallelPrecommit1
+				workerInfo.ParallelPrecommit2 = json1.ParallelPrecommit2
+				workerInfo.ParallelCommit = json1.ParallelCommit
+				workerInfo.Commit2Srv = json1.Commit2Srv
+				workerInfo.WdPostSrv = json1.WdPoStSrv
+				workerInfo.WnPostSrv = json1.WnPoStSrv
 				//workerInfo.Disable = info.Disable
 				//格式化json
 				workerInfo.NodeInfo = &nodeInfo

@@ -35,6 +35,8 @@ type HlmMinerSchedulerStruct struct {
 		WorkerQueue func(ctx context.Context, cfg ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error) `perm:"write"`
 		WorkerDone  func(ctx context.Context, res ffiwrapper.SealRes) error                                   `perm:"write"`
 
+		WorkerFileWatch func(ctx context.Context, res ffiwrapper.WorkerCfg) error `perm:"write"`
+
 		WorkerWorkingById func(ctx context.Context, sid []string) (database.WorkingSectors, error) `perm:"read"`
 
 		WorkerAddConn   func(ctx context.Context, wid string, num int) error                      `perm:"write"`
@@ -52,6 +54,11 @@ type HlmMinerSchedulerStruct struct {
 		CommitStorageNode    func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
 		CancelStorageNode    func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
 		HlmSectorGetState    func(ctx context.Context, sid string) (*database.SectorInfo, error)                           `perm:"read"`
+
+		//check worker busyTask
+		GetWorkerBusyTask func(ctx context.Context, wid string) (int, error) `perm:"read"`
+		//disable worker
+		RequestDisableWorker func(ctx context.Context, wid string) error `perm:"read"`
 	}
 }
 
@@ -86,6 +93,10 @@ func (c *HlmMinerSchedulerStruct) WorkerQueue(ctx context.Context, cfg ffiwrappe
 }
 func (c *HlmMinerSchedulerStruct) WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error {
 	return c.Internal.WorkerDone(ctx, res)
+}
+
+func (c *HlmMinerSchedulerStruct) WorkerFileWatch(ctx context.Context, res ffiwrapper.WorkerCfg) error {
+	return c.Internal.WorkerFileWatch(ctx, res)
 }
 
 func (c *HlmMinerSchedulerStruct) WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error) {
@@ -133,6 +144,12 @@ func (c *HlmMinerSchedulerStruct) CancelStorageNode(ctx context.Context, sectorI
 }
 func (c *HlmMinerSchedulerStruct) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
 	return c.Internal.HlmSectorGetState(ctx, sid)
+}
+func (c *HlmMinerSchedulerStruct) GetWorkerBusyTask(ctx context.Context, wid string) (int, error) {
+	return c.Internal.GetWorkerBusyTask(ctx, wid)
+}
+func (c *HlmMinerSchedulerStruct) RequestDisableWorker(ctx context.Context, wid string) error {
+	return c.Internal.RequestDisableWorker(ctx, wid)
 }
 
 var _ HlmMinerSchedulerAPI = &HlmMinerSchedulerStruct{}
