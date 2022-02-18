@@ -78,44 +78,23 @@ func (sb *Sealer) pubExtendedSectorToPriv(ctx context.Context, mid abi.ActorID, 
 		}
 
 		paths := storiface.SectorPaths{
-			ID:       s.SectorID(),
-			Unsealed: s.UnsealedFile(),
-			Sealed:   s.SealedFile(),
-			Cache:    s.CachePath(),
-		}
-		//todo fix zhangxin
-		/*
-		sid := storage.SectorRef{
-			ID:        abi.SectorID{Miner: mid, Number: s.SectorNumber},
-			ProofType: s.SealProof,
+			ID:          s.SectorID(),
+			Unsealed:    s.UnsealedFile(),
+			Sealed:      s.SealedFile(),
+			Cache:       s.CachePath(),
+			Update:      s.UpdateFile(),
+			UpdateCache: s.UpdateCachePath(),
 		}
 		proveUpdate := s.SectorKey != nil
 		var cache string
 		var sealed string
 		if proveUpdate {
-			log.Debugf("Posting over updated sector for sector id: %d", s.SectorNumber)
-			paths, d, err := sb.sectors.AcquireSector(ctx, sid, storiface.FTUpdateCache|storiface.FTUpdate, 0, storiface.PathStorage)
-			if err != nil {
-				log.Warnw("failed to acquire FTUpdateCache and FTUpdate of sector, skipping", "sector", sid.ID, "error", err)
-				skipped = append(skipped, sid.ID)
-				continue
-			}
-			doneFuncs = append(doneFuncs, d)
 			cache = paths.UpdateCache
 			sealed = paths.Update
 		} else {
-			log.Debugf("Posting over sector key sector for sector id: %d", s.SectorNumber)
-			paths, d, err := sb.sectors.AcquireSector(ctx, sid, storiface.FTCache|storiface.FTSealed, 0, storiface.PathStorage)
-			if err != nil {
-				log.Warnw("failed to acquire FTCache and FTSealed of sector, skipping", "sector", sid.ID, "error", err)
-				skipped = append(skipped, sid.ID)
-				continue
-			}
-			doneFuncs = append(doneFuncs, d)
 			cache = paths.Cache
 			sealed = paths.Sealed
 		}
-		*/
 		postProofType, err := rpt(s.ProofType)
 		if err != nil {
 			done()
@@ -128,9 +107,9 @@ func (sb *Sealer) pubExtendedSectorToPriv(ctx context.Context, mid abi.ActorID, 
 			SealedCID:    s.SealedCID,
 		}
 		out = append(out, ffi.PrivateSectorInfo{
-			CacheDirPath:     paths.Cache,
+			CacheDirPath:     cache,
 			PoStProofType:    postProofType,
-			SealedSectorPath: paths.Sealed,
+			SealedSectorPath: sealed,
 			SectorInfo:       ffiInfo,
 		})
 	}
