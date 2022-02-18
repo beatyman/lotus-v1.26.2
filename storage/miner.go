@@ -354,6 +354,7 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.ExtendedS
 		pSectors = append(pSectors, storage.ProofSectorInfo{
 			SectorRef: rSector,
 			SealedCID: s.SealedCID,
+			SectorKey: s.SectorKey,
 		})
 	}
 	// check files
