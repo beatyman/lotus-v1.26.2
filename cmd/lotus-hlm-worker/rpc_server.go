@@ -198,7 +198,6 @@ func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,
 	if err := w.loadMinerStorage(ctx, napi); err != nil {
 		return api.WindowPoStResp{}, errors.As(err)
 	}
-	log.Infof("GenerateWindowPoSt: %+v ", sectorInfo)
 	proofs, ignore, err := w.sb.GenerateWindowPoSt(ctx, minerID, sectorInfo, randomness)
 	if err != nil {
 		log.Warnf("ignore len:%d", len(ignore))
