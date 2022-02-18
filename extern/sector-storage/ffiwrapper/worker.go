@@ -1496,8 +1496,8 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	rres, ok := _remoteResult[res.TaskID]
 	_remoteResultLk.Unlock()
 	if !ok { //等待fsm触发任务重做->_remoteResult[res.TaskID]有值->TaskDone成功
-		//return errConn //对WorkerDone放行
-		return errors.ErrNoData.As(res.TaskID)
+		return errConn
+		//return errors.ErrNoData.As(res.TaskID)
 	}
 	if rres == nil {
 		log.Errorf("Not expect here:%+v", res)
@@ -1528,6 +1528,41 @@ func (sb *Sealer) TaskDone(ctx context.Context, res SealRes) error {
 	}
 }
 
+// export for rpc service
+func (sb *Sealer) WorkerFileWatch(ctx context.Context, res WorkerCfg) error {
+
+	remotesInter, ok := _remotes.Load(res.ID)
+	if !ok {
+		return errors.New("not_found_worker_" + res.ID)
+	}
+	remote1 := remotesInter.(*remote)
+	log.Info("=====================before=================", remote1.cfg.MaxTaskNum, "===after=====", res.MaxTaskNum, "======", remote1.cfg.ID, "=====", remote1.cfg.SvcUri)
+	var workerCfg = WorkerCfg{
+		ID:             remote1.cfg.ID,
+		IP:             remote1.cfg.IP,
+		SvcUri:         remote1.cfg.SvcUri,
+		Cycle:          remote1.cfg.Cycle,
+		Retry:          remote1.cfg.Retry,
+		Busy:           remote1.cfg.Busy,
+		C2Sids:         remote1.cfg.C2Sids,
+		CacheMode:      remote1.cfg.CacheMode,
+		TransferBuffer: remote1.cfg.TransferBuffer,
+
+		MaxTaskNum:         res.MaxTaskNum,
+		ParallelPledge:     res.ParallelPledge,
+		ParallelPrecommit1: res.ParallelPrecommit1,
+		ParallelPrecommit2: res.ParallelPrecommit2,
+		ParallelCommit:     res.ParallelCommit,
+		Commit2Srv:         res.Commit2Srv,
+		WdPoStSrv:          res.WdPoStSrv,
+		WnPoStSrv:          res.WnPoStSrv,
+	}
+
+	remote1.cfg = workerCfg
+	_remotes.Store(workerCfg.ID, remote1)
+	return nil
+}
+
 // export for rpc service to syncing which tasks are working.
 func (sb *Sealer) TaskWorking(workerId string) (database.WorkingSectors, error) {
 	return database.GetWorking(workerId)
@@ -1539,4 +1574,14 @@ func (sb *Sealer) TaskWorkingById(sid []string) (database.WorkingSectors, error)
 // just implement the interface
 func (sb *Sealer) CheckProvable(ctx context.Context, spt abi.RegisteredSealProof, sectors []abi.SectorID) ([]abi.SectorID, error) {
 	panic("Should not call at here")
+}
+func (sb *Sealer) GetWorkerBusyTask(ctx context.Context, wid string) (int, error) {
+	tasks, err := sb.TaskWorking(wid)
+	if err != nil {
+		return 0, err
+	}
+	return len(tasks), nil
+}
+func (sb *Sealer) RequestDisableWorker(ctx context.Context, wid string) error {
+	return sb.DisableWorker(ctx, wid, true)
 }

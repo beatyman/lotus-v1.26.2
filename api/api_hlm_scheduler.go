@@ -28,6 +28,8 @@ type HlmMinerSchedulerAPI interface {
 	WorkerQueue(context.Context, ffiwrapper.WorkerCfg) (<-chan ffiwrapper.WorkerTask, error)
 	WorkerDone(ctx context.Context, res ffiwrapper.SealRes) error
 
+	WorkerFileWatch(ctx context.Context, res ffiwrapper.WorkerCfg) error
+
 	WorkerWorkingById(ctx context.Context, sid []string) (database.WorkingSectors, error)
 
 	WorkerAddConn(ctx context.Context, wid string, num int) error
@@ -45,4 +47,6 @@ type HlmMinerSchedulerAPI interface {
 	CommitStorageNode(ctx context.Context, sectorId string, kind int) error
 	CancelStorageNode(ctx context.Context, sectorId string, kind int) error
 	HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error)
+	GetWorkerBusyTask(ctx context.Context, wid string) (int, error)
+	RequestDisableWorker(ctx context.Context, wid string) error
 }

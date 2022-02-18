@@ -51,6 +51,25 @@ type WorkerInfo struct {
 	Disable            bool   `json:"disable"`
 }
 
+type WorkerInfoCfg struct {
+	ID string // worker id, default is empty for same worker.
+	IP string // worker current ip
+
+	//  the seal data
+	SvcUri string
+
+	// function switch
+	MaxTaskNum         int // need more than 0
+	ParallelPledge     int
+	ParallelPrecommit1 int // unseal is shared with this parallel
+	ParallelPrecommit2 int
+	ParallelCommit     int
+
+	Commit2Srv bool // need ParallelCommit2 > 0
+	WdPoStSrv  bool
+	WnPoStSrv  bool
+}
+
 type NodeInfo struct {
 	HostIP    string     `json:"host_ip"`    //主机IP
 	HostNo    string     `json:"host_no"`    //主机编号
