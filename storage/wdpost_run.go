@@ -958,6 +958,7 @@ func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, 
 				SectorFile: *sFile,
 			},
 			SealedCID: sector.SealedCID,
+			SectorKey: sector.SectorKey,
 		})
 		return nil
 	}); err != nil {
