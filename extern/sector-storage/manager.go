@@ -898,7 +898,7 @@ func (m *Manager) ReleaseReplicaUpgrade(ctx context.Context, sector storage.Sect
 	}
 	//update sqlite state to prove(200)
 	if err := database.UpdateSectorAbortSnapState(storage.SectorName(sector.ID)); err != nil {
-		return err
+		log.Error(err)
 	}
 	return nil
 }

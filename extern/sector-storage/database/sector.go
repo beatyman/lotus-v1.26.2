@@ -472,7 +472,7 @@ UPDATE
 	sector_info
 SET
 	state=200,
-    snap=0,
+    snap=0
 WHERE
 	id=?
 	
