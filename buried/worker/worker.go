@@ -3,15 +3,18 @@ package worker
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	buriedmodel "github.com/filecoin-project/lotus/buried/model"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/lib/report"
-	"github.com/gwaylib/log"
+	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
+	"gopkg.in/yaml.v2"
 	io "io/ioutil"
+	"os"
 	"strings"
 )
+
+var log = logging.Logger("worker")
 
 // CollectSectorState ::q
 func CollectSectorState(sectorStateInfo *buriedmodel.SectorState) error {
@@ -133,60 +136,95 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 		WnPoStSrv:          cctx.Bool("wnpost-srv"),
 	}
 	//判断文件是否存在，如果存在则使用文件里面的任务数，如果不存在，则使用第一次配置的。
+	log.Info("=========================WORKER_WATCH_FILE====================", WORKER_WATCH_FILE)
 	isExist, err := ffiwrapper.PathExists(WORKER_WATCH_FILE)
 	log.Info("=============worker-watch_file===========", isExist)
 	if err != nil {
 		log.Errorf("read_worker-watch_file_err: %s", err)
 		return workerCfg
 	}
-	var json1 = buriedmodel.WorkerInfoCfg{}
+	t := buriedmodel.WorkerConf{}
 	if isExist {
-		//读取文件，判断id是否一致，不一致则修改id
+		//把yaml形式的字符串解析成struct类型
+		//读取文件
 		data, err := io.ReadFile(WORKER_WATCH_FILE)
 		if err != nil {
 			log.Error("Read_File_Err_:", err.Error())
-			return workerCfg
+			t = buriedmodel.WorkerConf{
+				ID:     workerId,
+				IP:     netIp,
+				SvcUri: serverAddr,
+			}
 		}
-		err = json.Unmarshal(data, &json1)
+		err = yaml.Unmarshal(data, &t)
 		if err != nil {
-			log.Error("json_Read_File_Err_:", err.Error())
-			return workerCfg
+			log.Error("Read_File_Err_yml:", err.Error())
+			t = buriedmodel.WorkerConf{
+				ID:     workerId,
+				IP:     netIp,
+				SvcUri: serverAddr,
+			}
 		}
-		//todo 讨论处理， 是否一台机器起一个worker? 还是根据worker进程来判断文件
-		if json1.ID != workerId {
-
+		if err != nil {
+			log.Error("Read_File_Err_Worker_Conf_:", err.Error())
+			t = buriedmodel.WorkerConf{
+				ID:     workerId,
+				IP:     netIp,
+				SvcUri: serverAddr,
+			}
 		}
-		workerCfg.MaxTaskNum = json1.MaxTaskNum
-		workerCfg.ParallelPledge = json1.ParallelPledge
-		workerCfg.ParallelPrecommit1 = json1.ParallelPrecommit1
-		workerCfg.ParallelPrecommit2 = json1.ParallelPrecommit2
-		workerCfg.ParallelCommit = json1.ParallelCommit
-		workerCfg.Commit2Srv = json1.Commit2Srv
-		workerCfg.WdPoStSrv = json1.WdPoStSrv
-		workerCfg.WnPoStSrv = json1.WnPoStSrv
-		json1.SvcUri = workerCfg.SvcUri
-		json1.ID = workerCfg.ID
+		workerCfg.MaxTaskNum = t.MaxTaskNum
+		workerCfg.ParallelPledge = t.ParallelPledge
+		workerCfg.ParallelPrecommit1 = t.ParallelPrecommit1
+		workerCfg.ParallelPrecommit2 = t.ParallelPrecommit2
+		workerCfg.ParallelCommit = t.ParallelCommit
+		workerCfg.Commit2Srv = t.Commit2Srv
+		workerCfg.WdPoStSrv = t.WdPoStSrv
+		workerCfg.WnPoStSrv = t.WnPoStSrv
+		t.SvcUri = workerCfg.SvcUri
+		t.ID = workerCfg.ID
 	} else {
 		// init worker configuration
-		json1.MaxTaskNum = workerCfg.MaxTaskNum
-		json1.ParallelPledge = workerCfg.ParallelPledge
-		json1.ParallelPrecommit1 = workerCfg.ParallelPrecommit1
-		json1.ParallelPrecommit2 = workerCfg.ParallelPrecommit2
-		json1.ParallelCommit = workerCfg.ParallelCommit
-		json1.Commit2Srv = workerCfg.Commit2Srv
-		json1.WdPoStSrv = workerCfg.WdPoStSrv
-		json1.WnPoStSrv = workerCfg.WnPoStSrv
-		json1.ID = workerCfg.ID
-		json1.IP = workerCfg.IP
-		json1.SvcUri = workerCfg.SvcUri
+		t.MaxTaskNum = workerCfg.MaxTaskNum
+		t.ParallelPledge = workerCfg.ParallelPledge
+		t.ParallelPrecommit1 = workerCfg.ParallelPrecommit1
+		t.ParallelPrecommit2 = workerCfg.ParallelPrecommit2
+		t.ParallelCommit = workerCfg.ParallelCommit
+		t.Commit2Srv = workerCfg.Commit2Srv
+		t.WdPoStSrv = workerCfg.WdPoStSrv
+		t.WnPoStSrv = workerCfg.WnPoStSrv
+		t.ID = workerCfg.ID
+		t.IP = workerCfg.IP
+		t.SvcUri = workerCfg.SvcUri
+		var str bytes.Buffer
+		_ = json.Indent(&str, []byte(ENVIRONMENT_VARIABLE), "", "    ")
+		t.EnvironmentVariable = str.String()
+		str.Reset()
+		_ = json.Indent(&str, []byte(FIEXED_ENV), "", "    ")
+		t.FixedEnv = str.String()
 	}
-	var str bytes.Buffer
-	byte_json, _ := json.Marshal(json1)
-	_ = json.Indent(&str, byte_json, "", "    ")
-	var d1 = []byte(str.String())
-	err2 := io.WriteFile(WORKER_WATCH_FILE, d1, 0666) //写入文件(字节数组)
+	if len(t.FixedEnv) > 0 {
+		var m map[string]string
+		json.Unmarshal([]byte(t.FixedEnv), &m)
+		for k, v := range m {
+			os.Setenv(k, v)
+		}
+	}
+	if len(t.EnvironmentVariable) > 0 {
+		var m map[string]string
+		json.Unmarshal([]byte(t.EnvironmentVariable), &m)
+		for k, v := range m {
+			os.Setenv(k, v)
+		}
+	}
+
+	d, err := yaml.Marshal(&t)
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+	err2 := io.WriteFile(WORKER_WATCH_FILE, d, 0666) //写入文件(字节数组)
 	if err2 != nil {
-		fmt.Errorf(err2.Error())
+		log.Errorf(err2.Error())
 	}
 	return workerCfg
 }

@@ -4,98 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/buried/model"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/fsnotify/fsnotify"
-	"github.com/gwaylib/log"
-	io "io/ioutil"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"os"
 	"reflect"
 )
 
 var WORKER_WATCH_DIR = "../../etc"
 var WORKER_WATCH_FILE = "../../etc/worker_file.json"
+var FIEXED_ENV = "{\"IPFS_GATEWAY\":\"https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs/\",\"FIL_PROOFS_USE_GPU_COLUMN_BUILDER\":\"0\",\"FIL_PROOFS_USE_GPU_TREE_BUILDER\":\"0\",\"FIL_PROOFS_MAXIMIZE_CACHING\":\"1\",\"FIL_PROOFS_USE_MULTICORE_SDR\":\"1\",\"FIL_PROOFS_PARENT_CACHE\":\"/data/cache/filecoin-parents\",\"FIL_PROOFS_PARAMETER_CACHE\":\"/data/cache/filecoin-proof-parameters/v28\",\"US3\":\"\",\"RUST_LOG\":\"info\",\"RUST_BACKTRACE\":\"1\"}"
+var ENVIRONMENT_VARIABLE = "{\"ENABLE_COPY_MERKLE_TREE\":\"1\",\"ENABLE_HUGEPAGES\":\"0\",\"ENABLE_P1_TWO_CORES\":\"0\"}"
 
-var cfg_worker = ffiwrapper.WorkerCfg{}
-
-//func Watch(watcher *fsnotify.Watcher) {
-//	log.Info("===================worker_watch=================================")
-//	for {
-//		select {
-//		case event, ok := <-watcher.Events:
-//			if !ok {
-//				return
-//			}
-//			if event.Op&fsnotify.Write == fsnotify.Write {
-//				data, err := io.ReadFile(WORKER_WATCH_FILE)
-//				if err != nil {
-//					panic(err)
-//				}
-//				var json1 = ffiwrapper.WorkerCfg{}
-//				err = json.Unmarshal(data, &json1)
-//				if !reflect.DeepEqual(cfg_worker, json1) {
-//					cfg_worker = json1
-//					log.Info(cfg_worker, "================3333333333333333======================˚")
-//				}
-//			}
-//
-//		case err, ok := <-watcher.Errors:
-//			if !ok {
-//				return
-//			}
-//			log.Println("error:", err)
-//		}
-//	}
-//}
-
-func InitWorkerWatch() chan bool {
-	watch, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer watch.Close()
-	//添加要监控的对象，文件或文件夹
-	err = watch.Add(WORKER_WATCH_DIR)
-	if err != nil {
-		log.Fatal(err)
-	}
-	//我们另启一个goroutine来处理监控对象的事件
-	go func() {
-		for {
-			select {
-			case ev := <-watch.Events:
-				{
-					//判断事件发生的类型，如下5种
-					// Create 创建
-					// Write 写入
-					// Remove 删除
-					// Rename 重命名
-					// Chmod 修改权限
-					if ev.Op&fsnotify.Create == fsnotify.Create {
-						log.Println("创建文件 : ", ev.Name)
-					}
-					if ev.Op&fsnotify.Write == fsnotify.Write {
-						log.Println("写入文件 : ", ev.Name)
-					}
-					if ev.Op&fsnotify.Remove == fsnotify.Remove {
-						log.Println("删除文件 : ", ev.Name)
-					}
-					if ev.Op&fsnotify.Rename == fsnotify.Rename {
-						log.Println("重命名文件 : ", ev.Name)
-					}
-					if ev.Op&fsnotify.Chmod == fsnotify.Chmod {
-						log.Println("修改权限 : ", ev.Name)
-					}
-				}
-			case err := <-watch.Errors:
-				{
-					log.Println("error : ", err)
-					return
-				}
-			}
-		}
-	}()
-	done := make(chan bool)
-	return done
-}
+var cfg_worker = model.WorkerConf{}
 
 func InitWatch(ctx context.Context, workerId string, napi *api.RetryHlmMinerSchedulerAPI) chan bool {
 	log.Info("=================")
@@ -119,24 +42,71 @@ func Watch(ctx context.Context, watcher *fsnotify.Watcher, workerId string, napi
 	for {
 		select {
 		case event, ok := <-watcher.Events:
-			log.Println(event.Op.String(), "===========", event.Name)
+			log.Info(event.Op.String(), "===========", event.Name, "=========", WORKER_WATCH_FILE)
 			if !ok {
 				return
 			}
 			if event.Op&fsnotify.Write == fsnotify.Write {
 				if event.Name == WORKER_WATCH_FILE {
-					data, err := io.ReadFile(WORKER_WATCH_FILE)
+					t := model.WorkerConf{}
+					//把yaml形式的字符串解析成struct类型
+					//读取文件
+					data, err := ioutil.ReadFile(WORKER_WATCH_FILE)
 					if err != nil {
 						log.Error("Read_File_Err_:", err.Error())
+						t = model.WorkerConf{
+							ID: workerId,
+						}
 					}
-					var json1 = ffiwrapper.WorkerCfg{}
-					err = json.Unmarshal(data, &json1)
+					err = yaml.Unmarshal(data, &t)
+					if err != nil {
+						log.Error("Read_File_Err_yml:", err.Error())
+						t = model.WorkerConf{
+							ID: workerId,
+						}
+					}
+					if err != nil {
+						log.Error("Read_File_Err_Worker_Conf_:", err.Error())
+						t = model.WorkerConf{
+							ID: workerId,
+						}
+					}
+					//修改struct里面的记录
+					if len(t.FixedEnv) > 0 {
+						var m map[string]string
+						json.Unmarshal([]byte(t.FixedEnv), &m)
+						for k, v := range m {
+							os.Setenv(k, v)
+							log.Info("=========key========", k, "=============value========", v, "============os.getenv", os.Getenv(k))
+						}
+					}
+					if len(t.EnvironmentVariable) > 0 {
+						var m map[string]string
+						json.Unmarshal([]byte(t.EnvironmentVariable), &m)
+						for k, v := range m {
+							os.Setenv(k, v)
+							log.Info("=========key========", k, "=============value========", v, "============os.getenv", os.Getenv(k))
+						}
+					}
+					var json1 = ffiwrapper.WorkerCfg{
+						ID:                 t.ID,
+						IP:                 t.IP,
+						SvcUri:             t.SvcUri,
+						MaxTaskNum:         t.MaxTaskNum,
+						ParallelPledge:     t.ParallelPledge,
+						ParallelPrecommit1: t.ParallelPrecommit1,
+						ParallelPrecommit2: t.ParallelPrecommit2,
+						ParallelCommit:     t.ParallelCommit,
+						Commit2Srv:         t.Commit2Srv,
+						WdPoStSrv:          t.WdPoStSrv,
+						WnPoStSrv:          t.WnPoStSrv,
+					}
 					log.Info("==========1=111111111111111=1", cfg_worker)
 					json1.ID = workerId
-					if !reflect.DeepEqual(cfg_worker, json1) {
-						cfg_worker = json1
+					if !reflect.DeepEqual(cfg_worker, t) {
+						cfg_worker = t
 						//发送api
-						err := napi.WorkerFileWatch(ctx, cfg_worker)
+						err := napi.WorkerFileWatch(ctx, json1)
 						if err != nil {
 							log.Error("================WorkerFileWatch_ERR=========", err.Error())
 						}
@@ -149,7 +119,7 @@ func Watch(ctx context.Context, watcher *fsnotify.Watcher, workerId string, napi
 			if !ok {
 				return
 			}
-			log.Println("error:", err)
+			log.Info("error:", err)
 		}
 	}
 }

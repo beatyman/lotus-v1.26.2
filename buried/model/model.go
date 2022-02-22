@@ -35,6 +35,22 @@ type MinerInfo struct {
 	PeerId                  string `json:"peer_id"`
 }
 
+type WorkerConf struct {
+	FixedEnv            string `yaml:"FixedEnv,flow"`
+	ID                  string `yaml:"ID,flow"`
+	IP                  string `yaml:"IP,flow"`
+	SvcUri              string `yaml:"SvcUri,flow"`
+	MaxTaskNum          int    `yaml:"MaxTaskNum,flow"`
+	ParallelPledge      int    `yaml:"ParallelPledge,flow"`
+	ParallelPrecommit1  int    `yaml:"ParallelPrecommit1,flow"`
+	ParallelPrecommit2  int    `yaml:"ParallelPrecommit2,flow"`
+	ParallelCommit      int    `yaml:"ParallelCommit,flow"`
+	Commit2Srv          bool   `yaml:"Commit2Srv,flow"`
+	WdPoStSrv           bool   `yaml:"WdPoStSrv,flow"`
+	WnPoStSrv           bool   `yaml:"WnPoStSrv,flow"`
+	EnvironmentVariable string `yaml:"EnvironmentVariable,flow"`
+}
+
 type WorkerInfo struct {
 	*NodeInfo
 	WorkerNo           string `json:"worker_no"`           //worker编号
