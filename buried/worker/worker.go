@@ -108,7 +108,7 @@ func CollectSectorStateInfo(task ffiwrapper.WorkerTask) error {
 	}
 	reqDataBytes, err := json.Marshal(reqData)
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 
 	go report.SendReport(reqDataBytes)
