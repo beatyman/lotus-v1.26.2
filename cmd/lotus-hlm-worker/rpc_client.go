@@ -90,3 +90,26 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out s
 	}
 	return cli.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType, TaskKey: task.Key()}, c1out)
 }
+
+func CallProveReplicaUpdate2Service(ctx context.Context, sector storage.SectorRef, task ffiwrapper.WorkerTask, vanillaProofs storage.ReplicaVanillaProofs) (storage.ReplicaUpdateProof, error) {
+	mApi, err := GetNodeApi()
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	c2worker, err := mApi.RetrySelectCommit2Service(ctx, task.SectorID)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	if len(c2worker.Proof) > 0 {
+		if data, err := hex.DecodeString(c2worker.Proof); err == nil {
+			log.Infof("Task(%v) Cached ProveReplicaUpdate2 Service: %s", task.Key(), c2worker.WorkerId)
+			return data, nil
+		}
+	}
+	log.Infof("Task(%v) Selected ProveReplicaUpdate2 Service: %s", task.Key(), c2worker.Url)
+	cli, err := GetWorkerClient(ctx, mApi, c2worker.Url)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	return cli.ProveReplicaUpdate2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType, TaskKey: task.Key(), SectorKey: task.SectorKey, NewUnsealed: task.NewUnsealed, NewSealed: task.NewSealed}, vanillaProofs)
+}

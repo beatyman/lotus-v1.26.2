@@ -616,8 +616,11 @@ func (sb *Sealer) UnlockGPUService(ctx context.Context, rst *Commit2Result) erro
 	if err != nil {
 		sid = rst.TaskKey // for service called.
 	}
-
-	c2cache.set(rst)
+	if rst.Snap {
+		log.Warn("pass snap result ")
+	} else {
+		c2cache.set(rst)
+	}
 	r.freeTask(sid)
 	return nil
 }
