@@ -188,14 +188,17 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storage.SectorRe
 		if up != "" {
 			sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
 			unsealed := filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
+			log.Infof("unseal path : %+v", unsealed)
 			return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
 				size := size - abi.PaddedPieceSize(startOffsetAligned)
 				offset := storiface.UnpaddedByteIndex(storiface.PaddedByteIndex(offset) + startOffsetAligned)
+				log.Infof("start download from oss: %+v ,%+v", size, offset)
 				r, _, err := partialfile.ReadPieceQiniu(ctx, unsealed, sector, offset, size.Unpadded())
 				if err != nil {
 					log.Error(err)
 					return nil, err
 				}
+				log.Info("download from oss success")
 				return struct {
 					io.Reader
 					io.Closer
