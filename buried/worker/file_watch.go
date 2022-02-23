@@ -14,7 +14,7 @@ import (
 )
 
 var WORKER_WATCH_DIR = "../../etc"
-var WORKER_WATCH_FILE = "../../etc/worker_file.json"
+var WORKER_WATCH_FILE = "../../etc/worker.yml"
 var FIEXED_ENV = "{\"IPFS_GATEWAY\":\"https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs/\",\"FIL_PROOFS_USE_GPU_COLUMN_BUILDER\":\"0\",\"FIL_PROOFS_USE_GPU_TREE_BUILDER\":\"0\",\"FIL_PROOFS_MAXIMIZE_CACHING\":\"1\",\"FIL_PROOFS_USE_MULTICORE_SDR\":\"1\",\"FIL_PROOFS_PARENT_CACHE\":\"/data/cache/filecoin-parents\",\"FIL_PROOFS_PARAMETER_CACHE\":\"/data/cache/filecoin-proof-parameters/v28\",\"US3\":\"\",\"RUST_LOG\":\"info\",\"RUST_BACKTRACE\":\"1\"}"
 var ENVIRONMENT_VARIABLE = "{\"ENABLE_COPY_MERKLE_TREE\":\"1\",\"ENABLE_HUGEPAGES\":\"0\",\"ENABLE_P1_TWO_CORES\":\"0\"}"
 
