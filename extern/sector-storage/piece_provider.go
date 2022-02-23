@@ -3,19 +3,16 @@ package sectorstorage
 import (
 	"bufio"
 	"context"
-	"fmt"
+	"github.com/filecoin-project/dagstore/mount"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
+	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 	"io"
 	"os"
-	"path/filepath"
-
-	"github.com/filecoin-project/dagstore/mount"
-	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/fr32"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
@@ -186,26 +183,14 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storage.SectorRe
 	if info.UnsealedStorage.MountType == database.MOUNT_TYPE_OSS {
 		up := os.Getenv("US3")
 		if up != "" {
-			sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
-			unsealed := filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
-			return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
-				size := size - abi.PaddedPieceSize(startOffsetAligned)
-				offset := storiface.UnpaddedByteIndex(storiface.PaddedByteIndex(offset) + startOffsetAligned)
-				r, _, err := partialfile.ReadPieceQiniu(ctx, unsealed, sector, offset, size.Unpadded())
-				if err != nil {
-					log.Error(err)
-					return nil, err
+			pf, err = partialfile.OpenUnsealedPartialFileV2(maxPieceSize, sector, info)
+			if err != nil {
+				log.Error(err)
+				if xerrors.Is(err, os.ErrNotExist) {
+					return nil, false, nil
 				}
-				return struct {
-					io.Reader
-					io.Closer
-				}{
-					Reader: r,
-					Closer: funcCloser(func() error {
-						return nil
-					}),
-				}, nil
-			}, true, nil
+				return nil, false, xerrors.Errorf("opening partial file: %w", err)
+			}
 		} else {
 			return nil, false, xerrors.Errorf("opening partial file: %w", err)
 		}

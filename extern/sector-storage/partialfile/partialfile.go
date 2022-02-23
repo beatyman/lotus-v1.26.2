@@ -269,6 +269,10 @@ func OpenUnsealedPartialFileV2(maxPieceSize abi.PaddedPieceSize, sector storage.
 	sectorName := storage.SectorName(sector.ID)
 	path := filepath.Join(ss.UnsealedStorage.MountDir, fmt.Sprintf("%d", ss.UnsealedStorage.ID), "unsealed", sectorName)
 	//path := sector.UnsealedFile()
+	if ss.UnsealedStorage.MountType == database.MOUNT_TYPE_OSS {
+		sp := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
+		path = filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
+	}
 	log.Info(path)
 	var f fsutil.PartialFile
 	switch ss.UnsealedStorage.MountType {
@@ -289,6 +293,25 @@ func OpenUnsealedPartialFileV2(maxPieceSize abi.PaddedPieceSize, sector storage.
 		if _, err := f.Stat(); err != nil {
 			log.Warn(errors.As(err))
 			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+		}
+	case database.MOUNT_TYPE_OSS:
+		if fileExists(path) {
+			f2, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint
+			if err != nil {
+				return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+			}
+			f = f2
+		} else {
+			dir, _ := filepath.Split(path)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				log.Warnf("MkdirAll err: %s", err)
+			}
+			d := operation.NewDownloaderV2()
+			f2, err := d.DownloadFile(path, path)
+			if err != nil {
+				return nil, xerrors.Errorf("download partial file '%s': %w", path, err)
+			}
+			f = f2
 		}
 	default:
 		osfile, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint
