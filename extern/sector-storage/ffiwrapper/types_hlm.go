@@ -86,6 +86,7 @@ type Commit2Result struct {
 	Err        string
 	Proof      string //hex.EncodeToString(storage.Proof)
 	FinishTime time.Time
+	Snap       bool //true: snap升级的任务 false:普通密封任务
 }
 
 type WorkerCfg struct {

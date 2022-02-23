@@ -207,3 +207,69 @@ func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,
 		Ignore: ignore,
 	}, err
 }
+
+func (w *rpcServer) ProveReplicaUpdate2(ctx context.Context, sector api.SectorRef, vanillaProofs storage.ReplicaVanillaProofs) (storage.ReplicaUpdateProof, error) {
+	var (
+		err                error
+		dump               = false //是否重复扇区(重复:正在执行中...)
+		replicaUpdateProof storage.ReplicaUpdateProof
+		sid                = w.sectorName(sector.SectorID)
+		out                = &ffiwrapper.Commit2Result{
+			WorkerId: w.workerID,
+			TaskKey:  sector.TaskKey,
+			Sid:      sid,
+			Snap:     true,
+		}
+	)
+
+	log.Infof("ProveReplicaUpdate2 RPC in:%v, current c2sids: %v", sector, w.getC2sids())
+	defer func() {
+		log.Infof("ProveReplicaUpdate2 RPC out:%v, current c2sids: %v, error: %v", sector, w.getC2sids(), out.Err)
+		if dump { //正在执行中的任务 不能释放锁
+			return
+		}
+
+		//p1->c2如果断线 会每10s重试一次 所以不能在做完任务后马上删除 10s后p1就可以从miner获取到缓存的结果了
+		go func() {
+			<-time.After(time.Second * 11)
+			w.c2sidsRW.Lock()
+			delete(w.c2sids, sid)
+			w.c2sidsRW.Unlock()
+		}()
+
+		//只能在c2 worker执行UnlockGPUService
+		//不能在p1 worker调用c2完成后执行：会出现p1 worker重启而没执行到这句 造成miner那边维护的c2 worker的busy一直不正确
+		mApi, _ := GetNodeApi()
+		if err := mApi.RetryUnlockGPUService(ctx, out); err != nil {
+			log.Errorf("ProveReplicaUpdate2 unlock gpu service error: %v", err)
+		}
+	}()
+
+	w.c2sidsRW.Lock()
+	if _, ok := w.c2sids[sid]; ok {
+		dump = true
+		w.c2sidsRW.Unlock()
+		log.Infof("ProveReplicaUpdate2 RPC dumplicate:%v, current c2sids: %v", sector, w.getC2sids())
+		err = errors.New("sector is sealing").As(sid)
+		out.Err = err.Error()
+		return storage.ReplicaUpdateProof{}, err
+	}
+	w.c2sids[sid] = sector.SectorID
+	w.c2sidsRW.Unlock()
+	sectorRef := storage.SectorRef{
+		ID:        sector.SectorID,
+		ProofType: sector.ProofType,
+		SectorFile: storage.SectorFile{
+			SectorId:     storage.SectorName(sector.SectorID),
+			SealedRepo:   w.sb.RepoPath(),
+			UnsealedRepo: w.sb.RepoPath(),
+		},
+	}
+	if replicaUpdateProof, err = w.sb.ProveReplicaUpdate2(ctx, sectorRef, sector.SectorKey, sector.NewSealed, sector.NewUnsealed, vanillaProofs); err == nil {
+		out.Proof = hex.EncodeToString(replicaUpdateProof)
+	} else {
+		log.Error(err)
+		//out.Err = err.Error()
+	}
+	return replicaUpdateProof, err
+}

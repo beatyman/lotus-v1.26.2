@@ -489,10 +489,25 @@ reAllocate:
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			out, err := sealer.ProveReplicaUpdate2(ctx, sector, task.SectorKey, task.NewSealed, task.NewUnsealed, vanillaProofs)
-			res.ProveReplicaUpdateOut = out
-			if err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
+			// if local gpu no set, using remotes .
+			if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
+				for {
+					res.ProveReplicaUpdateOut, err = CallProveReplicaUpdate2Service(ctx, sector, task, vanillaProofs)
+					if err != nil {
+						log.Warn(errors.As(err))
+						time.Sleep(10e9)
+						continue
+					}
+					break
+				}
+			}
+			// call gpu service failed, using local instead.
+			if len(res.ProveReplicaUpdateOut) == 0 {
+				out, err := sealer.ProveReplicaUpdate2(ctx, sector, task.SectorKey, task.NewSealed, task.NewUnsealed, vanillaProofs)
+				res.ProveReplicaUpdateOut = out
+				if err != nil {
+					return errRes(errors.As(err, w.workerCfg), &res)
+				}
 			}
 		} else {
 			pieceInfo := task.Pieces
