@@ -123,7 +123,6 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 				_, span := spans.NewWorkerSpan(context.Background())
 				span.SetInfo(string(workerInfoStr))
 				span.End()
-				log.Info("================report======", workerInfo)
 				//				closer()
 			case <-quit:
 				ticker.Stop()
