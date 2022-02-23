@@ -113,7 +113,6 @@ func (sb *Sealer) pubExtendedSectorToPriv(ctx context.Context, mid abi.ActorID, 
 			SectorInfo:       ffiInfo,
 		})
 	}
-	log.Infof("%+v", out)
 	return ffi.NewSortedPrivateSectorInfo(out...), skipped, done, nil
 }
 
