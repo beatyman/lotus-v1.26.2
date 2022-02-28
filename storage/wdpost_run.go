@@ -252,6 +252,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	sectors := make(map[abi.SectorNumber]struct{})
 	var tocheck []storage.SectorRef
 	var checkNum int
+	var update []bool
 	for _, info := range sectorInfos {
 		checkNum++
 		s := abi.SectorID{
@@ -273,6 +274,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 			},
 			SectorFile: sFile,
 		})
+		update = append(update, info.SectorKeyCID != nil)
 	}
 
 	all, _, _, err := s.faultTracker.CheckProvable(ctx, tocheck, nil, timeout)
