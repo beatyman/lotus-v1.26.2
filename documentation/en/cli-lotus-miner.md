@@ -7,7 +7,7 @@ USAGE:
    lotus-miner [global options] command [command options] [arguments...]
 
 VERSION:
-   1.14.2
+   1.14.4
 
 COMMANDS:
    init     Initialize a lotus miner repo
@@ -1757,7 +1757,8 @@ USAGE:
    lotus-miner sectors abort-upgrade [command options] <sectorNum>
 
 OPTIONS:
-   --help, -h  show help (default: false)
+   --really-do-it  pass this flag if you know what you are doing (default: false)
+   --help, -h      show help (default: false)
    
 ```
 
