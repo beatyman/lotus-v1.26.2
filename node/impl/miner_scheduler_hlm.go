@@ -162,6 +162,9 @@ func (hs *HlmMinerScheduler) GetWorkerBusyTask(ctx context.Context, wid string) 
 func (hs *HlmMinerScheduler) RequestDisableWorker(ctx context.Context, wid string) error {
 	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RequestDisableWorker(ctx, wid)
 }
+func (hs *HlmMinerScheduler) GetMinerInfo(ctx context.Context) string {
+	return hs.sm.Miner.Maddr()
+}
 
 // for build testing
 var _ api.HlmMinerSchedulerAPI = &HlmMinerScheduler{}
