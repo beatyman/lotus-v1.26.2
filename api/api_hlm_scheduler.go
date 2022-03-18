@@ -49,4 +49,5 @@ type HlmMinerSchedulerAPI interface {
 	HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error)
 	GetWorkerBusyTask(ctx context.Context, wid string) (int, error)
 	RequestDisableWorker(ctx context.Context, wid string) error
+	GetMinerInfo(ctx context.Context) string
 }

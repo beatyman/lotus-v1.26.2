@@ -59,6 +59,8 @@ type HlmMinerSchedulerStruct struct {
 		GetWorkerBusyTask func(ctx context.Context, wid string) (int, error) `perm:"read"`
 		//disable worker
 		RequestDisableWorker func(ctx context.Context, wid string) error `perm:"read"`
+		//miner info
+		GetMinerInfo func(ctx context.Context) string `perm:"read"`
 	}
 }
 
@@ -150,6 +152,10 @@ func (c *HlmMinerSchedulerStruct) GetWorkerBusyTask(ctx context.Context, wid str
 }
 func (c *HlmMinerSchedulerStruct) RequestDisableWorker(ctx context.Context, wid string) error {
 	return c.Internal.RequestDisableWorker(ctx, wid)
+}
+
+func (c *HlmMinerSchedulerStruct) GetMinerInfo(ctx context.Context) string {
+	return c.Internal.GetMinerInfo(ctx)
 }
 
 var _ HlmMinerSchedulerAPI = &HlmMinerSchedulerStruct{}

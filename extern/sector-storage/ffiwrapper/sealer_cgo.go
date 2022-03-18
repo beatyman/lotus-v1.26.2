@@ -1068,6 +1068,12 @@ func (sb *Sealer) finalizeSector(ctx context.Context, sector storage.SectorRef, 
 }
 
 func (sb *Sealer) replicaUpdate(ctx context.Context, sector storage.SectorRef, pieces []abi.PieceInfo) (storage.ReplicaUpdateOut, error) {
+	AssertGPU(ctx)
+	gpuKey, _, err := allocateGpu(ctx)
+	if err != nil {
+		log.Errorw("allocate gpu error", "task-key", sector.ID, "err", errors.As(err))
+	}
+	defer returnGpu(gpuKey)
 	empty := storage.ReplicaUpdateOut{}
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed|storiface.FTSealed|storiface.FTCache, storiface.FTUpdate|storiface.FTUpdateCache, storiface.PathSealing)
 	if err != nil {
