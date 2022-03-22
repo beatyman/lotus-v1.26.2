@@ -43,7 +43,7 @@ func (lw LedgerWallet) WalletEncode(ctx context.Context, addr address.Address, p
 }
 
 func (lw LedgerWallet) WalletSign(ctx context.Context, signer address.Address, toSign []byte, meta api.MsgMeta) (*crypto.Signature, error) {
-	ki, err := lw.getKeyInfo(signer)
+	ki, err := lw.getKeyInfo(ctx, signer)
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +84,8 @@ func (lw LedgerWallet) WalletSign(ctx context.Context, signer address.Address, t
 	}, nil
 }
 
-func (lw LedgerWallet) getKeyInfo(addr address.Address) (*LedgerKeyInfo, error) {
-	kib, err := lw.ds.Get(keyForAddr(addr))
+func (lw LedgerWallet) getKeyInfo(ctx context.Context, addr address.Address) (*LedgerKeyInfo, error) {
+	kib, err := lw.ds.Get(ctx, keyForAddr(addr))
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (lw LedgerWallet) getKeyInfo(addr address.Address) (*LedgerKeyInfo, error) 
 }
 
 func (lw LedgerWallet) WalletDelete(ctx context.Context, k address.Address) error {
-	return lw.ds.Delete(keyForAddr(k))
+	return lw.ds.Delete(ctx, keyForAddr(k))
 }
 
 func (lw LedgerWallet) WalletExport(ctx context.Context, k address.Address) (*types.KeyInfo, error) {
@@ -107,7 +107,7 @@ func (lw LedgerWallet) WalletExport(ctx context.Context, k address.Address) (*ty
 }
 
 func (lw LedgerWallet) WalletHas(ctx context.Context, k address.Address) (bool, error) {
-	_, err := lw.ds.Get(keyForAddr(k))
+	_, err := lw.ds.Get(ctx, keyForAddr(k))
 	if err == nil {
 		return true, nil
 	}
@@ -122,10 +122,10 @@ func (lw LedgerWallet) WalletImport(ctx context.Context, kinfo *types.KeyInfo) (
 	if err := json.Unmarshal(kinfo.PrivateKey, &ki); err != nil {
 		return address.Undef, err
 	}
-	return lw.importKey(ki)
+	return lw.importKey(ctx, ki)
 }
 
-func (lw LedgerWallet) importKey(ki LedgerKeyInfo) (address.Address, error) {
+func (lw LedgerWallet) importKey(ctx context.Context, ki LedgerKeyInfo) (address.Address, error) {
 	if ki.Address == address.Undef {
 		return address.Undef, fmt.Errorf("no address given in imported key info")
 	}
@@ -137,7 +137,7 @@ func (lw LedgerWallet) importKey(ki LedgerKeyInfo) (address.Address, error) {
 		return address.Undef, xerrors.Errorf("marshaling key info: %w", err)
 	}
 
-	if err := lw.ds.Put(keyForAddr(ki.Address), bb); err != nil {
+	if err := lw.ds.Put(ctx, keyForAddr(ki.Address), bb); err != nil {
 		return address.Undef, err
 	}
 
@@ -145,7 +145,7 @@ func (lw LedgerWallet) importKey(ki LedgerKeyInfo) (address.Address, error) {
 }
 
 func (lw LedgerWallet) WalletList(ctx context.Context) ([]address.Address, error) {
-	res, err := lw.ds.Query(query.Query{Prefix: dsLedgerPrefix})
+	res, err := lw.ds.Query(ctx, query.Query{Prefix: dsLedgerPrefix})
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func (lw LedgerWallet) WalletNew(ctx context.Context, t types.KeyType, passwd st
 			t, types.KTSecp256k1Ledger)
 	}
 
-	res, err := lw.ds.Query(query.Query{Prefix: dsLedgerPrefix})
+	res, err := lw.ds.Query(ctx, query.Query{Prefix: dsLedgerPrefix})
 	if err != nil {
 		return address.Undef, err
 	}
@@ -228,7 +228,7 @@ func (lw LedgerWallet) WalletNew(ctx context.Context, t types.KeyType, passwd st
 	lki.Address = a
 	lki.Path = path
 
-	return lw.importKey(lki)
+	return lw.importKey(ctx, lki)
 }
 
 func (lw *LedgerWallet) Get() api.Wallet {

@@ -18,6 +18,9 @@ type Config struct {
 	// includes failed, 0 = no limit
 	MaxSealingSectorsForDeals uint64
 
+	MakeNewSectorForDeals bool
+
+	MakeCCSectorsAvailable bool
 	// includes failed, 0 = no limit
 	MaxDealsPerSector uint64
 
