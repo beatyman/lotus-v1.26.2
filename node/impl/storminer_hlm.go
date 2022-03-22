@@ -32,7 +32,7 @@ func (sm *StorageMinerAPI) ProxyAutoSelect(ctx context.Context, on bool) error {
 	if on {
 		b[0] = 1
 	}
-	if err := sm.DS.Put(proxy.PROXY_AUTO, b); err != nil {
+	if err := sm.DS.Put(ctx, proxy.PROXY_AUTO, b); err != nil {
 		return errors.As(err)
 	}
 	return proxy.SetLotusAutoSelect(on)
