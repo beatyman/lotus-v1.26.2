@@ -5,15 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
+	"go.uber.org/fx"
+	"go.uber.org/multierr"
+	"golang.org/x/xerrors"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-	"github.com/filecoin-project/lotus/node/modules/proxy"
-	"go.uber.org/fx"
-	"go.uber.org/multierr"
-	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	dtimpl "github.com/filecoin-project/go-data-transfer/impl"
@@ -237,7 +237,7 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 		defer log.Info("Init StorageMiner done")
 
 		// load the lotus proxy configratoin.
-		on, err := ds.Get(proxy.PROXY_AUTO)
+		on, err := ds.Get(context.TODO(), proxy.PROXY_AUTO)
 		if err == nil {
 			// no care about the err
 			if len(on) > 0 {

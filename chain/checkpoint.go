@@ -2,12 +2,13 @@ package chain
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/node/modules/dtypes"
 
 	"github.com/filecoin-project/lotus/chain/types"
 
-	"golang.org/x/xerrors"
-	"github.com/ipfs/go-datastore"
 	"encoding/json"
+	"github.com/ipfs/go-datastore"
+	"golang.org/x/xerrors"
 )
 
 func (syncer *Syncer) SyncCheckpoint(ctx context.Context, tsk types.TipSetKey) error {
@@ -56,10 +57,12 @@ func (syncer *Syncer) switchChain(ctx context.Context, ts *types.TipSet) error {
 	}
 	return nil
 }
+
 var CheckpointKey = datastore.NewKey("/chain/checks")
 
 func loadCheckpoint(ds dtypes.MetadataDS) (types.TipSetKey, error) {
-	haveChks, err := ds.Has(CheckpointKey)
+	ctx := context.TODO()
+	haveChks, err := ds.Has(ctx, CheckpointKey)
 	if err != nil {
 		return types.EmptyTSK, err
 	}
@@ -68,7 +71,7 @@ func loadCheckpoint(ds dtypes.MetadataDS) (types.TipSetKey, error) {
 		return types.EmptyTSK, nil
 	}
 
-	tskBytes, err := ds.Get(CheckpointKey)
+	tskBytes, err := ds.Get(ctx, CheckpointKey)
 	if err != nil {
 		return types.EmptyTSK, err
 	}
@@ -86,17 +89,17 @@ func (syncer *Syncer) SetCheckpoint(tsk types.TipSetKey) error {
 	if tsk == types.EmptyTSK {
 		return xerrors.Errorf("called with empty tsk")
 	}
-
+	ctx := context.TODO()
 	syncer.checkptLk.Lock()
 	defer syncer.checkptLk.Unlock()
 
-	ts, err := syncer.ChainStore().LoadTipSet(tsk)
+	ts, err := syncer.ChainStore().LoadTipSet(ctx, tsk)
 	if err != nil {
 		return xerrors.Errorf("cannot find tipset: %w", err)
 	}
 
 	hts := syncer.ChainStore().GetHeaviestTipSet()
-	anc, err := syncer.ChainStore().IsAncestorOf(ts, hts)
+	anc, err := syncer.ChainStore().IsAncestorOf(ctx, ts, hts)
 	if err != nil {
 		return xerrors.Errorf("cannot determine whether checkpoint tipset is in main-chain: %w", err)
 	}
@@ -110,7 +113,7 @@ func (syncer *Syncer) SetCheckpoint(tsk types.TipSetKey) error {
 		return err
 	}
 
-	err = syncer.ds.Put(CheckpointKey, tskBytes)
+	err = syncer.ds.Put(ctx, CheckpointKey, tskBytes)
 	if err != nil {
 		return err
 	}

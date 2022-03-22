@@ -27,11 +27,11 @@ func New(dstore ds.Batching) *SlashFilter {
 		byParents: namespace.Wrap(dstore, ds.NewKey("/slashfilter/parents")),
 	}
 }
-func (f SlashFilter) CleanCache(bh *types.BlockHeader, parentEpoch abi.ChainEpoch) error {
+func (f SlashFilter) CleanCache(ctx context.Context, bh *types.BlockHeader, parentEpoch abi.ChainEpoch) error {
 	epochKey := ds.NewKey(fmt.Sprintf("/%s/%d", bh.Miner, bh.Height))
 	parentsKey := ds.NewKey(fmt.Sprintf("/%s/%x", bh.Miner, types.NewTipSetKey(bh.Parents...).Bytes()))
-	f.byEpoch.Delete(epochKey)
-	f.byParents.Delete(parentsKey)
+	f.byEpoch.Delete(ctx, epochKey)
+	f.byParents.Delete(ctx, parentsKey)
 	return nil
 }
 func (f *SlashFilter) MinedBlock(ctx context.Context, bh *types.BlockHeader, parentEpoch abi.ChainEpoch) error {

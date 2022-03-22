@@ -393,7 +393,7 @@ func (m *Miner) mine(ctx context.Context) {
 			}
 
 			if err := m.sf.MinedBlock(ctx, b.Header, lastBase.TipSet.Height()+lastBase.NullRounds); err != nil {
-				m.sf.CleanCache(b.Header, lastBase.TipSet.Height()+lastBase.NullRounds)
+				m.sf.CleanCache(ctx, b.Header, lastBase.TipSet.Height()+lastBase.NullRounds)
 				log.Errorf("<!!> SLASH FILTER ERROR: %s", err)
 				if os.Getenv("LOTUS_MINER_NO_SLASHFILTER") != "_yes_i_know_i_can_and_probably_will_lose_all_my_fil_and_power_" {
 					continue

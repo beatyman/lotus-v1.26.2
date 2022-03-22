@@ -239,7 +239,7 @@ func (n *Ensemble) Miner(minerNode *TestMiner, full *TestFullNode, opts ...NodeO
 		genm.PeerId = peerId
 
 		// create an owner key, and assign it some FIL.
-		ownerKey, err = wallet.NewKey(*k)
+		ownerKey, err = wallet.NewKey(context.TODO(), *k)
 		require.NoError(n.t, err)
 
 		genacc := genesis.Actor{

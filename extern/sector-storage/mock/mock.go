@@ -123,7 +123,13 @@ func (mgr *SectorMgr) AcquireSectorNumber() (abi.SectorNumber, error) {
 	mgr.nextSectorID++
 	return id, nil
 }
+func (mgr *SectorMgr) PledgeSector(context.Context, storage.SectorRef, []abi.UnpaddedPieceSize, ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+	return make([]abi.PieceInfo, 0), nil
+}
 
+func (mgr *SectorMgr) SealCommit(context.Context, storage.SectorRef, abi.SealRandomness, abi.InteractiveSealRandomness, []abi.PieceInfo, storage.SectorCids) (storage.Proof, error) {
+	return storage.Proof{}, nil
+}
 func (mgr *SectorMgr) IsUnsealed(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {
 	return false, nil
 }

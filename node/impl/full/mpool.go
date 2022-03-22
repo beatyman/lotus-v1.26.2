@@ -265,7 +265,7 @@ func (a *MpoolAPI) MpoolRemove(ctx context.Context, from address.Address, nonce 
 }
 
 func (a *MpoolAPI) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
-	ts, err := a.Chain.GetTipSetFromKey(tsk)
+	ts, err := a.Chain.GetTipSetFromKey(ctx, tsk)
 	if err != nil {
 		return types.NewInt(0), xerrors.Errorf("computing base fee at %s: %w", ts, err)
 	}
