@@ -1,6 +1,7 @@
 package messagepool
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -19,11 +20,10 @@ var (
 
 	ConfigKey = datastore.NewKey("/mpool/config")
 )
-
 var minGasCap int64 =0
 var maxGasCap int64 =0
-func loadConfig(ds dtypes.MetadataDS) (*types.MpoolConfig, error) {
-	haveCfg, err := ds.Has(ConfigKey)
+func loadConfig(ctx context.Context, ds dtypes.MetadataDS) (*types.MpoolConfig, error) {
+	haveCfg, err := ds.Has(ctx, ConfigKey)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func loadConfig(ds dtypes.MetadataDS) (*types.MpoolConfig, error) {
 		return DefaultConfig(), nil
 	}
 
-	cfgBytes, err := ds.Get(ConfigKey)
+	cfgBytes, err := ds.Get(ctx, ConfigKey)
 	if err != nil {
 		return nil, err
 	}
@@ -43,14 +43,14 @@ func loadConfig(ds dtypes.MetadataDS) (*types.MpoolConfig, error) {
 	return cfg, err
 }
 
-func saveConfig(cfg *types.MpoolConfig, ds dtypes.MetadataDS) error {
+func saveConfig(ctx context.Context, cfg *types.MpoolConfig, ds dtypes.MetadataDS) error {
 	cfgBytes, err := json.Marshal(cfg)
 	if err != nil {
 		return err
 	}
 	minGasCap = cfg.MinGasCap
 	maxGasCap = cfg.MaxGasCap
-	return ds.Put(ConfigKey, cfgBytes)
+	return ds.Put(ctx, ConfigKey, cfgBytes)
 }
 
 func (mp *MessagePool) GetConfig() *types.MpoolConfig {
@@ -74,7 +74,7 @@ func validateConfg(cfg *types.MpoolConfig) error {
 	return nil
 }
 
-func (mp *MessagePool) SetConfig(cfg *types.MpoolConfig) error {
+func (mp *MessagePool) SetConfig(ctx context.Context, cfg *types.MpoolConfig) error {
 	if err := validateConfg(cfg); err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (mp *MessagePool) SetConfig(cfg *types.MpoolConfig) error {
 
 	mp.cfgLk.Lock()
 	mp.cfg = cfg
-	err := saveConfig(cfg, mp.ds)
+	err := saveConfig(ctx, cfg, mp.ds)
 	if err != nil {
 		log.Warnf("error persisting mpool config: %s", err)
 	}
