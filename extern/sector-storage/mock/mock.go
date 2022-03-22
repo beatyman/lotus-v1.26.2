@@ -36,6 +36,10 @@ type SectorMgr struct {
 	lk sync.Mutex
 }
 
+func (mgr *SectorMgr) ProveReplicaUpdate(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storage.ReplicaUpdateProof, error) {
+	return storage.ReplicaUpdateProof{}, nil
+}
+
 type mockVerifProver struct {
 	aggregates map[string]proof.AggregateSealVerifyProofAndInfos // used for logging bad verifies
 }

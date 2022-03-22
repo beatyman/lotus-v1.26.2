@@ -5,6 +5,7 @@ go 1.16
 retract v1.14.0 // Accidentally force-pushed tag, use v1.14.1+ instead.
 
 require (
+	contrib.go.opencensus.io/exporter/jaeger v0.2.1
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/BurntSushi/toml v0.4.1
 	github.com/GeertJohan/go.rice v1.0.2
@@ -155,16 +156,13 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/raulk/clock v1.1.0
 	github.com/raulk/go-watchdog v1.2.0
-	github.com/raulk/go-watchdog v1.0.1
 	github.com/shirou/gopsutil v2.18.12+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.0
-	github.com/uber/jaeger-client-go v2.25.0+incompatible // indirect
-	github.com/urfave/cli/v2 v2.3.0
 	github.com/ufilesdk-dev/us3-qiniu-go-sdk v0.2.0
-	github.com/urfave/cli/v2 v2.2.0
+	github.com/urfave/cli/v2 v2.3.0
 	github.com/whyrusleeping/bencher v0.0.0-20190829221104-bb6607aa8bba
 	github.com/whyrusleeping/cbor-gen v0.0.0-20220302191723-37c43cae8e14
 	github.com/whyrusleeping/ledger-filecoin-go v0.9.1-0.20201010031517-c3dcc1bddce4
@@ -174,10 +172,6 @@ require (
 	go.etcd.io/bbolt v1.3.5 // indirect
 	go.etcd.io/etcd v0.0.0-20210512015243-d19fbe541bf9
 	go.opencensus.io v0.23.0
-	go.opentelemetry.io/otel v1.3.0
-	go.opentelemetry.io/otel/bridge/opencensus v0.25.0
-	go.opentelemetry.io/otel/exporters/jaeger v1.2.0
-	go.opentelemetry.io/otel/sdk v1.2.0
 	go.uber.org/fx v1.15.0
 	go.uber.org/multierr v1.7.0
 	go.uber.org/zap v1.19.1
@@ -191,10 +185,7 @@ require (
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gotest.tools v2.2.0+incompatible
 	huangdong2012/filecoin-monitor v0.0.0-00010101000000-000000000000
-	lukechampine.com/blake3 v1.1.7 // indirect
 )
-
-replace github.com/libp2p/go-libp2p-yamux => github.com/libp2p/go-libp2p-yamux v0.5.1
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
@@ -212,7 +203,6 @@ replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
 replace github.com/filecoin-project/specs-actors/v7 => github.com/filecoin-project/specs-actors/v7 v7.0.0-rc1
 
 replace github.com/drand/drand => github.com/beatyman/drand v1.3.1-0.20220322013436-8d791775a900
-
 
 replace huangdong2012/filecoin-monitor => github.com/huangdong2012/filecoin-monitor v0.0.0-20211111023751-88bf10c05cd1
 

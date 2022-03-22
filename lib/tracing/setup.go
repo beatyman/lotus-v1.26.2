@@ -4,16 +4,9 @@ import (
 	"os"
 	"strings"
 
-	octrace "go.opencensus.io/trace"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/bridge/opencensus"
-	"go.opentelemetry.io/otel/exporters/jaeger"
-	"go.opentelemetry.io/otel/sdk/resource"
-	tracesdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
-	"go.uber.org/zap"
-
+	"contrib.go.opencensus.io/exporter/jaeger"
 	logging "github.com/ipfs/go-log/v2"
+	"go.opencensus.io/trace"
 )
 
 var log = logging.Logger("tracing")
@@ -21,6 +14,7 @@ var log = logging.Logger("tracing")
 const (
 	// environment variable names
 	envCollectorEndpoint = "LOTUS_JAEGER_COLLECTOR_ENDPOINT"
+	envAgentEndpoint     = "LOTUS_JAEGER_AGENT_ENDPOINT"
 	envAgentHost         = "LOTUS_JAEGER_AGENT_HOST"
 	envAgentPort         = "LOTUS_JAEGER_AGENT_PORT"
 	envJaegerUser        = "LOTUS_JAEGER_USERNAME"
@@ -32,61 +26,54 @@ const (
 // The agent endpoint is a thrift/udp protocol and should be given
 // as a string like "hostname:port". The agent can also be configured
 // with separate host and port variables.
-func jaegerOptsFromEnv() jaeger.EndpointOption {
+func jaegerOptsFromEnv(opts *jaeger.Options) bool {
 	var e string
 	var ok bool
-
-	if e, ok = os.LookupEnv(envCollectorEndpoint); ok {
-		options := []jaeger.CollectorEndpointOption{jaeger.WithEndpoint(e)}
-		if u, ok := os.LookupEnv(envJaegerUser); ok {
-			if p, ok := os.LookupEnv(envJaegerCred); ok {
-				options = append(options, jaeger.WithUsername(u))
-				options = append(options, jaeger.WithPassword(p))
-			} else {
-				log.Warn("jaeger username supplied with no password. authentication will not be used.")
-			}
-		}
-		log.Infof("jaeger tracess will send to collector %s", e)
-		return jaeger.WithCollectorEndpoint(options...)
-	}
-
-	if e, ok = os.LookupEnv(envAgentHost); ok {
-		options := []jaeger.AgentEndpointOption{jaeger.WithAgentHost(e), jaeger.WithLogger(zap.NewStdLog(log.Desugar()))}
-		var ep string
-		if p, ok := os.LookupEnv(envAgentPort); ok {
-			options = append(options, jaeger.WithAgentPort(p))
-			ep = strings.Join([]string{e, p}, ":")
+	if e, ok = os.LookupEnv(envJaegerUser); ok {
+		if p, ok := os.LookupEnv(envJaegerCred); ok {
+			opts.Username = e
+			opts.Password = p
 		} else {
-			ep = strings.Join([]string{e, "6831"}, ":")
+			log.Warn("jaeger username supplied with no password. authentication will not be used.")
 		}
-		log.Infof("jaeger traces will be sent to agent %s", ep)
-		return jaeger.WithAgentEndpoint(options...)
 	}
-	return nil
+	if e, ok = os.LookupEnv(envCollectorEndpoint); ok {
+		opts.CollectorEndpoint = e
+		log.Infof("jaeger tracess will send to collector %s", e)
+		return true
+	}
+	if e, ok = os.LookupEnv(envAgentEndpoint); ok {
+		log.Infof("jaeger traces will be sent to agent %s", e)
+		opts.AgentEndpoint = e
+		return true
+	}
+	if e, ok = os.LookupEnv(envAgentHost); ok {
+		if p, ok := os.LookupEnv(envAgentPort); ok {
+			opts.AgentEndpoint = strings.Join([]string{e, p}, ":")
+		} else {
+			opts.AgentEndpoint = strings.Join([]string{e, "6831"}, ":")
+		}
+		log.Infof("jaeger traces will be sent to agent %s", opts.AgentEndpoint)
+		return true
+	}
+	return false
 }
 
-func SetupJaegerTracing(serviceName string) *tracesdk.TracerProvider {
-	jaegerEndpoint := jaegerOptsFromEnv()
-	if jaegerEndpoint == nil {
+func SetupJaegerTracing(serviceName string) *jaeger.Exporter {
+	opts := jaeger.Options{}
+	if !jaegerOptsFromEnv(&opts) {
 		return nil
 	}
-	je, err := jaeger.New(jaegerEndpoint)
+	opts.ServiceName = serviceName
+	je, err := jaeger.NewExporter(opts)
 	if err != nil {
 		log.Errorw("failed to create the jaeger exporter", "error", err)
 		return nil
 	}
-	tp := tracesdk.NewTracerProvider(
-		// Always be sure to batch in production.
-		tracesdk.WithBatcher(je),
-		// Record information about this application in an Resource.
-		tracesdk.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(serviceName),
-		)),
-		tracesdk.WithSampler(tracesdk.AlwaysSample()),
-	)
-	otel.SetTracerProvider(tp)
-	tracer := tp.Tracer(serviceName)
-	octrace.DefaultTracer = opencensus.NewTracer(tracer)
-	return tp
+
+	trace.RegisterExporter(je)
+	trace.ApplyConfig(trace.Config{
+		DefaultSampler: trace.AlwaysSample(),
+	})
+	return je
 }

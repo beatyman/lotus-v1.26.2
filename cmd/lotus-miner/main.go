@@ -6,6 +6,7 @@ import (
 	"github.com/fatih/color"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
+	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
 	cliutil "github.com/filecoin-project/lotus/cli/util"
@@ -67,7 +68,7 @@ func main() {
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {
 		if jaeger != nil {
-			_ = jaeger.ForceFlush(context.Background())
+			jaeger.Flush()
 		}
 	}()
 
@@ -75,9 +76,7 @@ func main() {
 		cmd := cmd
 		originBefore := cmd.Before
 		cmd.Before = func(cctx *cli.Context) error {
-			if jaeger != nil {
-				_ = jaeger.Shutdown(cctx.Context)
-			}
+			trace.UnregisterExporter(jaeger)
 			jaeger = tracing.SetupJaegerTracing("lotus/" + cmd.Name)
 
 			if cctx.IsSet("color") {
