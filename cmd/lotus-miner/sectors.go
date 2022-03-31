@@ -2196,11 +2196,27 @@ var sectorsStatisticsCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		// toCheck is a working bitfield which will only contain terminated sectors
+		toCheck := bitfield.New()
+		{
+			sectors, err := nodeApi.SectorsList(ctx)
+			if err != nil {
+				return xerrors.Errorf("getting sector list: %w", err)
+			}
+
+			for _, sector := range sectors {
+				toCheck.Set(uint64(sector))
+			}
+		}
 		allocate, err := mas.GetAllocatedSectors()
 		if err != nil {
 			return err
 		}
-		infos, err := mas.LoadSectors(allocate)
+		toCheck, err = bitfield.IntersectBitField(toCheck, *allocate)
+		if err != nil {
+			return xerrors.Errorf("intersecting bitfields: %w", err)
+		}
+		infos, err := mas.LoadSectors(&toCheck)
 		if err != nil {
 			return err
 		}
