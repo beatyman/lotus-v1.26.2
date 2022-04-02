@@ -193,10 +193,10 @@ func (s *WindowPoStScheduler) runSubmitPoST(
 		// Submit PoST
 		leftRetryTimes := 5
 	retry:
-		sm, submitErr := s.submitPoStMessage(ctx, post)
-		if submitErr != nil {
+		sm, err := s.submitPoStMessage(ctx, post)
+		if err != nil {
 			log.Errorf("submit window post failed, retry left:%d,: %+v", leftRetryTimes, submitErr)
-
+			submitErr = err
 			leftRetryTimes--
 			if leftRetryTimes > 0 {
 				time.Sleep(time.Duration(build.BlockDelaySecs) * time.Second)
@@ -253,6 +253,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	sectors := make(map[abi.SectorNumber]struct{})
 	var tocheck []storage.SectorRef
 	var checkNum int
+	var update []bool
 	for _, info := range sectorInfos {
 		checkNum++
 		s := abi.SectorID{
@@ -274,6 +275,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 			},
 			SectorFile: sFile,
 		})
+		update = append(update, info.SectorKeyCID != nil)
 	}
 
 	all, _, _, err := s.faultTracker.CheckProvable(ctx, tocheck, nil, timeout)

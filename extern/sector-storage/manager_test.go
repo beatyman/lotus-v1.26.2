@@ -1,3 +1,4 @@
+//stm: #unit
 package sectorstorage
 
 import (
@@ -366,6 +367,7 @@ func TestRedoPC1(t *testing.T) {
 
 // Manager restarts in the middle of a task, restarts it, it completes
 func TestRestartManager(t *testing.T) {
+	//stm: @WORKER_JOBS_001
 	// close by hlm
 	return
 	test := func(returnBeforeCall bool) func(*testing.T) {
@@ -514,6 +516,7 @@ func TestRestartWorker(t *testing.T) {
 	<-arch
 	require.NoError(t, w.Close())
 
+	//stm: @WORKER_STATS_001
 	for {
 		if len(m.WorkerStats()) == 0 {
 			break
@@ -578,6 +581,7 @@ func TestReenableWorker(t *testing.T) {
 	// disable
 	atomic.StoreInt64(&w.testDisable, 1)
 
+	//stm: @WORKER_STATS_001
 	for i := 0; i < 100; i++ {
 		if !m.WorkerStats()[w.session].Enabled {
 			break

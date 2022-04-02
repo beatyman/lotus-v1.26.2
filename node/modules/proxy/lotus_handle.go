@@ -51,6 +51,37 @@ type jwtPayload struct {
 	Allow []auth.Permission
 }
 
+func (s *LotusImpl) NetProtectAdd(ctx context.Context, acl []peer.ID) error {
+	return bestNodeApi().NetProtectAdd(ctx, acl)
+}
+
+func (s *LotusImpl) NetProtectRemove(ctx context.Context, acl []peer.ID) error {
+	return bestNodeApi().NetProtectRemove(ctx, acl)
+}
+
+func (s *LotusImpl) NetProtectList(ctx context.Context) ([]peer.ID, error) {
+	return bestNodeApi().NetProtectList(ctx)
+}
+
+func (s *LotusImpl) NetStat(ctx context.Context, scope string) (api.NetStat, error) {
+	return bestNodeApi().NetStat(ctx, scope)
+}
+
+func (s *LotusImpl) NetLimit(ctx context.Context, scope string) (api.NetLimit, error) {
+	return bestNodeApi().NetLimit(ctx, scope)
+}
+
+func (s *LotusImpl) NetSetLimit(ctx context.Context, scope string, limit api.NetLimit) error {
+	return bestNodeApi().NetSetLimit(ctx, scope, limit)
+}
+
+func (s *LotusImpl) PaychFund(ctx context.Context, from, to address.Address, amt types.BigInt) (*api.ChannelInfo, error) {
+	return bestNodeApi().PaychFund(ctx, from, to, amt)
+}
+func (s *LotusImpl) PaychGet(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt, p4 api.PaychGetOpts) (*api.ChannelInfo, error) {
+	return bestNodeApi().PaychGet(p0, p1, p2, p3, p4)
+}
+
 // rebuild by zhoushuyue
 func (s *LotusImpl) LogAlerts(p0 context.Context) ([]alerting.Alert, error) {
 	return bestNodeApi().LogAlerts(p0)
@@ -597,10 +628,6 @@ func (s *LotusImpl) PaychAvailableFundsByFromTo(p0 context.Context, p1 address.A
 
 func (s *LotusImpl) PaychCollect(p0 context.Context, p1 address.Address) (cid.Cid, error) {
 	return bestNodeApi().PaychCollect(p0, p1)
-}
-
-func (s *LotusImpl) PaychGet(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (*api.ChannelInfo, error) {
-	return bestNodeApi().PaychGet(p0, p1, p2, p3)
 }
 
 func (s *LotusImpl) PaychGetWaitReady(p0 context.Context, p1 cid.Cid) (address.Address, error) {

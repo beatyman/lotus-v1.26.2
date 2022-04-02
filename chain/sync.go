@@ -123,8 +123,8 @@ type SyncManagerCtor func(syncFn SyncFunc) SyncManager
 
 type Genesis *types.TipSet
 
-func LoadGenesis(sm *stmgr.StateManager) (Genesis, error) {
-	gen, err := sm.ChainStore().GetGenesis()
+func LoadGenesis(ctx context.Context, sm *stmgr.StateManager) (Genesis, error) {
+	gen, err := sm.ChainStore().GetGenesis(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("getting genesis block: %w", err)
 	}
@@ -237,7 +237,7 @@ func (syncer *Syncer) InformNewHead(from peer.ID, fts *store.FullTipSet) bool {
 
 	// TODO: IMPORTANT(GARBAGE) this needs to be put in the 'temporary' side of
 	// the blockstore
-	if err := syncer.store.PersistBlockHeaders(fts.TipSet().Blocks()...); err != nil {
+	if err := syncer.store.PersistBlockHeaders(ctx, fts.TipSet().Blocks()...); err != nil {
 		log.Warn("failed to persist incoming block header: ", err)
 		return false
 	}
@@ -308,11 +308,11 @@ func (syncer *Syncer) ValidateMsgMeta(fblk *types.FullBlock) error {
 	// into the blockstore.
 	blockstore := bstore.NewMemory()
 	cst := cbor.NewCborStore(blockstore)
-
+	ctx := context.Background()
 	var bcids, scids []cid.Cid
 
 	for _, m := range fblk.BlsMessages {
-		c, err := store.PutMessage(blockstore, m)
+		c, err := store.PutMessage(ctx, blockstore, m)
 		if err != nil {
 			return xerrors.Errorf("putting bls message to blockstore after msgmeta computation: %w", err)
 		}
@@ -320,7 +320,7 @@ func (syncer *Syncer) ValidateMsgMeta(fblk *types.FullBlock) error {
 	}
 
 	for _, m := range fblk.SecpkMessages {
-		c, err := store.PutMessage(blockstore, m)
+		c, err := store.PutMessage(ctx, blockstore, m)
 		if err != nil {
 			return xerrors.Errorf("putting bls message to blockstore after msgmeta computation: %w", err)
 		}
@@ -370,7 +370,7 @@ func copyBlockstore(ctx context.Context, from, to bstore.Blockstore) error {
 	// TODO: should probably expose better methods on the blockstore for this operation
 	var blks []blocks.Block
 	for c := range cids {
-		b, err := from.Get(c)
+		b, err := from.Get(ctx, c)
 		if err != nil {
 			return err
 		}
@@ -378,7 +378,7 @@ func copyBlockstore(ctx context.Context, from, to bstore.Blockstore) error {
 		blks = append(blks, b)
 	}
 
-	if err := to.PutMany(blks); err != nil {
+	if err := to.PutMany(ctx, blks); err != nil {
 		return err
 	}
 
@@ -473,7 +473,7 @@ func computeMsgMeta(bs cbor.IpldStore, bmsgCids, smsgCids []cid.Cid) (cid.Cid, e
 // {hint/usage} This is used from the HELLO protocol, to fetch the greeting
 // peer's heaviest tipset if we don't have it.
 func (syncer *Syncer) FetchTipSet(ctx context.Context, p peer.ID, tsk types.TipSetKey) (*store.FullTipSet, error) {
-	if fts, err := syncer.tryLoadFullTipSet(tsk); err == nil {
+	if fts, err := syncer.tryLoadFullTipSet(ctx, tsk); err == nil {
 		return fts, nil
 	}
 
@@ -484,15 +484,15 @@ func (syncer *Syncer) FetchTipSet(ctx context.Context, p peer.ID, tsk types.TipS
 // tryLoadFullTipSet queries the tipset in the ChainStore, and returns a full
 // representation of it containing FullBlocks. If ALL blocks are not found
 // locally, it errors entirely with blockstore.ErrNotFound.
-func (syncer *Syncer) tryLoadFullTipSet(tsk types.TipSetKey) (*store.FullTipSet, error) {
-	ts, err := syncer.store.LoadTipSet(tsk)
+func (syncer *Syncer) tryLoadFullTipSet(ctx context.Context, tsk types.TipSetKey) (*store.FullTipSet, error) {
+	ts, err := syncer.store.LoadTipSet(ctx, tsk)
 	if err != nil {
 		return nil, err
 	}
 
 	fts := &store.FullTipSet{}
 	for _, b := range ts.Blocks() {
-		bmsgs, smsgs, err := syncer.store.MessagesForBlock(b)
+		bmsgs, smsgs, err := syncer.store.MessagesForBlock(ctx, b)
 		if err != nil {
 			return nil, err
 		}
@@ -534,7 +534,7 @@ func (syncer *Syncer) Sync(ctx context.Context, maybeHead *types.TipSet) error {
 		return nil
 	}
 
-	if err := syncer.collectChain(ctx, maybeHead, hts); err != nil {
+	if err := syncer.collectChain(ctx, maybeHead, hts, false); err != nil {
 		span.AddAttributes(trace.StringAttribute("col_error", err.Error()))
 		span.SetStatus(trace.Status{
 			Code:    13,
@@ -593,7 +593,7 @@ func (syncer *Syncer) ValidateTipSet(ctx context.Context, fts *store.FullTipSet,
 				return xerrors.Errorf("validating block %s: %w", b.Cid(), err)
 			}
 
-			if err := syncer.sm.ChainStore().AddToTipSetTracker(b.Header); err != nil {
+			if err := syncer.sm.ChainStore().AddToTipSetTracker(ctx, b.Header); err != nil {
 				return xerrors.Errorf("failed to add validated header to tipset tracker: %w", err)
 			}
 			return nil
@@ -690,7 +690,7 @@ func extractSyncState(ctx context.Context) *SyncerState {
 //
 // All throughout the process, we keep checking if the received blocks are in
 // the deny list, and short-circuit the process if so.
-func (syncer *Syncer) collectHeaders(ctx context.Context, incoming *types.TipSet, known *types.TipSet) ([]*types.TipSet, error) {
+func (syncer *Syncer) collectHeaders(ctx context.Context, incoming *types.TipSet, known *types.TipSet, ignoreCheckpoint bool) ([]*types.TipSet, error) {
 	ctx, span := trace.StartSpan(ctx, "collectHeaders")
 	defer span.End()
 	ss := extractSyncState(ctx)
@@ -765,7 +765,7 @@ loop:
 		}
 
 		// If, for some reason, we have a suffix of the chain locally, handle that here
-		ts, err := syncer.store.LoadTipSet(at)
+		ts, err := syncer.store.LoadTipSet(ctx, at)
 		if err == nil {
 			acceptedBlocks = append(acceptedBlocks, at.Cids()...)
 
@@ -848,7 +848,7 @@ loop:
 		return blockSet, nil
 	}
 
-	knownParent, err := syncer.store.LoadTipSet(known.Parents())
+	knownParent, err := syncer.store.LoadTipSet(ctx, known.Parents())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load next local tipset: %w", err)
 	}
@@ -871,7 +871,7 @@ loop:
 
 	// We have now ascertained that this is *not* a 'fast forward'
 	log.Warnf("(fork detected) synced header chain (%s - %d)(%+v) does not link to our best block (%s - %d)(%+v)", incoming.Cids(), incoming.Height(), incomingHeaviestMiners, known.Cids(), known.Height(), knownHeaviestMiners)
-	fork, err := syncer.syncFork(ctx, base, known)
+	fork, err := syncer.syncFork(ctx, base, known, ignoreCheckpoint)
 	if err != nil {
 		if xerrors.Is(err, ErrForkTooLong) || xerrors.Is(err, ErrForkCheckpoint) {
 			// TODO: we're marking this block bad in the same way that we mark invalid blocks bad. Maybe distinguish?
@@ -897,13 +897,14 @@ var ErrForkCheckpoint = fmt.Errorf("fork would require us to diverge from checkp
 // If the fork is too long (build.ForkLengthThreshold), or would cause us to diverge from the checkpoint (ErrForkCheckpoint),
 // we add the entire subchain to the denylist. Else, we find the common ancestor, and add the missing chain
 // fragment until the fork point to the returned []TipSet.
-func (syncer *Syncer) syncFork(ctx context.Context, incoming *types.TipSet, known *types.TipSet) ([]*types.TipSet, error) {
-
-	chkpt := syncer.GetCheckpoint()
-	if known.Key() == chkpt {
-		return nil, ErrForkCheckpoint
+func (syncer *Syncer) syncFork(ctx context.Context, incoming *types.TipSet, known *types.TipSet, ignoreCheckpoint bool) ([]*types.TipSet, error) {
+	var chkpt *types.TipSet
+	if !ignoreCheckpoint {
+		chkpt = syncer.store.GetCheckpoint()
+		if known.Equals(chkpt) {
+			return nil, ErrForkCheckpoint
+		}
 	}
-
 	// TODO: Does this mean we always ask for ForkLengthThreshold blocks from the network, even if we just need, like, 2? Yes.
 	// Would it not be better to ask in smaller chunks, given that an ~ForkLengthThreshold is very rare?
 	tips, err := syncer.Exchange.GetBlocks(ctx, incoming.Parents(), int(build.ForkLengthThreshold))
@@ -911,7 +912,7 @@ func (syncer *Syncer) syncFork(ctx context.Context, incoming *types.TipSet, know
 		return nil, err
 	}
 
-	nts, err := syncer.store.LoadTipSet(known.Parents())
+	nts, err := syncer.store.LoadTipSet(ctx, known.Parents())
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load next local tipset: %w", err)
 	}
@@ -942,12 +943,10 @@ func (syncer *Syncer) syncFork(ctx context.Context, incoming *types.TipSet, know
 				return nil, ErrForkTooLong
 			}
 
-			// We will be forking away from nts, check that it isn't checkpointed
-			if nts.Key() == chkpt {
+			if nts.Equals(chkpt) {
 				return nil, ErrForkCheckpoint
 			}
-
-			nts, err = syncer.store.LoadTipSet(nts.Parents())
+			nts, err = syncer.store.LoadTipSet(ctx, nts.Parents())
 			if err != nil {
 				return nil, xerrors.Errorf("loading next local tipset: %w", err)
 			}
@@ -984,7 +983,7 @@ func (syncer *Syncer) iterFullTipsets(ctx context.Context, headers []*types.TipS
 	span.AddAttributes(trace.Int64Attribute("num_headers", int64(len(headers))))
 
 	for i := len(headers) - 1; i >= 0; {
-		fts, err := syncer.store.TryFillTipSet(headers[i])
+		fts, err := syncer.store.TryFillTipSet(ctx, headers[i])
 		if err != nil {
 			return err
 		}
@@ -1157,7 +1156,7 @@ func persistMessages(ctx context.Context, bs bstore.Blockstore, bst *exchange.Co
 
 	for _, m := range bst.Bls {
 		//log.Infof("putting BLS message: %s", m.Cid())
-		if _, err := store.PutMessage(bs, m); err != nil {
+		if _, err := store.PutMessage(ctx, bs, m); err != nil {
 			log.Errorf("failed to persist messages: %+v", err)
 			return xerrors.Errorf("BLS message processing failed: %w", err)
 		}
@@ -1167,7 +1166,7 @@ func persistMessages(ctx context.Context, bs bstore.Blockstore, bst *exchange.Co
 			return xerrors.Errorf("unknown signature type on message %s: %q", m.Cid(), m.Signature.Type)
 		}
 		//log.Infof("putting secp256k1 message: %s", m.Cid())
-		if _, err := store.PutMessage(bs, m); err != nil {
+		if _, err := store.PutMessage(ctx, bs, m); err != nil {
 			log.Errorf("failed to persist messages: %+v", err)
 			return xerrors.Errorf("secp256k1 message processing failed: %w", err)
 		}
@@ -1195,14 +1194,14 @@ func persistMessages(ctx context.Context, bs bstore.Blockstore, bst *exchange.Co
 //
 //  3. StageMessages: having acquired the headers and found a common tipset,
 //     we then move forward, requesting the full blocks, including the messages.
-func (syncer *Syncer) collectChain(ctx context.Context, ts *types.TipSet, hts *types.TipSet) error {
+func (syncer *Syncer) collectChain(ctx context.Context, ts *types.TipSet, hts *types.TipSet, ignoreCheckpoint bool) error {
 	ctx, span := trace.StartSpan(ctx, "collectChain")
 	defer span.End()
 	ss := extractSyncState(ctx)
 
 	ss.Init(hts, ts)
 
-	headers, err := syncer.collectHeaders(ctx, ts, hts)
+	headers, err := syncer.collectHeaders(ctx, ts, hts, ignoreCheckpoint)
 	if err != nil {
 		ss.Error(err)
 		return err
@@ -1220,7 +1219,7 @@ func (syncer *Syncer) collectChain(ctx context.Context, ts *types.TipSet, hts *t
 	for _, ts := range headers {
 		toPersist = append(toPersist, ts.Blocks()...)
 	}
-	if err := syncer.store.PersistBlockHeaders(toPersist...); err != nil {
+	if err := syncer.store.PersistBlockHeaders(ctx, toPersist...); err != nil {
 		err = xerrors.Errorf("failed to persist synced blocks to the chainstore: %w", err)
 		ss.Error(err)
 		return err
@@ -1262,26 +1261,4 @@ func (syncer *Syncer) UnmarkAllBad() {
 func (syncer *Syncer) CheckBadBlockCache(blk cid.Cid) (string, bool) {
 	bbr, ok := syncer.bad.Has(blk)
 	return bbr.String(), ok
-}
-
-func (syncer *Syncer) getLatestBeaconEntry(_ context.Context, ts *types.TipSet) (*types.BeaconEntry, error) {
-	cur := ts
-	for i := 0; i < 20; i++ {
-		cbe := cur.Blocks()[0].BeaconEntries
-		if len(cbe) > 0 {
-			return &cbe[len(cbe)-1], nil
-		}
-
-		if cur.Height() == 0 {
-			return nil, xerrors.Errorf("made it back to genesis block without finding beacon entry")
-		}
-
-		next, err := syncer.store.LoadTipSet(cur.Parents())
-		if err != nil {
-			return nil, xerrors.Errorf("failed to load parents when searching back for latest beacon entry: %w", err)
-		}
-		cur = next
-	}
-
-	return nil, xerrors.Errorf("found NO beacon entries in the 20 latest tipsets")
 }
