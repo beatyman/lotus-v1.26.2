@@ -174,6 +174,7 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 		workerCfg.WdPoStSrv = t.WdPoStSrv
 		workerCfg.WnPoStSrv = t.WnPoStSrv
 		t.SvcUri = workerCfg.SvcUri
+		t.IP = netIp
 		t.ID = workerCfg.ID
 	} else {
 		// init worker configuration
