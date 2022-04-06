@@ -14,6 +14,7 @@ import (
 	"github.com/gwaylib/log"
 	"github.com/shirou/gopsutil/host"
 	"github.com/urfave/cli/v2"
+	"gopkg.in/yaml.v2"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	io "io/ioutil"
 	"time"
@@ -101,7 +102,7 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 					log.Error("Read_File_Err_:", err.Error())
 				}
 				var json1 = buriedmodel.WorkerConf{}
-				err = json.Unmarshal(data, &json1)
+				err = yaml.Unmarshal(data, &json1)
 				if err != nil {
 					log.Error("worker_report_read_file_error : ", err.Error())
 					return
