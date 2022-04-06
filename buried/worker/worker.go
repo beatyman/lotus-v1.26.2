@@ -149,15 +149,6 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 		//读取文件
 		data, err := io.ReadFile(WORKER_WATCH_FILE)
 		if err != nil {
-			log.Error("Read_File_Err_:", err.Error())
-			t = buriedmodel.WorkerConf{
-				ID:     workerId,
-				IP:     netIp,
-				SvcUri: serverAddr,
-			}
-		}
-		err = yaml.Unmarshal(data, &t)
-		if err != nil {
 			log.Error("Read_File_Err_yml:", err.Error())
 			t = buriedmodel.WorkerConf{
 				ID:     workerId,
@@ -165,6 +156,7 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 				SvcUri: serverAddr,
 			}
 		}
+		err = yaml.Unmarshal(data, &t)
 		if err != nil {
 			log.Error("Read_File_Err_Worker_Conf_:", err.Error())
 			t = buriedmodel.WorkerConf{
