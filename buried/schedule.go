@@ -100,7 +100,7 @@ func RunCollectWorkerInfo(cctx *cli.Context, timer int64, workerCfg ffiwrapper.W
 				if err != nil {
 					log.Error("Read_File_Err_:", err.Error())
 				}
-				var json1 = ffiwrapper.WorkerCfg{}
+				var json1 = buriedmodel.WorkerConf{}
 				err = json.Unmarshal(data, &json1)
 				if err != nil {
 					log.Error("worker_report_read_file_error : ", err.Error())
