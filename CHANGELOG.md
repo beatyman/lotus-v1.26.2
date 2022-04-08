@@ -1,9 +1,9 @@
 # Lotus changelog
 
-# 1.15.1-rc5 / 2022-03-31
+# 1.15.1 / 2022-04-07
 
-This is the fifth release candidate of the next *highly recommended* feature release v1.15.1. This feature release introduces Index Provider, GraphSync v2, and many other latest functionalities, improvements and bug fixes. 
-More importantly, node operator can now enable the FVM(experimental) to sync mainnet!!
+This is a *HIGHLY recommended* feature release v1.15.1, especially for node operators and storage providers who want to be a part of the content addressing network of Filecoin and IPFS.
+This feature release introduces Index Provider, GraphSync v2, and many other latest functionalities, improvements and bug fixes. More importantly, node operator can now enable the FVM(experimental) to sync mainnet!!
 
 ## Highlights
 
@@ -37,6 +37,7 @@ Follow the instruction [here](https://lotus.filecoin.io/storage-providers/operat
 
 ## New Features
 - feat: sealing: Sector upgrade queue ([filecoin-project/lotus#8333](https://github.com/filecoin-project/lotus/pull/8333))
+  - see more details in docs: [here](https://lotus.filecoin.io/storage-providers/operate/snap-deals/#snap-deal-queue)
 - feat: market utils: Support unixfsnode in TraverseDag ([filecoin-project/lotus#8168](https://github.com/filecoin-project/lotus/pull/8168))
 - feat: config: enable indexer providing by default ([filecoin-project/lotus#8314](https://github.com/filecoin-project/lotus/pull/8314))
 - feat: api: Make ClientCalcCommP multithreaded ([filecoin-project/lotus#8276](https://github.com/filecoin-project/lotus/pull/8276))
@@ -70,6 +71,9 @@ Follow the instruction [here](https://lotus.filecoin.io/storage-providers/operat
 - feat: config: Move MakeNewSectorForDeals config into the Sealing section([filecoin-project/lotus#8382](https://github.com/filecoin-project/lotus/pull/8382))
 
 ## Bug Fixes
+- fix: FVM: add finality check for consensus faults #8452
+- fix: market: Reuse the market PubSub in index provider #8451
+- fix: market: set all index provider options based on lotus config #8444  
 - fix: sealing: Fix PR1 worker selection (#8421)
 - fix: miner: dead loop on removing sector (#8421)
 - fix: sealing: Remove sector copies from workers after snapdeals ([filecoin-project/lotus#8331](https://github.com/filecoin-project/lotus/pull/8331))
@@ -118,6 +122,7 @@ Follow the instruction [here](https://lotus.filecoin.io/storage-providers/operat
 - feat: build: bump the version to v1.15.1-dev ([filecoin-project/lotus#8073](https://github.com/filecoin-project/lotus/pull/8073))
 - makefile: add make jen ([filecoin-project/lotus#8122](https://github.com/filecoin-project/lotus/pull/8122))
 - chore: Merge releases into master ([filecoin-project/lotus#8156](https://github.com/filecoin-project/lotus/pull/8156))
+- chore: ci: disable publish-packer #8451
 
 # 1.15.0 / 2022-03-09
 
