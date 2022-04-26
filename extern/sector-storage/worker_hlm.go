@@ -311,7 +311,7 @@ func (l *hlmWorker) TaskTypes(context.Context) (map[sealtasks.TaskType]struct{},
 	return nil, errors.New("no implements")
 }
 
-func (l *hlmWorker) Paths(ctx context.Context) ([]stores.StoragePath, error) {
+func (l *hlmWorker) Paths(ctx context.Context) ([]storiface.StoragePath, error) {
 	return l.localStore.Local(ctx)
 }
 

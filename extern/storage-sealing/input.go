@@ -112,7 +112,7 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 	if err != nil {
 		return false, xerrors.Errorf("getting storage config: %w", err)
 	}
-	if cfg.MaxDealsPerSector > 0 && uint64(dealIDsLen) >= cfg.MaxDealsPerSector {
+	if cfg.MaxDealsPerSector > 0 && uint64(len(sector.dealIDs()) ) >= cfg.MaxDealsPerSector {
 		log.Infow("starting to seal deal sector", "sector", sector.SectorNumber, "trigger", "max-per-sector")
 		return true, ctx.Send(SectorStartPacking{})
 	}

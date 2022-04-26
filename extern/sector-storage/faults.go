@@ -2,37 +2,30 @@ package sectorstorage
 
 import (
 	"context"
-	"time"
-	"github.com/filecoin-project/specs-storage/storage"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 	"crypto/rand"
 	"fmt"
-	"sync"
-	"time"
-
-	"os"
-	"path/filepath"
-	"golang.org/x/xerrors"
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
-
+	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
-	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
+	"github.com/filecoin-project/specs-storage/storage"
+	"golang.org/x/xerrors"
+	"sync"
+	"time"
 )
 
 var PostCheckTimeout = 160 * time.Second
 
 // FaultTracker TODO: Track things more actively
 type FaultTracker interface {
-	CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, rg storiface.RGetter, timeout time.Duration) (map[abi.SectorID]string, error)
+	CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, rg storiface.RGetter, timeout time.Duration) ([]ffiwrapper.ProvableStat, []ffiwrapper.ProvableStat, []ffiwrapper.ProvableStat, error)
 }
 // CheckProvable returns unprovable sectors
 func (m *Manager) CheckProvable(ctx context.Context,pp abi.RegisteredPoStProof, sectors []storage.SectorRef, rg storiface.RGetter, timeout time.Duration) ([]ffiwrapper.ProvableStat, []ffiwrapper.ProvableStat, []ffiwrapper.ProvableStat, error) {
 	return ffiwrapper.CheckProvable(ctx,pp, sectors, rg, timeout)
 }
 // CheckProvable returns unprovable sectors
-func (m *Manager) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, rg storiface.RGetter) (map[abi.SectorID]string, error) {
+func (m *Manager) checkProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, rg storiface.RGetter) (map[abi.SectorID]string, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

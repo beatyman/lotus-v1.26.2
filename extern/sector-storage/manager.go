@@ -10,7 +10,6 @@ import (
 	"github.com/filecoin-project/go-statestore"
 	"github.com/gwaylib/errors"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mitchellh/go-homedir"
 
@@ -71,7 +70,7 @@ type Manager struct {
 	windowPoStSched  *poStScheduler
 	winningPoStSched *poStScheduler
 
-	localProver storage.Prover
+	storage.Prover
 
 	workLk sync.Mutex
 	work   *statestore.StateStore
@@ -169,7 +168,7 @@ func New(ctx context.Context, lstor *stores.Local, stor stores.Store, ls stores.
 		windowPoStSched:  newPoStScheduler(sealtasks.TTGenerateWindowPoSt),
 		winningPoStSched: newPoStScheduler(sealtasks.TTGenerateWinningPoSt),
 
-		localProver: prover,
+		Prover: prover,
 
 		parallelCheckLimit: sc.ParallelCheckLimit,
 

@@ -53,17 +53,20 @@ func WriteStorageFile(path string, config stores.StorageConfig) error {
 
 func (c *StorageMiner) StorageManager() sectorstorage.Config {
 	return sectorstorage.Config{
-		ParallelFetchLimit:       c.Storage.ParallelFetchLimit,
-		AllowAddPiece:            c.Storage.AllowAddPiece,
-		AllowPreCommit1:          c.Storage.AllowPreCommit1,
-		AllowPreCommit2:          c.Storage.AllowPreCommit2,
-		AllowCommit:              c.Storage.AllowCommit,
-		AllowUnseal:              c.Storage.AllowUnseal,
-		AllowReplicaUpdate:       c.Storage.AllowReplicaUpdate,
-		AllowProveReplicaUpdate2: c.Storage.AllowProveReplicaUpdate2,
-		AllowRegenSectorKey:      c.Storage.AllowRegenSectorKey,
-		ResourceFiltering:        c.Storage.ResourceFiltering,
-
-		ParallelCheckLimit: c.Proving.ParallelCheckLimit,
+		ParallelFetchLimit:          c.Storage.ParallelFetchLimit,
+		AllowAddPiece:               c.Storage.AllowAddPiece,
+		AllowPreCommit1:             c.Storage.AllowPreCommit1,
+		AllowPreCommit2:             c.Storage.AllowPreCommit2,
+		AllowCommit:                 c.Storage.AllowCommit,
+		AllowUnseal:                 c.Storage.AllowUnseal,
+		AllowReplicaUpdate:          c.Storage.AllowReplicaUpdate,
+		AllowProveReplicaUpdate2:    c.Storage.AllowProveReplicaUpdate2,
+		AllowRegenSectorKey:         c.Storage.AllowRegenSectorKey,
+		ResourceFiltering:           c.Storage.ResourceFiltering,
+		RemoteSeal:                  c.Storage.RemoteSeal,
+		RemoteWnPoSt:                c.Storage.RemoteWnPoSt,
+		RemoteWdPoSt:                c.Storage.RemoteWdPoSt,
+		EnableForceRemoteWindowPoSt: c.Storage.EnableForceRemoteWindowPoSt,
+		ParallelCheckLimit:          c.Proving.ParallelCheckLimit,
 	}
 }

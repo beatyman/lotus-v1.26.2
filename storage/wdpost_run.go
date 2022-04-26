@@ -246,7 +246,6 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	sectors := make(map[abi.SectorNumber]checkSector)
 	var tocheck []storage.SectorRef
 	var checkNum int
-	var update []bool
 	for _, info := range sectorInfos {
 		checkNum++
 		s := abi.SectorID{
@@ -258,24 +257,6 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 			log.Warn(errors.ErrNoData.As(s))
 			continue
 		}
-
-		sectors[info.SectorNumber] = checkSector{
-			sealed: info.SealedCID,
-			update: info.SectorKeyCID != nil,
-		}
-		tocheck = append(tocheck, storage.SectorRef{
-			ProofType: info.SealProof,
-			ID: abi.SectorID{
-				Miner:  abi.ActorID(mid),
-				Number: info.SectorNumber,
-			},
-			SectorFile: sFile,
-		})
-		update = append(update, info.SectorKeyCID != nil)
-	}
-
-
-	for _, info := range sectorInfos {
 		sectors[info.SectorNumber] = checkSector{
 			sealed: info.SealedCID,
 			update: info.SectorKeyCID != nil,
@@ -290,7 +271,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		})
 	}
 
-	bad, err := s.faultTracker.CheckProvable(ctx, s.proofType, tocheck, func(ctx context.Context, id abi.SectorID) (cid.Cid, bool, error) {
+	all, _, _, err := s.faultTracker.CheckProvable(ctx, s.proofType, tocheck, func(ctx context.Context, id abi.SectorID) (cid.Cid, bool, error) {
 		s, ok := sectors[id.Number]
 		if !ok {
 			return cid.Undef, false, xerrors.Errorf("sealed CID not found")
@@ -300,8 +281,13 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
 	}
-	for id := range bad {
-		delete(sectors, id.Number)
+	// bad
+	for _, val := range all {
+		if val.Err != nil {
+			sectorId := val.Sector.SectorID()
+			log.Warnf("sid:%s,storage:%s,used:%s,err:%s", val.Sector.SectorId, val.Sector.SealedRepo, val.Used.String(), errors.ParseError(val.Err))
+			delete(sectors, sectorId.Number)
+		}
 	}
 
 	log.Infow("Checked sectors", "check", checkNum, "checked", len(tocheck), "good", len(sectors))
@@ -525,9 +511,6 @@ func (s *WindowPoStScheduler) declareFaults(ctx context.Context, dlIdx uint64, p
 }
 
 func (s *WindowPoStScheduler) asyncFaultRecover(di dline.Info, ts *types.TipSet) {
-	if EnableSeparatePartition {
-		return s.runHlmPoStCycle(ctx, di, ts)
-	}
 	go func() {
 		// check faults / recoveries for the *next* deadline. It's already too
 		// late to declare them for this deadline
@@ -598,6 +581,9 @@ func (s *WindowPoStScheduler) asyncFaultRecover(di dline.Info, ts *types.TipSet)
 //
 // When `manual` is set, no messages (fault/recover) will be automatically sent
 func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
+	if EnableSeparatePartition {
+		return s.runHlmPoStCycle(ctx, di, ts)
+	}
 	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
 	defer span.End()
 
@@ -740,7 +726,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di 
 					log.Errorf("recover: %s", r)
 				}
 			}()
-			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), xsinfos, append(abi.PoStRandomness{}, rand...))
+			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, append(abi.PoStRandomness{}, rand...))
 			elapsed := time.Since(tsStart)
 			log.Info(s.PutLogw(di.Index, "computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand))
 			if err != nil {

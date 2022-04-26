@@ -151,10 +151,8 @@ func NewMiner(api fullNodeFilteredAPI,
 	gsd dtypes.GetSealingConfigFunc,
 	feeCfg config.MinerFeeConfig,
 	journal journal.Journal,
-	as *AddressSelector,
-	fps *WindowPoStScheduler) (*Miner, error) {
+	as *AddressSelector) (*Miner, error) {
 	m := &Miner{
-		fps: fps,
 
 		api:     api,
 		feeCfg:  feeCfg,
@@ -345,7 +343,7 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.ExtendedS
 		})
 	}
 	// check files
-	_, _, bad, err := ffiwrapper.CheckProvable(ctx, rSectors, nil, 6*time.Second)
+	_, _, bad, err := ffiwrapper.CheckProvable(ctx,wpp.winnRpt ,rSectors, nil, 6*time.Second)
 	if err != nil {
 		return nil, errors.As(err)
 	}

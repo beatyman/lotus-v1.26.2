@@ -121,16 +121,6 @@ func getAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
 	return APIInfo{}, fmt.Errorf("could not determine API endpoint for node type: %v", t.Type())
 }
 
-func getRepoFs(ctx *cli.Context, t repo.RepoType) (*repo.FsRepo, error) {
-	repoFlag := flagForRepo(t)
-
-	p, err := homedir.Expand(ctx.String(repoFlag))
-	if err != nil {
-		return nil, xerrors.Errorf("could not expand home dir (%s): %w", repoFlag, err)
-	}
-
-	return repo.NewFS(p)
-}
 func GetRawAPI(ctx *cli.Context, t repo.RepoType, version string) (string, http.Header, error) {
 	ainfo, err := proxyAPIInfo(ctx, t)
 	if err != nil {
@@ -401,4 +391,29 @@ func ReqContext(cctx *cli.Context) context.Context {
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 
 	return ctx
+}
+func getRepoFs(ctx *cli.Context, t repo.RepoType) (*repo.FsRepo, error) {
+	repoFlag := flagForRepo(t)
+
+	p, err := homedir.Expand(ctx.String(repoFlag))
+	if err != nil {
+		return nil, xerrors.Errorf("could not expand home dir (%s): %w", repoFlag, err)
+	}
+
+	return repo.NewFS(p)
+}
+func flagForRepo(t repo.RepoType) string {
+	switch t {
+	case repo.FullNode:
+		return "repo"
+	case repo.StorageMiner:
+		return "miner-repo"
+	case repo.Worker:
+		return "worker-repo"
+	default:
+		panic(fmt.Sprintf("Unknown repo type: %v", t))
+	}
+}
+func FlagForRepo(t repo.RepoType) string {
+	return flagForRepo(t)
 }

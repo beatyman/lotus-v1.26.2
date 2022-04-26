@@ -213,6 +213,29 @@ func (wallet) APIInfoEnvVars() (primary string, fallbacks []string, deprecated [
 	panic("not supported")
 }
 
+var HlmMinerScheduler  hlmMinerScheduler
+type hlmMinerScheduler struct {
+}
+func (hlmMinerScheduler) Type() string {
+	return "HlmMinerScheduler"
+}
+
+func (hlmMinerScheduler) Config() interface{} {
+	return config.DefaultStorageMiner()
+}
+
+func (hlmMinerScheduler) APIFlags() []string {
+	return []string{"miner-api-url"}
+}
+
+func (hlmMinerScheduler) RepoFlags() []string {
+	return []string{"miner-repo"}
+}
+
+func (hlmMinerScheduler) APIInfoEnvVars() (primary string, fallbacks []string, deprecated []string) {
+	// TODO remove deprecated deprecation period
+	return "MINER_API_INFO", nil, []string{"STORAGE_API_INFO"}
+}
 var log = logging.Logger("repo")
 
 var ErrRepoExists = xerrors.New("repo exists")

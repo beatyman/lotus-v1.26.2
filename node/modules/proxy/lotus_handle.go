@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/filecoin-project/lotus/journal/alerting"
 	"github.com/filecoin-project/lotus/node/repo/imports"
+	"time"
 
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-state-types/dline"
@@ -24,7 +25,6 @@ import (
 	"github.com/filecoin-project/go-bitfield"
 	datatransfer "github.com/filecoin-project/go-data-transfer"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
-	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
 
@@ -50,7 +50,9 @@ func NewLotusProxy(token string) api.FullNode {
 type jwtPayload struct {
 	Allow []auth.Permission
 }
-
+func (s *LotusImpl)NetPing (ctx context.Context, p1 peer.ID) (time.Duration, error){
+	return bestNodeApi().NetPing(ctx, p1)
+}
 func (s *LotusImpl) NetProtectAdd(ctx context.Context, acl []peer.ID) error {
 	return bestNodeApi().NetProtectAdd(ctx, acl)
 }
@@ -397,7 +399,7 @@ func (s *LotusImpl) ClientMinerQueryOffer(p0 context.Context, p1 address.Address
 	return bestNodeApi().ClientMinerQueryOffer(p0, p1, p2, p3)
 }
 
-func (s *LotusImpl) ClientQueryAsk(p0 context.Context, p1 peer.ID, p2 address.Address) (*storagemarket.StorageAsk, error) {
+func (s *LotusImpl) ClientQueryAsk(p0 context.Context, p1 peer.ID, p2 address.Address) (*api.StorageAsk, error) {
 	return bestNodeApi().ClientQueryAsk(p0, p1, p2)
 }
 

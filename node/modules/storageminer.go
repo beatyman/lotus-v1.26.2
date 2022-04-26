@@ -21,14 +21,6 @@ import (
 	"github.com/filecoin-project/go-statestore"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/go-storedcounter"
-	"github.com/ipfs/go-datastore"
-
-	"go.uber.org/fx"
-	"go.uber.org/multierr"
-	"golang.org/x/xerrors"
-
-	"github.com/filecoin-project/go-address"
 	dtimpl "github.com/filecoin-project/go-data-transfer/impl"
 	dtnet "github.com/filecoin-project/go-data-transfer/network"
 	dtgstransport "github.com/filecoin-project/go-data-transfer/transport/graphsync"
@@ -45,7 +37,9 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/go-storedcounter"
 	provider "github.com/filecoin-project/index-provider"
+	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
 	graphsync "github.com/ipfs/go-graphsync/impl"
 	gsnet "github.com/ipfs/go-graphsync/network"
@@ -254,7 +248,7 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 			}
 		}
 
-		maddr, err := minerAddrFromDS(ds)
+		maddr, err = minerAddrFromDS(ds)
 		if err != nil {
 			return nil, err
 		}
@@ -1000,7 +994,7 @@ func NewSetSealConfigFunc(r repo.LockedRepo) (dtypes.SetSealingConfigFunc, error
 
 func ToSealingConfig(dealmakingCfg config.DealmakingConfig, sealingCfg config.SealingConfig) sealiface.Config {
 	return sealiface.Config{
-		MaxDealsPerSector:               cfg.Sealing.MaxDealsPerSector,
+		MaxDealsPerSector:               sealingCfg.MaxDealsPerSector,
 		MaxWaitDealsSectors:             sealingCfg.MaxWaitDealsSectors,
 		MaxSealingSectors:               sealingCfg.MaxSealingSectors,
 		MaxSealingSectorsForDeals:       sealingCfg.MaxSealingSectorsForDeals,

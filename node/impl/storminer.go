@@ -1208,7 +1208,7 @@ func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredP
 		}
 	}
 	timeout := time.Second * 6
-	bad, err := sm.StorageMgr.CheckProvable(ctx, pp, sectors, rg,timeout)
+	_, _, bad, err := sm.StorageMgr.CheckProvable(ctx, pp,sectors, rg, timeout)
 	if err != nil {
 		return nil, err
 	}
