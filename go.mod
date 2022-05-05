@@ -120,8 +120,8 @@ require (
 	github.com/ipld/go-ipld-selector-text-lite v0.0.1
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/koalacxr/quantile v0.0.1
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f // indirect
+	github.com/koalacxr/quantile v0.0.1
 	github.com/lib/pq v1.10.2
 	github.com/libp2p/go-buffer-pool v0.0.2
 	github.com/libp2p/go-eventbus v0.2.1
@@ -159,7 +159,6 @@ require (
 	github.com/raulk/go-watchdog v1.2.0
 	github.com/shirou/gopsutil v2.18.12+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
-	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/ufilesdk-dev/us3-qiniu-go-sdk v0.2.0
@@ -184,6 +183,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/ini.v1 v1.62.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
 	huangdong2012/filecoin-monitor v0.0.0-00010101000000-000000000000
 )
