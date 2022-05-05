@@ -160,6 +160,7 @@ type StorageMiner interface {
 	StorageLock(ctx context.Context, sector abi.SectorID, read storiface.SectorFileType, write storiface.SectorFileType) error                                          //perm:admin
 	StorageTryLock(ctx context.Context, sector abi.SectorID, read storiface.SectorFileType, write storiface.SectorFileType) (bool, error)                               //perm:admin
 	StorageList(ctx context.Context) (map[stores.ID][]stores.Decl, error)                                                                                               //perm:admin
+	StorageGetLocks(ctx context.Context) (storiface.SectorLocks, error)                                                                                                 //perm:admin
 
 	StorageLocal(ctx context.Context) (map[stores.ID]string, error)       //perm:admin
 	StorageStat(ctx context.Context, id stores.ID) (fsutil.FsStat, error) //perm:admin
@@ -175,6 +176,8 @@ type StorageMiner interface {
 	MarketGetRetrievalAsk(ctx context.Context) (*retrievalmarket.Ask, error)                                                                                                             //perm:read
 	MarketListDataTransfers(ctx context.Context) ([]DataTransferChannel, error)                                                                                                          //perm:write
 	MarketDataTransferUpdates(ctx context.Context) (<-chan DataTransferChannel, error)                                                                                                   //perm:write
+	// MarketDataTransferDiagnostics generates debugging information about current data transfers over graphsync
+	MarketDataTransferDiagnostics(ctx context.Context, p peer.ID) (*TransferDiagnostics, error) //perm:write
 	// MarketRestartDataTransfer attempts to restart a data transfer with the given transfer ID and other peer
 	MarketRestartDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error //perm:write
 	// MarketCancelDataTransfer cancels a data transfer with the given transfer ID and other peer
@@ -225,6 +228,16 @@ type StorageMiner interface {
 	// DagstoreGC runs garbage collection on the DAG store.
 	DagstoreGC(ctx context.Context) ([]DagstoreShardResult, error) //perm:admin
 
+	// IndexerAnnounceDeal informs indexer nodes that a new deal was received,
+	// so they can download its index
+	IndexerAnnounceDeal(ctx context.Context, proposalCid cid.Cid) error //perm:admin
+
+	// IndexerAnnounceAllDeals informs the indexer nodes aboutall active deals.
+	IndexerAnnounceAllDeals(ctx context.Context) error //perm:admin
+
+	// DagstoreLookupPieces returns information about shards that contain the given CID.
+	DagstoreLookupPieces(ctx context.Context, cid cid.Cid) ([]DagstoreShardInfo, error) //perm:admin
+
 	// RuntimeSubsystems returns the subsystems that are enabled
 	// in this instance.
 	RuntimeSubsystems(ctx context.Context) (MinerSubsystems, error) //perm:read
@@ -259,7 +272,7 @@ type StorageMiner interface {
 	// the path specified when calling CreateBackup is within the base path
 	CreateBackup(ctx context.Context, fpath string) error //perm:admin
 
-	CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, expensive bool) (map[abi.SectorNumber]string, error) //perm:admin
+	CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storage.SectorRef, update []bool, expensive bool) (map[abi.SectorNumber]string, error) //perm:admin
 
 	ComputeProof(ctx context.Context, ssi []builtin.ExtendedSectorInfo, rand abi.PoStRandomness, poStEpoch abi.ChainEpoch, nv abinetwork.Version) ([]builtin.PoStProof, error) //perm:read
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/mitchellh/go-homedir"
+	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -608,10 +609,10 @@ func (m *Manager) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 		}
 	}
 
-	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, false)
+	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache, false)
 
 	err := m.sched.Schedule(ctx, sector, sealtasks.TTFinalize, selector,
-		m.schedFetch(sector, storiface.FTCache|storiface.FTSealed|unsealed, pathType, storiface.AcquireMove),
+		m.schedFetch(sector, storiface.FTCache|unsealed, pathType, storiface.AcquireMove),
 		func(ctx context.Context, w Worker) error {
 			_, err := m.waitSimpleCall(ctx)(w.FinalizeSector(ctx, sector, keepUnsealed))
 			return err
@@ -640,160 +641,6 @@ func (m *Manager) FinalizeSector(ctx context.Context, sector storage.SectorRef, 
 
 	return nil
 }
-
-func (m *Manager) ReplicaUpdate(ctx context.Context, sector storage.SectorRef, pieces []abi.PieceInfo) (out storage.ReplicaUpdateOut, err error) {
-	return m.hlmWorker.ReplicaUpdate(ctx, sector, pieces)
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	log.Errorf("manager is doing replica update")
-	wk, wait, cancel, err := m.getWork(ctx, sealtasks.TTReplicaUpdate, sector, pieces)
-	if err != nil {
-		return storage.ReplicaUpdateOut{}, xerrors.Errorf("getWork: %w", err)
-	}
-	defer cancel()
-
-	var waitErr error
-	waitRes := func() {
-		p, werr := m.waitWork(ctx, wk)
-		if werr != nil {
-			waitErr = xerrors.Errorf("waitWork: %w", werr)
-			return
-		}
-		if p != nil {
-			out = p.(storage.ReplicaUpdateOut)
-		}
-	}
-
-	if wait { // already in progress
-		waitRes()
-		return out, waitErr
-	}
-
-	if err := m.index.StorageLock(ctx, sector.ID, storiface.FTUnsealed|storiface.FTSealed|storiface.FTCache, storiface.FTUpdate|storiface.FTUpdateCache); err != nil {
-		return storage.ReplicaUpdateOut{}, xerrors.Errorf("acquiring sector lock: %w", err)
-	}
-
-	selector := newAllocSelector(m.index, storiface.FTUpdate|storiface.FTUpdateCache, storiface.PathSealing)
-
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTReplicaUpdate, selector, m.schedFetch(sector, storiface.FTUnsealed|storiface.FTSealed|storiface.FTCache, storiface.PathSealing, storiface.AcquireCopy), func(ctx context.Context, w Worker) error {
-		err := m.startWork(ctx, w, wk)(w.ReplicaUpdate(ctx, sector, pieces))
-		if err != nil {
-			return xerrors.Errorf("startWork: %w", err)
-		}
-
-		waitRes()
-		return nil
-	})
-	if err != nil {
-		return storage.ReplicaUpdateOut{}, xerrors.Errorf("Schedule: %w", err)
-	}
-	return out, waitErr
-}
-
-func (m *Manager) ProveReplicaUpdate1(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (out storage.ReplicaVanillaProofs, err error) {
-	return m.hlmWorker.ProveReplicaUpdate1(ctx, sector, sectorKey, newSealed, newUnsealed)
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	wk, wait, cancel, err := m.getWork(ctx, sealtasks.TTProveReplicaUpdate1, sector, sectorKey, newSealed, newUnsealed)
-	if err != nil {
-		return nil, xerrors.Errorf("getWork: %w", err)
-	}
-	defer cancel()
-
-	var waitErr error
-	waitRes := func() {
-		p, werr := m.waitWork(ctx, wk)
-		if werr != nil {
-			waitErr = werr
-			return
-		}
-		if p != nil {
-			out = p.(storage.ReplicaVanillaProofs)
-		}
-	}
-
-	if wait { // already in progress
-		waitRes()
-		return out, waitErr
-	}
-
-	if err := m.index.StorageLock(ctx, sector.ID, storiface.FTSealed|storiface.FTUpdate|storiface.FTCache|storiface.FTUpdateCache, storiface.FTNone); err != nil {
-		return nil, xerrors.Errorf("acquiring sector lock: %w", err)
-	}
-
-	// NOTE: We set allowFetch to false in so that we always execute on a worker
-	// with direct access to the data. We want to do that because this step is
-	// generally very cheap / fast, and transferring data is not worth the effort
-	selector := newExistingSelector(m.index, sector.ID, storiface.FTUpdate|storiface.FTUpdateCache|storiface.FTSealed|storiface.FTCache, false)
-
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTProveReplicaUpdate1, selector, m.schedFetch(sector, storiface.FTSealed|storiface.FTCache|storiface.FTUpdate|storiface.FTUpdateCache, storiface.PathSealing, storiface.AcquireCopy), func(ctx context.Context, w Worker) error {
-
-		err := m.startWork(ctx, w, wk)(w.ProveReplicaUpdate1(ctx, sector, sectorKey, newSealed, newUnsealed))
-		if err != nil {
-			return err
-		}
-
-		waitRes()
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return out, waitErr
-}
-
-func (m *Manager) ProveReplicaUpdate2(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs storage.ReplicaVanillaProofs) (out storage.ReplicaUpdateProof, err error) {
-	return m.hlmWorker.ProveReplicaUpdate2(ctx, sector, sectorKey, newSealed, newUnsealed, vanillaProofs)
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	wk, wait, cancel, err := m.getWork(ctx, sealtasks.TTProveReplicaUpdate2, sector, sectorKey, newSealed, newUnsealed, vanillaProofs)
-	if err != nil {
-		return nil, xerrors.Errorf("getWork: %w", err)
-	}
-	defer cancel()
-
-	var waitErr error
-	waitRes := func() {
-		p, werr := m.waitWork(ctx, wk)
-		if werr != nil {
-			waitErr = werr
-			return
-		}
-		if p != nil {
-			out = p.(storage.ReplicaUpdateProof)
-		}
-	}
-
-	if wait { // already in progress
-		waitRes()
-		return out, waitErr
-	}
-
-	selector := newTaskSelector()
-
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTProveReplicaUpdate2, selector, schedNop, func(ctx context.Context, w Worker) error {
-		err := m.startWork(ctx, w, wk)(w.ProveReplicaUpdate2(ctx, sector, sectorKey, newSealed, newUnsealed, vanillaProofs))
-		if err != nil {
-			return err
-		}
-
-		waitRes()
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return out, waitErr
-}
-
 func (m *Manager) ProveReplicaUpdate(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storage.ReplicaUpdateProof, error) {
 	return m.hlmWorker.ProveReplicaUpdate(ctx, sector, sectorKey, newSealed, newUnsealed)
 }
@@ -808,7 +655,7 @@ func (m *Manager) FinalizeReplicaUpdate(ctx context.Context, sector storage.Sect
 		return xerrors.Errorf("acquiring sector lock: %w", err)
 	}
 
-	fts := storiface.FTUnsealed
+	moveUnsealed := storiface.FTUnsealed
 	{
 		unsealedStores, err := m.index.StorageFindSector(ctx, sector.ID, storiface.FTUnsealed, 0, false)
 		if err != nil {
@@ -816,7 +663,7 @@ func (m *Manager) FinalizeReplicaUpdate(ctx context.Context, sector storage.Sect
 		}
 
 		if len(unsealedStores) == 0 { // Is some edge-cases unsealed sector may not exist already, that's fine
-			fts = storiface.FTNone
+			moveUnsealed = storiface.FTNone
 		}
 	}
 
@@ -835,10 +682,10 @@ func (m *Manager) FinalizeReplicaUpdate(ctx context.Context, sector storage.Sect
 		}
 	}
 
-	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed|storiface.FTUpdate|storiface.FTUpdateCache, false)
+	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTUpdateCache, false)
 
 	err := m.sched.Schedule(ctx, sector, sealtasks.TTFinalizeReplicaUpdate, selector,
-		m.schedFetch(sector, storiface.FTCache|storiface.FTSealed|storiface.FTUpdate|storiface.FTUpdateCache|fts, pathType, storiface.AcquireMove),
+		m.schedFetch(sector, storiface.FTCache|storiface.FTUpdateCache|moveUnsealed, pathType, storiface.AcquireMove),
 		func(ctx context.Context, w Worker) error {
 			_, err := m.waitSimpleCall(ctx)(w.FinalizeReplicaUpdate(ctx, sector, keepUnsealed))
 			return err
@@ -847,22 +694,30 @@ func (m *Manager) FinalizeReplicaUpdate(ctx context.Context, sector storage.Sect
 		return err
 	}
 
-	fetchSel := newAllocSelector(m.index, storiface.FTCache|storiface.FTSealed|storiface.FTUpdate|storiface.FTUpdateCache, storiface.PathStorage)
-	moveUnsealed := fts
-	{
-		if len(keepUnsealed) == 0 {
-			moveUnsealed = storiface.FTNone
+	move := func(types storiface.SectorFileType) error {
+		fetchSel := newAllocSelector(m.index, types, storiface.PathStorage)
+		{
+			if len(keepUnsealed) == 0 {
+				moveUnsealed = storiface.FTNone
+			}
 		}
+
+		err = m.sched.Schedule(ctx, sector, sealtasks.TTFetch, fetchSel,
+			m.schedFetch(sector, types, storiface.PathStorage, storiface.AcquireMove),
+			func(ctx context.Context, w Worker) error {
+				_, err := m.waitSimpleCall(ctx)(w.MoveStorage(ctx, sector, types))
+				return err
+			})
+		if err != nil {
+			return xerrors.Errorf("moving sector to storage: %w", err)
+		}
+		return nil
 	}
 
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTFetch, fetchSel,
-		m.schedFetch(sector, storiface.FTCache|storiface.FTSealed|storiface.FTUpdate|storiface.FTUpdateCache|moveUnsealed, storiface.PathStorage, storiface.AcquireMove),
-		func(ctx context.Context, w Worker) error {
-			_, err := m.waitSimpleCall(ctx)(w.MoveStorage(ctx, sector, storiface.FTCache|storiface.FTSealed|storiface.FTUpdate|storiface.FTUpdateCache|moveUnsealed))
-			return err
-		})
-	if err != nil {
-		return xerrors.Errorf("moving sector to storage: %w", err)
+	err = multierr.Append(move(storiface.FTUpdate|storiface.FTUpdateCache), move(storiface.FTCache))
+	err = multierr.Append(err, move(storiface.FTSealed)) // Sealed separate from cache just in case ReleaseSectorKey was already called
+	if moveUnsealed != storiface.FTNone {
+		err = multierr.Append(err, move(moveUnsealed))
 	}
 
 	return nil
@@ -982,6 +837,156 @@ func (m *Manager) Remove(ctx context.Context, sector storage.SectorRef) error {
 	}
 
 	return err
+}
+
+func (m *Manager) ReplicaUpdate(ctx context.Context, sector storage.SectorRef, pieces []abi.PieceInfo) (out storage.ReplicaUpdateOut, err error) {
+	return m.hlmWorker.ReplicaUpdate(ctx, sector, pieces)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	log.Debugf("manager is doing replica update")
+	wk, wait, cancel, err := m.getWork(ctx, sealtasks.TTReplicaUpdate, sector, pieces)
+	if err != nil {
+		return storage.ReplicaUpdateOut{}, xerrors.Errorf("getWork: %w", err)
+	}
+	defer cancel()
+
+	var waitErr error
+	waitRes := func() {
+		p, werr := m.waitWork(ctx, wk)
+		if werr != nil {
+			waitErr = xerrors.Errorf("waitWork: %w", werr)
+			return
+		}
+		if p != nil {
+			out = p.(storage.ReplicaUpdateOut)
+		}
+	}
+
+	if wait { // already in progress
+		waitRes()
+		return out, waitErr
+	}
+
+	if err := m.index.StorageLock(ctx, sector.ID, storiface.FTUnsealed|storiface.FTSealed|storiface.FTCache, storiface.FTUpdate|storiface.FTUpdateCache); err != nil {
+		return storage.ReplicaUpdateOut{}, xerrors.Errorf("acquiring sector lock: %w", err)
+	}
+
+	selector := newAllocSelector(m.index, storiface.FTUpdate|storiface.FTUpdateCache, storiface.PathSealing)
+
+	err = m.sched.Schedule(ctx, sector, sealtasks.TTReplicaUpdate, selector, m.schedFetch(sector, storiface.FTUnsealed|storiface.FTSealed|storiface.FTCache, storiface.PathSealing, storiface.AcquireCopy), func(ctx context.Context, w Worker) error {
+		err := m.startWork(ctx, w, wk)(w.ReplicaUpdate(ctx, sector, pieces))
+		if err != nil {
+			return xerrors.Errorf("startWork: %w", err)
+		}
+
+		waitRes()
+		return nil
+	})
+	if err != nil {
+		return storage.ReplicaUpdateOut{}, xerrors.Errorf("Schedule: %w", err)
+	}
+	return out, waitErr
+}
+
+func (m *Manager) ProveReplicaUpdate1(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (out storage.ReplicaVanillaProofs, err error) {
+	return m.hlmWorker.ProveReplicaUpdate1(ctx, sector, sectorKey, newSealed, newUnsealed)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	wk, wait, cancel, err := m.getWork(ctx, sealtasks.TTProveReplicaUpdate1, sector, sectorKey, newSealed, newUnsealed)
+	if err != nil {
+		return nil, xerrors.Errorf("getWork: %w", err)
+	}
+	defer cancel()
+
+	var waitErr error
+	waitRes := func() {
+		p, werr := m.waitWork(ctx, wk)
+		if werr != nil {
+			waitErr = werr
+			return
+		}
+		if p != nil {
+			out = p.(storage.ReplicaVanillaProofs)
+		}
+	}
+
+	if wait { // already in progress
+		waitRes()
+		return out, waitErr
+	}
+
+	if err := m.index.StorageLock(ctx, sector.ID, storiface.FTSealed|storiface.FTUpdate|storiface.FTCache|storiface.FTUpdateCache, storiface.FTNone); err != nil {
+		return nil, xerrors.Errorf("acquiring sector lock: %w", err)
+	}
+
+	// NOTE: We set allowFetch to false in so that we always execute on a worker
+	// with direct access to the data. We want to do that because this step is
+	// generally very cheap / fast, and transferring data is not worth the effort
+	selector := newExistingSelector(m.index, sector.ID, storiface.FTUpdate|storiface.FTUpdateCache, false)
+
+	err = m.sched.Schedule(ctx, sector, sealtasks.TTProveReplicaUpdate1, selector, m.schedFetch(sector, storiface.FTSealed|storiface.FTCache|storiface.FTUpdate|storiface.FTUpdateCache, storiface.PathSealing, storiface.AcquireCopy), func(ctx context.Context, w Worker) error {
+
+		err := m.startWork(ctx, w, wk)(w.ProveReplicaUpdate1(ctx, sector, sectorKey, newSealed, newUnsealed))
+		if err != nil {
+			return err
+		}
+
+		waitRes()
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return out, waitErr
+}
+
+func (m *Manager) ProveReplicaUpdate2(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs storage.ReplicaVanillaProofs) (out storage.ReplicaUpdateProof, err error) {
+	return m.hlmWorker.ProveReplicaUpdate2(ctx, sector, sectorKey, newSealed, newUnsealed, vanillaProofs)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	wk, wait, cancel, err := m.getWork(ctx, sealtasks.TTProveReplicaUpdate2, sector, sectorKey, newSealed, newUnsealed, vanillaProofs)
+	if err != nil {
+		return nil, xerrors.Errorf("getWork: %w", err)
+	}
+	defer cancel()
+
+	var waitErr error
+	waitRes := func() {
+		p, werr := m.waitWork(ctx, wk)
+		if werr != nil {
+			waitErr = werr
+			return
+		}
+		if p != nil {
+			out = p.(storage.ReplicaUpdateProof)
+		}
+	}
+
+	if wait { // already in progress
+		waitRes()
+		return out, waitErr
+	}
+
+	selector := newTaskSelector()
+
+	err = m.sched.Schedule(ctx, sector, sealtasks.TTProveReplicaUpdate2, selector, schedNop, func(ctx context.Context, w Worker) error {
+		err := m.startWork(ctx, w, wk)(w.ProveReplicaUpdate2(ctx, sector, sectorKey, newSealed, newUnsealed, vanillaProofs))
+		if err != nil {
+			return err
+		}
+
+		waitRes()
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return out, waitErr
 }
 
 func (m *Manager) ReturnAddPiece(ctx context.Context, callID storiface.CallID, pi abi.PieceInfo, err *storiface.CallError) error {

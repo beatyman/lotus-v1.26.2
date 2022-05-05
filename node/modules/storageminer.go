@@ -5,15 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/filecoin-project/lotus/node/modules/proxy"
+	"go.uber.org/fx"
+	"go.uber.org/multierr"
+	"golang.org/x/xerrors"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-	"github.com/filecoin-project/lotus/node/modules/proxy"
-	"go.uber.org/fx"
-	"go.uber.org/multierr"
-	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	dtimpl "github.com/filecoin-project/go-data-transfer/impl"
@@ -35,11 +35,11 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-statestore"
 	"github.com/filecoin-project/go-storedcounter"
+	provider "github.com/filecoin-project/index-provider"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/namespace"
 	graphsync "github.com/ipfs/go-graphsync/impl"
-	graphsyncimpl "github.com/ipfs/go-graphsync/impl"
 	gsnet "github.com/ipfs/go-graphsync/network"
 	"github.com/ipfs/go-graphsync/storeutil"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -62,6 +62,7 @@ import (
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/markets"
 	"github.com/filecoin-project/lotus/markets/dagstore"
+	"github.com/filecoin-project/lotus/markets/idxprov"
 	marketevents "github.com/filecoin-project/lotus/markets/loggers"
 	"github.com/filecoin-project/lotus/markets/pricing"
 	lotusminer "github.com/filecoin-project/lotus/miner"
@@ -78,7 +79,7 @@ var (
 )
 
 func minerAddrFromDS(ds dtypes.MetadataDS) (address.Address, error) {
-	maddrb, err := ds.Get(datastore.NewKey("miner-address"))
+	maddrb, err := ds.Get(context.TODO(), datastore.NewKey("miner-address"))
 	if err != nil {
 		return address.Undef, err
 	}
@@ -236,7 +237,7 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 		defer log.Info("Init StorageMiner done")
 
 		// load the lotus proxy configratoin.
-		on, err := ds.Get(proxy.PROXY_AUTO)
+		on, err := ds.Get(context.TODO(), proxy.PROXY_AUTO)
 		if err == nil {
 			// no care about the err
 			if len(on) > 0 {
@@ -311,7 +312,7 @@ func HandleDeals(mctx helpers.MetricsCtx, lc fx.Lifecycle, host host.Host, h sto
 func HandleMigrateProviderFunds(lc fx.Lifecycle, ds dtypes.MetadataDS, node api.FullNode, minerAddress dtypes.MinerAddress) {
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			b, err := ds.Get(datastore.NewKey("/marketfunds/provider"))
+			b, err := ds.Get(ctx, datastore.NewKey("/marketfunds/provider"))
 			if err != nil {
 				if xerrors.Is(err, datastore.ErrNotFound) {
 					return nil
@@ -342,24 +343,26 @@ func HandleMigrateProviderFunds(lc fx.Lifecycle, ds dtypes.MetadataDS, node api.
 				return nil
 			}
 
-			return ds.Delete(datastore.NewKey("/marketfunds/provider"))
+			return ds.Delete(ctx, datastore.NewKey("/marketfunds/provider"))
 		},
 	})
 }
 
-// NewProviderDAGServiceDataTransfer returns a data transfer manager that just
-// uses the provider's Staging DAG service for transfers
-func NewProviderDAGServiceDataTransfer(lc fx.Lifecycle, h host.Host, gs dtypes.StagingGraphsync, ds dtypes.MetadataDS, r repo.LockedRepo) (dtypes.ProviderDataTransfer, error) {
-	net := dtnet.NewFromLibp2pHost(h)
+// NewProviderTransferNetwork sets up the libp2p2 protocol networking for data transfer
+func NewProviderTransferNetwork(h host.Host) dtypes.ProviderTransferNetwork {
+	return dtnet.NewFromLibp2pHost(h)
+}
 
+// NewProviderTransport sets up a data transfer transport over graphsync
+func NewProviderTransport(h host.Host, gs dtypes.StagingGraphsync) dtypes.ProviderTransport {
+	return dtgstransport.NewTransport(h.ID(), gs)
+}
+
+// NewProviderDataTransfer returns a data transfer manager
+func NewProviderDataTransfer(lc fx.Lifecycle, net dtypes.ProviderTransferNetwork, transport dtypes.ProviderTransport, ds dtypes.MetadataDS, r repo.LockedRepo) (dtypes.ProviderDataTransfer, error) {
 	dtDs := namespace.Wrap(ds, datastore.NewKey("/datatransfer/provider/transfers"))
-	transport := dtgstransport.NewTransport(h.ID(), gs, net)
-	err := os.MkdirAll(filepath.Join(r.Path(), "data-transfer"), 0755) //nolint: gosec
-	if err != nil && !os.IsExist(err) {
-		return nil, err
-	}
 
-	dt, err := dtimpl.NewDataTransfer(dtDs, filepath.Join(r.Path(), "data-transfer"), net, transport)
+	dt, err := dtimpl.NewDataTransfer(dtDs, net, transport)
 	if err != nil {
 		return nil, err
 	}
@@ -407,7 +410,7 @@ func StagingBlockstore(lc fx.Lifecycle, mctx helpers.MetricsCtx, r repo.LockedRe
 
 // StagingGraphsync creates a graphsync instance which reads and writes blocks
 // to the StagingBlockstore
-func StagingGraphsync(parallelTransfersForStorage uint64, parallelTransfersForRetrieval uint64) func(mctx helpers.MetricsCtx, lc fx.Lifecycle, ibs dtypes.StagingBlockstore, h host.Host) dtypes.StagingGraphsync {
+func StagingGraphsync(parallelTransfersForStorage uint64, parallelTransfersForStoragePerPeer uint64, parallelTransfersForRetrieval uint64) func(mctx helpers.MetricsCtx, lc fx.Lifecycle, ibs dtypes.StagingBlockstore, h host.Host) dtypes.StagingGraphsync {
 	return func(mctx helpers.MetricsCtx, lc fx.Lifecycle, ibs dtypes.StagingBlockstore, h host.Host) dtypes.StagingGraphsync {
 		graphsyncNetwork := gsnet.NewFromLibp2pHost(h)
 		lsys := storeutil.LinkSystemForBlockstore(ibs)
@@ -416,9 +419,10 @@ func StagingGraphsync(parallelTransfersForStorage uint64, parallelTransfersForRe
 			lsys,
 			graphsync.RejectAllRequestsByDefault(),
 			graphsync.MaxInProgressIncomingRequests(parallelTransfersForRetrieval),
+			graphsync.MaxInProgressIncomingRequestsPerPeer(parallelTransfersForStoragePerPeer),
 			graphsync.MaxInProgressOutgoingRequests(parallelTransfersForStorage),
-			graphsyncimpl.MaxLinksPerIncomingRequests(config.MaxTraversalLinks),
-			graphsyncimpl.MaxLinksPerOutgoingRequests(config.MaxTraversalLinks))
+			graphsync.MaxLinksPerIncomingRequests(config.MaxTraversalLinks),
+			graphsync.MaxLinksPerOutgoingRequests(config.MaxTraversalLinks))
 
 		graphsyncStats(mctx, lc, gs)
 
@@ -593,10 +597,12 @@ func StorageProvider(minerAddress dtypes.MinerAddress,
 	h host.Host, ds dtypes.MetadataDS,
 	r repo.LockedRepo,
 	pieceStore dtypes.ProviderPieceStore,
+	indexer provider.Interface,
 	dataTransfer dtypes.ProviderDataTransfer,
 	spn storagemarket.StorageProviderNode,
 	df dtypes.StorageDealFilter,
 	dsw *dagstore.Wrapper,
+	meshCreator idxprov.MeshCreator,
 ) (storagemarket.StorageProvider, error) {
 	net := smnet.NewFromLibp2pHost(h)
 
@@ -621,11 +627,13 @@ func StorageProvider(minerAddress dtypes.MinerAddress,
 		namespace.Wrap(ds, datastore.NewKey("/deals/provider")),
 		store,
 		dsw,
+		indexer,
 		pieceStore,
 		dataTransfer,
 		spn,
 		address.Address(minerAddress),
 		storedAsk,
+		meshCreator,
 		opt,
 	)
 }
@@ -901,6 +909,8 @@ func NewSetSealConfigFunc(r repo.LockedRepo) (dtypes.SetSealingConfigFunc, error
 				MaxSealingSectorsForDeals:       cfg.MaxSealingSectorsForDeals,
 				CommittedCapacitySectorLifetime: config.Duration(cfg.CommittedCapacitySectorLifetime),
 				WaitDealsDelay:                  config.Duration(cfg.WaitDealsDelay),
+				MakeNewSectorForDeals:           cfg.MakeNewSectorForDeals,
+				MakeCCSectorsAvailable:          cfg.MakeCCSectorsAvailable,
 				AlwaysKeepUnsealedCopy:          cfg.AlwaysKeepUnsealedCopy,
 				FinalizeEarly:                   cfg.FinalizeEarly,
 
@@ -936,8 +946,11 @@ func ToSealingConfig(cfg *config.StorageMiner) sealiface.Config {
 		MaxWaitDealsSectors:             cfg.Sealing.MaxWaitDealsSectors,
 		MaxSealingSectors:               cfg.Sealing.MaxSealingSectors,
 		MaxSealingSectorsForDeals:       cfg.Sealing.MaxSealingSectorsForDeals,
+		StartEpochSealingBuffer:         abi.ChainEpoch(cfg.Dealmaking.StartEpochSealingBuffer),
+		MakeNewSectorForDeals:           cfg.Sealing.MakeNewSectorForDeals,
 		CommittedCapacitySectorLifetime: time.Duration(cfg.Sealing.CommittedCapacitySectorLifetime),
 		WaitDealsDelay:                  time.Duration(cfg.Sealing.WaitDealsDelay),
+		MakeCCSectorsAvailable:          cfg.Sealing.MakeCCSectorsAvailable,
 		AlwaysKeepUnsealedCopy:          cfg.Sealing.AlwaysKeepUnsealedCopy,
 		FinalizeEarly:                   cfg.Sealing.FinalizeEarly,
 
@@ -961,8 +974,6 @@ func ToSealingConfig(cfg *config.StorageMiner) sealiface.Config {
 		TerminateBatchMax:  cfg.Sealing.TerminateBatchMax,
 		TerminateBatchMin:  cfg.Sealing.TerminateBatchMin,
 		TerminateBatchWait: time.Duration(cfg.Sealing.TerminateBatchWait),
-
-		StartEpochSealingBuffer: abi.ChainEpoch(cfg.Dealmaking.StartEpochSealingBuffer),
 	}
 }
 
