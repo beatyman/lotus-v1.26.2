@@ -151,7 +151,11 @@ func DefaultStorageMiner() *StorageMiner {
 			TerminateBatchWait: Duration(5 * time.Minute),
 		},
 
-		Storage: sectorstorage.SealerConfig{
+		Proving: ProvingConfig{
+			ParallelCheckLimit: 128,
+		},
+
+		Storage: SealerConfig{
 			AllowAddPiece:            true,
 			AllowPreCommit1:          true,
 			AllowPreCommit2:          true,
@@ -204,7 +208,7 @@ func DefaultStorageMiner() *StorageMiner {
 		},
 
 		IndexProvider: IndexProviderConfig{
-			Enable:               true,
+			Enable:               false,
 			EntriesCacheCapacity: 1024,
 			EntriesChunkSize:     16384,
 			TopicName:            "/indexer/ingest/mainnet",

@@ -35,6 +35,7 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
+	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 
 	market2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/market"
 	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"
@@ -245,7 +246,7 @@ var initCmd = &cli.Command{
 
 			if !cctx.Bool("no-local-storage") {
 				b, err := json.MarshalIndent(&stores.LocalStorageMeta{
-					ID:       stores.ID(uuid.New().String()),
+					ID:       storiface.ID(uuid.New().String()),
 					Weight:   10,
 					CanSeal:  true,
 					CanStore: true,
@@ -480,7 +481,7 @@ func storageMinerInit(ctx context.Context, cctx *cli.Context, api v1api.FullNode
 			}
 			stor := stores.NewRemote(lstor, si, http.Header(sa), 10, &stores.DefaultPartialFileHandler{})
 
-			smgr, err := sectorstorage.New(ctx, lstor, stor, lr, si, sectorstorage.SealerConfig{
+			smgr, err := sectorstorage.New(ctx, lstor, stor, lr, si, sectorstorage.Config{
 				ParallelFetchLimit:       10,
 				AllowAddPiece:            true,
 				AllowPreCommit1:          true,
