@@ -40,7 +40,7 @@ func (g ProvableStatArr) Less(i, j int) bool {
 }
 
 // CheckProvable returns unprovable sectors
-func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storiface.RGetter, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
+func CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof,sectors []storage.SectorRef, rg storiface.RGetter, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
 	var good = []ProvableStat{}
 	var goodLk = sync.Mutex{}
 	var appendGood = func(sid ProvableStat) {
@@ -174,7 +174,7 @@ func CheckProvable(ctx context.Context, sectors []storage.SectorRef, rg storifac
 				return errors.As(err)
 			}
 
-			commr, err := rg(ctx, sector.ID)
+			commr,_, err := rg(ctx, sector.ID)
 			if err != nil {
 				return errors.As(err)
 			}

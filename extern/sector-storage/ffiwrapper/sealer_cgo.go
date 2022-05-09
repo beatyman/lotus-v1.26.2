@@ -24,15 +24,16 @@ import (
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"golang.org/x/xerrors"
 
+	"github.com/detailyang/go-fallocate"
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
-	commcid "github.com/filecoin-project/go-fil-commcid"
-	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/specs-storage/storage"
-
-	"github.com/detailyang/go-fallocate"
 	commpffi "github.com/filecoin-project/go-commp-utils/ffiwrapper"
 	"github.com/filecoin-project/go-commp-utils/zerocomm"
+	commcid "github.com/filecoin-project/go-fil-commcid"
+	"github.com/filecoin-project/go-state-types/abi"
+	proof5 "github.com/filecoin-project/specs-actors/v5/actors/runtime/proof"
+	"github.com/filecoin-project/specs-storage/storage"
+
 	"github.com/filecoin-project/lotus/extern/sector-storage/fr32"
 	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
@@ -943,6 +944,7 @@ func (sb *Sealer) SealCommit2(ctx context.Context, sector storage.SectorRef, pha
 	return ffi.SealCommitPhase2(phase1Out, sector.ID.Number, sector.ID.Miner)
 }
 
+
 type req struct {
 	Path   string `json:"path"`
 	ToPath string `json:"topath"`
@@ -953,6 +955,77 @@ func newReq(s, s1 string) *req {
 		Path:   s,
 		ToPath: s1,
 	}
+}
+
+func (sb *Sealer) ReplicaUpdate(ctx context.Context, sector storage.SectorRef, pieces []abi.PieceInfo) (storage.ReplicaUpdateOut, error) {
+	empty := storage.ReplicaUpdateOut{}
+	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed|storiface.FTSealed|storiface.FTCache, storiface.FTUpdate|storiface.FTUpdateCache, storiface.PathSealing)
+	if err != nil {
+		return empty, xerrors.Errorf("failed to acquire sector paths: %w", err)
+	}
+	defer done()
+
+	updateProofType := abi.SealProofInfos[sector.ProofType].UpdateProof
+
+	s, err := os.Stat(paths.Sealed)
+	if err != nil {
+		return empty, err
+	}
+	sealedSize := s.Size()
+
+	u, err := os.OpenFile(paths.Update, os.O_RDWR|os.O_CREATE, 0644) // nolint:gosec
+	if err != nil {
+		return empty, xerrors.Errorf("ensuring updated replica file exists: %w", err)
+	}
+	if err := fallocate.Fallocate(u, 0, sealedSize); err != nil {
+		return empty, xerrors.Errorf("allocating space for replica update file: %w", err)
+	}
+
+	if err := u.Close(); err != nil {
+		return empty, err
+	}
+
+	if err := os.Mkdir(paths.UpdateCache, 0755); err != nil { // nolint
+		if os.IsExist(err) {
+			log.Warnf("existing cache in %s; removing", paths.UpdateCache)
+
+			if err := os.RemoveAll(paths.UpdateCache); err != nil {
+				return empty, xerrors.Errorf("remove existing sector cache from %s (sector %d): %w", paths.UpdateCache, sector, err)
+			}
+
+			if err := os.Mkdir(paths.UpdateCache, 0755); err != nil { // nolint:gosec
+				return empty, xerrors.Errorf("mkdir cache path after cleanup: %w", err)
+			}
+		} else {
+			return empty, err
+		}
+	}
+	sealed, unsealed, err := ffi.SectorUpdate.EncodeInto(updateProofType, paths.Update, paths.UpdateCache, paths.Sealed, paths.Cache, paths.Unsealed, pieces)
+	if err != nil {
+		return empty, xerrors.Errorf("failed to update replica %d with new deal data: %w", sector.ID.Number, err)
+	}
+	return storage.ReplicaUpdateOut{NewSealed: sealed, NewUnsealed: unsealed}, nil
+}
+
+func (sb *Sealer) ProveReplicaUpdate1(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storage.ReplicaVanillaProofs, error) {
+	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTSealed|storiface.FTCache|storiface.FTUpdate|storiface.FTUpdateCache, storiface.FTNone, storiface.PathSealing)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to acquire sector paths: %w", err)
+	}
+	defer done()
+
+	updateProofType := abi.SealProofInfos[sector.ProofType].UpdateProof
+
+	vanillaProofs, err := ffi.SectorUpdate.GenerateUpdateVanillaProofs(updateProofType, sectorKey, newSealed, newUnsealed, paths.Update, paths.UpdateCache, paths.Sealed, paths.Cache)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to generate proof of replica update for sector %d: %w", sector.ID.Number, err)
+	}
+	return vanillaProofs, nil
+}
+
+func (sb *Sealer) ProveReplicaUpdate2(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs storage.ReplicaVanillaProofs) (storage.ReplicaUpdateProof, error) {
+	updateProofType := abi.SealProofInfos[sector.ProofType].UpdateProof
+	return ffi.SectorUpdate.GenerateUpdateProofWithVanilla(updateProofType, sectorKey, newSealed, newUnsealed, vanillaProofs)
 }
 
 func (sb *Sealer) GenerateSectorKeyFromData(ctx context.Context, sector storage.SectorRef, commD cid.Cid) error {
@@ -1264,6 +1337,26 @@ func GenerateUnsealedCID(proofType abi.RegisteredSealProof, pieces []abi.PieceIn
 	}
 
 	return ffi.GenerateUnsealedCID(proofType, allPieces)
+}
+
+func (sb *Sealer) GenerateWinningPoStWithVanilla(ctx context.Context, proofType abi.RegisteredPoStProof, minerID abi.ActorID, randomness abi.PoStRandomness, vanillas [][]byte) ([]proof5.PoStProof, error) {
+	return ffi.GenerateWinningPoStWithVanilla(proofType, minerID, randomness, vanillas)
+}
+
+func (sb *Sealer) GenerateWindowPoStWithVanilla(ctx context.Context, proofType abi.RegisteredPoStProof, minerID abi.ActorID, randomness abi.PoStRandomness, proofs [][]byte, partitionIdx int) (proof5.PoStProof, error) {
+	pp, err := ffi.GenerateSinglePartitionWindowPoStWithVanilla(proofType, minerID, randomness, proofs, uint(partitionIdx))
+	if err != nil {
+		return proof5.PoStProof{}, err
+	}
+	if pp == nil {
+		// should be impossible, but just in case do not panic
+		return proof5.PoStProof{}, xerrors.New("postproof was nil")
+	}
+
+	return proof5.PoStProof{
+		PoStProof:  pp.PoStProof,
+		ProofBytes: pp.ProofBytes,
+	}, nil
 }
 
 //拷贝文件
