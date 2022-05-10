@@ -273,6 +273,7 @@ func StorageMiner(fc config.MinerFeeConfig) func(params StorageMinerParams) (*st
 func WindowPostScheduler(fc config.MinerFeeConfig) func(params StorageMinerParams) (*storage.WindowPoStScheduler, error) {
 	return func(params StorageMinerParams) (*storage.WindowPoStScheduler, error) {
 		var (
+			ds     = params.MetadataDS
 			mctx   = params.MetricsCtx
 			lc     = params.Lifecycle
 			api    = params.API
@@ -282,7 +283,11 @@ func WindowPostScheduler(fc config.MinerFeeConfig) func(params StorageMinerParam
 			as     = params.AddrSel
 			maddr  = address.Address(params.Maddr)
 		)
-
+		var err error
+		maddr, err= minerAddrFromDS(ds)
+		if err != nil {
+			return nil, err
+		}
 		ctx := helpers.LifecycleCtx(mctx, lc)
 
 		fps, err := storage.NewWindowedPoStScheduler(api, fc, as, sealer, verif, sealer, j, maddr)

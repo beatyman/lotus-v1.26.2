@@ -50,8 +50,6 @@ var log = logging.Logger("storageminer")
 //
 // Miner#Run starts the sealing FSM.
 type Miner struct {
-	// implement by hlm
-	fps *WindowPoStScheduler // SPEC: only for testing
 
 	api     fullNodeFilteredAPI
 	feeCfg  config.MinerFeeConfig

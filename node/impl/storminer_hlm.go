@@ -2,6 +2,7 @@ package impl
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/filecoin-project/go-address"
@@ -17,7 +18,19 @@ import (
 )
 
 func (sm *StorageMinerAPI) Testing(ctx context.Context, fnName string, args []string) error {
-	return sm.Miner.Testing(ctx, fnName, args)
+
+	switch fnName {
+	case "checkWindowPoSt":
+		if len(args) != 2 {
+			return errors.New("error argument input")
+		}
+		height, err := strconv.ParseUint(args[0], 10, 64)
+		if err != nil {
+			return errors.As(err, args)
+		}
+		sm.WdPoSt.CheckWindowPoSt(ctx, abi.ChainEpoch(height), args[1] == "true")
+	}
+	return nil
 }
 func (sm *StorageMinerAPI) StatisWin(ctx context.Context, id string) (*database.StatisWin, error) {
 	return database.GetStatisWin(id)
@@ -54,7 +67,7 @@ func (sm *StorageMinerAPI) WdpostSetPartitionNumber(ctx context.Context, number 
 	return sm.Miner.WdpostSetPartitionNumber(number)
 }
 func (sm *StorageMinerAPI) WdPostGetLog(ctx context.Context, index uint64) ([]api.WdPoStLog, error) {
-	return sm.Miner.GetWdPoStLog(ctx, index)
+	return sm.WdPoSt.GetLog(index), nil
 }
 
 func (sm *StorageMinerAPI) RunPledgeSector(ctx context.Context) error {
