@@ -952,3 +952,13 @@ func (s *LotusImpl) ChainBlockstoreInfo(p0 context.Context) (map[string]interfac
 func (s *LotusImpl) ChainGetMessagesInTipset(p0 context.Context, p1 types.TipSetKey) ([]api.Message, error) {
 	return bestNodeApi().ChainGetMessagesInTipset(p0, p1)
 }
+
+// StateGetNetworkParams return current network params
+func (s *LotusImpl)StateGetNetworkParams(p0 context.Context) (*api.NetworkParams, error){
+	return bestNodeApi().StateGetNetworkParams(p0)
+}
+
+// StateLookupRobustAddress returns the public key address of the given ID address for non-account addresses (multisig, miners etc)
+func (s *LotusImpl)StateLookupRobustAddress(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) {
+	return bestNodeApi().StateLookupRobustAddress(p0,p1,p2)
+}
