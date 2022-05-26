@@ -5,7 +5,6 @@ go 1.17
 retract v1.14.0 // Accidentally force-pushed tag, use v1.14.1+ instead.
 
 require (
-	contrib.go.opencensus.io/exporter/jaeger v0.2.1
 	contrib.go.opencensus.io/exporter/prometheus v0.4.0
 	github.com/BurntSushi/toml v0.4.1
 	github.com/GeertJohan/go.rice v1.0.2
@@ -50,6 +49,7 @@ require (
 	github.com/filecoin-project/go-statestore v0.2.0
 	github.com/filecoin-project/go-storedcounter v0.1.0
 	github.com/filecoin-project/index-provider v0.5.0
+	github.com/filecoin-project/pubsub v1.0.0
 	github.com/filecoin-project/specs-actors v0.9.14
 	github.com/filecoin-project/specs-actors/v2 v2.3.6
 	github.com/filecoin-project/specs-actors/v3 v3.1.1
@@ -57,7 +57,7 @@ require (
 	github.com/filecoin-project/specs-actors/v5 v5.0.4
 	github.com/filecoin-project/specs-actors/v6 v6.0.1
 	github.com/filecoin-project/specs-actors/v7 v7.0.0
-	github.com/filecoin-project/specs-storage v0.2.2
+	github.com/filecoin-project/specs-storage v0.2.3-0.20220426183226-1a0a63c5990f
 	github.com/filecoin-project/test-vectors/schema v0.0.5
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/gbrlsnchs/jwt/v3 v3.0.1
@@ -115,12 +115,11 @@ require (
 	github.com/ipld/go-ipld-prime v0.16.0
 	github.com/ipld/go-ipld-selector-text-lite v0.0.1
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f // indirect
 	github.com/koalacxr/quantile v0.0.1
 	github.com/lib/pq v1.10.2
 	github.com/libp2p/go-buffer-pool v0.0.2
 	github.com/libp2p/go-eventbus v0.2.1
-	github.com/libp2p/go-libp2p v0.19.0
+	github.com/libp2p/go-libp2p v0.19.3
 	github.com/libp2p/go-libp2p-connmgr v0.3.1
 	github.com/libp2p/go-libp2p-core v0.15.1
 	github.com/libp2p/go-libp2p-discovery v0.6.0
@@ -153,22 +152,21 @@ require (
 	github.com/prometheus/client_golang v1.12.1
 	github.com/raulk/clock v1.1.0
 	github.com/raulk/go-watchdog v1.2.0
-	github.com/shirou/gopsutil v2.18.12+incompatible
-	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	github.com/syndtr/goleveldb v1.0.0
-	github.com/ufilesdk-dev/us3-qiniu-go-sdk v0.2.0
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/whyrusleeping/bencher v0.0.0-20190829221104-bb6607aa8bba
 	github.com/whyrusleeping/cbor-gen v0.0.0-20220302191723-37c43cae8e14
 	github.com/whyrusleeping/ledger-filecoin-go v0.9.1-0.20201010031517-c3dcc1bddce4
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7
-	github.com/whyrusleeping/pubsub v0.0.0-20190708150250-92bcb0691325
 	github.com/xorcare/golden v0.6.1-0.20191112154924-b87f686d7542
 	go.etcd.io/bbolt v1.3.5 // indirect
 	go.etcd.io/etcd v0.0.0-20210512015243-d19fbe541bf9
 	go.opencensus.io v0.23.0
-	go.opentelemetry.io/otel v1.3.0 // indirect
+	go.opentelemetry.io/otel v1.3.0
+	go.opentelemetry.io/otel/bridge/opencensus v0.25.0
+	go.opentelemetry.io/otel/exporters/jaeger v1.2.0
+	go.opentelemetry.io/otel/sdk v1.2.0
 	go.uber.org/fx v1.15.0
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.21.0
@@ -207,7 +205,7 @@ require (
 	github.com/cilium/ebpf v0.4.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
+	github.com/coreos/pkg v0.0.0-20160727233714-3ac0863d7acf // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/crackcomm/go-gitignore v0.0.0-20170627025303-887ab5e44cc3 // indirect
 	github.com/cskr/pubsub v1.0.2 // indirect
@@ -312,7 +310,7 @@ require (
 	github.com/libp2p/go-tcp-transport v0.5.1 // indirect
 	github.com/libp2p/go-ws-transport v0.6.0 // indirect
 	github.com/libp2p/go-yamux/v3 v3.1.1 // indirect
-	github.com/lucas-clemente/quic-go v0.27.0 // indirect
+	github.com/lucas-clemente/quic-go v0.27.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.0.3 // indirect
 	github.com/magefile/mage v1.9.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
@@ -323,7 +321,6 @@ require (
 	github.com/mattn/go-colorable v0.1.9 // indirect
 	github.com/mattn/go-runewidth v0.0.10 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
-	github.com/micro/go-micro/v2 v2.9.1 // indirect
 	github.com/miekg/dns v1.1.48 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
@@ -338,13 +335,12 @@ require (
 	github.com/nikkolasg/hexjson v0.0.0-20181101101858-78e39397e00c // indirect
 	github.com/nkovacs/streamquote v1.0.0 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
-	github.com/olekukonko/tablewriter v0.0.1 // indirect
+	github.com/olekukonko/tablewriter v0.0.0-20170122224234-a0225b3f23b5 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
-	github.com/pelletier/go-toml v1.8.1 // indirect
 	github.com/petar/GoLLRB v0.0.0-20210522233825-ae3b015fd3e9 // indirect
-	github.com/pierrec/lz4 v1.0.2-0.20190131084431-473cd7ce01a1 // indirect
+	github.com/pierrec/lz4 v2.0.5+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
@@ -356,6 +352,7 @@ require (
 	github.com/rivo/uniseg v0.1.0 // indirect
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/russross/blackfriday/v2 v2.0.1 // indirect
+	github.com/shirou/gopsutil v2.18.12+incompatible // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/soheilhy/cmux v0.1.4 // indirect
@@ -378,6 +375,8 @@ require (
 	github.com/xlab/pkgconfig v0.0.0-20170226114623-cea12a0fd245 // indirect
 	github.com/zondax/hid v0.9.0 // indirect
 	github.com/zondax/ledger-go v0.12.1 // indirect
+	go.opentelemetry.io/otel/metric v0.25.0 // indirect
+	go.opentelemetry.io/otel/sdk/export/metric v0.25.0 // indirect
 	go.opentelemetry.io/otel/trace v1.3.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/dig v1.12.0 // indirect
@@ -387,12 +386,11 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
-	google.golang.org/api v0.30.0 // indirect
 	google.golang.org/genproto v0.0.0-20210917145530-b395a37504d4 // indirect
 	google.golang.org/grpc v1.45.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
-	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
@@ -416,6 +414,8 @@ replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-2021
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
+
+replace github.com/filecoin-project/specs-actors/v7 => github.com/filecoin-project/specs-actors/v7 v7.0.0-rc1
 
 replace github.com/drand/drand => github.com/beatyman/drand v1.3.1-0.20220322013436-8d791775a900
 

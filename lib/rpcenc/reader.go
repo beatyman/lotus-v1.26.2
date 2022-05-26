@@ -216,6 +216,7 @@ type RpcReader struct {
 	postBody     io.ReadCloser   // nil on initial head request
 	next         chan *RpcReader // on head will get us the postBody after sending resStart
 	mustRedirect bool
+	eof          bool
 
 	res       chan readRes
 	beginOnce *sync.Once
@@ -271,6 +272,10 @@ func (w *RpcReader) Read(p []byte) (int, error) {
 		w.beginPost()
 	})
 
+	if w.eof {
+		return 0, io.EOF
+	}
+
 	if w.mustRedirect {
 		return 0, ErrMustRedirect
 	}
@@ -281,6 +286,9 @@ func (w *RpcReader) Read(p []byte) (int, error) {
 
 	n, err := w.postBody.Read(p)
 	if err != nil {
+		if err == io.EOF {
+			w.eof = true
+		}
 		w.closeOnce.Do(func() {
 			close(w.res)
 		})

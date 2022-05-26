@@ -436,3 +436,7 @@ func (l *hlmWorker) Closing(ctx context.Context) (<-chan struct{}, error) {
 func (l *hlmWorker) Close() error {
 	return nil
 }
+// Compute Data CID
+func (l *hlmWorker)DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, pieceData storage.Data) (abi.PieceInfo, error){
+	return l.sb.DataCid(ctx,pieceSize,pieceData)
+}
