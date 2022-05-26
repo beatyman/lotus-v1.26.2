@@ -365,6 +365,7 @@ func (m *Manager) PledgeSector(ctx context.Context, sectorID storage.SectorRef, 
 }
 
 func (m *Manager) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, pieceData storage.Data) (abi.PieceInfo, error) {
+	return m.hlmWorker.DataCid(ctx,pieceSize,pieceData)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
