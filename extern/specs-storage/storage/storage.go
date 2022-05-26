@@ -23,13 +23,15 @@ type ProofSectorInfo struct {
 	SealedCID cid.Cid // CommR
 	SectorKey *cid.Cid
 }
-
+var NoSectorRef = SectorRef{}
 type Storage interface {
 	// Creates a new empty sector (only allocate on disk. Layers above
 	//  storage are responsible for assigning sector IDs)
 	NewSector(ctx context.Context, sector SectorRef) error
 	// Add a piece to an existing *unsealed* sector
 	AddPiece(ctx context.Context, sector SectorRef, pieceSizes []abi.UnpaddedPieceSize, newPieceSize abi.UnpaddedPieceSize, pieceData Data) (abi.PieceInfo, error)
+	// Compute Data CID
+	DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, pieceData Data) (abi.PieceInfo, error)
 }
 
 type Prover interface {
