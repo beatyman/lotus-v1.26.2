@@ -59,6 +59,9 @@ func defCommon() Common {
 				"example-subsystem": "INFO",
 			},
 		},
+		Backup: Backup{
+			DisableMetadataLog: true,
+		},
 		Libp2p: Libp2p{
 			ListenAddresses: []string{
 				"/ip4/0.0.0.0/tcp/0",
