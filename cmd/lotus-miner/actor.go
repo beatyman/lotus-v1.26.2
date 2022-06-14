@@ -285,7 +285,7 @@ var actorWithdrawCmd = &cli.Command{
 
 			Nonce: uint64(cctx.Int64("nonce")),
 
-			Method: miner.MethodsMiner.WithdrawBalance,
+			Method: builtin.MethodsMiner.WithdrawBalance,
 			Params: params,
 		}
 		var smsg *types.SignedMessage
