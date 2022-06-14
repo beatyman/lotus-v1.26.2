@@ -64,7 +64,7 @@ CLEAN+=build/.update-modules
 deps: $(BUILD_DEPS)
 .PHONY: deps
 
-build-devnets: build lotus-seed lotus-shed lotus-wallet lotus-gateway
+build-devnets: build lotus-seed lotus-shed lotus-wallet lotus-gateway lotus-fountain lotus-stats
 .PHONY: build-devnets
 
 debug: GOFLAGS+=-tags=debug
@@ -186,7 +186,7 @@ BINS+=lotus-fountain
 
 lotus-bench:
 	rm -f lotus-bench
-	$(GOCC) build -o lotus-bench ./cmd/lotus-bench
+	$(GOCC) build $(GOFLAGS) -o lotus-bench ./cmd/lotus-bench
 .PHONY: lotus-bench
 BINS+=lotus-bench
 
@@ -324,6 +324,12 @@ actors-gen:
 	$(GOCC) run ./chain/actors/agen
 	$(GOCC) fmt ./...
 
+bundle-gen:
+	$(GOCC) run ./gen/bundle
+	$(GOCC) fmt ./build/...
+.PHONY: bundle-gen
+
+
 api-gen:
 	$(GOCC) run ./gen/api
 	goimports -w api
@@ -370,7 +376,7 @@ docsgen-openrpc-worker: docsgen-openrpc-bin
 
 .PHONY: docsgen docsgen-md-bin docsgen-openrpc-bin
 
-gen: actors-gen type-gen method-gen cfgdoc-gen docsgen api-gen circleci
+gen: actors-gen type-gen method-gen cfgdoc-gen docsgen api-gen circleci bundle-gen
 	@echo ">>> IF YOU'VE MODIFIED THE CLI OR CONFIG, REMEMBER TO ALSO MAKE docsgen-cli"
 .PHONY: gen
 

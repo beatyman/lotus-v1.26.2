@@ -47,7 +47,6 @@ build/paramfetch.sh
 /darwin
 /linux
 *.snap
-build/builtin-actors
 
 *-fuzz.zip
 /chain/types/work_msg/
@@ -59,3 +58,6 @@ bin/tmp/*
 .DS_Store
 */.DS_Store
 scratchpad
+
+build/builtin-actors/v*
+build/builtin-actors/*.car

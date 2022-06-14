@@ -11,12 +11,13 @@ import (
 	"strconv"
 	"time"
 
+	minertypes "github.com/filecoin-project/go-state-types/builtin/v8/miner"
+
 	"github.com/filecoin-project/dagstore"
 	"github.com/filecoin-project/dagstore/shard"
 	"github.com/filecoin-project/go-jsonrpc/auth"
 
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
-	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/gen"
 
 	"github.com/google/uuid"
@@ -411,7 +412,7 @@ func (sm *StorageMinerAPI) SectorMatchPendingPiecesToOpenSectors(ctx context.Con
 	return sm.Miner.SectorMatchPendingPiecesToOpenSectors(ctx)
 }
 
-func (sm *StorageMinerAPI) ComputeWindowPoSt(ctx context.Context, dlIdx uint64, tsk types.TipSetKey) ([]lminer.SubmitWindowedPoStParams, error) {
+func (sm *StorageMinerAPI) ComputeWindowPoSt(ctx context.Context, dlIdx uint64, tsk types.TipSetKey) ([]minertypes.SubmitWindowedPoStParams, error) {
 	var ts *types.TipSet
 	var err error
 	if tsk == types.EmptyTSK {
@@ -459,7 +460,7 @@ func (sm *StorageMinerAPI) MarketImportDealData(ctx context.Context, propCid cid
 	return sm.StorageProvider.ImportDataForDeal(ctx, propCid, fi)
 }
 
-func (sm *StorageMinerAPI) listDeals(ctx context.Context) ([]api.MarketDeal, error) {
+func (sm *StorageMinerAPI) listDeals(ctx context.Context) ([]*api.MarketDeal, error) {
 	ts, err := sm.Full.ChainHead(ctx)
 	if err != nil {
 		return nil, err
@@ -470,7 +471,7 @@ func (sm *StorageMinerAPI) listDeals(ctx context.Context) ([]api.MarketDeal, err
 		return nil, err
 	}
 
-	var out []api.MarketDeal
+	var out []*api.MarketDeal
 
 	for _, deal := range allDeals {
 		if deal.Proposal.Provider == sm.Miner.Address() {
@@ -481,7 +482,7 @@ func (sm *StorageMinerAPI) listDeals(ctx context.Context) ([]api.MarketDeal, err
 	return out, nil
 }
 
-func (sm *StorageMinerAPI) MarketListDeals(ctx context.Context) ([]api.MarketDeal, error) {
+func (sm *StorageMinerAPI) MarketListDeals(ctx context.Context) ([]*api.MarketDeal, error) {
 	return sm.listDeals(ctx)
 }
 
@@ -1077,7 +1078,7 @@ func (sm *StorageMinerAPI) DagstoreLookupPieces(ctx context.Context, cid cid.Cid
 	return ret, nil
 }
 
-func (sm *StorageMinerAPI) DealsList(ctx context.Context) ([]api.MarketDeal, error) {
+func (sm *StorageMinerAPI) DealsList(ctx context.Context) ([]*api.MarketDeal, error) {
 	return sm.listDeals(ctx)
 }
 
