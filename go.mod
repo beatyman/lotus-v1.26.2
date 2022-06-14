@@ -405,6 +405,4 @@ replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
 
-replace github.com/filecoin-project/specs-actors/v7 => github.com/filecoin-project/specs-actors/v7 v7.0.0-rc1
-
 replace github.com/drand/drand => github.com/beatyman/drand v1.3.1-0.20220322013436-8d791775a900
