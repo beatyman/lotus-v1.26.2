@@ -15,11 +15,12 @@ import (
 
 	pathx "path"
 
+	"github.com/filecoin-project/go-state-types/proof"
+
 	"golang.org/x/xerrors"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 

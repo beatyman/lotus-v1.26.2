@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/filecoin-project/specs-actors/v8/actors/builtin"
 	"path/filepath"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
-	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
 	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
@@ -223,7 +223,7 @@ func (s *WindowPoStScheduler) doWithdraw(cfg *WithdrawConfig) error {
 		From:  mi.Owner,
 		Value: types.NewInt(0),
 
-		Method: miner.Methods.WithdrawBalance,
+		Method: builtin.MethodsMiner.WithdrawBalance,
 		Params: params,
 	}
 	sm, err := api.MpoolPushMessage(ctx, msg, nil)

@@ -3,20 +3,23 @@ package proxy
 import (
 	"context"
 	"encoding/json"
-	"github.com/filecoin-project/lotus/journal/alerting"
-	"github.com/filecoin-project/lotus/node/repo/imports"
-	"time"
-
 	"github.com/filecoin-project/go-jsonrpc/auth"
+	"github.com/filecoin-project/go-state-types/builtin/v8/miner"
+	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+	"github.com/filecoin-project/go-state-types/builtin/v8/paych"
 	"github.com/filecoin-project/go-state-types/dline"
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/journal/alerting"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
+	"github.com/filecoin-project/lotus/node/repo/imports"
 	"github.com/gbrlsnchs/jwt/v3"
 	"github.com/google/uuid"
+	blocks "github.com/ipfs/go-block-format"
 	metrics "github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/network"
 	protocol "github.com/libp2p/go-libp2p-core/protocol"
 	"golang.org/x/xerrors"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -29,8 +32,6 @@ import (
 	"github.com/filecoin-project/go-state-types/crypto"
 
 	apitypes "github.com/filecoin-project/lotus/api/types"
-	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
-	"github.com/filecoin-project/lotus/chain/actors/builtin/paych"
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
@@ -246,8 +247,8 @@ func (c *LotusImpl) InputWalletPasswd(ctx context.Context, passwd string) error 
 func (c *LotusImpl) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
 	return bestNodeApi().WalletEncode(ctx, addr, passwd)
 }
-func (s *LotusImpl) BeaconGetEntry(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) {
-	return bestNodeApi().BeaconGetEntry(p0, p1)
+func (s *LotusImpl) StateGetBeaconEntry(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) {
+	return bestNodeApi().StateGetBeaconEntry(p0, p1)
 }
 
 func (s *LotusImpl) ChainDeleteObj(p0 context.Context, p1 cid.Cid) error {
@@ -315,6 +316,9 @@ func (s *LotusImpl) ChainHead(p0 context.Context) (*types.TipSet, error) {
 	return bestNodeApi().ChainHead(p0)
 }
 
+func (s *LotusImpl)ChainPutObj(p0 context.Context, p1 blocks.Block) error {
+	return bestNodeApi().ChainPutObj(p0,p1)
+}
 func (s *LotusImpl) ChainReadObj(p0 context.Context, p1 cid.Cid) ([]byte, error) {
 	return bestNodeApi().ChainReadObj(p0, p1)
 }
@@ -734,7 +738,7 @@ func (s *LotusImpl) StateMarketBalance(p0 context.Context, p1 address.Address, p
 	return bestNodeApi().StateMarketBalance(p0, p1, p2)
 }
 
-func (s *LotusImpl) StateMarketDeals(p0 context.Context, p1 types.TipSetKey) (map[string]api.MarketDeal, error) {
+func (s *LotusImpl) StateMarketDeals(p0 context.Context, p1 types.TipSetKey) (map[string]*api.MarketDeal, error) {
 	return bestNodeApi().StateMarketDeals(p0, p1)
 }
 
@@ -762,7 +766,7 @@ func (s *LotusImpl) StateMinerFaults(p0 context.Context, p1 address.Address, p2 
 	return bestNodeApi().StateMinerFaults(p0, p1, p2)
 }
 
-func (s *LotusImpl) StateMinerInfo(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (miner.MinerInfo, error) {
+func (s *LotusImpl) StateMinerInfo(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MinerInfo, error) {
 	return bestNodeApi().StateMinerInfo(p0, p1, p2)
 }
 
@@ -822,7 +826,7 @@ func (s *LotusImpl) StateSearchMsg(p0 context.Context, p1 types.TipSetKey, p2 ci
 	return bestNodeApi().StateSearchMsg(p0, p1, p2, p3, p4)
 }
 
-func (s *LotusImpl) StateSectorExpiration(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorExpiration, error) {
+func (s *LotusImpl) StateSectorExpiration(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorExpiration, error) {
 	return bestNodeApi().StateSectorExpiration(p0, p1, p2, p3)
 }
 
@@ -830,7 +834,7 @@ func (s *LotusImpl) StateSectorGetInfo(p0 context.Context, p1 address.Address, p
 	return bestNodeApi().StateSectorGetInfo(p0, p1, p2, p3)
 }
 
-func (s *LotusImpl) StateSectorPartition(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorLocation, error) {
+func (s *LotusImpl) StateSectorPartition(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorLocation, error) {
 	return bestNodeApi().StateSectorPartition(p0, p1, p2, p3)
 }
 
