@@ -2,13 +2,10 @@ package main
 
 import (
 	"bufio"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/mitchellh/go-homedir"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -63,7 +60,6 @@ var sectorsCmd = &cli.Command{
 		sectorsBatching,
 		sectorsRefreshPieceMatchingCmd,
 		sectorsCompactPartitionsCmd,
-		sectorsStatisticsCmd,
 	},
 }
 
@@ -2224,100 +2220,6 @@ var sectorsCompactPartitionsCmd = &cli.Command{
 			return err
 		}
 
-		return nil
-	},
-}
-
-var sectorsStatisticsCmd = &cli.Command{
-	Name:  "statistics",
-	Usage: "statistics sector info",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "output",
-			Usage: "output path",
-			Value: "/opt",
-		},
-	},
-	Action: func(cctx *cli.Context) error {
-		outputPath, err := homedir.Expand(cctx.String("output"))
-		if err != nil {
-			return err
-		}
-
-		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
-		if err != nil {
-			return err
-		}
-		defer closer()
-
-		fullApi, nCloser, err := lcli.GetFullNodeAPI(cctx)
-		if err != nil {
-			return xerrors.Errorf("getting fullnode api: %w", err)
-		}
-		defer nCloser()
-		ctx := lcli.ReqContext(cctx)
-
-		head, err := fullApi.ChainHead(ctx)
-		if err != nil {
-			return xerrors.Errorf("getting chain head: %w", err)
-		}
-		maddr, err := nodeApi.ActorAddress(ctx)
-		if err != nil {
-			return xerrors.Errorf("getting actor address: %w", err)
-		}
-		mact, err := fullApi.StateGetActor(ctx, maddr, head.Key())
-		if err != nil {
-			return err
-		}
-		tbs := blockstore.NewTieredBstore(blockstore.NewAPIBlockstore(fullApi), blockstore.NewMemory())
-		mas, err := miner.Load(adt.WrapStore(ctx, cbor.NewCborStore(tbs)), mact)
-		if err != nil {
-			return err
-		}
-		// toCheck is a working bitfield which will only contain terminated sectors
-		toCheck := bitfield.New()
-		{
-			sectors, err := nodeApi.SectorsList(ctx)
-			if err != nil {
-				return xerrors.Errorf("getting sector list: %w", err)
-			}
-
-			for _, sector := range sectors {
-				toCheck.Set(uint64(sector))
-			}
-		}
-		allocate, err := mas.GetAllocatedSectors()
-		if err != nil {
-			return err
-		}
-		toCheck, err = bitfield.IntersectBitField(toCheck, *allocate)
-		if err != nil {
-			return xerrors.Errorf("intersecting bitfields: %w", err)
-		}
-		infos, err := mas.LoadSectors(&toCheck)
-		if err != nil {
-			return err
-		}
-		path := filepath.Join(outputPath, fmt.Sprintf("%s_%s", maddr.String(), "sectors.csv"))
-		//OpenFile读取文件，不存在时则创建，使用追加模式
-		File, err := os.OpenFile(path, os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0666)
-		if err != nil {
-			return err
-		}
-		defer File.Close()
-		File.WriteString("\xEF\xBB\xBF")
-		//创建写入接口
-		WriterCsv := csv.NewWriter(File)
-		str := []string{"扇区编号", "扇区Proof类型", "激活时间", "过期时间"} //需要写入csv的数据，切片类型
-		//写入一条数据，传入数据为切片(追加模式)
-		err = WriterCsv.Write(str)
-		if err != nil {
-			return err
-		}
-		for _, pci := range infos {
-			WriterCsv.Write([]string{pci.SectorNumber.String(), fmt.Sprintf("%v", pci.SealProof), fmt.Sprintf("%+v", pci.Activation), fmt.Sprintf("%+v", pci.Expiration)})
-		}
-		WriterCsv.Flush() //刷新，不刷新是无法写入的
 		return nil
 	},
 }

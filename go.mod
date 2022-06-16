@@ -416,5 +416,3 @@ replace github.com/drand/drand => github.com/beatyman/drand v1.3.1-0.20220322013
 replace huangdong2012/filecoin-monitor => github.com/huangdong2012/filecoin-monitor v0.0.0-20211111023751-88bf10c05cd1
 
 replace go.opencensus.io => github.com/huangdong2012/opencensus-go v0.0.0-20210811152114-2cc76fc1a84f
-
-replace github.com/filecoin-project/specs-actors/v7 => github.com/filecoin-project/specs-actors/v7 v7.0.0
