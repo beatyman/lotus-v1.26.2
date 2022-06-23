@@ -461,6 +461,10 @@ type fsLockedRepo struct {
 	configLk  sync.Mutex
 }
 
+func (fsr *fsLockedRepo) RepoType() RepoType {
+	return fsr.repoType
+}
+
 func (fsr *fsLockedRepo) Readonly() bool {
 	return fsr.readonly
 }
