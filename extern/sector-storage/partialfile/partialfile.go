@@ -314,6 +314,15 @@ func OpenUnsealedPartialFileV2(maxPieceSize abi.PaddedPieceSize, sector storage.
 			f = f2
 		}
 	default:
+		if err := database.Mount(
+			context.TODO(),
+			ss.UnsealedStorage.MountType,
+			ss.UnsealedStorage.MountSignalUri,
+			filepath.Join(ss.UnsealedStorage.MountDir, fmt.Sprintf("%d", ss.UnsealedStorage.ID)),
+			ss.UnsealedStorage.MountOpt,
+		); err != nil {
+			return nil, err
+		}
 		osfile, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint
 		if err != nil {
 			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
