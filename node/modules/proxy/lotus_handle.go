@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-state-types/builtin/v8/miner"
-	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/go-state-types/builtin/v8/paych"
 	"github.com/filecoin-project/go-state-types/dline"
+	abinetwork "github.com/filecoin-project/go-state-types/network"
 	"github.com/filecoin-project/lotus/api"
+	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/journal/alerting"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo/imports"
@@ -733,7 +734,9 @@ func (s *LotusImpl) StateListMiners(p0 context.Context, p1 types.TipSetKey) ([]a
 func (s *LotusImpl) StateLookupID(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) {
 	return bestNodeApi().StateLookupID(p0, p1, p2)
 }
-
+func (s *LotusImpl) StateActorCodeCIDs(p0 context.Context, p1 abinetwork.Version) (map[string]cid.Cid, error) {
+	return bestNodeApi().StateActorCodeCIDs(p0, p1)
+}
 func (s *LotusImpl) StateMarketBalance(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MarketBalance, error) {
 	return bestNodeApi().StateMarketBalance(p0, p1, p2)
 }

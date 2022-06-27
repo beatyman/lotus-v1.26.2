@@ -83,7 +83,7 @@ var (
 func getReceipt(ctx context.Context, api aapi.FullNode, cid cid.Cid) (*aapi.MsgLookup, error) {
 	waitMsgLock.Lock()
 	defer waitMsgLock.Unlock()
-	return api.StateWaitMsg(ctx, cid, build.MessageConfidence)
+	return api.StateWaitMsg(ctx, cid, build.MessageConfidence,build.Finality, true)
 }
 
 func subMpool(ctx context.Context, api aapi.FullNode, ts *types.TipSet, blkCid cid.Cid, blk *types.BlockHeader, blkMessage []aapi.Message) {
