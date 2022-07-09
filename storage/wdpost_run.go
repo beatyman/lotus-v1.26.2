@@ -276,13 +276,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		})
 	}
 
-	all, _, _, err := s.faultTracker.CheckProvable(ctx, s.proofType, tocheck, func(ctx context.Context, id abi.SectorID) (cid.Cid, bool, error) {
-		s, ok := sectors[id.Number]
-		if !ok {
-			return cid.Undef, false, xerrors.Errorf("sealed CID not found")
-		}
-		return s.sealed, s.update, nil
-	}, timeout)
+	all, _, _, err := s.faultTracker.CheckProvable(ctx, s.proofType, tocheck, nil,timeout)
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
 	}
