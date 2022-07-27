@@ -14,23 +14,20 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/urfave/cli/v2"
-
-	"golang.org/x/xerrors"
-
-	"github.com/multiformats/go-base32"
-
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-base32"
+	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
+	"github.com/filecoin-project/lotus/chain/wallet/key"
+	_ "github.com/filecoin-project/lotus/lib/sigs/bls"
+	_ "github.com/filecoin-project/lotus/lib/sigs/secp"
 	"github.com/filecoin-project/lotus/node/modules"
 	"github.com/filecoin-project/lotus/node/modules/lp2p"
 	"github.com/filecoin-project/lotus/node/repo"
-
-	_ "github.com/filecoin-project/lotus/lib/sigs/bls"
-	_ "github.com/filecoin-project/lotus/lib/sigs/secp"
 )
 
 var validTypes = []types.KeyType{types.KTBLS, types.KTSecp256k1, lp2p.KTLibp2pHost}
@@ -322,7 +319,7 @@ var keyinfoInfoCmd = &cli.Command{
 		case types.KTSecp256k1, types.KTBLS:
 			kio.Type = keyInfo.Type
 
-			key, err := wallet.NewKey(context.TODO(), keyInfo)
+			key, err := key.NewKey(context.TODO(),keyInfo)
 			if err != nil {
 				return err
 			}
@@ -407,7 +404,7 @@ var keyinfoNewCmd = &cli.Command{
 
 			break
 		case types.KTSecp256k1, types.KTBLS:
-			key, err := wallet.GenerateKey(keyType)
+			key, err := key.GenerateKey(keyType)
 			if err != nil {
 				return err
 			}

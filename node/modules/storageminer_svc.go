@@ -4,8 +4,6 @@ import (
 	"context"
 	"github.com/filecoin-project/lotus/node/repo"
 
-	"github.com/filecoin-project/lotus/storage/sectorblocks"
-
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
 
@@ -13,6 +11,7 @@ import (
 	"github.com/filecoin-project/lotus/api/client"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/node/modules/helpers"
+	"github.com/filecoin-project/lotus/storage/sectorblocks"
 )
 
 type MinerSealingService api.StorageMiner

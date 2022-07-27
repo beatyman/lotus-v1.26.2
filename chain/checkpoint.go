@@ -3,12 +3,10 @@ package chain
 import (
 	"context"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
-
+	"golang.org/x/xerrors"
 	"github.com/filecoin-project/lotus/chain/types"
-
 	"encoding/json"
 	"github.com/ipfs/go-datastore"
-	"golang.org/x/xerrors"
 )
 
 func (syncer *Syncer) SyncCheckpoint(ctx context.Context, tsk types.TipSetKey) error {

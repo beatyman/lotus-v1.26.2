@@ -8,9 +8,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/filecoin-project/lotus/lib/addrutil"
-
 	"github.com/libp2p/go-libp2p-core/peer"
+
+	"github.com/filecoin-project/lotus/lib/addrutil"
 )
 
 //go:embed bootstrap

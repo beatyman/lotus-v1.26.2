@@ -11,7 +11,7 @@ import (
 
 	"github.com/gwaylib/errors"
 
-	cid "github.com/ipfs/go-cid"
+	"github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
