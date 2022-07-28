@@ -320,16 +320,16 @@ var sealBenchCmd = &cli.Command{
 				})
 			}
 		}
-		var provenSectors []storage.ProofSectorInfo
+		var provenSectors []storiface.ProofSectorInfo
 		for _, c := range sealedSectors {
-			provenSectors = append(provenSectors, storage.ProofSectorInfo{
-				SectorRef: storage.SectorRef{
+			provenSectors = append(provenSectors, storiface.ProofSectorInfo{
+				SectorRef: storiface.SectorRef{
 					ID: abi.SectorID{
 						Number: c.SectorNumber,
 						Miner:  mid,
 					},
 					ProofType: c.SealProof,
-					SectorFile: storage.SectorFile{
+					SectorFile: storiface.SectorFile{
 						SectorId:     fmt.Sprintf("s-t0%s-%d", mid, c.SectorNumber),
 						SealedRepo:   sbdir,
 						UnsealedRepo: sbdir,
@@ -366,7 +366,7 @@ var sealBenchCmd = &cli.Command{
 			}
 
 			xcandidates := make([]prooftypes.ExtendedSectorInfo, len(fcandidates))
-			pcandidates := make([]storage.ProofSectorInfo, len(fcandidates))
+			pcandidates := make([]storiface.ProofSectorInfo, len(fcandidates))
 			for i, fcandidate := range fcandidates {
 				xcandidates[i] = extendedSealedSectors[fcandidate]
 				pcandidates[i] = provenSectors[fcandidate]

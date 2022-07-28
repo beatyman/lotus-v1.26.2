@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/mitchellh/go-homedir"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -121,6 +122,14 @@ p: pvC0JBrEyUqtIIUvB2UUx/2a24c3Cvnu6AZ0D3IMBYAu...
 
 type benchSectorProvider map[storiface.SectorFileType]string
 
+func (b benchSectorProvider) RepoPath() string {
+	sdir, err := homedir.Expand("~/.lotus-bench/simple")
+	if err != nil {
+		panic(err)
+	}
+	return sdir
+}
+
 func (b benchSectorProvider) AcquireSector(ctx context.Context, id storiface.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, ptype storiface.PathType) (storiface.SectorPaths, func(), error) {
 	out := storiface.SectorPaths{
 		ID:          id.ID,
@@ -172,7 +181,7 @@ var simpleAddPiece = &cli.Command{
 		pp := benchSectorProvider{
 			storiface.FTUnsealed: cctx.Args().Get(1),
 		}
-		sealer, err := ffiwrapper.New(pp)
+		sealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, pp)
 		if err != nil {
 			return err
 		}
@@ -245,7 +254,7 @@ var simplePreCommit1 = &cli.Command{
 			storiface.FTSealed:   cctx.Args().Get(1),
 			storiface.FTCache:    cctx.Args().Get(2),
 		}
-		sealer, err := ffiwrapper.New(pp)
+		sealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{},pp)
 		if err != nil {
 			return err
 		}
@@ -318,7 +327,7 @@ var simplePreCommit2 = &cli.Command{
 			storiface.FTSealed: cctx.Args().Get(0),
 			storiface.FTCache:  cctx.Args().Get(1),
 		}
-		sealer, err := ffiwrapper.New(pp)
+		sealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, pp)
 		if err != nil {
 			return err
 		}
@@ -389,7 +398,7 @@ var simpleCommit1 = &cli.Command{
 			storiface.FTSealed: cctx.Args().Get(0),
 			storiface.FTCache:  cctx.Args().Get(1),
 		}
-		sealer, err := ffiwrapper.New(pp)
+		sealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, pp)
 		if err != nil {
 			return err
 		}
@@ -501,7 +510,7 @@ var simpleCommit2 = &cli.Command{
 			return err
 		}
 
-		sb, err := ffiwrapper.New(nil)
+		sb, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, nil)
 		if err != nil {
 			return err
 		}
@@ -745,7 +754,7 @@ var simpleReplicaUpdate = &cli.Command{
 			storiface.FTUpdate:      cctx.Args().Get(3),
 			storiface.FTUpdateCache: cctx.Args().Get(4),
 		}
-		sealer, err := ffiwrapper.New(pp)
+		sealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, pp)
 		if err != nil {
 			return err
 		}
@@ -817,7 +826,7 @@ var simpleProveReplicaUpdate1 = &cli.Command{
 			storiface.FTUpdate:      cctx.Args().Get(2),
 			storiface.FTUpdateCache: cctx.Args().Get(3),
 		}
-		sealer, err := ffiwrapper.New(pp)
+		sealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, pp)
 		if err != nil {
 			return err
 		}
@@ -904,7 +913,7 @@ var simpleProveReplicaUpdate2 = &cli.Command{
 		sectorSize := abi.SectorSize(sectorSizeInt)
 
 		pp := benchSectorProvider{}
-		sealer, err := ffiwrapper.New(pp)
+		sealer, err := ffiwrapper.New(ffiwrapper.RemoteCfg{}, pp)
 		if err != nil {
 			return err
 		}
