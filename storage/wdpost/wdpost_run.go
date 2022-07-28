@@ -3,13 +3,12 @@ package wdpost
 import (
 	"bytes"
 	"context"
+	"github.com/filecoin-project/lotus/storage"
+	sectorstorage "github.com/filecoin-project/lotus/storage/sealer"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"sync"
 	"time"
 
-	"github.com/ipfs/go-cid"
-	"go.opencensus.io/trace"
-	"golang.org/x/xerrors"
-	"github.com/gwaylib/errors"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -21,6 +20,10 @@ import (
 	"github.com/filecoin-project/go-state-types/network"
 	"github.com/filecoin-project/go-state-types/proof"
 	proof7 "github.com/filecoin-project/specs-actors/v7/actors/runtime/proof"
+	"github.com/gwaylib/errors"
+	"github.com/ipfs/go-cid"
+	"go.opencensus.io/trace"
+	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -29,8 +32,8 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
 // recordPoStFailure records a failure in the journal.
@@ -227,7 +230,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 			Miner:  abi.ActorID(mid),
 			Number: info.SectorNumber,
 		}
-		sFileNames = append(sFileNames, storage.SectorName(s))
+		sFileNames = append(sFileNames, storiface.SectorName(s))
 	}
 	sFiles, err := database.GetSectorsFile(sFileNames, repo)
 	if err != nil {
@@ -247,7 +250,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 			Miner:  abi.ActorID(mid),
 			Number: info.SectorNumber,
 		}
-		sFile, ok := sFiles[storage.SectorName(s)]
+		sFile, ok := sFiles[storiface.SectorName(s)]
 		if !ok {
 			log.Warn(errors.ErrNoData.As(s))
 			continue
@@ -298,8 +301,8 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 //
 // When `manual` is set, no messages (fault/recover) will be automatically sent
 func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
-	if EnableSeparatePartition {
-		return s.runHlmPoStCycle(ctx, di, ts)
+	if storage.EnableSeparatePartition {
+		return s.runHlmPoStCycle(ctx, manual, di,ts)
 	}
 	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
 	defer span.End()
@@ -369,7 +372,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di 
 		for retries := 0; ; retries++ {
 			skipCount := uint64(0)
 			var partitions []miner.PoStPartition
-			var sinfos []storage.ProofSectorInfo
+			var sinfos []storiface.ProofSectorInfo
 			for partIdx, partition := range batch {
 				// TODO: Can do this in parallel
 				toProve, err := bitfield.SubtractBitField(partition.LiveSectors, partition.FaultySectors)
@@ -549,8 +552,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di 
 	return posts, nil
 }
 
-var PartitionsPerMsg int = 1
-var EnableSeparatePartition bool = false
+
 
 func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition, nv network.Version) ([][]api.Partition, error) {
 	// We don't want to exceed the number of sectors allowed in a message.
@@ -568,12 +570,12 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition, nv net
 		return nil, xerrors.Errorf("getting sectors per partition: %w", err)
 	}
 	//var partitionsPerMsg int = 1
-	if EnableSeparatePartition {
-		partitionsPerMsg = PartitionsPerMsg
+	if storage.EnableSeparatePartition {
+		partitionsPerMsg = storage.PartitionsPerMsg
 	}
 	log.Infow("Separate partition",
 		"proofType", s.proofType,
-		"enableSeparate", EnableSeparatePartition,
+		"enableSeparate", storage.EnableSeparatePartition,
 		"partitionsPerMsg:", partitionsPerMsg,
 	)
 
@@ -613,7 +615,7 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition, nv net
 	return batches, nil
 }
 
-func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, allSectors bitfield.BitField, ts *types.TipSet) ([]storage.ProofSectorInfo, error) {
+func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, allSectors bitfield.BitField, ts *types.TipSet) ([]storiface.ProofSectorInfo, error) {
 	sset, err := s.api.StateMinerSectors(ctx, s.actor, &goodSectors, ts.Key())
 	if err != nil {
 		return nil, err
@@ -655,20 +657,20 @@ func (s *WindowPoStScheduler) sectorsForProof(ctx context.Context, goodSectors, 
 	if len(repo) == 0 {
 		log.Warn("not found default repo")
 	}
-	proofSectors := make([]storage.ProofSectorInfo, 0, len(sset))
+	proofSectors := make([]storiface.ProofSectorInfo, 0, len(sset))
 	if err := allSectors.ForEach(func(sectorNo uint64) error {
 		sector := substitute
 		if info, found := sectorByID[sectorNo]; found {
 			sector = info
 		}
 		id := abi.SectorID{Miner: abi.ActorID(mid), Number: sector.SectorNumber}
-		sFile, err := database.GetSectorFile(storage.SectorName(id), repo)
+		sFile, err := database.GetSectorFile(storiface.SectorName(id), repo)
 		if err != nil {
 			log.Warn(errors.As(err))
 			return nil
 		}
-		proofSectors = append(proofSectors, storage.ProofSectorInfo{
-			SectorRef: storage.SectorRef{
+		proofSectors = append(proofSectors, storiface.ProofSectorInfo{
+			SectorRef: storiface.SectorRef{
 				ID:         id,
 				ProofType:  sector.SealProof,
 				SectorFile: *sFile,

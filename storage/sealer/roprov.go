@@ -26,7 +26,7 @@ func (l *readonlyProvider) RepoPath() string {
 	panic("No RepoPath")
 }
 func (l *readonlyProvider) AcquireSector(ctx context.Context, id storiface.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, sealing storiface.PathType) (storiface.SectorPaths, func(), error) {
-	return stores.HLMSectorPath(id.ID, l.RepoPath()), func() {}, nil
+	return paths.HLMSectorPath(id.ID, l.RepoPath()), func() {}, nil
 	if allocate != storiface.FTNone {
 		return storiface.SectorPaths{}, nil, xerrors.New("read-only storage")
 	}

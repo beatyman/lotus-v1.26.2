@@ -1,11 +1,12 @@
-package storage
+package wdpost
 
 import (
 	"context"
 	"fmt"
-	"github.com/filecoin-project/specs-actors/v8/actors/builtin"
 	"path/filepath"
 	"time"
+
+	"github.com/filecoin-project/specs-actors/v8/actors/builtin"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -14,9 +15,9 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/types"
-	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/node/config"
+	sectorstorage "github.com/filecoin-project/lotus/storage/sealer"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/gwaylib/errors"
 
 	miner2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/miner"

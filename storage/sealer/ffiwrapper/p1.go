@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"os"
 	"os/exec"
 	"strconv"
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
@@ -43,7 +43,7 @@ func autoPrecommit1Env(ctx context.Context) error {
 
 }
 
-func ExecPrecommit1(ctx context.Context, repo string, task WorkerTask) (storage.PreCommit1Out, error) {
+func ExecPrecommit1(ctx context.Context, repo string, task WorkerTask) (storiface.PreCommit1Out, error) {
 	args, err := json.Marshal(task)
 	if err != nil {
 		return nil, errors.As(err)
@@ -122,7 +122,7 @@ func ExecPrecommit1(ctx context.Context, repo string, task WorkerTask) (storage.
 	if resp.Exit != 0 {
 		return nil, errors.Parse(resp.Err)
 	}
-	return storage.PreCommit1Out(resp.Data), nil
+	return storiface.PreCommit1Out(resp.Data), nil
 }
 
 var P1Cmd = &cli.Command{
@@ -182,7 +182,7 @@ var P1Cmd = &cli.Command{
 			return nil
 		}
 		pieceInfo := task.Pieces
-		rspco, err := workerSealer.SealPreCommit1(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.SealTicket, pieceInfo)
+		rspco, err := workerSealer.SealPreCommit1(ctx, storiface.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.SealTicket, pieceInfo)
 		if err != nil {
 			resp.Exit = 1
 			resp.Err = errors.As(err).Error()

@@ -9,7 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	lcli "github.com/filecoin-project/lotus/cli"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/gwaylib/errors"
 )
 

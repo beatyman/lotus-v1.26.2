@@ -12,15 +12,16 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
-	"github.com/filecoin-project/specs-storage/storage"
+
 	"github.com/gwaylib/errors"
 )
 
+
 type ProvableStat struct {
-	Sector storage.SectorRef
+	Sector storiface.SectorRef
 	Used   time.Duration
 	Err    error
 }
@@ -38,7 +39,7 @@ func (g ProvableStatArr) Less(i, j int) bool {
 }
 
 // CheckProvable returns unprovable sectors
-func CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof,sectors []storage.SectorRef, rg storiface.RGetter, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
+func CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storiface.SectorRef, rg storiface.RGetter, timeout time.Duration) ([]ProvableStat, []ProvableStat, []ProvableStat, error) {
 	var good = []ProvableStat{}
 	var goodLk = sync.Mutex{}
 	var appendGood = func(sid ProvableStat) {
@@ -75,7 +76,7 @@ func CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof,sectors []sto
 		}
 	}()
 
-	checkBad := func(sector storage.SectorRef, rg storiface.RGetter, timeout time.Duration) error {
+	checkBad := func(sector storiface.SectorRef, rg storiface.RGetter, timeout time.Duration) error {
 		if !sector.HasRepo() {
 			return errors.New("StorageRepo not found").As(sector)
 		}
@@ -161,7 +162,7 @@ func CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof,sectors []sto
 				return errors.As(err)
 			}
 
-			commr,_, err := rg(ctx, sector.ID)
+			commr, _, err := rg(ctx, sector.ID)
 			if err != nil {
 				return errors.As(err)
 			}
@@ -188,7 +189,7 @@ func CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof,sectors []sto
 	routines := make(chan bool, 256)
 	done := make(chan bool, len(sectors))
 	for _, sector := range sectors {
-		go func(s storage.SectorRef) {
+		go func(s storiface.SectorRef) {
 			// limit the concurrency
 			routines <- true
 			defer func() {

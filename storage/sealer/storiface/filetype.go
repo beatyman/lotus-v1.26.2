@@ -2,6 +2,7 @@ package storiface
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"golang.org/x/xerrors"
 
@@ -175,4 +176,41 @@ func SetPathByType(sps *SectorPaths, fileType SectorFileType, p string) {
 	case FTUpdateCache:
 		sps.UpdateCache = p
 	}
+}
+
+
+type SectorFile struct {
+	SectorId string
+
+	SealedRepo        string
+	SealedStorageId   int64  // 0 not filled.
+	SealedStorageType string // empty not filled.
+
+	UnsealedRepo        string
+	UnsealedStorageId   int64  // 0 not filled.
+	UnsealedStorageType string // empty not filled.
+	IsMarketSector      bool
+}
+
+func (f *SectorFile) HasRepo() bool {
+	return len(f.SealedRepo) > 0 && len(f.UnsealedRepo) > 0
+}
+
+func (f *SectorFile) SectorID() abi.SectorID {
+	id, err := ParseSectorID(f.SectorId)
+	if err != nil {
+		// should not reach here.
+		panic(err)
+	}
+	return id
+}
+
+func (f *SectorFile) UnsealedFile() string {
+	return filepath.Join(f.UnsealedRepo, "unsealed", f.SectorId)
+}
+func (f *SectorFile) SealedFile() string {
+	return filepath.Join(f.SealedRepo, "sealed", f.SectorId)
+}
+func (f *SectorFile) CachePath() string {
+	return filepath.Join(f.SealedRepo, "cache", f.SectorId)
 }

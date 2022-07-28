@@ -3,22 +3,20 @@ package partialfile
 import (
 	"context"
 	"encoding/binary"
+	_ "github.com/detailyang/go-fallocate"
+	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 	"io"
 	"os"
-	"syscall"
-
-	"github.com/detailyang/go-fallocate"
-	logging "github.com/ipfs/go-log/v2"
-	"golang.org/x/xerrors"
+	"path/filepath"
 
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/gwaylib/errors"
-    "github.com/filecoin-project/lotus/storage/sealer/database"
+	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
-	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("partialfile")
@@ -64,7 +62,7 @@ func writeTrailer(maxPieceSize int64, w fsutil.PartialFile, r rlepluslazy.RunIte
 	return w.Truncate(maxPieceSize + int64(rb) + 4)
 }
 
-func CreateUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.SectorRef) (*PartialFile, error) {
+func CreateUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storiface.SectorRef) (*PartialFile, error) {
 	path := sector.UnsealedFile()
 	var f fsutil.PartialFile
 	switch sector.UnsealedStorageType {
@@ -124,7 +122,7 @@ func CreateUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.
 	return OpenUnsealedPartialFile(maxPieceSize, sector)
 }
 
-func OpenUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.SectorRef) (*PartialFile, error) {
+func OpenUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storiface.SectorRef) (*PartialFile, error) {
 	path := sector.UnsealedFile()
 	var f fsutil.PartialFile
 	switch sector.UnsealedStorageType {

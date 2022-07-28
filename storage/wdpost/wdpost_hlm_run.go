@@ -1,21 +1,19 @@
-package storage
+package wdpost
 
 import (
 	"bytes"
 	"context"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"time"
 
 	"github.com/gwaylib/errors"
 
 	"github.com/filecoin-project/go-bitfield"
-	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
-	"github.com/ipfs/go-cid"
-
 	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
@@ -27,8 +25,7 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/types"
 )
-
-func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
+func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, manual bool, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
 	log.Info("================================ DEBUG: Start generage wdpost========================================")
 	defer log.Info("================================DEBUG: End generage wdpost========================================")
 	epochTime := int64(build.BlockDelaySecs)
@@ -46,67 +43,10 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
 	defer span.End()
 
-	go func() {
+	if !manual {
 		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
-
-		// check faults / recoveries for the *next* deadline. It's already too
-		// late to declare them for this deadline
-		declDeadline := (di.Index + 2) % di.WPoStPeriodDeadlines
-
-		partitions, err := s.api.StateMinerPartitions(context.TODO(), s.actor, declDeadline, ts.Key())
-		if err != nil {
-			log.Error(s.PutLogf(di.Index, "getting partitions: %v", err))
-			return
-		}
-
-		var (
-			sigmsg     *types.SignedMessage
-			recoveries []miner.RecoveryDeclaration
-			faults     []miner.FaultDeclaration
-
-			// optionalCid returns the CID of the message, or cid.Undef is the
-			// message is nil. We don't need the argument (could capture the
-			// pointer), but it's clearer and purer like that.
-			optionalCid = func(sigmsg *types.SignedMessage) cid.Cid {
-				if sigmsg == nil {
-					return cid.Undef
-				}
-				return sigmsg.Cid()
-			}
-		)
-
-		if recoveries, sigmsg, err = s.declareRecoveries(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
-			// TODO: This is potentially quite bad, but not even trying to post when this fails is objectively worse
-			log.Error(s.PutLogf(di.Index, "checking sector recoveries: %v", err))
-		}
-
-		s.journal.RecordEvent(s.evtTypes[evtTypeWdPoStRecoveries], func() interface{} {
-			j := WdPoStRecoveriesProcessedEvt{
-				evtCommon:    s.getEvtCommon(err),
-				Declarations: recoveries,
-				MessageCID:   optionalCid(sigmsg),
-			}
-			j.Error = err
-			return j
-		})
-
-		if ts.Height() > build.UpgradeIgnitionHeight {
-			return // FORK: declaring faults after ignition upgrade makes no sense
-		}
-
-		if faults, sigmsg, err = s.declareFaults(context.TODO(), declDeadline, partitions, ts.Key()); err != nil {
-			// TODO: This is also potentially really bad, but we try to post anyways
-			log.Error(s.PutLogf(di.Index, "checking sector faults: %v", err))
-		}
-
-		s.journal.RecordEvent(s.evtTypes[evtTypeWdPoStFaults], func() interface{} {
-			return WdPoStFaultsProcessedEvt{
-				evtCommon:    s.getEvtCommon(err),
-				Declarations: faults,
-				MessageCID:   optionalCid(sigmsg),
-			}
-		})
-	}()
+		s.asyncFaultRecover(di, ts)
+	}
 
 	buf := new(bytes.Buffer)
 	if err := s.actor.MarshalCBOR(buf); err != nil {
@@ -164,7 +104,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, di dline.Info
 		// Retry until we run out of sectors to prove.
 		for retries := 0; ; retries++ {
 			var partitions []miner.PoStPartition
-			var sinfos []storage.ProofSectorInfo
+			var sinfos []storiface.ProofSectorInfo
 			for partIdx, partition := range batch {
 				// TODO: Can do this in parallel
 				toProve, err := bitfield.SubtractBitField(partition.LiveSectors, partition.FaultySectors)

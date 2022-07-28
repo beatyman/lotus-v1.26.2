@@ -2,10 +2,11 @@ package ffiwrapper
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"sync"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/specs-storage/storage"
+
 	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 )
@@ -37,13 +38,13 @@ func (sb *Sealer) RepoPath() string {
 }
 
 // Refer to : https://github.com/filecoin-project/lotus/blob/46e5cc9317a34325b0a9cae45aac582a03b9a788/extern/storage-sealing/garbage.go#L12
-func (sb *Sealer) pledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+func (sb *Sealer) pledgeSector(ctx context.Context, sectorID storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	if len(sizes) == 0 {
 		log.Info("No sizes for pledge")
 		return nil, nil
 	}
 
-	log.Infof("Pledge %+v, contains %+v, sizes %+v", storage.SectorName(sectorID.ID), existingPieceSizes, sizes)
+	log.Infof("Pledge %+v, contains %+v, sizes %+v", storiface.SectorName(sectorID.ID), existingPieceSizes, sizes)
 
 	out := make([]abi.PieceInfo, len(sizes))
 	for i, size := range sizes {

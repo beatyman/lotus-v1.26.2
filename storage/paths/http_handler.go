@@ -8,7 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
+
 	"github.com/gorilla/mux"
 	"github.com/gwaylib/errors"
 	logging "github.com/ipfs/go-log/v2"
@@ -30,7 +32,7 @@ var _ PartialFileHandler = &DefaultPartialFileHandler{}
 // interface to is to mock out partial file related functionality during testing.
 type DefaultPartialFileHandler struct{}
 
-func (d *DefaultPartialFileHandler) OpenPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.SectorRef) (*partialfile.PartialFile, error) {
+func (d *DefaultPartialFileHandler) OpenPartialFile(maxPieceSize abi.PaddedPieceSize, sector storiface.SectorRef) (*partialfile.PartialFile, error) {
 	return partialfile.OpenUnsealedPartialFile(maxPieceSize, sector)
 }
 func (d *DefaultPartialFileHandler) HasAllocated(pf *partialfile.PartialFile, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {

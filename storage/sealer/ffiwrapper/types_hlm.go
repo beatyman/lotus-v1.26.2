@@ -3,6 +3,7 @@ package ffiwrapper
 import (
 	"context"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,20 +12,19 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
-	"github.com/filecoin-project/specs-storage/storage"
+
 	"github.com/ipfs/go-cid"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/gwaylib/errors"
 )
 
 func sectorName(sid abi.SectorID) string {
-	return storage.SectorName(sid)
+	return storiface.SectorName(sid)
 }
 
 func sectorID(sid string) abi.SectorID {
-	id, err := storage.ParseSectorID(sid)
+	id, err := storiface.ParseSectorID(sid)
 	if err != nil {
 		panic(err)
 	}
@@ -143,17 +143,17 @@ type WorkerTask struct {
 	Pieces     []abi.PieceInfo
 
 	// preCommit2
-	PreCommit1Out storage.PreCommit1Out
+	PreCommit1Out storiface.PreCommit1Out
 
 	// commit1
 	SealSeed abi.InteractiveSealRandomness
-	Cids     storage.SectorCids
+	Cids     storiface.SectorCids
 
 	// commit2
-	Commit1Out storage.Commit1Out
+	Commit1Out storiface.Commit1Out
 
 	// winning PoSt
-	SectorInfo []storage.ProofSectorInfo
+	SectorInfo []storiface.ProofSectorInfo
 	// using for wdpost, winpost, unseal
 	Randomness abi.PoStRandomness
 
@@ -181,7 +181,7 @@ func (w *WorkerTask) Key() string {
 }
 
 func (w *WorkerTask) SectorName() string {
-	return storage.SectorName(w.SectorID)
+	return storiface.SectorName(w.SectorID)
 }
 
 type workerCall struct {
@@ -482,9 +482,9 @@ type SealRes struct {
 
 	// TODO: Serial
 	Pieces        []abi.PieceInfo
-	PreCommit1Out storage.PreCommit1Out
-	PreCommit2Out storage.SectorCids
-	Commit2Out    storage.Proof
+	PreCommit1Out storiface.PreCommit1Out
+	PreCommit2Out storiface.SectorCids
+	Commit2Out    storiface.Proof
 
 	WinningPoStProofOut []proof.PoStProof
 

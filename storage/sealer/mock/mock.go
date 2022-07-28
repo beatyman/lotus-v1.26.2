@@ -126,7 +126,7 @@ func (mgr *SectorMgr) AcquireSectorNumber() (abi.SectorNumber, error) {
 	mgr.nextSectorID++
 	return id, nil
 }
-func (mgr *SectorMgr) PledgeSector(context.Context, storage.SectorRef, []abi.UnpaddedPieceSize, ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+func (mgr *SectorMgr) PledgeSector(context.Context, storiface.SectorRef, []abi.UnpaddedPieceSize, ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	return make([]abi.PieceInfo, 0), nil
 }
 func (mgr *SectorMgr) SealCommit(context.Context, storiface.SectorRef, abi.SealRandomness, abi.InteractiveSealRandomness, []abi.PieceInfo, storiface.SectorCids) (storiface.Proof, error) {

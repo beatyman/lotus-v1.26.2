@@ -3,11 +3,11 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
 )
@@ -75,12 +75,12 @@ func GetSectorState(id string) (int, error) {
 	return state, nil
 }
 
-func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.SectorRef, error) {
+func FillSectorFile(sector storiface.SectorRef, defaultRepo string) (storiface.SectorRef, error) {
 	if sector.HasRepo() {
 		return sector, nil
 	}
 	// set to default.
-	sector.SectorId = storage.SectorName(sector.ID)
+	sector.SectorId = storiface.SectorName(sector.ID)
 	sector.SealedRepo = defaultRepo
 	sector.UnsealedRepo = defaultRepo
 
@@ -97,7 +97,7 @@ func FillSectorFile(sector storage.SectorRef, defaultRepo string) (storage.Secto
 }
 
 type sectorFileCache struct {
-	SectorFile storage.SectorFile
+	SectorFile storiface.SectorFile
 	CreateTime time.Time
 }
 
@@ -158,7 +158,7 @@ func initSectorFileCache(repo string) {
 	}
 }
 
-func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.SectorFile, error) {
+func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storiface.SectorFile, error) {
 	startTime := time.Now()
 	defer func() {
 		took := time.Now().Sub(startTime)
@@ -167,10 +167,10 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 		}
 	}()
 
-	defaultResult := map[string]storage.SectorFile{}
+	defaultResult := map[string]storiface.SectorFile{}
 	if !HasDB() {
 		for _, sectorId := range sectors {
-			defaultResult[sectorId] = storage.SectorFile{
+			defaultResult[sectorId] = storiface.SectorFile{
 				SectorId:     sectorId,
 				SealedRepo:   defaultRepo,
 				UnsealedRepo: defaultRepo,
@@ -207,7 +207,7 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 	}
 	defer sectorStmt.Close()
 
-	result := map[string]storage.SectorFile{}
+	result := map[string]storiface.SectorFile{}
 	for _, sectorId := range sectors {
 		// read from cache
 		sectorFileCacheLk.Lock()
@@ -219,7 +219,7 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 		}
 		sectorFileCacheLk.Unlock()
 
-		file := &storage.SectorFile{
+		file := &storiface.SectorFile{
 			SectorId:     sectorId,
 			SealedRepo:   defaultRepo,
 			UnsealedRepo: defaultRepo,
@@ -263,7 +263,7 @@ func GetSectorsFile(sectors []string, defaultRepo string) (map[string]storage.Se
 	return result, nil
 }
 
-func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
+func GetSectorFile(sectorId, defaultRepo string) (*storiface.SectorFile, error) {
 	startTime := time.Now()
 	defer func() {
 		took := time.Now().Sub(startTime)
@@ -272,7 +272,7 @@ func GetSectorFile(sectorId, defaultRepo string) (*storage.SectorFile, error) {
 		}
 	}()
 
-	file := &storage.SectorFile{
+	file := &storiface.SectorFile{
 		SectorId:     sectorId,
 		SealedRepo:   defaultRepo,
 		UnsealedRepo: defaultRepo,
@@ -492,7 +492,7 @@ func CheckWorkingById(sid []string) (WorkingSectors, error) {
 	args := []rune{}
 	for _, s := range sid {
 		// checking sql injection
-		if _, err := storage.ParseSectorID(s); err != nil {
+		if _, err := storiface.ParseSectorID(s); err != nil {
 			return sectors, errors.As(err, sid)
 		}
 		args = append(args, []rune(",'")...)
@@ -555,7 +555,7 @@ func SetSectorSealedStorage(sid string, storage uint64) error {
 		return errors.As(err, sid, storage)
 	}
 	sectorFileCacheLk.Lock()
-	delete(sectorFileCaches,sid)
+	delete(sectorFileCaches, sid)
 	sectorFileCacheLk.Unlock()
 	return nil
 }

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/gwaylib/errors"
 )
 

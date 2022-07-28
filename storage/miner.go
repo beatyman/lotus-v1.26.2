@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/hex"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"time"
 
 	blocks "github.com/ipfs/go-block-format"
@@ -33,9 +34,9 @@ import (
 	"github.com/filecoin-project/lotus/storage/ctladdr"
 	pipeline "github.com/filecoin-project/lotus/storage/pipeline"
 	"github.com/filecoin-project/lotus/storage/sealer"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
-	"github.com/filecoin-project/lotus/storage/sealer/database"
 )
 
 var log = logging.Logger("storageminer")
@@ -223,8 +224,8 @@ func (m *Miner) handleSealingNotifications(before, after pipeline.SectorInfo) {
 func (m *Miner) Stop(ctx context.Context) error {
 	return m.sealing.Stop(ctx)
 }
-func (m *Miner) Sealer() *sectorstorage.Manager {
-	return m.sealer.(*sectorstorage.Manager)
+func (m *Miner) Sealer() *sealer.Manager {
+	return m.sealer.(*sealer.Manager)
 }
 func (m *Miner) Maddr() string {
 	log.Info("addr:", m.maddr.String())
@@ -305,7 +306,7 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.ExtendedS
 
 	start := build.Clock.Now()
 	repo := ""
-	sm, ok := wpp.prover.(*sectorstorage.Manager)
+	sm, ok := wpp.prover.(*sealer.Manager)
 	if ok {
 		sb, ok := sm.Prover.(*ffiwrapper.Sealer)
 		if ok {
@@ -315,21 +316,21 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.ExtendedS
 	if len(repo) == 0 {
 		log.Warn("not found default repo")
 	}
-	rSectors := []storage.SectorRef{}
-	pSectors := []storage.ProofSectorInfo{}
+	rSectors := []storiface.SectorRef{}
+	pSectors := []storiface.ProofSectorInfo{}
 	for _, s := range ssi {
 		id := abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}
-		sFile, err := database.GetSectorFile(storage.SectorName(id), repo)
+		sFile, err := database.GetSectorFile(storiface.SectorName(id), repo)
 		if err != nil {
 			return nil, err
 		}
-		rSector := storage.SectorRef{
+		rSector := storiface.SectorRef{
 			ID:         id,
 			ProofType:  s.SealProof,
 			SectorFile: *sFile,
 		}
 		rSectors = append(rSectors, rSector)
-		pSectors = append(pSectors, storage.ProofSectorInfo{
+		pSectors = append(pSectors, storiface.ProofSectorInfo{
 			SectorRef: rSector,
 			SealedCID: s.SealedCID,
 		})

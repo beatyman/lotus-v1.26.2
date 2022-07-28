@@ -11,7 +11,7 @@ import (
 	"time"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database/lock"
+	"github.com/filecoin-project/lotus/storage/sealer/database/lock"
 
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
@@ -210,7 +210,7 @@ func MountAllStorage(block bool) error {
 			return errors.As(err)
 		}
 		mountPoint := filepath.Join(mountDir, fmt.Sprintf("%d", id))
-		log.Infof("mount: mountType: %+v, mountUri: %+v, mountPoint: %+v",mountType, mountUri, mountPoint)
+		log.Infof("mount: mountType: %+v, mountUri: %+v, mountPoint: %+v", mountType, mountUri, mountPoint)
 		if err := Mount(context.TODO(), mountType, mountUri, mountPoint, mountOpt); err != nil {
 			if block {
 				return errors.As(err, mountUri, mountPoint)

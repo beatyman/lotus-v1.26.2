@@ -1,10 +1,12 @@
-package storage
+package wdpost
 
 import (
 	"context"
+
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/chain/types"
 )
+
 func (s *WindowPoStScheduler) CheckWindowPoSt(ctx context.Context, height abi.ChainEpoch, submit bool) {
 	log.Info("DEBUG:checkWindowPoStPost")
 
@@ -41,7 +43,7 @@ func (s *WindowPoStScheduler) CheckWindowPoSt(ctx context.Context, height abi.Ch
 	if !submit {
 		return
 	}
-	if err=s.runSubmitPoST(ctx, new, deadline, posts); err != nil {
+	if err = s.runSubmitPoST(ctx, new, deadline, posts); err != nil {
 		log.Errorf("submit window post failed: %+v", err)
 	}
 	return

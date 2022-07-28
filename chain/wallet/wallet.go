@@ -6,12 +6,12 @@ import (
 	"strings"
 	"sync"
 
-	logging "github.com/ipfs/go-log/v2"
-	"golang.org/x/xerrors"
-	"github.com/filecoin-project/lotus/chain/wallet/encode"
-	"github.com/gwaylib/errors"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/crypto"
+	"github.com/filecoin-project/lotus/chain/wallet/encode"
+	"github.com/gwaylib/errors"
+	logging "github.com/ipfs/go-log/v2"
+	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -114,10 +114,11 @@ func (w *LocalWallet) WalletSign(ctx context.Context, addr address.Address, msg 
 		privateKey = cData.Data
 	}
 	// end by zhoushuyue
-	return sigs.Sign(key.ActSigType(ki.Type), ki.PrivateKey, msg)
+
+	return sigs.Sign(key.ActSigType(ki.Type), privateKey, msg)
 }
 
-func (w *LocalWallet) findKey(addr address.Address) (*key.Key, error) {
+func (w *LocalWallet) findKey(ctx context.Context,addr address.Address) (*key.Key, error) {
 	w.lk.Lock()
 	defer w.lk.Unlock()
 

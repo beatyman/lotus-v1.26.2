@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	dbtool "github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
 )

@@ -1,13 +1,14 @@
-package sectorstorage
+package sealer
 
 import (
 	"bufio"
 	"context"
-	"github.com/filecoin-project/dagstore/mount"
-	"github.com/filecoin-project/lotus/extern/sector-storage/fr32"
 	"io"
 	"os"
 	"runtime"
+
+	"github.com/filecoin-project/dagstore/mount"
+	"github.com/filecoin-project/lotus/extern/sector-storage/fr32"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
@@ -16,15 +17,15 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/specs-storage/storage"
-	storage2 "github.com/filecoin-project/specs-storage/storage"
+	
+	storage2 
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 
 	"github.com/gwaylib/errors"
 )
@@ -225,7 +226,7 @@ func (l *hlmWorker) UnsealPiece(ctx context.Context, sector storage.SectorRef, i
 	return l.sb.UnsealPiece(ctx, sector, index, size, randomness, cid)
 }
 
-func (l *hlmWorker)readPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error)  {
+func (l *hlmWorker) readPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
 	// try read the exist unsealed.
 	ctx, cancel := context.WithCancel(ctx)
 	rg, done, err := l.sb.PieceReader(ctx, sector, abi.PaddedPieceSize(pieceOffset.Padded()), size.Padded())
@@ -274,15 +275,15 @@ func (l *hlmWorker)readPiece(ctx context.Context, sector storage.SectorRef, piec
 		}).init()
 		if err != nil || pr == nil { // pr == nil to make sure we don't return typed nil
 			cancel()
-			return nil,true, err
+			return nil, true, err
 		}
 		cancel()
 		return pr, true, nil
 	}
 	cancel()
-	return nil,false,errors.New("readPiece not done")
+	return nil, false, errors.New("readPiece not done")
 }
-func (l *hlmWorker)ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error){
+func (l *hlmWorker) ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
 	// acquire a lock purely for reading unsealed sectors
 	var err error
 	sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
@@ -294,17 +295,17 @@ func (l *hlmWorker)ReadPiece(ctx context.Context, sector storage.SectorRef, piec
 	}
 	// unseal data will expire by 30 days if no visitor.
 	l.sb.ExpireAllMarketRetrieve()
-	r, done, err := l.readPiece(ctx, sector, pieceOffset, size,ticket,unsealed)
+	r, done, err := l.readPiece(ctx, sector, pieceOffset, size, ticket, unsealed)
 	if err != nil {
 		return nil, false, errors.As(err)
 	} else if done {
 		return r, true, nil
 	}
 	// unsealed not found, do unseal and then read it.
-	if err := l.sb.UnsealPiece(ctx, sector,pieceOffset, size,ticket, unsealed); err != nil {
-		return nil, false, errors.As(err, sector, pieceOffset,size, unsealed)
+	if err := l.sb.UnsealPiece(ctx, sector, pieceOffset, size, ticket, unsealed); err != nil {
+		return nil, false, errors.As(err, sector, pieceOffset, size, unsealed)
 	}
-	return l.readPiece(ctx, sector, pieceOffset, size,ticket,unsealed)
+	return l.readPiece(ctx, sector, pieceOffset, size, ticket, unsealed)
 }
 
 func (l *hlmWorker) TaskTypes(context.Context) (map[sealtasks.TaskType]struct{}, error) {
@@ -406,7 +407,8 @@ func (l *hlmWorker) Closing(ctx context.Context) (<-chan struct{}, error) {
 func (l *hlmWorker) Close() error {
 	return nil
 }
+
 // Compute Data CID
-func (l *hlmWorker)DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, pieceData storage.Data) (abi.PieceInfo, error){
-	return l.sb.DataCid(ctx,pieceSize,pieceData)
+func (l *hlmWorker) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, pieceData storage.Data) (abi.PieceInfo, error) {
+	return l.sb.DataCid(ctx, pieceSize, pieceData)
 }

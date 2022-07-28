@@ -124,7 +124,7 @@ func newTestMgr(ctx context.Context, t *testing.T, ds datastore.Datastore) (*Man
 		windowPoStSched:  newPoStScheduler(sealtasks.TTGenerateWindowPoSt),
 		winningPoStSched: newPoStScheduler(sealtasks.TTGenerateWinningPoSt),
 
-		localProver: prover,
+		Prover: prover,
 
 		work:       statestore.New(ds),
 		callToWork: map[storiface.CallID]WorkID{},

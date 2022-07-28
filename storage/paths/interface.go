@@ -16,7 +16,7 @@ import (
 type PartialFileHandler interface {
 	// OpenPartialFile opens and returns a partial file at the given path and also verifies it has the given
 	// size
-	OpenPartialFile(maxPieceSize abi.PaddedPieceSize, sector storage.SectorRef) (*partialfile.PartialFile, error)
+	OpenPartialFile(maxPieceSize abi.PaddedPieceSize, sector storiface.SectorRef) (*partialfile.PartialFile, error)
 
 	// HasAllocated returns true if the given partial file has an unsealed piece starting at the given offset with the given size.
 	// returns false otherwise.

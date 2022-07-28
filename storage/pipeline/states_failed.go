@@ -74,12 +74,13 @@ func (m *Sealing) handleSealPrecommit2Failed(ctx statemachine.Context, sector Se
 }
 
 func (m *Sealing) handlePreCommitFailed(ctx statemachine.Context, sector SectorInfo) error {
-	ts, err := m.Api.ChainHead(ctx.Context())
-	if err != nil {
-		log.Errorf("handlePreCommitFailed: api error, not proceeding:%+v, %+v", sector.SectorNumber, err)
-		time.Sleep(10e9)
-		goto errApiLoop
-	}
+	errApiLoop:
+		ts, err := m.Api.ChainHead(ctx.Context())
+		if err != nil {
+			log.Errorf("handlePreCommitFailed: api error, not proceeding:%+v, %+v", sector.SectorNumber, err)
+			time.Sleep(10e9)
+			goto errApiLoop
+		}
 
 	if sector.PreCommitMessage != nil {
 		mw, err := m.Api.StateSearchMsg(ctx.Context(), ts.Key(), *sector.PreCommitMessage, api.LookbackNoLimit, true)
@@ -264,12 +265,13 @@ func (m *Sealing) handleReleaseSectorKeyFailed(ctx statemachine.Context, sector 
 }
 
 func (m *Sealing) handleCommitFailed(ctx statemachine.Context, sector SectorInfo) error {
-	ts, err := m.Api.ChainHead(ctx.Context())
-	if err != nil {
-		log.Errorf("handleCommitting: api error, not proceeding: %+v, %+v , height:%+v ", sector.SectorNumber, err,height)
-		time.Sleep(10e9)
-		goto errApiLoop
-	}
+	errApiLoop:
+		ts, err := m.Api.ChainHead(ctx.Context())
+		if err != nil {
+			log.Errorf("handleCommitting: api error, not proceeding: %+v, %+v ", sector.SectorNumber, err)
+			time.Sleep(10e9)
+			goto errApiLoop
+		}
 
 	if sector.CommitMessage != nil {
 		mw, err := m.Api.StateSearchMsg(ctx.Context(), ts.Key(), *sector.CommitMessage, api.LookbackNoLimit, true)
@@ -435,15 +437,16 @@ func (m *Sealing) handleAbortUpgrade(ctx statemachine.Context, sector SectorInfo
 
 // failWith is a mutator or global mutator
 func (m *Sealing) handleRecoverDealIDsOrFailWith(ctx statemachine.Context, sector SectorInfo, failWith interface{}) error {
-	toFix, paddingPieces, err := recoveryPiecesToFix(ctx.Context(), m.Api, sector, m.maddr)
-	if err != nil {
-		return err
-	}
+errApiLoop:
 	ts, err := m.Api.ChainHead(ctx.Context())
 	if err != nil {
 		log.Error(xerrors.Errorf("getting chain head: %w", err))
 		time.Sleep(10e9)
 		goto errApiLoop
+	}
+	toFix, paddingPieces, err := recoveryPiecesToFix(ctx.Context(), m.Api, sector, m.maddr)
+	if err != nil {
+		return err
 	}
 	failed := map[int]error{}
 	updates := map[int]abi.DealID{}

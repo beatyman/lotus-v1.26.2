@@ -10,9 +10,8 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
-	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
@@ -75,7 +74,7 @@ func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 	}
 }
 
-func (sb *Sealer) PledgeSector(ctx context.Context, sector storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+func (sb *Sealer) PledgeSector(ctx context.Context, sector storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	log.Infof("DEBUG:PledgeSector in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
 	defer log.Infof("DEBUG:PledgeSector out,%+v", sector.ID)
 	if len(sizes) == 0 {
@@ -106,7 +105,7 @@ func (sb *Sealer) PledgeSector(ctx context.Context, sector storage.SectorRef, ex
 	}
 }
 
-func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storage.PreCommit1Out, error) {
+func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storiface.PreCommit1Out, error) {
 	select {
 	case ret := <-call.ret:
 		var err error
@@ -115,17 +114,17 @@ func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storage.PreCommit1Out, 
 		}
 		return ret.PreCommit1Out, err
 	case <-sb.stopping:
-		return storage.PreCommit1Out{}, xerrors.New("sectorbuilder stopped")
+		return storiface.PreCommit1Out{}, xerrors.New("sectorbuilder stopped")
 	}
 }
-func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage.PreCommit1Out, err error) {
+func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storiface.SectorRef, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storiface.PreCommit1Out, err error) {
 	log.Infof("DEBUG:SealPreCommit1 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
 	defer log.Infof("DEBUG:SealPreCommit1 out,%+v", sector.ID)
 
 	// if the FIL_PROOFS_MULTICORE_SDR_PRODUCERS is not set, set it by auto.
 	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
 		if err := autoPrecommit1Env(ctx); err != nil {
-			return storage.PreCommit1Out{}, errors.As(err)
+			return storiface.PreCommit1Out{}, errors.As(err)
 		}
 	}
 
@@ -150,22 +149,22 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storage.SectorRef, 
 	case _precommit1Tasks <- call:
 		return sb.sealPreCommit1Remote(call)
 	case <-ctx.Done():
-		return storage.PreCommit1Out{}, ctx.Err()
+		return storiface.PreCommit1Out{}, ctx.Err()
 	}
 }
 
-func (sb *Sealer) sealPreCommit2Remote(call workerCall) (storage.SectorCids, error) {
+func (sb *Sealer) sealPreCommit2Remote(call workerCall) (storiface.SectorCids, error) {
 	select {
 	case ret := <-call.ret:
 		if ret.Err != "" {
-			return storage.SectorCids{}, errors.Parse(ret.Err)
+			return storiface.SectorCids{}, errors.Parse(ret.Err)
 		}
 		return ret.PreCommit2Out, nil
 	case <-sb.stopping:
-		return storage.SectorCids{}, xerrors.New("sectorbuilder stopped")
+		return storiface.SectorCids{}, xerrors.New("sectorbuilder stopped")
 	}
 }
-func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage.PreCommit1Out) (storage.SectorCids, error) {
+func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storiface.SectorRef, phase1Out storiface.PreCommit1Out) (storiface.SectorCids, error) {
 	log.Infof("DEBUG:SealPreCommit2 in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
 	defer log.Infof("DEBUG:SealPreCommit2 out,%+v", sector.ID)
 
@@ -190,11 +189,11 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 	case _precommit2Tasks <- call:
 		return sb.sealPreCommit2Remote(call)
 	case <-ctx.Done():
-		return storage.SectorCids{}, ctx.Err()
+		return storiface.SectorCids{}, ctx.Err()
 	}
 }
 
-func (sb *Sealer) sealCommitRemote(call workerCall) (storage.Proof, error) {
+func (sb *Sealer) sealCommitRemote(call workerCall) (storiface.Proof, error) {
 	select {
 	case ret := <-call.ret:
 		if ret.Err != "" {
@@ -202,17 +201,17 @@ func (sb *Sealer) sealCommitRemote(call workerCall) (storage.Proof, error) {
 		}
 		return ret.Commit2Out, nil
 	case <-sb.stopping:
-		return storage.Proof{}, xerrors.New("sectorbuilder stopped")
+		return storiface.Proof{}, xerrors.New("sectorbuilder stopped")
 	}
 }
 
-func (sb *Sealer) SealCommit(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage.SectorCids) (storage.Proof, error) {
+func (sb *Sealer) SealCommit(ctx context.Context, sector storiface.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storiface.SectorCids) (storiface.Proof, error) {
 	log.Infof("DEBUG:SealCommit in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
 	defer log.Infof("DEBUG:SealCommit out,%+v", sector.ID)
 	atomic.AddInt32(&_commitWait, 1)
 	if !sb.remoteCfg.SealSector {
 		atomic.AddInt32(&_commitWait, -1)
-		return storage.Proof{}, errors.New("No SealCommit for local mode.")
+		return storiface.Proof{}, errors.New("No SealCommit for local mode.")
 	}
 
 	call := workerCall{
@@ -234,7 +233,7 @@ func (sb *Sealer) SealCommit(ctx context.Context, sector storage.SectorRef, tick
 	case _commitTasks <- call:
 		return sb.sealCommitRemote(call)
 	case <-ctx.Done():
-		return storage.Proof{}, ctx.Err()
+		return storiface.Proof{}, ctx.Err()
 	}
 }
 
@@ -250,7 +249,7 @@ func (sb *Sealer) finalizeSectorRemote(call workerCall) error {
 	}
 }
 
-func (sb *Sealer) FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {
+func (sb *Sealer) FinalizeSector(ctx context.Context, sector storiface.SectorRef, keepUnsealed []storiface.Range) error {
 	log.Infof("DEBUG:FinalizeSector in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
 	defer log.Infof("DEBUG:FinalizeSector out,%+v", sector.ID)
 	// return sb.finalizeSector(ctx, sector)
@@ -295,7 +294,7 @@ func (sb *Sealer) unsealPieceRemote(call workerCall) error {
 	}
 }
 
-func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error {
+func (sb *Sealer) UnsealPiece(ctx context.Context, sector storiface.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error {
 	log.Infof("DEBUG:UnsealPiece in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
 	defer log.Infof("DEBUG:UnsealPiece out,%+v", sector.ID)
 
@@ -341,7 +340,7 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storage.SectorRef, off
 	}
 }
 
-func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	if len(sectorInfo) == 0 {
 		return nil, errors.New("not sectors set")
 	}
@@ -350,7 +349,7 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	defer log.Infof("DEBUG:GenerateWinningPoSt out,%s, session:%s", minerID, sessionKey)
 	return sb.generateWinningPoStWithTimeout(ctx, minerID, sectorInfo, randomness)
 }
-func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	// remote worker is not set, use local mode
 	if sb.remoteCfg.WinningPoSt == 0 {
 		return sb.generateWinningPoSt(ctx, minerID, sectorInfo, randomness)
@@ -425,7 +424,7 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 	return res.res.WinningPoStProofOut, err
 }
 
-func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
+func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
 	if len(sectorInfo) == 0 {
 		return nil, nil, errors.New("not sectors set")
 	}

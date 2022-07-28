@@ -63,7 +63,7 @@ func (s *WindowPoStScheduler) declareRecoveries(ctx context.Context, dlIdx uint6
 
 		faulty += uc
 
-		recovered, err := s.checkSectors(ctx, unrecovered, tsk)
+		recovered, err := s.checkSectors(ctx, unrecovered, tsk,build.GetProvingCheckTimeout())
 		if err != nil {
 			return nil, nil, xerrors.Errorf("checking unrecovered sectors: %w", err)
 		}
@@ -175,7 +175,7 @@ func (s *WindowPoStScheduler) declareFaults(ctx context.Context, dlIdx uint64, p
 			return nil, nil, xerrors.Errorf("determining non faulty sectors: %w", err)
 		}
 
-		good, err := s.checkSectors(ctx, nonFaulty, tsk)
+		good, err := s.checkSectors(ctx, nonFaulty, tsk,build.GetProvingCheckTimeout())
 		if err != nil {
 			return nil, nil, xerrors.Errorf("checking sectors: %w", err)
 		}

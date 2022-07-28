@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"io/ioutil"
 	"net/http"
 	"os"

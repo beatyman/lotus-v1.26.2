@@ -11,8 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
+
 	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
@@ -20,7 +21,7 @@ import (
 )
 
 type ExecPrecommit2Resp struct {
-	Data storage.SectorCids
+	Data storiface.SectorCids
 	Err  string
 }
 
@@ -43,12 +44,12 @@ func readUnixConn(conn net.Conn) ([]byte, error) {
 	return result, nil
 }
 
-func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.SectorCids, error) {
+func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storiface.SectorCids, error) {
 	AssertGPU(ctx)
 
 	args, err := json.Marshal(task)
 	if err != nil {
-		return storage.SectorCids{}, errors.As(err)
+		return storiface.SectorCids{}, errors.As(err)
 	}
 	gpuKey, _, err := allocateGpu(ctx)
 	if err != nil {
@@ -74,7 +75,7 @@ func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storage.
 	cmd.Stdout = os.Stdout
 
 	if err := cmd.Start(); err != nil {
-		return storage.SectorCids{}, errors.As(err, string(args))
+		return storiface.SectorCids{}, errors.As(err, string(args))
 	}
 	defer func() {
 		time.Sleep(3e9)    // wait 3 seconds for exit.
@@ -100,24 +101,24 @@ loopUnixConn:
 			time.Sleep(1e9)
 			goto loopUnixConn
 		}
-		return storage.SectorCids{}, errors.As(err, string(args))
+		return storiface.SectorCids{}, errors.As(err, string(args))
 	}
 	defer conn.Close()
 	if _, err := conn.Write(args); err != nil {
-		return storage.SectorCids{}, errors.As(err, string(args))
+		return storiface.SectorCids{}, errors.As(err, string(args))
 	}
 	// wait donDatae
 	out, err := readUnixConn(conn)
 	if err != nil {
-		return storage.SectorCids{}, errors.As(err, string(args))
+		return storiface.SectorCids{}, errors.As(err, string(args))
 	}
 
 	resp := ExecPrecommit2Resp{}
 	if err := json.Unmarshal(out, &resp); err != nil {
-		return storage.SectorCids{}, errors.As(err, string(args))
+		return storiface.SectorCids{}, errors.As(err, string(args))
 	}
 	if len(resp.Err) > 0 {
-		return storage.SectorCids{}, errors.Parse(resp.Err).As(args)
+		return storiface.SectorCids{}, errors.Parse(resp.Err).As(args)
 	}
 	return resp.Data, nil
 }
@@ -186,7 +187,7 @@ var P2Cmd = &cli.Command{
 			resp.Err = errors.As(err, string(argIn)).Error()
 			return nil
 		}
-		out, err := workerSealer.SealPreCommit2(ctx, storage.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.PreCommit1Out)
+		out, err := workerSealer.SealPreCommit2(ctx, storiface.SectorRef{ID: task.SectorID, ProofType: task.ProofType}, task.PreCommit1Out)
 		if err != nil {
 			resp.Err = errors.As(err, string(argIn)).Error()
 			return nil

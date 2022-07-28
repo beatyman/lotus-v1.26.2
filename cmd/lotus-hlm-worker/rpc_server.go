@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
-	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/gwaylib/errors"
 )
@@ -63,11 +63,11 @@ func (w *rpcServer) Version(context.Context) (string, error) {
 	return "", nil
 }
 
-func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commit1Out storage.Commit1Out) (storage.Proof, error) {
+func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commit1Out storiface.Commit1Out) (storiface.Proof, error) {
 	var (
 		err  error
 		dump = false //是否重复扇区(重复:正在执行中...)
-		prf  storage.Proof
+		prf  storiface.Proof
 		sid  = w.sectorName(sector.SectorID)
 		out  = &ffiwrapper.Commit2Result{
 			WorkerId: w.workerID,
@@ -106,12 +106,12 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 		log.Infof("SealCommit2 RPC dumplicate:%v, current c2sids: %v", sector, w.getC2sids())
 		err = errors.New("sector is sealing").As(sid)
 		out.Err = err.Error()
-		return storage.Proof{}, err
+		return storiface.Proof{}, err
 	}
 	w.c2sids[sid] = sector.SectorID
 	w.c2sidsRW.Unlock()
 
-	if prf, err = w.sb.SealCommit2(ctx, storage.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out); err == nil {
+	if prf, err = w.sb.SealCommit2(ctx, storiface.SectorRef{ID: sector.SectorID, ProofType: sector.ProofType}, commit1Out); err == nil {
 		out.Proof = hex.EncodeToString(prf)
 	} else {
 		out.Err = err.Error()
@@ -169,7 +169,7 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi *api.RetryHlmMine
 	return nil
 }
 
-func (w *rpcServer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+func (w *rpcServer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	log.Infof("GenerateWinningPoSt RPC in:%d", minerID)
 	defer log.Infof("GenerateWinningPoSt RPC out:%d", minerID)
 	napi, err := GetNodeApi()
@@ -183,7 +183,7 @@ func (w *rpcServer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID
 
 	return w.sb.GenerateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 }
-func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storage.ProofSectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
+func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
 	log.Infof("GenerateWindowPoSt RPC in:%d", minerID)
 	defer log.Infof("GenerateWindowPoSt RPC out:%d", minerID)
 	napi, err := GetNodeApi()

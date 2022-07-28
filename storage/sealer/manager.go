@@ -3,17 +3,17 @@ package sealer
 import (
 	"context"
 	"github.com/filecoin-project/dagstore/mount"
-	"io"
-	"net/http"
-	"sync"
-	"github.com/gwaylib/errors"
 	"github.com/google/uuid"
+	"github.com/gwaylib/errors"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/mitchellh/go-homedir"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
+	"io"
+	"net/http"
+	"sync"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-statestore"
@@ -65,7 +65,7 @@ type Manager struct {
 	windowPoStSched  *poStScheduler
 	winningPoStSched *poStScheduler
 
-	localProver storiface.ProverPoSt
+	Prover storiface.ProverPoSt
 
 	workLk sync.Mutex
 	work   *statestore.StateStore
@@ -303,7 +303,7 @@ func (m *Manager) schedFetch(sector storiface.SectorRef, ft storiface.SectorFile
 	}
 }
 
-func (m *Manager)ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error){
+func (m *Manager)ReadPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error){
 	return m.hlmWorker.ReadPiece(ctx, sector, pieceOffset,size,ticket,unsealed)
 }
 

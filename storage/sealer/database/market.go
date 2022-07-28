@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/gwaylib/database"
 	"github.com/gwaylib/errors"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
 var (
@@ -81,7 +81,7 @@ func SetMarketRetrieveExpire(sid string, active bool) error {
 	return nil
 }
 
-func GetMarketRetrieveExpires(invalidTime time.Time) ([]storage.SectorFile, error) {
+func GetMarketRetrieveExpires(invalidTime time.Time) ([]storiface.SectorFile, error) {
 	exireMarketRetrieveLock.Lock()
 	defer exireMarketRetrieveLock.Unlock()
 
@@ -102,7 +102,7 @@ WHERE
 	}
 	defer database.Close(rows)
 
-	result := []storage.SectorFile{}
+	result := []storiface.SectorFile{}
 	for rows.Next() {
 		sid := ""
 		unsealedStorage := sql.NullInt64{}
@@ -122,7 +122,7 @@ WHERE
 		); err != nil {
 			return nil, errors.As(err, invalidTime)
 		}
-		sFile := storage.SectorFile{
+		sFile := storiface.SectorFile{
 			SectorId: sid,
 		}
 		if unsealedDir.Valid {

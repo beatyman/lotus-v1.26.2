@@ -2,7 +2,7 @@ package sealer
 
 import (
 	"context"
-	"github.com/filecoin-project/specs-storage/storage"
+	
 	"sort"
 	"sync"
 
@@ -17,15 +17,17 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
-func (m *Manager) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.ExtendedSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
+func (m *Manager) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	return m.Prover.GenerateWinningPoSt(ctx, minerID, sectorInfo, randomness)
+	/*
 	if !m.disableBuiltinWinningPoSt && !m.winningPoStSched.CanSched(ctx) {
 		// if builtin PoSt isn't disabled, and there are no workers, compute the PoSt locally
 
 		log.Info("GenerateWinningPoSt run at lotus-miner")
-		return m.localProver.GenerateWinningPoSt(ctx, minerID, sectorInfo, randomness)
+		return m.Prover.GenerateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 	}
 	return m.generateWinningPoSt(ctx, minerID, sectorInfo, randomness)
+	 */
 }
 
 func (m *Manager) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.ExtendedSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
@@ -79,8 +81,9 @@ func (m *Manager) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	return proofs, nil
 }
 
-func (m *Manager) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.ExtendedSectorInfo, randomness abi.PoStRandomness) (proof []proof.PoStProof, skipped []abi.SectorID, err error) {
+func (m *Manager) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) (proof []proof.PoStProof, skipped []abi.SectorID, err error) {
 	return m.Prover.GenerateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+	/*
 	if !m.disableBuiltinWindowPoSt && !m.windowPoStSched.CanSched(ctx) {
 		// if builtin PoSt isn't disabled, and there are no workers, compute the PoSt locally
 

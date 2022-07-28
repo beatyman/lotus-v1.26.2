@@ -18,8 +18,7 @@ import (
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
 	"github.com/filecoin-project/go-state-types/network"
-	"github.com/gwaylib/errors"
-	fapi "github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -28,6 +27,7 @@ import (
 	"github.com/filecoin-project/lotus/storage/ctladdr"
 	"github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("wdpost")
@@ -55,6 +55,13 @@ type NodeAPI interface {
 
 	WalletBalance(context.Context, address.Address) (types.BigInt, error)
 	WalletHas(context.Context, address.Address) (bool, error)
+	//hlm
+	ChainGetTipSetByHeight(context.Context, abi.ChainEpoch, types.TipSetKey) (*types.TipSet, error)
+	MpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) // only sign the message in mpool
+	ChainComputeBaseFee(context.Context, types.TipSetKey) (types.BigInt, error)
+	MpoolPush(context.Context, *types.SignedMessage) (cid.Cid, error) //perm:write
+	WalletSignMessage(context.Context, address.Address, *types.Message) (*types.SignedMessage, error) //perm:sign
+	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error) //perm:read
 }
 
 // WindowPoStScheduler is the coordinator for WindowPoSt submissions, fault
@@ -90,11 +97,11 @@ type WindowPoStScheduler struct {
 	autoWithdrawRunning   bool
 
 	wdpostLogsLk sync.Mutex
-	wdpostLogs   map[uint64][]fapi.WdPoStLog // log the process of wdpost, dealine:logs
+	wdpostLogs   map[uint64][]api.WdPoStLog // log the process of wdpost, dealine:logs
 }
 
 // NewWindowedPoStScheduler creates a new WindowPoStScheduler scheduler.
-func NewWindowedPoStScheduler(api NodeAPI,
+func NewWindowedPoStScheduler(fapi NodeAPI,
 	cfg config.MinerFeeConfig,
 	pcfg config.ProvingConfig,
 	as *ctladdr.AddressSelector,
@@ -108,13 +115,13 @@ func NewWindowedPoStScheduler(api NodeAPI,
 	if EnableSeparatePartition && cfg.PartitionsPerMsg != 0 {
 		PartitionsPerMsg = cfg.PartitionsPerMsg
 	}
-	mi, err := api.StateMinerInfo(context.TODO(), actor, types.EmptyTSK)
+	mi, err := fapi.StateMinerInfo(context.TODO(), actor, types.EmptyTSK)
 	if err != nil {
 		return nil, xerrors.Errorf("getting sector size: %w", err)
 	}
 
 	return &WindowPoStScheduler{
-		api:                             api,
+		api:                             fapi,
 		feeCfg:                          cfg,
 		addrSel:                         as,
 		prover:                          sp,
@@ -134,7 +141,7 @@ func NewWindowedPoStScheduler(api NodeAPI,
 		},
 		journal: j,
 
-		wdpostLogs: map[uint64][]fapi.WdPoStLog{},
+		wdpostLogs: map[uint64][]api.WdPoStLog{},
 	}, nil
 }
 
@@ -143,7 +150,7 @@ func (s *WindowPoStScheduler) ResetLog(index uint64) {
 	defer s.wdpostLogsLk.Unlock()
 	delete(s.wdpostLogs, index)
 }
-func (s *WindowPoStScheduler) GetLog(index uint64) []fapi.WdPoStLog {
+func (s *WindowPoStScheduler) GetLog(index uint64) []api.WdPoStLog {
 	s.wdpostLogsLk.Lock()
 	defer s.wdpostLogsLk.Unlock()
 	l, _ := s.wdpostLogs[index]
@@ -153,10 +160,10 @@ func (s *WindowPoStScheduler) PutLogw(index uint64, args ...interface{}) string 
 	s.wdpostLogsLk.Lock()
 	defer s.wdpostLogsLk.Unlock()
 	src := []byte(fmt.Sprintln(args...))
-	output := fapi.WdPoStLog{Time: time.Now(), Log: string(src[:len(src)-1])}
+	output := api.WdPoStLog{Time: time.Now(), Log: string(src[:len(src)-1])}
 	l, ok := s.wdpostLogs[index]
 	if !ok {
-		l = []fapi.WdPoStLog{output}
+		l = []api.WdPoStLog{output}
 	} else {
 		l = append(l, output)
 	}
@@ -166,10 +173,10 @@ func (s *WindowPoStScheduler) PutLogw(index uint64, args ...interface{}) string 
 func (s *WindowPoStScheduler) PutLogf(index uint64, format string, args ...interface{}) string {
 	s.wdpostLogsLk.Lock()
 	defer s.wdpostLogsLk.Unlock()
-	output := fapi.WdPoStLog{Time: time.Now(), Log: fmt.Sprintf(format, args...)}
+	output := api.WdPoStLog{Time: time.Now(), Log: fmt.Sprintf(format, args...)}
 	l, ok := s.wdpostLogs[index]
 	if !ok {
-		l = []fapi.WdPoStLog{output}
+		l = []api.WdPoStLog{output}
 	} else {
 		l = append(l, output)
 	}
@@ -227,7 +234,7 @@ func (s *WindowPoStScheduler) Run(ctx context.Context) {
 	return
 	// end by hlm
 
-	var notifs <-chan []*fapi.HeadChange
+	var notifs <-chan []*api.HeadChange
 	var err error
 	var gotCur bool
 

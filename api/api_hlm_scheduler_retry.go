@@ -2,11 +2,12 @@ package api
 
 import (
 	"context"
-	"github.com/filecoin-project/go-jsonrpc/auth"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"strings"
 	"time"
+
+	"github.com/filecoin-project/go-jsonrpc/auth"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"

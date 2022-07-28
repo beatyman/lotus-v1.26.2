@@ -14,8 +14,10 @@ import (
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-statemachine"
+	"github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
 )
 
@@ -405,7 +407,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 		return nil, processed, xerrors.Errorf("running planner for state %s failed: %w", state.State, err)
 	}
 	// checking the sector state in hlm miner
-	sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSectorID(state.SectorNumber)))
+	sInfo, err := database.GetSectorInfo(storiface.SectorName(m.minerSectorID(state.SectorNumber)))
 	if err != nil {
 		log.Warn(errors.As(err))
 	} else {
@@ -415,7 +417,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 			if sInfo.State > (database.SECTOR_STATE_FAILED - 2) {
 				break
 			}
-			sealer, ok := m.sealer.(*sectorstorage.Manager)
+			sealer, ok := m.sealer.(*sealer.Manager)
 			if !ok {
 				log.Warnf("m.sealer not (sectorstorage.Manager)")
 				break
