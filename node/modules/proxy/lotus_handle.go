@@ -841,7 +841,7 @@ func (s *LotusImpl) StateSectorPartition(p0 context.Context, p1 address.Address,
 	return bestNodeApi().StateSectorPartition(p0, p1, p2, p3)
 }
 
-func (s *LotusImpl) StateSectorPreCommitInfo(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) {
+func (s *LotusImpl)StateSectorPreCommitInfo(p0 context.Context, p1 address.Address,p2 abi.SectorNumber,p3 types.TipSetKey) (*miner.SectorPreCommitOnChainInfo, error) {
 	return bestNodeApi().StateSectorPreCommitInfo(p0, p1, p2, p3)
 }
 
@@ -968,4 +968,7 @@ func (s *LotusImpl)StateGetNetworkParams(p0 context.Context) (*api.NetworkParams
 // StateLookupRobustAddress returns the public key address of the given ID address for non-account addresses (multisig, miners etc)
 func (s *LotusImpl)StateLookupRobustAddress(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) {
 	return bestNodeApi().StateLookupRobustAddress(p0,p1,p2)
+}
+func (s *LotusImpl) StateComputeDataCID(p0 context.Context, p1 address.Address, p2 abi.RegisteredSealProof, p3 []abi.DealID, p4 types.TipSetKey) (cid.Cid, error)  {
+	return bestNodeApi().StateComputeDataCID(p0,p1,p2,p3,p4)
 }
