@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/lotus/chain/wallet/key"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -159,7 +160,7 @@ var walletChecksum = &cli.Command{
 		} else {
 			fmt.Println("WARNNING: the private key not in encrypted!!!!!")
 		}
-		key, err := wallet.NewKey(ctx, ki)
+		key, err := key.NewKey(ctx, ki)
 		if err != nil {
 			return err
 		}
@@ -204,7 +205,7 @@ var walletNew = &cli.Command{
 		typ := types.KeyType(t)
 		if cctx.Bool("local") {
 			// by zhoushuyue
-			k, err := wallet.GenerateKey(typ)
+			k, err := key.GenerateKey(typ)
 			if err != nil {
 				return err
 			}
