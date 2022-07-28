@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	sectorstorage "github.com/filecoin-project/lotus/storage/sealer"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
 
