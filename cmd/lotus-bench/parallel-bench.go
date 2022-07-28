@@ -3,6 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/docker/go-units"
+	"github.com/filecoin-project/go-state-types/abi"
+	lapi "github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/chain/actors/policy"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"math"
 	"math/rand"
 	"os"
@@ -11,13 +18,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/docker/go-units"
-	"github.com/filecoin-project/go-state-types/abi"
-	lapi "github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/chain/actors/policy"
-	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
-	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
 
 	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
@@ -101,20 +101,20 @@ type ParallelBenchTask struct {
 	Pieces []abi.PieceInfo // commit1 is need too.
 
 	// preCommit2
-	PreCommit1Out storage.PreCommit1Out
+	PreCommit1Out storiface.PreCommit1Out
 
 	// commit1
-	Cids storage.SectorCids
+	Cids storiface.SectorCids
 
 	// commit2
-	Commit1Out storage.Commit1Out
+	Commit1Out storiface.Commit1Out
 
 	// result
-	Proof storage.Proof
+	Proof storiface.Proof
 }
 
 func (t *ParallelBenchTask) SectorName() string {
-	return storage.SectorName(t.SectorID)
+	return storiface.SectorName(t.SectorID)
 }
 
 type ParallelBenchResult struct {
@@ -463,7 +463,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 	}()
 	sectorSize := task.SectorSize
 
-	sid := storage.SectorRef{
+	sid := storiface.SectorRef{
 		ID:        task.SectorID,
 		ProofType: spt(sectorSize),
 	}
@@ -500,7 +500,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 		trand := blake2b.Sum256(task.TicketPreimage)
 		ticket := abi.SealRandomness(trand[:])
 
-		var pc1o storage.PreCommit1Out
+		var pc1o storiface.PreCommit1Out
 		var err error
 		// if !task.TaskSet {
 		if true { // p1 not need taskset now.
@@ -540,7 +540,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 		return
 	case TASK_KIND_PRECOMMIT2:
 		startTime := time.Now()
-		var cids storage.SectorCids
+		var cids storiface.SectorCids
 		var err error
 		if !task.TaskSet {
 			cids, err = sb.SealPreCommit2(ctx, sid, task.PreCommit1Out)
