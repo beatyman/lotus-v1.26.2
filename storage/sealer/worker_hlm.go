@@ -3,6 +3,7 @@ package sealer
 import (
 	"bufio"
 	"context"
+	stores "github.com/filecoin-project/lotus/storage/paths"
 	"io"
 	"os"
 	"runtime"
@@ -17,15 +18,12 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"
-	
-	storage2 
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/filecoin-project/lotus/storage/sealer/sealtasks"
-	"github.com/filecoin-project/lotus/storage/sealer/stores"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
-	"github.com/filecoin-project/lotus/storage/sealer/database"
 
 	"github.com/gwaylib/errors"
 )
@@ -72,44 +70,44 @@ func (l *hlmWorker) RepoPath() string {
 	panic("No RepoPath")
 }
 
-func (l *hlmWorker) AcquireSector(ctx context.Context, sector storage.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, sealing storiface.PathType) (storiface.SectorPaths, func(), error) {
+func (l *hlmWorker) AcquireSector(ctx context.Context, sector storiface.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, sealing storiface.PathType) (storiface.SectorPaths, func(), error) {
 	return stores.HLMSectorPath(sector.ID, l.RepoPath()), func() {}, nil
 }
 
-func (l *hlmWorker) NewSector(ctx context.Context, sector storage.SectorRef) error {
+func (l *hlmWorker) NewSector(ctx context.Context, sector storiface.SectorRef) error {
 	return l.sb.NewSector(ctx, sector)
 }
 
-func (l *hlmWorker) PledgeSector(ctx context.Context, sectorID storage.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
+func (l *hlmWorker) PledgeSector(ctx context.Context, sectorID storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	return l.sb.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
 }
 
-func (l *hlmWorker) AddPiece(ctx context.Context, sector storage.SectorRef, epcs []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
+func (l *hlmWorker) AddPiece(ctx context.Context, sector storiface.SectorRef, epcs []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
 	return l.sb.AddPiece(ctx, sector, epcs, sz, r)
 }
 
-func (l *hlmWorker) SealPreCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage2.PreCommit1Out, err error) {
+func (l *hlmWorker) SealPreCommit1(ctx context.Context, sector storiface.SectorRef, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storiface.PreCommit1Out, err error) {
 	return l.sb.SealPreCommit1(ctx, sector, ticket, pieces)
 }
 
-func (l *hlmWorker) SealPreCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage2.PreCommit1Out) (cids storage2.SectorCids, err error) {
+func (l *hlmWorker) SealPreCommit2(ctx context.Context, sector storiface.SectorRef, phase1Out storiface.PreCommit1Out) (cids storiface.SectorCids, err error) {
 	return l.sb.SealPreCommit2(ctx, sector, phase1Out)
 }
 
-func (l *hlmWorker) SealCommit1(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage2.SectorCids) (output storage2.Commit1Out, err error) {
+func (l *hlmWorker) SealCommit1(ctx context.Context, sector storiface.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storiface.SectorCids) (output storiface.Commit1Out, err error) {
 	return l.sb.SealCommit1(ctx, sector, ticket, seed, pieces, cids)
 }
 
-func (l *hlmWorker) SealCommit2(ctx context.Context, sector storage.SectorRef, phase1Out storage2.Commit1Out) (proof storage2.Proof, err error) {
+func (l *hlmWorker) SealCommit2(ctx context.Context, sector storiface.SectorRef, phase1Out storiface.Commit1Out) (proof storiface.Proof, err error) {
 	return l.sb.SealCommit2(ctx, sector, phase1Out)
 }
 
 // union c1 and c2
-func (l *hlmWorker) SealCommit(ctx context.Context, sector storage.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage2.SectorCids) (storage.Proof, error) {
+func (l *hlmWorker) SealCommit(ctx context.Context, sector storiface.SectorRef, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storiface.SectorCids) (storiface.Proof, error) {
 	return l.sb.SealCommit(ctx, sector, ticket, seed, pieces, cids)
 }
 
-func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage2.Range) error {
+func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storiface.SectorRef, keepUnsealed []storiface.Range) error {
 	if err := l.sb.FinalizeSector(ctx, sector, keepUnsealed); err != nil {
 		return xerrors.Errorf("finalizing sector: %w", err)
 	}
@@ -132,11 +130,11 @@ func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storage.SectorRef
 	return nil
 }
 
-func (l *hlmWorker) ReleaseUnsealed(ctx context.Context, sector abi.SectorID, safeToFree []storage2.Range) error {
+func (l *hlmWorker) ReleaseUnsealed(ctx context.Context, sector abi.SectorID, safeToFree []storiface.Range) error {
 	return xerrors.Errorf("implement me")
 }
 
-func (l *hlmWorker) Remove(ctx context.Context, sector storage.SectorRef) error {
+func (l *hlmWorker) Remove(ctx context.Context, sector storiface.SectorRef) error {
 	var err error
 
 	if rerr := l.storage.Remove(ctx, sector.ID, storiface.FTSealed, true, nil); rerr != nil {
@@ -222,11 +220,11 @@ func (l *hlmWorker) Remove(ctx context.Context, sector storage.SectorRef) error 
 	return err
 }
 
-func (l *hlmWorker) UnsealPiece(ctx context.Context, sector storage.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, cid cid.Cid) error {
+func (l *hlmWorker) UnsealPiece(ctx context.Context, sector storiface.SectorRef, index storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, cid cid.Cid) error {
 	return l.sb.UnsealPiece(ctx, sector, index, size, randomness, cid)
 }
 
-func (l *hlmWorker) readPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
+func (l *hlmWorker) readPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
 	// try read the exist unsealed.
 	ctx, cancel := context.WithCancel(ctx)
 	rg, done, err := l.sb.PieceReader(ctx, sector, abi.PaddedPieceSize(pieceOffset.Padded()), size.Padded())
@@ -283,14 +281,14 @@ func (l *hlmWorker) readPiece(ctx context.Context, sector storage.SectorRef, pie
 	cancel()
 	return nil, false, errors.New("readPiece not done")
 }
-func (l *hlmWorker) ReadPiece(ctx context.Context, sector storage.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
+func (l *hlmWorker) ReadPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
 	// acquire a lock purely for reading unsealed sectors
 	var err error
 	sector, err = database.FillSectorFile(sector, l.sb.RepoPath())
 	if err != nil {
 		return nil, false, errors.As(err)
 	}
-	if err := database.AddMarketRetrieve(storage.SectorName(sector.ID)); err != nil {
+	if err := database.AddMarketRetrieve(storiface.SectorName(sector.ID)); err != nil {
 		return nil, false, errors.As(err)
 	}
 	// unseal data will expire by 30 days if no visitor.
@@ -409,6 +407,6 @@ func (l *hlmWorker) Close() error {
 }
 
 // Compute Data CID
-func (l *hlmWorker) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, pieceData storage.Data) (abi.PieceInfo, error) {
+func (l *hlmWorker) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, pieceData storiface.Data) (abi.PieceInfo, error) {
 	return l.sb.DataCid(ctx, pieceSize, pieceData)
 }
