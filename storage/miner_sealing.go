@@ -2,6 +2,10 @@ package storage
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/storage/pipeline/sealiface"
+	"github.com/filecoin-project/lotus/storage/sealer"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 
 	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
@@ -10,15 +14,11 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
-	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/lotus/api"
-	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
-	"github.com/filecoin-project/lotus/extern/storage-sealing/sealiface"
+	pipeline "github.com/filecoin-project/lotus/storage/pipeline"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/filecoin-project/lotus/storage/sectorblocks"
 )
 
@@ -32,15 +32,15 @@ func (m *Miner) StartPackingSector(sectorNum abi.SectorNumber) error {
 	return m.sealing.StartPacking(sectorNum)
 }
 
-func (m *Miner) ListSectors() ([]sealing.SectorInfo, error) {
+func (m *Miner) ListSectors() ([]pipeline.SectorInfo, error) {
 	return m.sealing.ListSectors()
 }
 
-func (m *Miner) PledgeSector(ctx context.Context) (storage.SectorRef, error) {
+func (m *Miner) PledgeSector(ctx context.Context) (storiface.SectorRef, error) {
 	return m.sealing.PledgeSector(ctx)
 }
 
-func (m *Miner) ForceSectorState(ctx context.Context, id abi.SectorNumber, state sealing.SectorState) error {
+func (m *Miner) ForceSectorState(ctx context.Context, id abi.SectorNumber, state pipeline.SectorState) error {
 	return m.sealing.ForceSectorState(ctx, id, state)
 }
 
@@ -91,7 +91,7 @@ func (m *Miner) SectorAbortUpgrade(sectorNum abi.SectorNumber) error {
 	return m.sealing.AbortUpgrade(sectorNum)
 }
 
-func (m *Miner) SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, r storage.Data, d api.PieceDealInfo) (api.SectorOffset, error) {
+func (m *Miner) SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, r storiface.Data, d api.PieceDealInfo) (api.SectorOffset, error) {
 	return m.sealing.SectorAddPieceToAny(ctx, size, r, d)
 }
 
@@ -170,7 +170,8 @@ func (m *Miner) SectorsStatus(ctx context.Context, sid abi.SectorNumber, showOnC
 var _ sectorblocks.SectorBuilder = &Miner{}
 
 // implements by hlm start
-
+var PartitionsPerMsg int = 1
+var EnableSeparatePartition bool = false
 func (m *Miner) WdpostEnablePartitionSeparate(enable bool) error {
 	log.Info("lookup enable:", enable)
 	EnableSeparatePartition = enable
@@ -194,7 +195,7 @@ func (m *Miner) ExitPledgeSector() error {
 	return m.sealing.ExitPledgeSector()
 }
 func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64) error {
-	id, err := storage.ParseSectorID(sid)
+	id, err := storiface.ParseSectorID(sid)
 	if err != nil {
 		return errors.As(err)
 	}
@@ -208,7 +209,7 @@ func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64
 		return errors.As(err)
 	}
 
-	sealer := sm.sealer.(*sectorstorage.Manager).Prover.(*ffiwrapper.Sealer)
+	sealer := sm.sealer.(*sealer.Manager).Prover.(*ffiwrapper.Sealer)
 
 	// reset state
 	if _, err := sealer.UpdateSectorState(sid, "rebuild sector", 200, true, true); err != nil {
@@ -219,7 +220,7 @@ func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64
 		if err := database.RebuildSector(sid, storageId); err != nil {
 			return errors.As(err)
 		}
-		sector := storage.SectorRef{
+		sector := storiface.SectorRef{
 			ID:        id,
 			ProofType: abi.RegisteredSealProof(minerInfo.WindowPoStProofType),
 		}

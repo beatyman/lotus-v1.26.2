@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"net/http"
 	"os"
 	"sync"
@@ -11,11 +10,11 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/specs-storage/storage"
-
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
+	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
 )
 
@@ -338,11 +337,11 @@ reAllocate:
 	}
 	unlockWorker := false
 
-	sector := storage.SectorRef{
+	sector := storiface.SectorRef{
 		ID:        task.SectorID,
 		ProofType: task.ProofType,
-		SectorFile: storage.SectorFile{
-			SectorId:     storage.SectorName(task.SectorID),
+		SectorFile: storiface.SectorFile{
+			SectorId:     storiface.SectorName(task.SectorID),
 			SealedRepo:   sealer.RepoPath(),
 			UnsealedRepo: sealer.RepoPath(),
 		},

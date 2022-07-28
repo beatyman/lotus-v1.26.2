@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -14,9 +15,8 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper/basicfs"
-	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 )
@@ -28,8 +28,8 @@ type RebuildTask struct {
 	SeedValue    abi.InteractiveSealRandomness
 
 	apOut []abi.PieceInfo
-	p1Out storage.PreCommit1Out
-	p2Out storage.SectorCids
+	p1Out storiface.PreCommit1Out
+	p2Out storiface.SectorCids
 }
 
 //// json format
@@ -145,7 +145,7 @@ var rebuildCmd = &cli.Command{
 						apOut <- errors.As(err)
 						continue
 					}
-					sector := storage.SectorRef{
+					sector := storiface.SectorRef{
 						ID: abi.SectorID{
 							Miner:  abi.ActorID(minerId),
 							Number: task.SectorNumber,
@@ -192,7 +192,7 @@ var rebuildCmd = &cli.Command{
 						p1Out <- errors.As(err)
 						continue
 					}
-					sector := storage.SectorRef{
+					sector := storiface.SectorRef{
 						ID: abi.SectorID{
 							Miner:  abi.ActorID(minerId),
 							Number: task.SectorNumber,
@@ -227,7 +227,7 @@ var rebuildCmd = &cli.Command{
 					p2Out <- errors.As(err)
 					continue
 				}
-				sector := storage.SectorRef{
+				sector := storiface.SectorRef{
 					ID: abi.SectorID{
 						Miner:  abi.ActorID(minerId),
 						Number: task.SectorNumber,
@@ -261,7 +261,7 @@ var rebuildCmd = &cli.Command{
 					result <- errors.As(err)
 					continue
 				}
-				sector := storage.SectorRef{
+				sector := storiface.SectorRef{
 					ID: abi.SectorID{
 						Miner:  abi.ActorID(minerId),
 						Number: task.SectorNumber,
@@ -286,7 +286,7 @@ var rebuildCmd = &cli.Command{
 					for {
 						time.Sleep(1e9)
 
-						sid := storage.SectorName(sector.ID)
+						sid := storiface.SectorName(sector.ID)
 						auth := hlmclient.NewAuthClient(taskList.AuthUri, taskList.AuthMd5)
 						token, err := auth.NewFileToken(ctx, sid)
 						if err != nil {

@@ -5,10 +5,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 
-	"github.com/filecoin-project/lotus/api/v1api"
-
-	"github.com/filecoin-project/lotus/api/v0api"
-
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
 	"go.opencensus.io/stats"
@@ -17,6 +13,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/lotus/api"
+	"github.com/filecoin-project/lotus/api/v0api"
+	"github.com/filecoin-project/lotus/api/v1api"
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
@@ -29,7 +27,7 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/lotus/node/repo"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/gwaylib/errors"
 )
 

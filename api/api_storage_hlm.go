@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
 type HlmMinerProxy interface {
@@ -35,7 +35,7 @@ type HlmMinerSector interface {
 	HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error)
 	HlmSectorSetState(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)
 	HlmSectorListAll(context.Context) ([]SectorInfo, error)
-	HlmSectorFile(ctx context.Context, sid string) (*storage.SectorFile, error)
+	HlmSectorFile(ctx context.Context, sid string) (*storiface.SectorFile, error)
 	HlmSectorCheck(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)
 }
 

@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/gwaylib/errors"
 )
 
