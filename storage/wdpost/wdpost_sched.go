@@ -3,6 +3,7 @@ package wdpost
 import (
 	"context"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage"
 	"sync"
 	"time"
 
@@ -111,9 +112,9 @@ func NewWindowedPoStScheduler(fapi NodeAPI,
 	j journal.Journal,
 	actor address.Address) (*WindowPoStScheduler, error) {
 	log.Info("lookup default config: EnableSeparatePartition::", cfg.EnableSeparatePartition, "PartitionsPerMsg::", cfg.PartitionsPerMsg)
-	EnableSeparatePartition = cfg.EnableSeparatePartition
-	if EnableSeparatePartition && cfg.PartitionsPerMsg != 0 {
-		PartitionsPerMsg = cfg.PartitionsPerMsg
+	storage.EnableSeparatePartition = cfg.EnableSeparatePartition
+	if storage.EnableSeparatePartition && cfg.PartitionsPerMsg != 0 {
+		storage.PartitionsPerMsg = cfg.PartitionsPerMsg
 	}
 	mi, err := fapi.StateMinerInfo(context.TODO(), actor, types.EmptyTSK)
 	if err != nil {
