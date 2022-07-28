@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
-	"github.com/filecoin-project/specs-storage/storage"
 )
 
 type WindowPoStResp struct {
@@ -23,7 +23,7 @@ type SectorRef struct {
 type WorkerHlmAPI interface {
 	Version(context.Context) (string, error)
 
-	SealCommit2(context.Context, SectorRef, storage.Commit1Out) (storage.Proof, error)
-	GenerateWinningPoSt(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)
-	GenerateWindowPoSt(context.Context, abi.ActorID, []storage.ProofSectorInfo, abi.PoStRandomness) (WindowPoStResp, error)
+	SealCommit2(context.Context, SectorRef, storiface.Commit1Out) (storiface.Proof, error)
+	GenerateWinningPoSt(context.Context, abi.ActorID, []storiface.ProofSectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)
+	GenerateWindowPoSt(context.Context, abi.ActorID, []storiface.ProofSectorInfo, abi.PoStRandomness) (WindowPoStResp, error)
 }
