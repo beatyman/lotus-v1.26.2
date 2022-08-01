@@ -7,13 +7,6 @@ import (
 	"contrib.go.opencensus.io/exporter/jaeger"
 	logging "github.com/ipfs/go-log/v2"
 	"go.opencensus.io/trace"
-	octrace "go.opencensus.io/trace"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/bridge/opencensus"
-	"go.opentelemetry.io/otel/sdk/resource"
-	tracesdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
-	"go.uber.org/zap"
 )
 
 var log = logging.Logger("tracing")
