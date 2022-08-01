@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"github.com/filecoin-project/specs-storage/storage"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -35,8 +36,8 @@ type SectorMgr struct {
 	lk sync.Mutex
 }
 
-func (mgr *SectorMgr) ProveReplicaUpdate(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storage.ReplicaUpdateProof, error) {
-	return storage.ReplicaUpdateProof{}, nil
+func (mgr *SectorMgr) ProveReplicaUpdate(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storiface.ReplicaUpdateProof, error) {
+	return storiface.ReplicaUpdateProof{}, nil
 }
 
 type mockVerifProver struct {
