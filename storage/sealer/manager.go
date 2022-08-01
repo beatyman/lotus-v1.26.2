@@ -2,9 +2,6 @@ package sealer
 
 import (
 	"context"
-	"github.com/filecoin-project/go-ds-versioning/pkg/statestore"
-	"github.com/filecoin-project/specs-storage/storage"
-	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
