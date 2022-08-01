@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
+	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"io"
 	"io/ioutil"
 	"math/bits"
@@ -840,7 +841,7 @@ func (f funcCloser) Close() error {
 	return f()
 }
 
-func (sb *Sealer) ReadPieceQiniu(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error) {
+func (sb *Sealer) ReadPieceQiniu(ctx context.Context, sector storiface.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error) {
 	p, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, storiface.FTNone, storiface.PathStorage)
 	if err != nil {
 		return nil, false, xerrors.Errorf("acquire unsealed sector path: %w", err)
@@ -1387,14 +1388,14 @@ func (sb *Sealer) finalizeSector(ctx context.Context, sector storiface.SectorRef
 	return ffi.ClearCache(uint64(ssize), paths.Cache)
 }
 
-func (sb *Sealer) replicaUpdate(ctx context.Context, sector storage.SectorRef, pieces []abi.PieceInfo) (storage.ReplicaUpdateOut, error) {
+func (sb *Sealer) replicaUpdate(ctx context.Context, sector storiface.SectorRef, pieces []abi.PieceInfo) (storiface.ReplicaUpdateOut, error) {
 	AssertGPU(ctx)
 	gpuKey, _, err := allocateGpu(ctx)
 	if err != nil {
 		log.Errorw("allocate gpu error", "task-key", sector.ID, "err", errors.As(err))
 	}
 	defer returnGpu(gpuKey)
-	empty := storage.ReplicaUpdateOut{}
+	empty := storiface.ReplicaUpdateOut{}
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed|storiface.FTSealed|storiface.FTCache, storiface.FTUpdate|storiface.FTUpdateCache, storiface.PathSealing)
 	if err != nil {
 		return empty, xerrors.Errorf("failed to acquire sector paths: %w", err)
@@ -1440,10 +1441,10 @@ func (sb *Sealer) replicaUpdate(ctx context.Context, sector storage.SectorRef, p
 	if err != nil {
 		return empty, xerrors.Errorf("failed to update replica %d with new deal data: %w", sector.ID.Number, err)
 	}
-	return storage.ReplicaUpdateOut{NewSealed: sealed, NewUnsealed: unsealed}, nil
+	return storiface.ReplicaUpdateOut{NewSealed: sealed, NewUnsealed: unsealed}, nil
 }
 
-func (sb *Sealer) ProveReplicaUpdate1(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storage.ReplicaVanillaProofs, error) {
+func (sb *Sealer) ProveReplicaUpdate1(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storiface.ReplicaVanillaProofs, error) {
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTSealed|storiface.FTCache|storiface.FTUpdate|storiface.FTUpdateCache, storiface.FTNone, storiface.PathSealing)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to acquire sector paths: %w", err)
@@ -1459,7 +1460,7 @@ func (sb *Sealer) ProveReplicaUpdate1(ctx context.Context, sector storage.Sector
 	return vanillaProofs, nil
 }
 
-func (sb *Sealer) ProveReplicaUpdate2(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs storage.ReplicaVanillaProofs) (storage.ReplicaUpdateProof, error) {
+func (sb *Sealer) ProveReplicaUpdate2(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs storiface.ReplicaVanillaProofs) (storiface.ReplicaUpdateProof, error) {
 	updateProofType := abi.SealProofInfos[sector.ProofType].UpdateProof
 	return ffi.SectorUpdate.GenerateUpdateProofWithVanilla(updateProofType, sectorKey, newSealed, newUnsealed, vanillaProofs)
 }
