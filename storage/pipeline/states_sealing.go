@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/filecoin-project/specs-storage/storage"
 	"os"
 	"path/filepath"
 
