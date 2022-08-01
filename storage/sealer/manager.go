@@ -2,16 +2,7 @@ package sealer
 
 import (
 	"context"
-	"github.com/filecoin-project/dagstore/mount"
-	"github.com/filecoin-project/lotus/storage/sealer/database"
 
-	"github.com/filecoin-project/go-statestore"
-	"github.com/google/uuid"
-	"github.com/gwaylib/errors"
-	"github.com/hashicorp/go-multierror"
-	"github.com/ipfs/go-cid"
-	logging "github.com/ipfs/go-log/v2"
-	"github.com/mitchellh/go-homedir"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
 	"io"
@@ -21,11 +12,20 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-statestore"
 
+	"github.com/filecoin-project/dagstore/mount"
 	"github.com/filecoin-project/lotus/storage/paths"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
 	"github.com/filecoin-project/lotus/storage/sealer/sealtasks"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
+	"github.com/mitchellh/go-homedir"
+
+	"github.com/google/uuid"
+	"github.com/gwaylib/errors"
+	"github.com/hashicorp/go-multierror"
+	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
 )
 
 var log = logging.Logger("advmgr")
@@ -57,7 +57,7 @@ type SectorManager interface {
 var ClosedWorkerID = uuid.UUID{}
 
 type Manager struct {
-	hlmWorker *hlmWorker
+	hlmWorker  *hlmWorker
 	ls         paths.LocalStorage
 	storage    paths.Store
 	localStore *paths.Local
@@ -111,14 +111,14 @@ type Config struct {
 	ParallelFetchLimit int
 
 	// Local worker config
-	AllowAddPiece            bool
-	AllowPreCommit1          bool
-	AllowPreCommit2          bool
-	AllowCommit              bool
-	AllowUnseal              bool
-	AllowReplicaUpdate       bool
-	AllowProveReplicaUpdate2 bool
-	AllowRegenSectorKey      bool
+	AllowAddPiece               bool
+	AllowPreCommit1             bool
+	AllowPreCommit2             bool
+	AllowCommit                 bool
+	AllowUnseal                 bool
+	AllowReplicaUpdate          bool
+	AllowProveReplicaUpdate2    bool
+	AllowRegenSectorKey         bool
 	RemoteSeal                  bool
 	RemoteWnPoSt                int
 	RemoteWdPoSt                int
@@ -159,7 +159,7 @@ func New(ctx context.Context, lstor *paths.Local, stor paths.Store, ls paths.Loc
 		WinningPoSt:                 sc.RemoteWnPoSt,
 		EnableForceRemoteWindowPoSt: sc.EnableForceRemoteWindowPoSt,
 	}
-	prover, err := ffiwrapper.New(remoteCfg,&readonlyProvider{stor: lstor, index: si})
+	prover, err := ffiwrapper.New(remoteCfg, &readonlyProvider{stor: lstor, index: si})
 	if err != nil {
 		return nil, xerrors.Errorf("creating prover instance: %w", err)
 	}
@@ -306,8 +306,8 @@ func (m *Manager) schedFetch(sector storiface.SectorRef, ft storiface.SectorFile
 	}
 }
 
-func (m *Manager)ReadPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error){
-	return m.hlmWorker.ReadPiece(ctx, sector, pieceOffset,size,ticket,unsealed)
+func (m *Manager) ReadPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
+	return m.hlmWorker.ReadPiece(ctx, sector, pieceOffset, size, ticket, unsealed)
 }
 func (m *Manager) ReadPieceStorageInfo(ctx context.Context, sector storage.SectorRef) (database.SectorStorage, error) {
 	return m.hlmWorker.ReadPieceStorageInfo(ctx, sector)
@@ -382,7 +382,7 @@ func (m *Manager) PledgeSector(ctx context.Context, sectorID storiface.SectorRef
 	return m.hlmWorker.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
 }
 func (m *Manager) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, pieceData storiface.Data) (abi.PieceInfo, error) {
-	return m.hlmWorker.DataCid(ctx,pieceSize,pieceData)
+	return m.hlmWorker.DataCid(ctx, pieceSize, pieceData)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

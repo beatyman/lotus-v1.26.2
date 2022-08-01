@@ -9,7 +9,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/ipfs/go-cid"
-	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"os"
 	"path/filepath"
 	"strconv"
