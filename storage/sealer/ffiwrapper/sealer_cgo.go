@@ -1200,7 +1200,7 @@ type req struct {
 
 func newReq(s, s1 string) *req {
 	return &req{
-		Pat:    s,
+		Path:   s,
 		ToPath: s1,
 	}
 }
@@ -1386,62 +1386,6 @@ func (sb *Sealer) finalizeSector(ctx context.Context, sector storiface.SectorRef
 	defer done()
 
 	return ffi.ClearCache(uint64(ssize), paths.Cache)
-}
-
-func (sb *Sealer) replicaUpdate(ctx context.Context, sector storiface.SectorRef, pieces []abi.PieceInfo) (storiface.ReplicaUpdateOut, error) {
-	AssertGPU(ctx)
-	gpuKey, _, err := allocateGpu(ctx)
-	if err != nil {
-		log.Errorw("allocate gpu error", "task-key", sector.ID, "err", errors.As(err))
-	}
-	defer returnGpu(gpuKey)
-	empty := storiface.ReplicaUpdateOut{}
-	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed|storiface.FTSealed|storiface.FTCache, storiface.FTUpdate|storiface.FTUpdateCache, storiface.PathSealing)
-	if err != nil {
-		return empty, xerrors.Errorf("failed to acquire sector paths: %w", err)
-	}
-	defer done()
-
-	updateProofType := abi.SealProofInfos[sector.ProofType].UpdateProof
-
-	s, err := os.Stat(paths.Sealed)
-	if err != nil {
-		return empty, err
-	}
-	sealedSize := s.Size()
-
-	u, err := os.OpenFile(paths.Update, os.O_RDWR|os.O_CREATE, 0644) // nolint:gosec
-	if err != nil {
-		return empty, xerrors.Errorf("ensuring updated replica file exists: %w", err)
-	}
-	if err := fallocate.Fallocate(u, 0, sealedSize); err != nil {
-		return empty, xerrors.Errorf("allocating space for replica update file: %w", err)
-	}
-
-	if err := u.Close(); err != nil {
-		return empty, err
-	}
-
-	if err := os.Mkdir(paths.UpdateCache, 0755); err != nil { // nolint
-		if os.IsExist(err) {
-			log.Warnf("existing cache in %s; removing", paths.UpdateCache)
-
-			if err := os.RemoveAll(paths.UpdateCache); err != nil {
-				return empty, xerrors.Errorf("remove existing sector cache from %s (sector %d): %w", paths.UpdateCache, sector, err)
-			}
-
-			if err := os.Mkdir(paths.UpdateCache, 0755); err != nil { // nolint:gosec
-				return empty, xerrors.Errorf("mkdir cache path after cleanup: %w", err)
-			}
-		} else {
-			return empty, err
-		}
-	}
-	sealed, unsealed, err := ffi.SectorUpdate.EncodeInto(updateProofType, paths.Update, paths.UpdateCache, paths.Sealed, paths.Cache, paths.Unsealed, pieces)
-	if err != nil {
-		return empty, xerrors.Errorf("failed to update replica %d with new deal data: %w", sector.ID.Number, err)
-	}
-	return storiface.ReplicaUpdateOut{NewSealed: sealed, NewUnsealed: unsealed}, nil
 }
 
 func (sb *Sealer) finalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef, keepUnsealed []storiface.Range) error {
