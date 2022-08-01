@@ -3,7 +3,6 @@ package ffiwrapper
 import (
 	"context"
 	"fmt"
-	"github.com/filecoin-project/go-state-types/abi"
 	"math"
 	"math/rand"
 	"sort"
