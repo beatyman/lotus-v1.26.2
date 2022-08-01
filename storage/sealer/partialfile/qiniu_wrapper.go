@@ -77,7 +77,7 @@ func trailer(downloader *operation.Downloader, p string, maxPieceSize int64) (*r
 	return &rle, err
 }
 
-func ReadPieceQiniu(ctx context.Context, unsealedPath string, sector storage.SectorRef,
+func ReadPieceQiniu(ctx context.Context, unsealedPath string, sector storiface.SectorRef,
 	offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error) {
 	ssize, err := sector.ProofType.SectorSize()
 	if err != nil {
