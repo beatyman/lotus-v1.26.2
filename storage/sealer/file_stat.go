@@ -10,7 +10,6 @@ import (
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 	"github.com/ipfs/go-cid"
 	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
-	"github.com/prometheus/common/log"
 	"os"
 	"path/filepath"
 	"strconv"
