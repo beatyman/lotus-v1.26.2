@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	stores "github.com/filecoin-project/lotus/storage/paths"
+	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"io"
 	"os"
 	"runtime"
@@ -132,11 +133,11 @@ func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storiface.SectorR
 
 //snap start
 
-func (l *hlmWorker) ReplicaUpdate(ctx context.Context, sector storage.SectorRef, pieces []abi.PieceInfo) (out storage.ReplicaUpdateOut, err error) {
+func (l *hlmWorker) ReplicaUpdate(ctx context.Context, sector storiface.SectorRef, pieces []abi.PieceInfo) (out storiface.ReplicaUpdateOut, err error) {
 	return l.sb.ReplicaUpdate(ctx, sector, pieces)
 }
 
-func (l *hlmWorker) ProveReplicaUpdate1(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storage.ReplicaVanillaProofs, error) {
+func (l *hlmWorker) ProveReplicaUpdate1(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storiface.ReplicaVanillaProofs, error) {
 	return l.sb.ProveReplicaUpdate1(ctx, sector, sectorKey, newSealed, newUnsealed)
 }
 

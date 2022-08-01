@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
+	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"time"
 
 	"github.com/google/uuid"
@@ -71,9 +72,8 @@ type StorageMiner interface {
 	// sectors can be created.
 	SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, r storiface.Data, d PieceDealInfo) (SectorOffset, error) //perm:admin
 
-	SectorsUnsealPiece(ctx context.Context, sector storage.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error   //perm:admin
-	ReadPieceStorageInfo(ctx context.Context, sector storage.SectorRef) (database.SectorStorage, error)                                                                                      //perm:admin                                                                                  //perm:read
 	SectorsUnsealPiece(ctx context.Context, sector storiface.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error //perm:admin
+	ReadPieceStorageInfo(ctx context.Context, sector storiface.SectorRef) (database.SectorStorage, error)                                                                                    //perm:admin                                                                                  //perm:read
 
 	// List all staged sectors
 	SectorsList(context.Context) ([]abi.SectorNumber, error) //perm:read

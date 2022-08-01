@@ -2,6 +2,9 @@ package sealer
 
 import (
 	"context"
+	"github.com/filecoin-project/go-ds-versioning/pkg/statestore"
+	"github.com/filecoin-project/specs-storage/storage"
+	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
@@ -309,7 +312,7 @@ func (m *Manager) schedFetch(sector storiface.SectorRef, ft storiface.SectorFile
 func (m *Manager) ReadPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
 	return m.hlmWorker.ReadPiece(ctx, sector, pieceOffset, size, ticket, unsealed)
 }
-func (m *Manager) ReadPieceStorageInfo(ctx context.Context, sector storage.SectorRef) (database.SectorStorage, error) {
+func (m *Manager) ReadPieceStorageInfo(ctx context.Context, sector storiface.SectorRef) (database.SectorStorage, error) {
 	return m.hlmWorker.ReadPieceStorageInfo(ctx, sector)
 }
 
@@ -714,11 +717,11 @@ func (m *Manager) FinalizeSector(ctx context.Context, sector storiface.SectorRef
 
 	return nil
 }
-func (m *Manager) ProveReplicaUpdate(ctx context.Context, sector storage.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storage.ReplicaUpdateProof, error) {
+func (m *Manager) ProveReplicaUpdate(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storiface.ReplicaUpdateProof, error) {
 	return m.hlmWorker.ProveReplicaUpdate(ctx, sector, sectorKey, newSealed, newUnsealed)
 }
 
-func (m *Manager) FinalizeReplicaUpdate(ctx context.Context, sector storage.SectorRef, keepUnsealed []storage.Range) error {
+func (m *Manager) FinalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef, keepUnsealed []storiface.Range) error {
 	return m.hlmWorker.FinalizeReplicaUpdate(ctx, sector, keepUnsealed)
 
 	ctx, cancel := context.WithCancel(ctx)
