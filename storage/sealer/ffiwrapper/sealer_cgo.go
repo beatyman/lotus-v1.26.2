@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
+	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"io"
 	"io/ioutil"
 	"math/bits"
@@ -1199,12 +1200,12 @@ type req struct {
 
 func newReq(s, s1 string) *req {
 	return &req{
-		Path:   s,
+		Pat:    s,
 		ToPath: s1,
 	}
 }
 
-func (sb *Sealer) ReplicaUpdate(ctx context.Context, sector storiface.SectorRef, pieces []abi.PieceInfo) (storiface.ReplicaUpdateOut, error) {
+func (sb *Sealer) replicaUpdate(ctx context.Context, sector storiface.SectorRef, pieces []abi.PieceInfo) (storiface.ReplicaUpdateOut, error) {
 	empty := storiface.ReplicaUpdateOut{}
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed|storiface.FTSealed|storiface.FTCache, storiface.FTUpdate|storiface.FTUpdateCache, storiface.PathSealing)
 	if err != nil {
@@ -1441,27 +1442,6 @@ func (sb *Sealer) replicaUpdate(ctx context.Context, sector storiface.SectorRef,
 		return empty, xerrors.Errorf("failed to update replica %d with new deal data: %w", sector.ID.Number, err)
 	}
 	return storiface.ReplicaUpdateOut{NewSealed: sealed, NewUnsealed: unsealed}, nil
-}
-
-func (sb *Sealer) ProveReplicaUpdate1(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storiface.ReplicaVanillaProofs, error) {
-	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTSealed|storiface.FTCache|storiface.FTUpdate|storiface.FTUpdateCache, storiface.FTNone, storiface.PathSealing)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to acquire sector paths: %w", err)
-	}
-	defer done()
-
-	updateProofType := abi.SealProofInfos[sector.ProofType].UpdateProof
-
-	vanillaProofs, err := ffi.SectorUpdate.GenerateUpdateVanillaProofs(updateProofType, sectorKey, newSealed, newUnsealed, paths.Update, paths.UpdateCache, paths.Sealed, paths.Cache)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to generate proof of replica update for sector %d: %w", sector.ID.Number, err)
-	}
-	return vanillaProofs, nil
-}
-
-func (sb *Sealer) ProveReplicaUpdate2(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs storiface.ReplicaVanillaProofs) (storiface.ReplicaUpdateProof, error) {
-	updateProofType := abi.SealProofInfos[sector.ProofType].UpdateProof
-	return ffi.SectorUpdate.GenerateUpdateProofWithVanilla(updateProofType, sectorKey, newSealed, newUnsealed, vanillaProofs)
 }
 
 func (sb *Sealer) finalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef, keepUnsealed []storiface.Range) error {
