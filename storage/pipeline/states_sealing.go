@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/filecoin-project/specs-storage/storage"
 	"os"
 	"path/filepath"
 
 	"github.com/gwaylib/errors"
-	"github.com/filecoin-project/go-state-types/proof"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
@@ -29,9 +29,9 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
-	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/storage/pipeline/lib/nullreader"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
@@ -851,7 +851,7 @@ func (m *Sealing) handleFinalizeSector(ctx statemachine.Context, sector SectorIn
 	if err != nil {
 		return xerrors.Errorf("getting sealing config: %w", err)
 	}
-	sInfo, err := database.GetSectorInfo(storage.SectorName(m.minerSectorID(sector.SectorNumber)))
+	sInfo, err := database.GetSectorInfo(storiface.SectorName(m.minerSectorID(sector.SectorNumber)))
 	if err != nil {
 		log.Warn(errors.As(err))
 	} else {

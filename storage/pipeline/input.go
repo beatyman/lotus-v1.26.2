@@ -114,7 +114,7 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 	if err != nil {
 		return false, xerrors.Errorf("getting storage config: %w", err)
 	}
-	if cfg.MaxDealsPerSector > 0 && uint64(len(sector.dealIDs()) ) >= cfg.MaxDealsPerSector {
+	if cfg.MaxDealsPerSector > 0 && uint64(len(sector.dealIDs())) >= cfg.MaxDealsPerSector {
 		log.Infow("starting to seal deal sector", "sector", sector.SectorNumber, "trigger", "max-per-sector")
 		return true, ctx.Send(SectorStartPacking{})
 	}
@@ -249,7 +249,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 		}
 		log.Infow("Add deal data piece", "deal", deal.deal.DealID, "sector", sector.SectorNumber)
 		if database.HasDB() {
-			sName := storage.SectorName(m.minerSectorID(sector.SectorNumber))
+			sName := storiface.SectorName(m.minerSectorID(sector.SectorNumber))
 			unsealedStorageId := int64(0)
 			log.Info("judge========================================")
 			tx, unsealedStorage, err := database.PrepareStorage(sName, "", database.STORAGE_KIND_UNSEALED)
@@ -652,7 +652,7 @@ func (m *Sealing) maybeUpgradeSector(ctx context.Context, sp abi.RegisteredSealP
 }
 
 // call with m.inputLk
-func (m *Sealing) createSector(ctx context.Context,market bool, cfg sealiface.Config, sp abi.RegisteredSealProof) (abi.SectorNumber, error) {
+func (m *Sealing) createSector(ctx context.Context, market bool, cfg sealiface.Config, sp abi.RegisteredSealProof) (abi.SectorNumber, error) {
 	sid, err := m.sc.Next()
 	if err != nil {
 		return 0, xerrors.Errorf("getting sector number: %w", err)
@@ -720,7 +720,7 @@ func (m *Sealing) tryGetDealSector(ctx context.Context, sp abi.RegisteredSealPro
 	}
 
 	if canCreate {
-		sid, err := m.createSector(ctx,true, cfg, sp)
+		sid, err := m.createSector(ctx, true, cfg, sp)
 		if err != nil {
 			return err
 		}
