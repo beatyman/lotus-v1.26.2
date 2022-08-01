@@ -213,3 +213,10 @@ func (f *SectorFile) SealedFile() string {
 func (f *SectorFile) CachePath() string {
 	return filepath.Join(f.SealedRepo, "cache", f.SectorId)
 }
+
+func (f *SectorFile) UpdateFile() string {
+	return filepath.Join(f.SealedRepo, "update", f.SectorId)
+}
+func (f *SectorFile) UpdateCachePath() string {
+	return filepath.Join(f.SealedRepo, "update-cache", f.SectorId)
+}
