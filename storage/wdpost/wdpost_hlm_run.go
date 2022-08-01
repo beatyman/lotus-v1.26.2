@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	"strings"
-	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"time"
 
 	"github.com/gwaylib/errors"
@@ -18,9 +18,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
-	"github.com/ipfs/go-cid"
 
-	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/builtin/v8/miner"
@@ -31,6 +29,7 @@ import (
 
 	"github.com/filecoin-project/lotus/chain/types"
 )
+
 func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, manual bool, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
 	log.Info("================================ DEBUG: Start generage wdpost========================================")
 	defer log.Info("================================DEBUG: End generage wdpost========================================")
@@ -49,7 +48,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, manual bool, 
 	go func() {
 		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
 		s.asyncFaultRecover(di, ts)
-	}
+	}()
 
 	buf := new(bytes.Buffer)
 	if err := s.actor.MarshalCBOR(buf); err != nil {
