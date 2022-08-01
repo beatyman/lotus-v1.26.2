@@ -209,11 +209,11 @@ func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,
 	}, err
 }
 
-func (w *rpcServer) ProveReplicaUpdate2(ctx context.Context, sector api.SectorRef, vanillaProofs storage.ReplicaVanillaProofs) (storage.ReplicaUpdateProof, error) {
+func (w *rpcServer) ProveReplicaUpdate2(ctx context.Context, sector api.SectorRef, vanillaProofs storiface.ReplicaVanillaProofs) (storiface.ReplicaUpdateProof, error) {
 	var (
 		err                error
 		dump               = false //是否重复扇区(重复:正在执行中...)
-		replicaUpdateProof storage.ReplicaUpdateProof
+		replicaUpdateProof storiface.ReplicaUpdateProof
 		sid                = w.sectorName(sector.SectorID)
 		out                = &ffiwrapper.Commit2Result{
 			WorkerId: w.workerID,
@@ -253,15 +253,15 @@ func (w *rpcServer) ProveReplicaUpdate2(ctx context.Context, sector api.SectorRe
 		log.Infof("ProveReplicaUpdate2 RPC dumplicate:%v, current c2sids: %v", sector, w.getC2sids())
 		err = errors.New("sector is sealing").As(sid)
 		out.Err = err.Error()
-		return storage.ReplicaUpdateProof{}, err
+		return storiface.ReplicaUpdateProof{}, err
 	}
 	w.c2sids[sid] = sector.SectorID
 	w.c2sidsRW.Unlock()
-	sectorRef := storage.SectorRef{
+	sectorRef := storiface.SectorRef{
 		ID:        sector.SectorID,
 		ProofType: sector.ProofType,
-		SectorFile: storage.SectorFile{
-			SectorId:     storage.SectorName(sector.SectorID),
+		SectorFile: storiface.SectorFile{
+			SectorId:     storiface.SectorName(sector.SectorID),
 			SealedRepo:   w.sb.RepoPath(),
 			UnsealedRepo: w.sb.RepoPath(),
 		},

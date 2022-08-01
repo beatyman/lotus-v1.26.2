@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/filecoin-project/specs-storage/storage"
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
@@ -91,7 +92,7 @@ func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out s
 	return cli.SealCommit2(ctx, api.SectorRef{SectorID: task.SectorID, ProofType: task.ProofType, TaskKey: task.Key()}, c1out)
 }
 
-func CallProveReplicaUpdate2Service(ctx context.Context, sector storage.SectorRef, task ffiwrapper.WorkerTask, vanillaProofs storage.ReplicaVanillaProofs) (storage.ReplicaUpdateProof, error) {
+func CallProveReplicaUpdate2Service(ctx context.Context, sector storiface.SectorRef, task ffiwrapper.WorkerTask, vanillaProofs storiface.ReplicaVanillaProofs) (storage.ReplicaUpdateProof, error) {
 	mApi, err := GetNodeApi()
 	if err != nil {
 		return nil, errors.As(err)

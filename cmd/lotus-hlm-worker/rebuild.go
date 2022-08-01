@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/gwaylib/errors"
 	"github.com/mitchellh/go-homedir"
@@ -17,9 +15,6 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
-	"github.com/filecoin-project/specs-storage/storage"
-
-	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 )
 
 type RebuildTask struct {
@@ -282,7 +277,7 @@ var rebuildCmd = &cli.Command{
 					continue
 				}
 
-				sid := storage.SectorName(sector.ID)
+				sid := storiface.SectorName(sector.ID)
 				mountDir := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid)
 				// send the sealed
 				sealedFromPath := sealer.SectorPath("sealed", sid)
