@@ -248,7 +248,7 @@ func (sm *StorageMinerAPI) SectorAddPieceToAny(ctx context.Context, size abi.Unp
 func (sm *StorageMinerAPI) SectorsUnsealPiece(ctx context.Context, sector storiface.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error {
 	return sm.StorageMgr.SectorsUnsealPiece(ctx, sector, offset, size, randomness, commd)
 }
-func (sm *StorageMinerAPI) ReadPieceStorageInfo(ctx context.Context, sector sto.SectorRef) (database.SectorStorage, error) {
+func (sm *StorageMinerAPI) ReadPieceStorageInfo(ctx context.Context, sector storiface.SectorRef) (database.SectorStorage, error) {
 	return sm.StorageMgr.ReadPieceStorageInfo(ctx, sector)
 }
 
@@ -1256,7 +1256,7 @@ func (sm *StorageMinerAPI) CheckProvable(ctx context.Context, pp abi.RegisteredP
 		}
 	}
 	timeout := time.Second * 6
-	_, _, bad, err := sm.StorageMgr.CheckProvable(ctx, pp,sectors, rg, timeout)
+	_, _, bad, err := sm.StorageMgr.CheckProvable(ctx, pp, sectors, rg, timeout)
 	if err != nil {
 		return nil, err
 	}
