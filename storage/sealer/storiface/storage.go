@@ -2,7 +2,6 @@ package storiface
 
 import (
 	"context"
-	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"io"
 
 	"github.com/ipfs/go-cid"
