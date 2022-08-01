@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"time"
 
 	"github.com/minio/blake2b-simd"
 	"golang.org/x/xerrors"

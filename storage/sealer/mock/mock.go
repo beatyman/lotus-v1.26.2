@@ -5,10 +5,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"github.com/filecoin-project/specs-storage/storage"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"sync"
 
 	"github.com/ipfs/go-cid"
