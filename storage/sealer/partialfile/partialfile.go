@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	_ "github.com/detailyang/go-fallocate"
+	"github.com/filecoin-project/specs-storage/storage"
 	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 	"io"
@@ -13,10 +14,7 @@ import (
 
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/gwaylib/errors"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
-
-	logging "github.com/ipfs/go-log/v2"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
@@ -264,10 +262,10 @@ func OpenUnsealedPartialFile(maxPieceSize abi.PaddedPieceSize, sector storiface.
 		file:      f,
 	}, nil
 }
-func OpenUnsealedPartialFileV2(maxPieceSize abi.PaddedPieceSize, sector storage.SectorRef, ss database.SectorStorage) (*PartialFile, error) {
+func OpenUnsealedPartialFileV2(maxPieceSize abi.PaddedPieceSize, sector storiface.SectorRef, ss database.SectorStorage) (*PartialFile, error) {
 	log.Infof("%+v", sector)
 	//分开部署时候需要mount
-	sectorName := storage.SectorName(sector.ID)
+	sectorName := storiface.SectorName(sector.ID)
 	path := filepath.Join(ss.UnsealedStorage.MountDir, fmt.Sprintf("%d", ss.UnsealedStorage.ID), "unsealed", sectorName)
 	//path := sector.UnsealedFile()
 	if ss.UnsealedStorage.MountType == database.MOUNT_TYPE_OSS {
