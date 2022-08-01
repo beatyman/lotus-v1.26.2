@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
-	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
 	"github.com/gwaylib/log"
 	"github.com/shirou/gopsutil/host"
@@ -53,7 +53,7 @@ func GetLocalIP() (ipv4 string, err error) {
 	return
 }
 
-func DeleteC1Out(sector storage.SectorRef) {
+func DeleteC1Out(sector storiface.SectorRef) {
 	//判断C1输出文件是否存在，如果存在，则跳过C1
 	pathTxt := sector.CachePath() + "/c1.out"
 	isExist, err := ffiwrapper.PathExists(pathTxt)
