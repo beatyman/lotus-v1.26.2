@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	stores "github.com/filecoin-project/lotus/storage/paths"
-	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"io"
 	"os"
 	"runtime"

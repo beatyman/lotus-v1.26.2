@@ -3,21 +3,19 @@ package sealer
 import (
 	"bufio"
 	"context"
-	"io"
-	"os"
-	"github.com/filecoin-project/dagstore/mount"
-	"github.com/ipfs/go-cid"
-	"golang.org/x/xerrors"
-	"github.com/gwaylib/errors"
 	"github.com/filecoin-project/dagstore/mount"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/gwaylib/errors"
+	"github.com/ipfs/go-cid"
+	"golang.org/x/xerrors"
+	"io"
+	"os"
 
 	"github.com/filecoin-project/lotus/storage/paths"
-	"github.com/filecoin-project/lotus/storage/sealer/fr32"
-	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/fr32"
 	"github.com/filecoin-project/lotus/storage/sealer/partialfile"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
 type Unsealer interface {

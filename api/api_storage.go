@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
-	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"time"
 
 	"github.com/google/uuid"

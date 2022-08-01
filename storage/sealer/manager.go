@@ -854,7 +854,7 @@ func (m *Manager) ReleaseReplicaUpgrade(ctx context.Context, sector storiface.Se
 		return xerrors.Errorf("removing update: %w", err)
 	}
 	//update sqlite state to prove(200)
-	if err := database.UpdateSectorAbortSnapState(storage.SectorName(sector.ID)); err != nil {
+	if err := database.UpdateSectorAbortSnapState(storiface.SectorName(sector.ID)); err != nil {
 		log.Error(err)
 	}
 	return nil
