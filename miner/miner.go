@@ -7,17 +7,14 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"github.com/filecoin-project/lotus/monitor"
 	"huangdong2012/filecoin-monitor/model"
 	"huangdong2012/filecoin-monitor/trace/spans"
+	"os"
 	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
-	logging "github.com/ipfs/go-log/v2"
-	"go.opencensus.io/trace"
-	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -41,7 +38,6 @@ import (
 
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/gwaylib/errors"
-	"github.com/filecoin-project/lotus/storage/sealer/database"
 )
 
 var log = logging.Logger("miner")
