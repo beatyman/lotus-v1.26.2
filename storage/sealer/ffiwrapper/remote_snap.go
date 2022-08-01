@@ -6,7 +6,6 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
-	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"go.opencensus.io/trace/propagation"
 	"golang.org/x/xerrors"
 	"sync/atomic"
