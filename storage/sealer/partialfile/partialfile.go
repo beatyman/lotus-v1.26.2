@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	_ "github.com/detailyang/go-fallocate"
-	"github.com/filecoin-project/specs-storage/storage"
 	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 	"io"
