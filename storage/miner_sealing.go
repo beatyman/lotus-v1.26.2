@@ -7,7 +7,6 @@ import (
 	"github.com/filecoin-project/lotus/storage/pipeline/sealiface"
 	"github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
-
 	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
@@ -207,7 +206,7 @@ func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64
 	errStr := ""
 	faultPath := path + "/var/log/sector_rebuild_fault.log"
 	if err != nil {
-		errStr = "sector_fault_扇区编号为：【" + id.Number.String() + "】失败，方法为: storage.ParseSectorID(sid)，失败信息为：" + err.Error()
+		errStr = "sector_fault_扇区编号为：【" + id.Number.String() + "】失败，方法为: storiface.ParseSectorID(sid)，失败信息为：" + err.Error()
 		utils.Tracefile(errStr, faultPath)
 		return errors.As(err)
 	}
@@ -318,7 +317,7 @@ func (sm *Miner) RebuildSector(ctx context.Context, sid string, storageId uint64
 }
 
 func execSealPreCommit1(retryCount int64, ctx context.Context, sealer *ffiwrapper.Sealer,
-	sector storage.SectorRef, ticketValue abi.SealRandomness, pieceInfo []abi.PieceInfo, faultPath string) (storage.PreCommit1Out, error) {
+	sector storiface.SectorRef, ticketValue abi.SealRandomness, pieceInfo []abi.PieceInfo, faultPath string) (storiface.PreCommit1Out, error) {
 	rspco, err := sealer.SealPreCommit1(ctx, sector, ticketValue, pieceInfo)
 	retryCount++
 	if retryCount > 3 {
@@ -337,7 +336,7 @@ func execSealPreCommit1(retryCount int64, ctx context.Context, sealer *ffiwrappe
 }
 
 func execSealPreCommit2(retryCount int64, ctx context.Context, sealer *ffiwrapper.Sealer,
-	sector storage.SectorRef, rspco storage.PreCommit1Out, faultPath string) (storage.SectorCids, error) {
+	sector storiface.SectorRef, rspco storiface.PreCommit1Out, faultPath string) (storiface.SectorCids, error) {
 	p2Out, err := sealer.SealPreCommit2(ctx, sector, rspco)
 	retryCount++
 	if retryCount > 3 {
