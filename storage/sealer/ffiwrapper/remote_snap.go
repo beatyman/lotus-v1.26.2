@@ -3,7 +3,7 @@ package ffiwrapper
 import (
 	"context"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
 	"github.com/ipfs/go-cid"
 	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
