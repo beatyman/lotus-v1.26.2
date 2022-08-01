@@ -16,7 +16,7 @@ import (
 	"strconv"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"ithub.com/filecoin-project/lotus/storage/sealer/storiface"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 )

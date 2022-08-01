@@ -17,7 +17,6 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
-	"ithub.com/filecoin-project/lotus/storage/sealer/storiface"
 
 	"github.com/gwaylib/errors"
 )

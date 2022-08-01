@@ -6,11 +6,11 @@ import (
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/storage/sealer/fr32"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"golang.org/x/xerrors"
 	"io"
-	"ithub.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
 const (
