@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/buried/model"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/fsnotify/fsnotify"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"

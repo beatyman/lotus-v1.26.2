@@ -9,8 +9,8 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
 	"net/http"
 	"strings"
@@ -66,7 +66,7 @@ func GetWorkerClient(ctx context.Context, mApi *api.RetryHlmMinerSchedulerAPI, u
 	return cli, nil
 }
 
-func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out storage.Commit1Out) (storage.Proof, error) {
+func CallCommit2Service(ctx context.Context, task ffiwrapper.WorkerTask, c1out storiface.Commit1Out) (storiface.Proof, error) {
 	mApi, err := GetNodeApi()
 	if err != nil {
 		return nil, errors.As(err)

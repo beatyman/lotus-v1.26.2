@@ -11,9 +11,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
 type HlmMinerProxyStruct struct {
@@ -46,7 +46,7 @@ type HlmMinerSectorStruct struct {
 		HlmSectorGetState func(ctx context.Context, sid string) (*database.SectorInfo, error)                     `perm:"read"`
 		HlmSectorSetState func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) `perm:"admin"`
 		HlmSectorListAll  func(context.Context) ([]SectorInfo, error)                                             `perm:"read"`
-		HlmSectorFile     func(ctx context.Context, sid string) (*storage.SectorFile, error)                      `perm:"read"`
+		HlmSectorFile     func(ctx context.Context, sid string) (*storiface.SectorFile, error)                    `perm:"read"`
 		HlmSectorCheck    func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)     `perm:"read"`
 	}
 }
@@ -142,7 +142,7 @@ func (c *HlmMinerSectorStruct) HlmSectorSetState(ctx context.Context, sid, memo 
 func (c *HlmMinerSectorStruct) HlmSectorListAll(ctx context.Context) ([]SectorInfo, error) {
 	return c.Internal.HlmSectorListAll(ctx)
 }
-func (c *HlmMinerSectorStruct) HlmSectorFile(ctx context.Context, sid string) (*storage.SectorFile, error) {
+func (c *HlmMinerSectorStruct) HlmSectorFile(ctx context.Context, sid string) (*storiface.SectorFile, error) {
 	return c.Internal.HlmSectorFile(ctx, sid)
 }
 func (c *HlmMinerSectorStruct) HlmSectorCheck(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error) {

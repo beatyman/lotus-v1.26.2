@@ -7,14 +7,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/lotus/chain/wallet/key"
 	"io/ioutil"
 	"os"
 	"strings"
 	"time"
-
-	"github.com/filecoin-project/go-state-types/network"
-
-	"github.com/filecoin-project/lotus/build"
 
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
@@ -23,7 +20,9 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/crypto"
+	"github.com/filecoin-project/go-state-types/network"
 
+	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/lotus/chain/wallet/encode"
@@ -161,7 +160,7 @@ var walletChecksum = &cli.Command{
 		} else {
 			fmt.Println("WARNNING: the private key not in encrypted!!!!!")
 		}
-		key, err := wallet.NewKey(ctx, ki)
+		key, err := key.NewKey(ctx, ki)
 		if err != nil {
 			return err
 		}
@@ -206,7 +205,7 @@ var walletNew = &cli.Command{
 		typ := types.KeyType(t)
 		if cctx.Bool("local") {
 			// by zhoushuyue
-			k, err := wallet.GenerateKey(typ)
+			k, err := key.GenerateKey(typ)
 			if err != nil {
 				return err
 			}

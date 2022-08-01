@@ -5,6 +5,11 @@ package v0api
 import (
 	"context"
 
+	blocks "github.com/ipfs/go-block-format"
+	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"golang.org/x/xerrors"
+
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
 	datatransfer "github.com/filecoin-project/go-data-transfer"
@@ -16,6 +21,7 @@ import (
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
 	abinetwork "github.com/filecoin-project/go-state-types/network"
+
 	"github.com/filecoin-project/lotus/api"
 	apitypes "github.com/filecoin-project/lotus/api/types"
 	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
@@ -23,10 +29,6 @@ import (
 	marketevents "github.com/filecoin-project/lotus/markets/loggers"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo/imports"
-	blocks "github.com/ipfs/go-block-format"
-	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"golang.org/x/xerrors"
 )
 
 var ErrNotSupported = xerrors.New("method not supported")
@@ -491,7 +493,7 @@ type GatewayStub struct {
 }
 
 func (c *FullNodeStruct) MpoolSignMessage(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) {
-	if c.Internal.MpoolSignMessage==nil{
+	if c.Internal.MpoolSignMessage == nil {
 		return nil, ErrNotSupported
 	}
 	return c.Internal.MpoolSignMessage(p0, p1, p2)
@@ -500,25 +502,25 @@ func (c *FullNodeStub) MpoolSignMessage(p0 context.Context, p1 *types.Message, p
 	return nil, ErrNotSupported
 }
 func (c *FullNodeStruct) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
-	if c.Internal.ChainComputeBaseFee==nil{
-		return *new(types.BigInt),ErrNotSupported
+	if c.Internal.ChainComputeBaseFee == nil {
+		return *new(types.BigInt), ErrNotSupported
 	}
 	return c.Internal.ChainComputeBaseFee(ctx, tsk)
 }
 func (c *FullNodeStub) ChainComputeBaseFee(ctx context.Context, tsk types.TipSetKey) (types.BigInt, error) {
-	return *new(types.BigInt),ErrNotSupported
+	return *new(types.BigInt), ErrNotSupported
 }
 func (c *FullNodeStruct) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
-	if c.Internal.SyncProgress==nil{
-		return *new(api.SyncProgress),  ErrNotSupported
+	if c.Internal.SyncProgress == nil {
+		return *new(api.SyncProgress), ErrNotSupported
 	}
 	return c.Internal.SyncProgress(ctx)
 }
 func (c *FullNodeStub) SyncProgress(ctx context.Context) (api.SyncProgress, error) {
-	return *new(api.SyncProgress),  ErrNotSupported
+	return *new(api.SyncProgress), ErrNotSupported
 }
 func (c *FullNodeStruct) InputWalletStatus(ctx context.Context) (string, error) {
-	if c.Internal.InputWalletStatus==nil{
+	if c.Internal.InputWalletStatus == nil {
 		return "", ErrNotSupported
 	}
 	return c.Internal.InputWalletStatus(ctx)
@@ -527,7 +529,7 @@ func (c *FullNodeStub) InputWalletStatus(ctx context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 func (c *FullNodeStruct) InputWalletPasswd(ctx context.Context, passwd string) error {
-	if c.Internal.InputWalletPasswd==nil{
+	if c.Internal.InputWalletPasswd == nil {
 		return ErrNotSupported
 	}
 	return c.Internal.InputWalletPasswd(ctx, passwd)
@@ -536,7 +538,7 @@ func (c *FullNodeStub) InputWalletPasswd(ctx context.Context, passwd string) err
 	return ErrNotSupported
 }
 func (c *FullNodeStruct) WalletEncode(ctx context.Context, addr address.Address, passwd string) error {
-	if c.Internal.WalletEncode==nil{
+	if c.Internal.WalletEncode == nil {
 		return ErrNotSupported
 	}
 	return c.Internal.WalletEncode(ctx, addr, passwd)
@@ -2484,7 +2486,7 @@ func (s *FullNodeStruct) WalletNew(p0 context.Context, p1 types.KeyType, passwd 
 	if s.Internal.WalletNew == nil {
 		return *new(address.Address), ErrNotSupported
 	}
-	return s.Internal.WalletNew(p0, p1,passwd)
+	return s.Internal.WalletNew(p0, p1, passwd)
 }
 
 func (s *FullNodeStub) WalletNew(p0 context.Context, p1 types.KeyType, passwd string) (address.Address, error) {
@@ -2900,4 +2902,3 @@ func (s *GatewayStub) WalletBalance(p0 context.Context, p1 address.Address) (typ
 
 var _ FullNode = new(FullNodeStruct)
 var _ Gateway = new(GatewayStruct)
-

@@ -2,11 +2,9 @@ package chain
 
 import (
 	"context"
-	"github.com/filecoin-project/lotus/node/modules/dtypes"
-
-	"github.com/filecoin-project/lotus/chain/types"
-
 	"encoding/json"
+	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/ipfs/go-datastore"
 	"golang.org/x/xerrors"
 )

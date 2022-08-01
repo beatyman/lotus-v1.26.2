@@ -13,8 +13,8 @@ import (
 	"syscall"
 
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
 
@@ -450,8 +450,8 @@ func (dpImpl *diskPoolImpl) NewAllocate(sid string) (SectorState, error) {
 				realUse += freeCap
 			}
 		}
-		if realUse>diskInfo.All{
-			realUse=diskInfo.All
+		if realUse > diskInfo.All {
+			realUse = diskInfo.All
 		}
 		realFree := diskInfo.All - realUse
 		if realFree <= 0 {

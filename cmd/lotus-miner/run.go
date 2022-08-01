@@ -11,7 +11,6 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
 	"github.com/filecoin-project/lotus/lib/ulimit"
 	"github.com/filecoin-project/lotus/metrics"
 	"github.com/filecoin-project/lotus/node"
@@ -21,6 +20,8 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/proxy"
 	"github.com/filecoin-project/lotus/node/repo"
 	"github.com/google/gops/agent"
+
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/gwaylib/errors"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli/v2"
@@ -160,6 +161,7 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+
 		if cfg.Subsystems.EnableMining {
 			// init hlm resouce, by zhoushuyue
 			if err := r.IsLocked(); err != nil {

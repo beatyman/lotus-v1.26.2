@@ -5,18 +5,20 @@ import (
 	"github.com/filecoin-project/lotus/node/repo"
 	"strings"
 
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
+
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/big"
+
 	"github.com/filecoin-project/lotus/api"
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/client"
 	lcli "github.com/filecoin-project/lotus/cli"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
-	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 	"github.com/filecoin-project/lotus/node/config"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/urfave/cli/v2"
-	"golang.org/x/xerrors"
+	"github.com/filecoin-project/lotus/storage/paths"
 )
 
 const (
@@ -77,7 +79,7 @@ var serviceCmd = &cli.Command{
 			return xerrors.Errorf("please provide Lotus markets repo path via flag %s", FlagMarketsRepo)
 		}
 
-		if err := restore(ctx, cctx, repoPath, &stores.StorageConfig{}, func(cfg *config.StorageMiner) error {
+		if err := restore(ctx, cctx, repoPath, &paths.StorageConfig{}, func(cfg *config.StorageMiner) error {
 			cfg.Subsystems.EnableMarkets = es.Contains(MarketsService)
 			cfg.Subsystems.EnableMining = false
 			cfg.Subsystems.EnableSealing = false
@@ -132,7 +134,7 @@ func (es EnabledServices) Contains(name string) bool {
 func checkApiInfo(ctx context.Context, ai string) (string, error) {
 	ai = strings.TrimPrefix(strings.TrimSpace(ai), "MINER_API_INFO=")
 	info := cliutil.ParseApiInfo(ai)
-	addr, err := info.DialArgs("v0",repo.StorageMiner)
+	addr, err := info.DialArgs("v0", repo.StorageMiner)
 	if err != nil {
 		return "", xerrors.Errorf("could not get DialArgs: %w", err)
 	}

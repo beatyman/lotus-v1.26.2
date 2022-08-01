@@ -10,10 +10,10 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/extern/sector-storage/database"
-	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
 	"github.com/filecoin-project/lotus/node/modules/proxy"
-	"github.com/filecoin-project/specs-storage/storage"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
 )
 
@@ -107,7 +107,7 @@ func (sm *StorageMinerAPI) HlmSectorListAll(ctx context.Context) ([]api.SectorIn
 	}
 	return out, nil
 }
-func (sm *StorageMinerAPI) HlmSectorFile(ctx context.Context, sid string) (*storage.SectorFile, error) {
+func (sm *StorageMinerAPI) HlmSectorFile(ctx context.Context, sid string) (*storiface.SectorFile, error) {
 	repo := sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RepoPath()
 	return database.GetSectorFile(sid, repo)
 }
@@ -126,9 +126,9 @@ func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeo
 	if err != nil {
 		return 0, errors.As(err)
 	}
-	id, err := storage.ParseSectorID(sid)
-	all, _, _, err := ffiwrapper.CheckProvable(ctx, mi.WindowPoStProofType, []storage.SectorRef{
-		storage.SectorRef{
+	id, err := storiface.ParseSectorID(sid)
+	all, _, _, err := ffiwrapper.CheckProvable(ctx, mi.WindowPoStProofType, []storiface.SectorRef{
+		storiface.SectorRef{
 			ID:         id,
 			ProofType:  abi.RegisteredSealProof(mi.WindowPoStProofType),
 			SectorFile: *file,
