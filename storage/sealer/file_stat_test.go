@@ -1,4 +1,4 @@
-package sectorstorage
+package sealer
 
 import (
 	"testing"
