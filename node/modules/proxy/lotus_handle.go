@@ -42,6 +42,7 @@ type LotusImpl struct {
 	token  string
 }
 
+
 func NewLotusProxy(token string) api.FullNode {
 	impl := &LotusImpl{
 		token: token,
@@ -971,4 +972,7 @@ func (s *LotusImpl)StateLookupRobustAddress(p0 context.Context, p1 address.Addre
 }
 func (s *LotusImpl) StateComputeDataCID(p0 context.Context, p1 address.Address, p2 abi.RegisteredSealProof, p3 []abi.DealID, p4 types.TipSetKey) (cid.Cid, error)  {
 	return bestNodeApi().StateComputeDataCID(p0,p1,p2,p3,p4)
+}
+func (s *LotusImpl) ChainPrune(ctx context.Context, p1 api.PruneOpts) error {
+	return bestNodeApi().ChainPrune(ctx, p1)
 }
