@@ -364,7 +364,8 @@ func loadSectors(prefix string) []string {
 	return files
 }
 
-func (st *Local) declareSectors(ctx context.Context, p string, id storiface.ID, primary bool) error {
+func (st *Local) declareSectors(ctx context.Context, p string, id storiface.ID, primary bool, dropMissing bool) error {
+	indexed := map[storiface.Decl]struct{}{}
 	if os.Getenv("US3") != "" {
 		sectors := loadSectors(p)
 		for _, v := range sectors {
