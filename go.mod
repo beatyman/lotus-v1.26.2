@@ -136,7 +136,7 @@ require (
 	github.com/multiformats/go-base32 v0.0.4
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/multiformats/go-multiaddr-dns v0.3.1
-	github.com/multiformats/go-multibase v0.0.3
+	github.com/multiformats/go-multibase v0.1.1
 	github.com/multiformats/go-multihash v0.1.0
 	github.com/multiformats/go-varint v0.0.6
 	github.com/open-rpc/meta-schema v0.0.0-20201029221707-1b72ef2ea333
@@ -157,6 +157,8 @@ require (
 	go.etcd.io/etcd v0.0.0-20210512015243-d19fbe541bf9
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/otel v1.8.0 // indirect
+	go.opentelemetry.io/otel/bridge/opencensus v0.25.0
+	go.opentelemetry.io/otel/exporters/jaeger v1.2.0
 	go.opentelemetry.io/otel/sdk v1.8.0 // indirect
 	go.uber.org/fx v1.15.0
 	go.uber.org/multierr v1.8.0
@@ -211,7 +213,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
-	github.com/dgraph-io/ristretto v0.1.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 // indirect
 	github.com/drand/kyber-bls12381 v0.2.1 // indirect
@@ -244,7 +245,6 @@ require (
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
@@ -266,7 +266,6 @@ require (
 	github.com/ipfs/go-ipfs-delay v0.0.1 // indirect
 	github.com/ipfs/go-ipfs-posinfo v0.0.1 // indirect
 	github.com/ipfs/go-ipfs-pq v0.0.2 // indirect
-	github.com/ipfs/go-ipld-legacy v0.1.1 // indirect
 	github.com/ipfs/go-ipns v0.1.2 // indirect
 	github.com/ipfs/go-path v0.3.0 // indirect
 	github.com/ipfs/go-peertaskqueue v0.7.1 // indirect
@@ -279,7 +278,6 @@ require (
 	github.com/jessevdk/go-flags v1.4.0 // indirect
 	github.com/jmoiron/sqlx v1.2.0 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
-	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -292,14 +290,9 @@ require (
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.0.3 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.2.0 // indirect
-	github.com/libp2p/go-libp2p-connmgr v0.4.0 // indirect
 	github.com/libp2p/go-libp2p-discovery v0.7.0 // indirect
-	github.com/libp2p/go-libp2p-gostream v0.4.0 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.4.7 // indirect
 	github.com/libp2p/go-libp2p-loggables v0.1.0 // indirect
-	github.com/libp2p/go-libp2p-noise v0.5.0 // indirect
-	github.com/libp2p/go-libp2p-swarm v0.11.0 // indirect
-	github.com/libp2p/go-libp2p-tls v0.5.0 // indirect
 	github.com/libp2p/go-msgio v0.2.0 // indirect
 	github.com/libp2p/go-nat v0.1.0 // indirect
 	github.com/libp2p/go-netroute v0.2.0 // indirect
@@ -357,7 +350,6 @@ require (
 	github.com/spf13/cobra v0.0.5 // indirect
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20200427203606-3cfed13b9966 // indirect
-	github.com/uber/jaeger-client-go v2.25.0+incompatible // indirect
 	github.com/urfave/cli v1.22.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.0.1 // indirect
@@ -387,7 +379,21 @@ require (
 	gopkg.in/yaml.v3 v3.0.0 // indirect
 	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
-	sigs.k8s.io/yaml v1.1.0 // indirect
+	sigs.k8s.io/yaml v1.2.0 // indirect
+)
+
+require (
+	github.com/dgraph-io/ristretto v0.1.0 // indirect
+	github.com/filecoin-project/specs-storage v0.4.1
+	github.com/golang/glog v1.0.0 // indirect
+	github.com/ipfs/go-ipld-legacy v0.1.1 // indirect
+	github.com/jonboulle/clockwork v0.2.2 // indirect
+	github.com/libp2p/go-libp2p-connmgr v0.4.0 // indirect
+	github.com/libp2p/go-libp2p-gostream v0.4.0 // indirect
+	github.com/libp2p/go-libp2p-noise v0.5.0 // indirect
+	github.com/libp2p/go-libp2p-swarm v0.11.0 // indirect
+	github.com/libp2p/go-libp2p-tls v0.5.0 // indirect
+	github.com/uber/jaeger-client-go v2.25.0+incompatible // indirect
 )
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi

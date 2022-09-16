@@ -42,6 +42,7 @@ type LotusImpl struct {
 	token  string
 }
 
+
 func NewLotusProxy(token string) api.FullNode {
 	impl := &LotusImpl{
 		token: token,
@@ -52,8 +53,7 @@ func NewLotusProxy(token string) api.FullNode {
 type jwtPayload struct {
 	Allow []auth.Permission
 }
-
-func (s *LotusImpl) NetPing(ctx context.Context, p1 peer.ID) (time.Duration, error) {
+func (s *LotusImpl)NetPing (ctx context.Context, p1 peer.ID) (time.Duration, error){
 	return bestNodeApi().NetPing(ctx, p1)
 }
 func (s *LotusImpl) NetProtectAdd(ctx context.Context, acl []peer.ID) error {
@@ -318,8 +318,8 @@ func (s *LotusImpl) ChainHead(p0 context.Context) (*types.TipSet, error) {
 	return bestNodeApi().ChainHead(p0)
 }
 
-func (s *LotusImpl) ChainPutObj(p0 context.Context, p1 blocks.Block) error {
-	return bestNodeApi().ChainPutObj(p0, p1)
+func (s *LotusImpl)ChainPutObj(p0 context.Context, p1 blocks.Block) error {
+	return bestNodeApi().ChainPutObj(p0,p1)
 }
 func (s *LotusImpl) ChainReadObj(p0 context.Context, p1 cid.Cid) ([]byte, error) {
 	return bestNodeApi().ChainReadObj(p0, p1)
@@ -842,7 +842,7 @@ func (s *LotusImpl) StateSectorPartition(p0 context.Context, p1 address.Address,
 	return bestNodeApi().StateSectorPartition(p0, p1, p2, p3)
 }
 
-func (s *LotusImpl) StateSectorPreCommitInfo(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorPreCommitOnChainInfo, error) {
+func (s *LotusImpl)StateSectorPreCommitInfo(p0 context.Context, p1 address.Address,p2 abi.SectorNumber,p3 types.TipSetKey) (*miner.SectorPreCommitOnChainInfo, error) {
 	return bestNodeApi().StateSectorPreCommitInfo(p0, p1, p2, p3)
 }
 
@@ -962,14 +962,17 @@ func (s *LotusImpl) ChainGetMessagesInTipset(p0 context.Context, p1 types.TipSet
 }
 
 // StateGetNetworkParams return current network params
-func (s *LotusImpl) StateGetNetworkParams(p0 context.Context) (*api.NetworkParams, error) {
+func (s *LotusImpl)StateGetNetworkParams(p0 context.Context) (*api.NetworkParams, error){
 	return bestNodeApi().StateGetNetworkParams(p0)
 }
 
 // StateLookupRobustAddress returns the public key address of the given ID address for non-account addresses (multisig, miners etc)
-func (s *LotusImpl) StateLookupRobustAddress(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) {
-	return bestNodeApi().StateLookupRobustAddress(p0, p1, p2)
+func (s *LotusImpl)StateLookupRobustAddress(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) {
+	return bestNodeApi().StateLookupRobustAddress(p0,p1,p2)
 }
-func (s *LotusImpl) StateComputeDataCID(p0 context.Context, p1 address.Address, p2 abi.RegisteredSealProof, p3 []abi.DealID, p4 types.TipSetKey) (cid.Cid, error) {
-	return bestNodeApi().StateComputeDataCID(p0, p1, p2, p3, p4)
+func (s *LotusImpl) StateComputeDataCID(p0 context.Context, p1 address.Address, p2 abi.RegisteredSealProof, p3 []abi.DealID, p4 types.TipSetKey) (cid.Cid, error)  {
+	return bestNodeApi().StateComputeDataCID(p0,p1,p2,p3,p4)
+}
+func (s *LotusImpl) ChainPrune(ctx context.Context, p1 api.PruneOpts) error {
+	return bestNodeApi().ChainPrune(ctx, p1)
 }

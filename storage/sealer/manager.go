@@ -2,7 +2,13 @@ package sealer
 
 import (
 	"context"
-
+	"github.com/filecoin-project/dagstore/mount"
+	"github.com/google/uuid"
+	"github.com/gwaylib/errors"
+	"github.com/hashicorp/go-multierror"
+	"github.com/ipfs/go-cid"
+	logging "github.com/ipfs/go-log/v2"
+	"github.com/mitchellh/go-homedir"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
 	"io"
@@ -12,20 +18,12 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-statestore"
 
-	"github.com/filecoin-project/dagstore/mount"
 	"github.com/filecoin-project/lotus/storage/paths"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
 	"github.com/filecoin-project/lotus/storage/sealer/sealtasks"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
-	"github.com/mitchellh/go-homedir"
-
-	"github.com/google/uuid"
-	"github.com/gwaylib/errors"
-	"github.com/hashicorp/go-multierror"
-	"github.com/ipfs/go-cid"
-	logging "github.com/ipfs/go-log/v2"
 )
 
 var log = logging.Logger("advmgr")
@@ -57,7 +55,7 @@ type SectorManager interface {
 var ClosedWorkerID = uuid.UUID{}
 
 type Manager struct {
-	hlmWorker  *hlmWorker
+	hlmWorker *hlmWorker
 	ls         paths.LocalStorage
 	storage    paths.Store
 	localStore *paths.Local
@@ -111,14 +109,17 @@ type Config struct {
 	ParallelFetchLimit int
 
 	// Local worker config
-	AllowAddPiece               bool
-	AllowPreCommit1             bool
-	AllowPreCommit2             bool
-	AllowCommit                 bool
-	AllowUnseal                 bool
-	AllowReplicaUpdate          bool
-	AllowProveReplicaUpdate2    bool
-	AllowRegenSectorKey         bool
+	AllowAddPiece            bool
+	AllowPreCommit1          bool
+	AllowPreCommit2          bool
+	AllowCommit              bool
+	AllowUnseal              bool
+	AllowReplicaUpdate       bool
+	AllowProveReplicaUpdate2 bool
+	AllowRegenSectorKey      bool
+
+	LocalWorkerName string
+
 	RemoteSeal                  bool
 	RemoteWnPoSt                int
 	RemoteWdPoSt                int
@@ -159,7 +160,7 @@ func New(ctx context.Context, lstor *paths.Local, stor paths.Store, ls paths.Loc
 		WinningPoSt:                 sc.RemoteWnPoSt,
 		EnableForceRemoteWindowPoSt: sc.EnableForceRemoteWindowPoSt,
 	}
-	prover, err := ffiwrapper.New(remoteCfg, &readonlyProvider{stor: lstor, index: si})
+	prover, err := ffiwrapper.New(remoteCfg,&readonlyProvider{stor: lstor, index: si})
 	if err != nil {
 		return nil, xerrors.Errorf("creating prover instance: %w", err)
 	}
@@ -232,6 +233,7 @@ func New(ctx context.Context, lstor *paths.Local, stor paths.Store, ls paths.Loc
 	wcfg := WorkerConfig{
 		IgnoreResourceFiltering: sc.ResourceFiltering == ResourceFilteringDisabled,
 		TaskTypes:               localTasks,
+		Name:                    sc.LocalWorkerName,
 	}
 	worker := NewLocalWorker(wcfg, stor, lstor, si, m, wss)
 	err = m.AddWorker(ctx, worker)
@@ -258,6 +260,58 @@ func (m *Manager) AddLocalStorage(ctx context.Context, path string) error {
 		return xerrors.Errorf("get storage config: %w", err)
 	}
 	return nil
+}
+
+func (m *Manager) DetachLocalStorage(ctx context.Context, path string) error {
+	path, err := homedir.Expand(path)
+	if err != nil {
+		return xerrors.Errorf("expanding local path: %w", err)
+	}
+
+	// check that we have the path opened
+	lps, err := m.localStore.Local(ctx)
+	if err != nil {
+		return xerrors.Errorf("getting local path list: %w", err)
+	}
+
+	var localPath *storiface.StoragePath
+	for _, lp := range lps {
+		if lp.LocalPath == path {
+			lp := lp // copy to make the linter happy
+			localPath = &lp
+			break
+		}
+	}
+	if localPath == nil {
+		return xerrors.Errorf("no local paths match '%s'", path)
+	}
+
+	// drop from the persisted storage.json
+	var found bool
+	if err := m.ls.SetStorage(func(sc *paths.StorageConfig) {
+		out := make([]paths.LocalPath, 0, len(sc.StoragePaths))
+		for _, storagePath := range sc.StoragePaths {
+			if storagePath.Path != path {
+				out = append(out, storagePath)
+				continue
+			}
+			found = true
+		}
+		sc.StoragePaths = out
+	}); err != nil {
+		return xerrors.Errorf("set storage config: %w", err)
+	}
+	if !found {
+		// maybe this is fine?
+		return xerrors.Errorf("path not found in storage.json")
+	}
+
+	// unregister locally, drop from sector index
+	return m.localStore.ClosePath(ctx, localPath.ID)
+}
+
+func (m *Manager) RedeclareLocalStorage(ctx context.Context, id *storiface.ID, dropMissing bool) error {
+	return m.localStore.Redeclare(ctx, id, dropMissing)
 }
 
 func (m *Manager) AddWorker(ctx context.Context, w Worker) error {
@@ -306,8 +360,8 @@ func (m *Manager) schedFetch(sector storiface.SectorRef, ft storiface.SectorFile
 	}
 }
 
-func (m *Manager) ReadPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
-	return m.hlmWorker.ReadPiece(ctx, sector, pieceOffset, size, ticket, unsealed)
+func (m *Manager)ReadPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error){
+	return m.hlmWorker.ReadPiece(ctx, sector, pieceOffset,size,ticket,unsealed)
 }
 func (m *Manager) ReadPieceStorageInfo(ctx context.Context, sector storiface.SectorRef) (database.SectorStorage, error) {
 	return m.hlmWorker.ReadPieceStorageInfo(ctx, sector)
@@ -844,6 +898,7 @@ func (m *Manager) ReleaseReplicaUpgrade(ctx context.Context, sector storiface.Se
 	if err := m.index.StorageLock(ctx, sector.ID, storiface.FTNone, storiface.FTUpdateCache|storiface.FTUpdate); err != nil {
 		return xerrors.Errorf("acquiring sector lock: %w", err)
 	}
+
 	if err := m.storage.Remove(ctx, sector.ID, storiface.FTUpdateCache, true, nil); err != nil {
 		return xerrors.Errorf("removing update cache: %w", err)
 	}
@@ -1224,6 +1279,10 @@ func (m *Manager) SchedDiag(ctx context.Context, doSched bool) (interface{}, err
 	m.workLk.Unlock()
 
 	return i, nil
+}
+
+func (m *Manager) RemoveSchedRequest(ctx context.Context, schedId uuid.UUID) error {
+	return m.sched.RemoveRequest(ctx, schedId)
 }
 
 func (m *Manager) Close(ctx context.Context) error {
