@@ -157,8 +157,6 @@ require (
 	go.etcd.io/etcd v0.0.0-20210512015243-d19fbe541bf9
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/otel v1.8.0 // indirect
-	go.opentelemetry.io/otel/bridge/opencensus v0.25.0
-	go.opentelemetry.io/otel/exporters/jaeger v1.2.0
 	go.opentelemetry.io/otel/sdk v1.8.0 // indirect
 	go.uber.org/fx v1.15.0
 	go.uber.org/multierr v1.8.0
@@ -384,7 +382,6 @@ require (
 
 require (
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
-	github.com/filecoin-project/specs-storage v0.4.1
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/ipfs/go-ipld-legacy v0.1.1 // indirect
 	github.com/jonboulle/clockwork v0.2.2 // indirect
