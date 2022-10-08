@@ -2,7 +2,6 @@ package sealer
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"sort"
@@ -17,9 +16,7 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
-	"io"
-	"net/http"
-	"sync"
+
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-statestore"

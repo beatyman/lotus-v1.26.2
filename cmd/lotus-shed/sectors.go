@@ -114,7 +114,11 @@ var terminateSectorCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-
+		api, acloser, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer acloser()
 		terminationDeclarationParams := []miner2.TerminationDeclaration{}
 
 		subPledge := abi.NewTokenAmount(0)

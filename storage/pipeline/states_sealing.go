@@ -3,9 +3,6 @@ package sealing
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"io"
-	"net/http"
 
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"

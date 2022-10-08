@@ -3,7 +3,6 @@ package wdpost
 import (
 	"bytes"
 	"context"
-	"github.com/filecoin-project/lotus/storage"
 	sectorstorage "github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"sync"
@@ -301,7 +300,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 //
 // When `manual` is set, no messages (fault/recover) will be automatically sent
 func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
-	if storage.EnableSeparatePartition {
+	if EnableSeparatePartition {
 		return s.runHlmPoStCycle(ctx, manual, di,ts)
 	}
 	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
@@ -570,12 +569,12 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition, nv net
 		return nil, xerrors.Errorf("getting sectors per partition: %w", err)
 	}
 	//var partitionsPerMsg int = 1
-	if storage.EnableSeparatePartition {
-		partitionsPerMsg = storage.PartitionsPerMsg
+	if EnableSeparatePartition {
+		partitionsPerMsg = PartitionsPerMsg
 	}
 	log.Infow("Separate partition",
 		"proofType", s.proofType,
-		"enableSeparate", storage.EnableSeparatePartition,
+		"enableSeparate", EnableSeparatePartition,
 		"partitionsPerMsg:", partitionsPerMsg,
 	)
 
@@ -820,3 +819,6 @@ func (s *WindowPoStScheduler) ComputePoSt(ctx context.Context, dlIdx uint64, ts 
 func (s *WindowPoStScheduler) ManualFaultRecovery(ctx context.Context, maddr address.Address, sectors []abi.SectorNumber) ([]cid.Cid, error) {
 	return s.declareManualRecoveries(ctx, maddr, sectors, types.TipSetKey{})
 }
+// implements by hlm start
+var PartitionsPerMsg int = 1
+var EnableSeparatePartition bool = false

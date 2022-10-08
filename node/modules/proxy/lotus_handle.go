@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/filecoin-project/go-jsonrpc/auth"
-	"github.com/filecoin-project/go-state-types/builtin/v8/miner"
 	"github.com/filecoin-project/go-state-types/builtin/v8/paych"
+	"github.com/filecoin-project/go-state-types/builtin/v9/miner"
 	"github.com/filecoin-project/go-state-types/dline"
 	abinetwork "github.com/filecoin-project/go-state-types/network"
 	"github.com/filecoin-project/lotus/api"
@@ -844,6 +844,13 @@ func (s *LotusImpl) StateSectorPartition(p0 context.Context, p1 address.Address,
 
 func (s *LotusImpl)StateSectorPreCommitInfo(p0 context.Context, p1 address.Address,p2 abi.SectorNumber,p3 types.TipSetKey) (*miner.SectorPreCommitOnChainInfo, error) {
 	return bestNodeApi().StateSectorPreCommitInfo(p0, p1, p2, p3)
+}
+func (s *LotusImpl) StateMinerAllocated(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*bitfield.BitField, error) {
+	return bestNodeApi().StateMinerAllocated(p0, p1, p2)
+}
+
+func (s *LotusImpl) StateActorManifestCID(p0 context.Context, p1 abinetwork.Version) (cid.Cid, error) {
+	return bestNodeApi().StateActorManifestCID(p0, p1)
 }
 
 func (s *LotusImpl) StateVMCirculatingSupplyInternal(p0 context.Context, p1 types.TipSetKey) (api.CirculatingSupply, error) {

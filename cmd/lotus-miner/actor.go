@@ -255,7 +255,6 @@ var actorWithdrawCmd = &cli.Command{
 			Value: 0,
 		},
 	},
-	ArgsUsage: "[amount (FIL)]",
 	Action: func(cctx *cli.Context) error {
 		amount := abi.NewTokenAmount(0)
 

@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/ipfs/go-cid"
 	"github.com/gwaylib/errors"
+	"github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -632,7 +632,7 @@ var provingCheckProvableCmd = &cli.Command{
 					Miner:  abi.ActorID(mid),
 					Number: info.SectorNumber,
 				}
-				sFile, err := sapi.HlmSectorFile(ctx, storiface.SectorName(id))
+				sFile, err := minerApi.HlmSectorFile(ctx, storiface.SectorName(id))
 				if err != nil {
 					return errors.As(err)
 				}

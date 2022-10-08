@@ -371,7 +371,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 
 	pw := fr32.NewPadWriter(w)
 
-	pr := io.TeeReader(io.LimitReader(pieceData, int64(pieceSize)), pw)
+	pr := io.TeeReader(io.LimitReader(file, int64(pieceSize)), pw)
 
 	throttle := make(chan []byte, parallel)
 	piecePromises := make([]func() (abi.PieceInfo, error), 0)

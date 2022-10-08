@@ -31,8 +31,8 @@ import (
 	lrand "github.com/filecoin-project/lotus/chain/rand"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/journal"
-	"github.com/gwaylib/errors"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/gwaylib/errors"
 )
 
 var log = logging.Logger("miner")

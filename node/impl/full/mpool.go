@@ -137,7 +137,64 @@ func (m *MpoolModule) MpoolPush(ctx context.Context, smsg *types.SignedMessage) 
 func (a *MpoolAPI) MpoolPushUntrusted(ctx context.Context, smsg *types.SignedMessage) (cid.Cid, error) {
 	return a.Mpool.PushUntrusted(ctx, smsg)
 }
+func (a *MpoolAPI) mpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec, cb func(smsg *types.SignedMessage) error) (*types.SignedMessage, error) {
+	cp := *msg
+	msg = &cp
+	inMsg := *msg
+	fromA, err := a.Stmgr.ResolveToKeyAddress(ctx, msg.From, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("getting key address: %w", err)
+	}
+	{
+		done, err := a.PushLocks.TakeLock(ctx, fromA)
+		if err != nil {
+			return nil, xerrors.Errorf("taking lock: %w", err)
+		}
+		defer done()
+	}
 
+	if msg.Nonce != 0 {
+		return nil, xerrors.Errorf("MpoolPushMessage expects message nonce to be 0, was %d", msg.Nonce)
+	}
+
+	msg, err = a.GasAPI.GasEstimateMessageGas(ctx, msg, spec, types.EmptyTSK)
+	if err != nil {
+		return nil, xerrors.Errorf("GasEstimateMessageGas error: %w", err)
+	}
+
+	if msg.GasPremium.GreaterThan(msg.GasFeeCap) {
+		inJson, _ := json.Marshal(inMsg)
+		outJson, _ := json.Marshal(msg)
+		return nil, xerrors.Errorf("After estimation, GasPremium is greater than GasFeeCap, inmsg: %s, outmsg: %s",
+			inJson, outJson)
+	}
+
+	if msg.From.Protocol() == address.ID {
+		log.Warnf("Push from ID address (%s), adjusting to %s", msg.From, fromA)
+		msg.From = fromA
+	}
+
+	b, err := a.WalletBalance(ctx, msg.From)
+	if err != nil {
+		return nil, xerrors.Errorf("mpool push: getting origin balance: %w", err)
+	}
+
+	requiredFunds := big.Add(msg.Value, msg.RequiredFunds())
+	if b.LessThan(requiredFunds) {
+		return nil, xerrors.Errorf("mpool push: not enough funds: %s < %s", b, requiredFunds)
+	}
+
+	if cb == nil {
+		cb = func(*types.SignedMessage) error {
+			// ignore this
+			return nil
+		}
+	}
+	return a.MessageSigner.SignMessage(ctx, msg, cb)
+}
+func (a *MpoolAPI) MpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
+	return a.mpoolSignMessage(ctx, msg, spec, nil)
+}
 func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
 	cp := *msg
 	msg = &cp
@@ -216,7 +273,6 @@ func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spe
 
 	return signedMsg, nil
 }
-
 
 func (a *MpoolAPI) MpoolBatchPush(ctx context.Context, smsgs []*types.SignedMessage) ([]cid.Cid, error) {
 	var messageCids []cid.Cid

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"runtime"
-	"strings"
 	"time"
 
 	"github.com/ipfs/go-cid"

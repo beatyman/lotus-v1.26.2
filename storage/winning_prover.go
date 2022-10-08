@@ -2,6 +2,10 @@ package storage
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/storage/sealer"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
+	"github.com/gwaylib/errors"
 	"time"
 
 	logging "github.com/ipfs/go-log/v2"
@@ -66,11 +70,48 @@ func (wpp *StorageWpp) ComputeProof(ctx context.Context, ssi []builtin.ExtendedS
 	if build.InsecurePoStValidation {
 		return []builtin.PoStProof{{ProofBytes: []byte("valid proof")}}, nil
 	}
-
+	repo := ""
+	sm, ok := wpp.prover.(*sealer.Manager)
+	if ok {
+		sb, ok := sm.Prover.(*ffiwrapper.Sealer)
+		if ok {
+			repo = sb.RepoPath()
+		}
+	}
+	if len(repo) == 0 {
+		log.Warn("not found default repo")
+	}
+	rSectors := []storiface.SectorRef{}
+	pSectors := []storiface.ProofSectorInfo{}
+	for _, s := range ssi {
+		id := abi.SectorID{Miner: wpp.miner, Number: s.SectorNumber}
+		sFile, err := database.GetSectorFile(storiface.SectorName(id), repo)
+		if err != nil {
+			return nil, err
+		}
+		rSector := storiface.SectorRef{
+			ID:         id,
+			ProofType:  s.SealProof,
+			SectorFile: *sFile,
+		}
+		rSectors = append(rSectors, rSector)
+		pSectors = append(pSectors, storiface.ProofSectorInfo{
+			SectorRef: rSector,
+			SealedCID: s.SealedCID,
+		})
+	}
+	// check files
+	_, _, bad, err := ffiwrapper.CheckProvable(ctx,wpp.winnRpt ,rSectors, nil, 6*time.Second)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	if len(bad) > 0 {
+		return nil, xerrors.Errorf("pubSectorToPriv skipped sectors: %+v", bad)
+	}
 	log.Infof("Computing WinningPoSt ;%+v; %v", ssi, rand)
 
 	start := build.Clock.Now()
-	proof, err := wpp.prover.GenerateWinningPoSt(ctx, wpp.miner, ssi, rand)
+	proof, err := wpp.prover.GenerateWinningPoSt(ctx, wpp.miner, pSectors, rand)
 	if err != nil {
 		return nil, err
 	}
