@@ -18,7 +18,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/builtin"
-	"github.com/filecoin-project/go-state-types/builtin/v8/miner"
+	"github.com/filecoin-project/go-state-types/builtin/v9/miner"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
 	"github.com/filecoin-project/go-state-types/network"
@@ -226,7 +226,6 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 	if err != nil {
 		return bitfield.BitField{}, err
 	}
-
 	sFileNames := []string{}
 	for _, info := range sectorInfos {
 		s := abi.SectorID{
@@ -272,7 +271,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		})
 	}
 
-	all, _, _, err := s.faultTracker.CheckProvable(ctx, s.proofType, tocheck, nil, timeout)
+	all, _, _, err := s.faultTracker.CheckProvable(ctx, s.proofType, tocheck, nil,timeout)
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
 	}
@@ -304,8 +303,8 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 //
 // When `manual` is set, no messages (fault/recover) will be automatically sent
 func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
-	if storage.EnableSeparatePartition {
-		return s.runHlmPoStCycle(ctx, manual, di, ts)
+	if EnableSeparatePartition {
+		return s.runHlmPoStCycle(ctx, manual, di,ts)
 	}
 	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
 	defer span.End()
@@ -590,6 +589,8 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di 
 	return posts, nil
 }
 
+
+
 func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition, nv network.Version) ([][]api.Partition, error) {
 	// We don't want to exceed the number of sectors allowed in a message.
 	// So given the number of sectors in a partition, work out the number of
@@ -606,12 +607,12 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition, nv net
 		return nil, xerrors.Errorf("getting sectors per partition: %w", err)
 	}
 	//var partitionsPerMsg int = 1
-	if storage.EnableSeparatePartition {
-		partitionsPerMsg = storage.PartitionsPerMsg
+	if EnableSeparatePartition {
+		partitionsPerMsg = PartitionsPerMsg
 	}
 	log.Infow("Separate partition",
 		"proofType", s.proofType,
-		"enableSeparate", storage.EnableSeparatePartition,
+		"enableSeparate", EnableSeparatePartition,
 		"partitionsPerMsg:", partitionsPerMsg,
 	)
 
@@ -853,3 +854,10 @@ func (s *WindowPoStScheduler) ComputePoSt(ctx context.Context, dlIdx uint64, ts 
 
 	return s.runPoStCycle(ctx, true, *dl, ts)
 }
+
+func (s *WindowPoStScheduler) ManualFaultRecovery(ctx context.Context, maddr address.Address, sectors []abi.SectorNumber) ([]cid.Cid, error) {
+	return s.declareManualRecoveries(ctx, maddr, sectors, types.TipSetKey{})
+}
+// implements by hlm start
+var PartitionsPerMsg int = 1
+var EnableSeparatePartition bool = false

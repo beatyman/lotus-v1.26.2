@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
@@ -136,7 +137,6 @@ func (m *MpoolModule) MpoolPush(ctx context.Context, smsg *types.SignedMessage) 
 func (a *MpoolAPI) MpoolPushUntrusted(ctx context.Context, smsg *types.SignedMessage) (cid.Cid, error) {
 	return a.Mpool.PushUntrusted(ctx, smsg)
 }
-
 func (a *MpoolAPI) mpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec, cb func(smsg *types.SignedMessage) error) (*types.SignedMessage, error) {
 	cp := *msg
 	msg = &cp
@@ -192,18 +192,86 @@ func (a *MpoolAPI) mpoolSignMessage(ctx context.Context, msg *types.Message, spe
 	}
 	return a.MessageSigner.SignMessage(ctx, msg, cb)
 }
-
+func (a *MpoolAPI) MpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
+	return a.mpoolSignMessage(ctx, msg, spec, nil)
+}
 func (a *MpoolAPI) MpoolPushMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
-	return a.mpoolSignMessage(ctx, msg, spec, func(smsg *types.SignedMessage) error {
+	cp := *msg
+	msg = &cp
+	inMsg := *msg
+
+	// Check if this uuid has already been processed. Ignore if uuid is not populated
+	if (spec != nil) && (spec.MsgUuid != uuid.UUID{}) {
+		signedMessage, err := a.MessageSigner.GetSignedMessage(ctx, spec.MsgUuid)
+		if err == nil {
+			log.Warnf("Message already processed. cid=%s", signedMessage.Cid())
+			return signedMessage, nil
+		}
+	}
+
+	fromA, err := a.Stmgr.ResolveToKeyAddress(ctx, msg.From, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("getting key address: %w", err)
+	}
+	{
+		done, err := a.PushLocks.TakeLock(ctx, fromA)
+		if err != nil {
+			return nil, xerrors.Errorf("taking lock: %w", err)
+		}
+		defer done()
+	}
+
+	if msg.Nonce != 0 {
+		return nil, xerrors.Errorf("MpoolPushMessage expects message nonce to be 0, was %d", msg.Nonce)
+	}
+
+	msg, err = a.GasAPI.GasEstimateMessageGas(ctx, msg, spec, types.EmptyTSK)
+	if err != nil {
+		return nil, xerrors.Errorf("GasEstimateMessageGas error: %w", err)
+	}
+
+	if msg.GasPremium.GreaterThan(msg.GasFeeCap) {
+		inJson, _ := json.Marshal(inMsg)
+		outJson, _ := json.Marshal(msg)
+		return nil, xerrors.Errorf("After estimation, GasPremium is greater than GasFeeCap, inmsg: %s, outmsg: %s",
+			inJson, outJson)
+	}
+
+	if msg.From.Protocol() == address.ID {
+		log.Warnf("Push from ID address (%s), adjusting to %s", msg.From, fromA)
+		msg.From = fromA
+	}
+
+	b, err := a.WalletBalance(ctx, msg.From)
+	if err != nil {
+		return nil, xerrors.Errorf("mpool push: getting origin balance: %w", err)
+	}
+
+	requiredFunds := big.Add(msg.Value, msg.RequiredFunds())
+	if b.LessThan(requiredFunds) {
+		return nil, xerrors.Errorf("mpool push: not enough funds: %s < %s", b, requiredFunds)
+	}
+
+	// Sign and push the message
+	signedMsg, err := a.MessageSigner.SignMessage(ctx, msg, func(smsg *types.SignedMessage) error {
 		if _, err := a.MpoolModuleAPI.MpoolPush(ctx, smsg); err != nil {
 			return xerrors.Errorf("mpool push: failed to push message: %w", err)
 		}
 		return nil
 	})
-}
+	if err != nil {
+		return nil, err
+	}
 
-func (a *MpoolAPI) MpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
-	return a.mpoolSignMessage(ctx, msg, spec, nil)
+	// Store uuid->signed message in datastore
+	if (spec != nil) && (spec.MsgUuid != uuid.UUID{}) {
+		err = a.MessageSigner.StoreSignedMessage(ctx, spec.MsgUuid, signedMsg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return signedMsg, nil
 }
 
 func (a *MpoolAPI) MpoolBatchPush(ctx context.Context, smsgs []*types.SignedMessage) ([]cid.Cid, error) {
