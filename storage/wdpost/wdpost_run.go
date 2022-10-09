@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"github.com/filecoin-project/lotus/storage"
 	sectorstorage "github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"huangdong2012/filecoin-monitor/trace/spans"
