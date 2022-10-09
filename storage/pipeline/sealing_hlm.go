@@ -99,4 +99,10 @@ func (m *Sealing) RebuildSector(ctx context.Context, sid string, storageId uint6
 	return nil
 }
 
+
+func (m *Sealing) Maddr() string {
+	log.Info("addr:", m.maddr.String())
+	return string(m.maddr.String())
+}
+
 // implements by hlm end
