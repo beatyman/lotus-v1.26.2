@@ -16,7 +16,6 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	logging "github.com/ipfs/go-log/v2"
-	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
