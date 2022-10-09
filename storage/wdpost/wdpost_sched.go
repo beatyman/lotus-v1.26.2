@@ -3,7 +3,6 @@ package wdpost
 import (
 	"context"
 	"fmt"
-	"github.com/filecoin-project/lotus/storage"
 	"sync"
 	"time"
 
@@ -15,12 +14,13 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/go-state-types/builtin/v8/miner"
+	"github.com/filecoin-project/go-state-types/builtin/v9/miner"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
 	"github.com/filecoin-project/go-state-types/network"
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/journal"
@@ -47,6 +47,7 @@ type NodeAPI interface {
 	StateMinerPartitions(context.Context, address.Address, uint64, types.TipSetKey) ([]api.Partition, error)
 	StateLookupID(context.Context, address.Address, types.TipSetKey) (address.Address, error)
 	StateAccountKey(context.Context, address.Address, types.TipSetKey) (address.Address, error)
+	StateSectorPartition(ctx context.Context, maddr address.Address, sectorNumber abi.SectorNumber, tok types.TipSetKey) (*lminer.SectorLocation, error)
 
 	MpoolPushMessage(context.Context, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
 
@@ -112,9 +113,9 @@ func NewWindowedPoStScheduler(fapi NodeAPI,
 	j journal.Journal,
 	actor address.Address) (*WindowPoStScheduler, error) {
 	log.Info("lookup default config: EnableSeparatePartition::", cfg.EnableSeparatePartition, "PartitionsPerMsg::", cfg.PartitionsPerMsg)
-	storage.EnableSeparatePartition = cfg.EnableSeparatePartition
-	if storage.EnableSeparatePartition && cfg.PartitionsPerMsg != 0 {
-		storage.PartitionsPerMsg = cfg.PartitionsPerMsg
+	EnableSeparatePartition = cfg.EnableSeparatePartition
+	if EnableSeparatePartition && cfg.PartitionsPerMsg != 0 {
+		PartitionsPerMsg = cfg.PartitionsPerMsg
 	}
 	mi, err := fapi.StateMinerInfo(context.TODO(), actor, types.EmptyTSK)
 	if err != nil {
