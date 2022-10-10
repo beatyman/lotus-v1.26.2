@@ -31,6 +31,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/messagepool"
 	"github.com/filecoin-project/lotus/chain/types"
+	sealing "github.com/filecoin-project/lotus/storage/pipeline"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
@@ -300,7 +301,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 //
 // When `manual` is set, no messages (fault/recover) will be automatically sent
 func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di dline.Info, ts *types.TipSet) ([]miner.SubmitWindowedPoStParams, error) {
-	if EnableSeparatePartition {
+	if sealing.EnableSeparatePartition {
 		return s.runHlmPoStCycle(ctx, manual, di,ts)
 	}
 	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
@@ -569,12 +570,12 @@ func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition, nv net
 		return nil, xerrors.Errorf("getting sectors per partition: %w", err)
 	}
 	//var partitionsPerMsg int = 1
-	if EnableSeparatePartition {
-		partitionsPerMsg = PartitionsPerMsg
+	if sealing.EnableSeparatePartition {
+		partitionsPerMsg = sealing.PartitionsPerMsg
 	}
 	log.Infow("Separate partition",
 		"proofType", s.proofType,
-		"enableSeparate", EnableSeparatePartition,
+		"enableSeparate", sealing.EnableSeparatePartition,
 		"partitionsPerMsg:", partitionsPerMsg,
 	)
 
@@ -819,6 +820,3 @@ func (s *WindowPoStScheduler) ComputePoSt(ctx context.Context, dlIdx uint64, ts 
 func (s *WindowPoStScheduler) ManualFaultRecovery(ctx context.Context, maddr address.Address, sectors []abi.SectorNumber) ([]cid.Cid, error) {
 	return s.declareManualRecoveries(ctx, maddr, sectors, types.TipSetKey{})
 }
-// implements by hlm start
-var PartitionsPerMsg int = 1
-var EnableSeparatePartition bool = false

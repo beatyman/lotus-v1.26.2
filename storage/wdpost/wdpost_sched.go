@@ -29,6 +29,7 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
+	sealing "github.com/filecoin-project/lotus/storage/pipeline"
 )
 
 var log = logging.Logger("wdpost")
@@ -113,9 +114,9 @@ func NewWindowedPoStScheduler(fapi NodeAPI,
 	j journal.Journal,
 	actor address.Address) (*WindowPoStScheduler, error) {
 	log.Info("lookup default config: EnableSeparatePartition::", cfg.EnableSeparatePartition, "PartitionsPerMsg::", cfg.PartitionsPerMsg)
-	EnableSeparatePartition = cfg.EnableSeparatePartition
-	if EnableSeparatePartition && cfg.PartitionsPerMsg != 0 {
-		PartitionsPerMsg = cfg.PartitionsPerMsg
+	sealing.EnableSeparatePartition = cfg.EnableSeparatePartition
+	if sealing.EnableSeparatePartition && cfg.PartitionsPerMsg != 0 {
+		sealing.PartitionsPerMsg = cfg.PartitionsPerMsg
 	}
 	mi, err := fapi.StateMinerInfo(context.TODO(), actor, types.EmptyTSK)
 	if err != nil {
