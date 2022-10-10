@@ -109,8 +109,8 @@ func init() {
 }
 
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
-
-var PropagationDelaySecs = uint64(10)
+// PropagationDelaySecs change by hlm 10-->6
+var PropagationDelaySecs = uint64(6)
 
 // BootstrapPeerThreshold is the minimum number peers we need to track for a sync worker to start
 const BootstrapPeerThreshold = 4

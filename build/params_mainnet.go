@@ -88,7 +88,9 @@ var SupportedProofTypes = []abi.RegisteredSealProof{
 var ConsensusMinerMinPower = abi.NewStoragePower(10 << 40)
 var MinVerifiedDealSize = abi.NewStoragePower(1 << 20)
 var PreCommitChallengeDelay = abi.ChainEpoch(150)
-var PropagationDelaySecs = uint64(10)
+
+// PropagationDelaySecs change by hlm 10-->6
+var PropagationDelaySecs = uint64(6)
 
 func init() {
 	if os.Getenv("LOTUS_USE_TEST_ADDRESSES") != "1" {
