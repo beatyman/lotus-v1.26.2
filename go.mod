@@ -383,7 +383,7 @@ require (
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/huangdong2012/go-jsonrpc v0.1.6-0.20211019125648-aab49d1d5bb6
+replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.1.1-0.20221014042533-13f5193f5672
 
 replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-20210512015243-d19fbe541bf9
 

@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/ipfs/go-cid"
 	cbg "github.com/whyrusleeping/cbor-gen"
