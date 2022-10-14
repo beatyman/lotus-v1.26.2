@@ -30,7 +30,7 @@ import (
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-paramfetch"
 
-	"github.com/filecoin-project/lotus/api"
+	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/consensus/filcns"
 	"github.com/filecoin-project/lotus/chain/stmgr"
@@ -315,7 +315,7 @@ var DaemonCmd = &cli.Command{
 			}
 
 			defer closer()
-			liteModeDeps = node.Override(new(api.Gateway), gapi)
+			liteModeDeps = node.Override(new(lapi.Gateway), gapi)
 		}
 
 		// some libraries like ipfs/go-ds-measure and ipfs/go-ipfs-blockstore
@@ -325,7 +325,7 @@ var DaemonCmd = &cli.Command{
 			log.Warnf("unable to inject prometheus ipfs/go-metrics exporter; some metrics will be unavailable; err: %s", err)
 		}
 
-		var api api.FullNode
+		var api lapi.FullNode
 		stop, err := node.New(ctx,
 			node.FullAPI(&api, node.Lite(isLite)),
 
@@ -371,7 +371,7 @@ var DaemonCmd = &cli.Command{
 		// ----
 
 		// Populate JSON-RPC options.
-		serverOptions := make([]jsonrpc.ServerOption, 0)
+		serverOptions := []jsonrpc.ServerOption{jsonrpc.WithServerErrors(lapi.RPCErrors)}
 		if maxRequestSize := cctx.Int("api-max-req-size"); maxRequestSize != 0 {
 			serverOptions = append(serverOptions, jsonrpc.WithMaxRequestSize(int64(maxRequestSize)))
 		}
@@ -401,7 +401,7 @@ var DaemonCmd = &cli.Command{
 	},
 }
 
-func importKey(ctx context.Context, api api.FullNode, f string) error {
+func importKey(ctx context.Context, api lapi.FullNode, f string) error {
 	f, err := homedir.Expand(f)
 	if err != nil {
 		return err
