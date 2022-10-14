@@ -6,6 +6,7 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-state-types/builtin/v8/paych"
 	"github.com/filecoin-project/go-state-types/builtin/v9/miner"
+	"github.com/filecoin-project/go-state-types/builtin/v9/verifreg"
 	"github.com/filecoin-project/go-state-types/dline"
 	abinetwork "github.com/filecoin-project/go-state-types/network"
 	"github.com/filecoin-project/lotus/api"
@@ -42,6 +43,25 @@ type LotusImpl struct {
 	token  string
 }
 
+func (s *LotusImpl) StateGetAllocationForPendingDeal(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*verifreg.Allocation, error) {
+	return bestNodeApi().StateGetAllocationForPendingDeal(p0, p1,p2)
+}
+
+func (s *LotusImpl) StateGetAllocation(p0 context.Context, p1 address.Address, p2 verifreg.AllocationId, p3 types.TipSetKey) (*verifreg.Allocation, error) {
+	return bestNodeApi().StateGetAllocation(p0, p1,p2,p3)
+}
+
+func (s *LotusImpl) StateGetAllocations(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifreg.AllocationId]verifreg.Allocation, error) {
+	return bestNodeApi().StateGetAllocations(p0, p1,p2)
+}
+
+func (s *LotusImpl) StateGetClaim(p0 context.Context, p1 address.Address, p2 verifreg.ClaimId, p3 types.TipSetKey) (*verifreg.Claim, error) {
+	return bestNodeApi().StateGetClaim(p0, p1,p2,p3)
+}
+
+func (s *LotusImpl) StateGetClaims(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifreg.ClaimId]verifreg.Claim, error) {
+	return bestNodeApi().StateGetClaims(p0, p1,p2)
+}
 
 func NewLotusProxy(token string) api.FullNode {
 	impl := &LotusImpl{
