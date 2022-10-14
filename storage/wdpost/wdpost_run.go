@@ -554,7 +554,7 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di 
 
 // Note: Partition order within batches must match original partition order in order
 // for code following the user code to work
-func (s *WindowPoStScheduler) batchPartitions(partitions []api.Partition, nv network.Version) ([][]api.Partition, error) {
+func (s *WindowPoStScheduler) BatchPartitions(partitions []api.Partition, nv network.Version) ([][]api.Partition, error) {
 	// We don't want to exceed the number of sectors allowed in a message.
 	// So given the number of sectors in a partition, work out the number of
 	// partitions that can be in a message without exceeding sectors per

@@ -76,7 +76,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, manual bool, 
 
 	// Split partitions into batches, so as not to exceed the number of sectors
 	// allowed in a single message
-	partitionBatches, err := s.batchPartitions(partitions, nv)
+	partitionBatches, err := s.BatchPartitions(partitions, nv)
 	if err != nil {
 		return nil, err
 	}
