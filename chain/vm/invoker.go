@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	cid "github.com/ipfs/go-cid/_rsrch/cidiface"
 	"reflect"
 	"strconv"
 
