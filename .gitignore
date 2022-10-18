@@ -12,7 +12,6 @@
 /lotus-chainwatch
 /lotus-shed
 /lotus-sim
-/lotus-pond
 /lotus-townhall
 /lotus-fountain
 /lotus-stats
@@ -26,8 +25,6 @@
 /docgen-md
 /docgen-openrpc
 /bench.json
-/lotuspond/front/node_modules
-/lotuspond/front/build
 /cmd/lotus-townhall/townhall/node_modules
 /cmd/lotus-townhall/townhall/build
 /cmd/lotus-townhall/townhall/package-lock.json
