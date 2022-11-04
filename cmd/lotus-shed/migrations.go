@@ -18,6 +18,7 @@ import (
 	"github.com/filecoin-project/go-state-types/builtin"
 	market8 "github.com/filecoin-project/go-state-types/builtin/v8/market"
 	adt8 "github.com/filecoin-project/go-state-types/builtin/v8/util/adt"
+	v9 "github.com/filecoin-project/go-state-types/builtin/v9"
 	market9 "github.com/filecoin-project/go-state-types/builtin/v9/market"
 	miner9 "github.com/filecoin-project/go-state-types/builtin/v9/miner"
 	adt9 "github.com/filecoin-project/go-state-types/builtin/v9/util/adt"
@@ -169,14 +170,15 @@ var migrationsCmd = &cli.Command{
 				newCid2)
 		}
 
-		fmt.Println("new cid", newCid2)
+		fmt.Println("migration height ", blk.Height-1)
+		fmt.Println("new cid ", newCid2)
 		fmt.Println("completed premigration 1, took ", preMigration1Time)
 		fmt.Println("completed premigration 2, took ", preMigration2Time)
 		fmt.Println("completed round actual (with cache), took ", cachedMigrationTime)
 		fmt.Println("completed round actual (without cache), took ", uncachedMigrationTime)
 
 		if cctx.Bool("check-invariants") {
-			err = checkMigrationInvariants(ctx, blk.ParentStateRoot, newCid1, bs, blk.Height-1)
+			err = checkMigrationInvariants(ctx, blk.ParentStateRoot, newCid2, bs, blk.Height-1)
 			if err != nil {
 				return err
 			}
@@ -186,16 +188,16 @@ var migrationsCmd = &cli.Command{
 	},
 }
 
-func checkMigrationInvariants(ctx context.Context, v8StateRoot cid.Cid, v9StateRoot cid.Cid, bs blockstore.Blockstore, epoch abi.ChainEpoch) error {
+func checkMigrationInvariants(ctx context.Context, v8StateRootCid cid.Cid, v9StateRootCid cid.Cid, bs blockstore.Blockstore, epoch abi.ChainEpoch) error {
 	actorStore := store.ActorStore(ctx, bs)
 	startTime := time.Now()
 
-	stateTreeV8, err := state.LoadStateTree(actorStore, v8StateRoot)
+	stateTreeV8, err := state.LoadStateTree(actorStore, v8StateRootCid)
 	if err != nil {
 		return err
 	}
 
-	stateTreeV9, err := state.LoadStateTree(actorStore, v9StateRoot)
+	stateTreeV9, err := state.LoadStateTree(actorStore, v9StateRootCid)
 	if err != nil {
 		return err
 	}
@@ -216,25 +218,25 @@ func checkMigrationInvariants(ctx context.Context, v8StateRoot cid.Cid, v9StateR
 	}
 
 	// Load the state root.
-	//var stateRoot types.StateRoot
-	//if err := actorStore.Get(ctx, v9StateRoot, &stateRoot); err != nil {
-	//	return xerrors.Errorf("failed to decode state root: %w", err)
-	//}
-	//
-	//actorCodeCids, err := actors.GetActorCodeIDs(actorstypes.Version9)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//actorTree, err := builtin.LoadTree(actorStore, stateRoot.Actors)
-	//messages, err := v9.CheckStateInvariants(actorTree, epoch, actorCodeCids)
-	//if err != nil {
-	//	return xerrors.Errorf("checking state invariants: %w", err)
-	//}
-	//
-	//for _, message := range messages.Messages() {
-	//	fmt.Println("got the following error: ", message)
-	//}
+	var v9stateRoot types.StateRoot
+	if err := actorStore.Get(ctx, v9StateRootCid, &v9stateRoot); err != nil {
+		return xerrors.Errorf("failed to decode state root: %w", err)
+	}
+
+	actorCodeCids, err := actors.GetActorCodeIDs(actorstypes.Version9)
+	if err != nil {
+		return err
+	}
+
+	v9actorTree, err := builtin.LoadTree(actorStore, v9stateRoot.Actors)
+	messages, err := v9.CheckStateInvariants(v9actorTree, epoch, actorCodeCids)
+	if err != nil {
+		return xerrors.Errorf("checking state invariants: %w", err)
+	}
+
+	for _, message := range messages.Messages() {
+		fmt.Println("got the following error: ", message)
+	}
 
 	fmt.Println("completed invariant checks, took ", time.Since(startTime))
 
@@ -252,7 +254,8 @@ func checkDatacaps(stateTreeV8 *state.StateTree, stateTreeV9 *state.StateTree, a
 		return err
 	}
 
-	if len(verifregDatacaps) != len(newDatacaps) {
+	// Should have all the v8 datacaps, plus the verifreg actor itself
+	if len(verifregDatacaps)+1 != len(newDatacaps) {
 		return xerrors.Errorf("size of datacap maps do not match. verifreg: %d, datacap: %d", len(verifregDatacaps), len(newDatacaps))
 	}
 
@@ -341,6 +344,12 @@ func checkPendingVerifiedDeals(stateTreeV8 *state.StateTree, stateTreeV9 *state.
 		return xerrors.Errorf("failed to get proposals: %w", err)
 	}
 
+	// We only want those pending deals that haven't been activated -- an activated deal has an entry in dealStates8
+	dealStates8, err := adt9.AsArray(actorStore, marketStateV8.States, market8.StatesAmtBitwidth)
+	if err != nil {
+		return xerrors.Errorf("failed to load v8 states array: %w", err)
+	}
+
 	var numPendingVerifiedDeals = 0
 	var proposal market8.DealProposal
 	err = dealProposalsV8.ForEach(&proposal, func(dealID int64) error {
@@ -361,6 +370,17 @@ func checkPendingVerifiedDeals(stateTreeV8 *state.StateTree, stateTreeV9 *state.
 
 		// Nothing to do for not-pending deals
 		if !isPending {
+			return nil
+		}
+
+		var _dealState8 market8.DealState
+		found, err := dealStates8.Get(uint64(dealID), &_dealState8)
+		if err != nil {
+			return xerrors.Errorf("failed to lookup deal state: %w", err)
+		}
+
+		// the deal has an entry in deal states, which means it's already been allocated, nothing to do
+		if found {
 			return nil
 		}
 
