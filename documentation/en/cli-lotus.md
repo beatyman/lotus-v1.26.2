@@ -7,7 +7,7 @@ USAGE:
    lotus [global options] command [command options] [arguments...]
 
 VERSION:
-   1.18.0-rc5
+   1.18.0
 
 COMMANDS:
    daemon   Start a lotus daemon process
@@ -23,12 +23,6 @@ COMMANDS:
      msig     Interact with a multisig wallet
      filplus  Interact with the verified registry actor used by Filplus
      paych    Manage payment channels
-     send      Send funds between accounts
-     wallet    Manage wallet
-     client    Make deals, store data, retrieve data
-     msig      Interact with a multisig wallet
-     verifreg  Interact with the verified registry actor
-     paych     Manage payment channels
    DEVELOPER:
      auth          Manage RPC permissions
      mpool         Manage message pool

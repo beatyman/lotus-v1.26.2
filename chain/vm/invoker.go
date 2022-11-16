@@ -82,6 +82,7 @@ func (ar *ActorRegistry) Invoke(codeCid cid.Cid, rt vmr.Runtime, method abi.Meth
 		return nil, aerrors.Newf(exitcode.SysErrInvalidMethod, "no method %d on actor", method)
 	}
 	return act.methods[uint64(method)](rt, params)
+
 }
 
 func (ar *ActorRegistry) Register(av actorstypes.Version, pred ActorPredicate, vmactors []builtin.RegistryEntry) {
