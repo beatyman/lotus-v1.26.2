@@ -32,6 +32,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/lib/strle"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
 	sealing "github.com/filecoin-project/lotus/storage/pipeline"
@@ -513,9 +514,9 @@ var sectorsListCmd = &cli.Command{
 				if !inSSet {
 					m["Expiration"] = "n/a"
 				} else {
-					m["Expiration"] = lcli.EpochTime(head.Height(), exp)
+					m["Expiration"] = cliutil.EpochTime(head.Height(), exp)
 					if st.Early > 0 {
-						m["RecoveryTimeout"] = color.YellowString(lcli.EpochTime(head.Height(), st.Early))
+						m["RecoveryTimeout"] = color.YellowString(cliutil.EpochTime(head.Height(), st.Early))
 					}
 				}
 				if inSSet && cctx.Bool("initial-pledge") {
@@ -694,10 +695,10 @@ var sectorsCheckExpireCmd = &cli.Command{
 				"ID":            sector.SectorNumber,
 				"SealProof":     sector.SealProof,
 				"InitialPledge": types.FIL(sector.InitialPledge).Short(),
-				"Activation":    lcli.EpochTime(currEpoch, sector.Activation),
-				"Expiration":    lcli.EpochTime(currEpoch, sector.Expiration),
-				"MaxExpiration": lcli.EpochTime(currEpoch, MaxExpiration),
-				"MaxExtendNow":  lcli.EpochTime(currEpoch, MaxExtendNow),
+				"Activation":    cliutil.EpochTime(currEpoch, sector.Activation),
+				"Expiration":    cliutil.EpochTime(currEpoch, sector.Expiration),
+				"MaxExpiration": cliutil.EpochTime(currEpoch, MaxExpiration),
+				"MaxExtendNow":  cliutil.EpochTime(currEpoch, MaxExtendNow),
 			})
 		}
 
@@ -1937,7 +1938,7 @@ var sectorsExpiredCmd = &cli.Command{
 				toRemove = append(toRemove, s)
 			}
 
-			fmt.Printf("%d%s\t%s\t%s\n", s, rmMsg, st.State, lcli.EpochTime(head.Height(), st.Expiration))
+			fmt.Printf("%d%s\t%s\t%s\n", s, rmMsg, st.State, cliutil.EpochTime(head.Height(), st.Expiration))
 
 			return nil
 		})

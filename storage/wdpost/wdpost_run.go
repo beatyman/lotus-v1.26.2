@@ -7,6 +7,7 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"sync"
 	"time"
+	"go.uber.org/zap"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
@@ -306,6 +307,14 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di 
 	}
 	ctx, span := trace.StartSpan(ctx, "storage.runPoStCycle")
 	defer span.End()
+
+	start := time.Now()
+
+	log := log.WithOptions(zap.Fields(zap.Time("cycle", start)))
+	log.Infow("starting PoSt cycle", "manual", manual, "ts", ts, "deadline", di.Index)
+	defer func() {
+		log.Infow("post cycle done", "took", time.Now().Sub(start))
+	}()
 
 	if !manual {
 		// TODO: extract from runPoStCycle, run on fault cutoff boundaries
