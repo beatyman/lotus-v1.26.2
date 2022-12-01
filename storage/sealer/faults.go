@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	"golang.org/x/xerrors"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-state-types/abi"

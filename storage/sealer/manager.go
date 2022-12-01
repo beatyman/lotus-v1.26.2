@@ -118,7 +118,7 @@ func New(ctx context.Context, lstor *paths.Local, stor paths.Store, ls paths.Loc
 		WinningPoSt:                 sc.RemoteWnPoSt,
 		EnableForceRemoteWindowPoSt: sc.EnableForceRemoteWindowPoSt,
 	}
-	prover, err := ffiwrapper.New(&readonlyProvider{stor: lstor, index: si})
+	prover, err := ffiwrapper.New(remoteCfg,&readonlyProvider{stor: lstor, index: si})
 	if err != nil {
 		return nil, xerrors.Errorf("creating prover instance: %w", err)
 	}

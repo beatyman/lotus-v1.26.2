@@ -192,7 +192,7 @@ func (a *MpoolAPI) mpoolSignMessage(ctx context.Context, msg *types.Message, spe
 			return nil
 		}
 	}
-	return a.MessageSigner.SignMessage(ctx, msg, cb)
+	return a.MessageSigner.SignMessage(ctx, msg, spec,cb)
 }
 func (a *MpoolAPI) MpoolSignMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error) {
 	return a.mpoolSignMessage(ctx, msg, spec, nil)

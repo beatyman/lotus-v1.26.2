@@ -7,11 +7,7 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"sync"
 	"time"
-
-	"github.com/ipfs/go-cid"
-	"go.opencensus.io/trace"
 	"go.uber.org/zap"
-	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"

@@ -3,14 +3,15 @@ package cliutil
 import (
 	"context"
 	"fmt"
+	"github.com/filecoin-project/lotus/cli/util/apiaddr"
 	"golang.org/x/xerrors"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
-	"reflect"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"time"
@@ -61,14 +62,14 @@ func GetAPIInfoMulti(ctx *cli.Context, t repo.RepoType) ([]APIInfo, error) {
 	primaryEnv, fallbacksEnvs, deprecatedEnvs := t.APIInfoEnvVars()
 	env, ok := os.LookupEnv(primaryEnv)
 	if ok {
-		return ParseApiInfoMulti(env), nil
+		return apiaddr.ParseApiInfoMulti(env), nil
 	}
 
 	for _, env := range deprecatedEnvs {
 		env, ok := os.LookupEnv(env)
 		if ok {
 			log.Warnf("Using deprecated env(%s) value, please use env(%s) instead.", env, primaryEnv)
-			return ParseApiInfoMulti(env), nil
+			return apiaddr.ParseApiInfoMulti(env), nil
 		}
 	}
 
@@ -117,14 +118,14 @@ func GetAPIInfoMulti(ctx *cli.Context, t repo.RepoType) ([]APIInfo, error) {
 	for _, env := range fallbacksEnvs {
 		env, ok := os.LookupEnv(env)
 		if ok {
-			return ParseApiInfoMulti(env), nil
+			return apiaddr.ParseApiInfoMulti(env), nil
 		}
 	}
 
 	return []APIInfo{}, fmt.Errorf("could not determine API endpoint for node type: %v", t.Type())
 }
 
-func GetAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
+func getAPIInfo(ctx *cli.Context, t repo.RepoType) (APIInfo, error) {
 	ainfos, err := GetAPIInfoMulti(ctx, t)
 	if err != nil || len(ainfos) == 0 {
 		return APIInfo{}, err
@@ -152,7 +153,7 @@ func GetRawAPIMulti(ctx *cli.Context, t repo.RepoType, version string) ([]HttpHe
 	}
 
 	for _, ainfo := range ainfos {
-		addr, err := ainfo.DialArgs(version)
+		addr, err := ainfo.DialArgs(version,t)
 		if err != nil {
 			return httpHeads, xerrors.Errorf("could not get DialArgs: %w", err)
 		}
