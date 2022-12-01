@@ -30,6 +30,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/gen/slashfilter"
 	lrand "github.com/filecoin-project/lotus/chain/rand"
 	"github.com/filecoin-project/lotus/chain/types"
+	cliutil "github.com/filecoin-project/lotus/cli/util"
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/gwaylib/errors"
@@ -214,6 +215,8 @@ func (m *Miner) mine(ctx context.Context) {
 	var nextRound time.Time
 
 	for {
+		ctx := cliutil.OnSingleNode(ctx)
+
 		select {
 		case <-m.stop:
 			stopping := m.stopping
