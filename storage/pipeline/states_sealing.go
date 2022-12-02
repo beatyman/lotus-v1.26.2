@@ -90,26 +90,6 @@ func (m *Sealing) cleanupAssignedDeals(sector SectorInfo) {
 }
 
 func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) error {
-	m.inputLk.Lock()
-	// make sure we are not accepting deals into this sector
-	for _, c := range m.assignedPieces[m.minerSectorID(sector.SectorNumber)] {
-		pp := m.pendingPieces[c]
-		delete(m.pendingPieces, c)
-		if pp == nil {
-			log.Errorf("nil assigned pending piece %s", c)
-			continue
-		}
-
-		// todo: return to the sealing queue (this is extremely unlikely to happen)
-		pp.accepted(sector.SectorNumber, 0, xerrors.Errorf("sector %d entered packing state early", sector.SectorNumber))
-	}
-
-	delete(m.openSectors, m.minerSectorID(sector.SectorNumber))
-	delete(m.assignedPieces, m.minerSectorID(sector.SectorNumber))
-	m.inputLk.Unlock()
-}
-
-func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) error {
 	m.cleanupAssignedDeals(sector)
 
 	// if this is a snapdeals sector, but it ended up not having any deals, abort the upgrade
