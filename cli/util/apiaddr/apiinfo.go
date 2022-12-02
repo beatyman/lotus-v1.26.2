@@ -94,3 +94,20 @@ func (a *APIInfo) AuthHeader() http.Header {
 	log.Warn("API Token not set and requested, capabilities might be limited.")
 	return nil
 }
+func ParseApiInfoMulti(s string) []APIInfo {
+	var apiInfos []APIInfo
+
+	allAddrs := strings.SplitN(s, ",", -1)
+
+	for _, addr := range allAddrs {
+		if infoWithToken.Match([]byte(addr)) {
+			sp := strings.SplitN(addr, ":", 2)
+			apiInfos = append(apiInfos, APIInfo{
+				Addr:  sp[1],
+				Token: []byte(sp[0]),
+			})
+		}
+	}
+
+	return apiInfos
+}

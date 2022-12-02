@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/filecoin-project/dagstore/mount"
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-statestore"
 
+	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/storage/paths"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
@@ -75,6 +77,8 @@ type Manager struct {
 	work   *statestore.StateStore
 
 	parallelCheckLimit        int
+	singleCheckTimeout        time.Duration
+	partitionCheckTimeout     time.Duration
 	disableBuiltinWindowPoSt  bool
 	disableBuiltinWinningPoSt bool
 	disallowRemoteFinalize    bool
@@ -94,55 +98,6 @@ type result struct {
 	err error
 }
 
-// ResourceFilteringStrategy is an enum indicating the kinds of resource
-// filtering strategies that can be configured for workers.
-type ResourceFilteringStrategy string
-
-const (
-	// ResourceFilteringHardware specifies that available hardware resources
-	// should be evaluated when scheduling a task against the worker.
-	ResourceFilteringHardware = ResourceFilteringStrategy("hardware")
-
-	// ResourceFilteringDisabled disables resource filtering against this
-	// worker. The scheduler may assign any task to this worker.
-	ResourceFilteringDisabled = ResourceFilteringStrategy("disabled")
-)
-
-type Config struct {
-	ParallelFetchLimit int
-
-	// Local worker config
-	AllowSectorDownload      bool
-	AllowAddPiece            bool
-	AllowPreCommit1          bool
-	AllowPreCommit2          bool
-	AllowCommit              bool
-	AllowUnseal              bool
-	AllowReplicaUpdate       bool
-	AllowProveReplicaUpdate2 bool
-	AllowRegenSectorKey      bool
-
-	LocalWorkerName string
-
-	RemoteSeal                  bool
-	RemoteWnPoSt                int
-	RemoteWdPoSt                int
-	EnableForceRemoteWindowPoSt bool
-	// ResourceFiltering instructs the system which resource filtering strategy
-	// to use when evaluating tasks against this worker. An empty value defaults
-	// to "hardware".
-	ResourceFiltering ResourceFilteringStrategy
-
-	// PoSt config
-	ParallelCheckLimit        int
-	DisableBuiltinWindowPoSt  bool
-	DisableBuiltinWinningPoSt bool
-
-	DisallowRemoteFinalize bool
-
-	Assigner string
-}
-
 type StorageAuth http.Header
 
 // only for hlm worker
@@ -157,7 +112,7 @@ func NewWorkerManager(sb *ffiwrapper.Sealer) *Manager {
 type WorkerStateStore *statestore.StateStore
 type ManagerStateStore *statestore.StateStore
 
-func New(ctx context.Context, lstor *paths.Local, stor paths.Store, ls paths.LocalStorage, si paths.SectorIndex, sc Config, wss WorkerStateStore, mss ManagerStateStore) (*Manager, error) {
+func New(ctx context.Context, lstor *paths.Local, stor paths.Store, ls paths.LocalStorage, si paths.SectorIndex, sc config.SealerConfig, pc config.ProvingConfig, wss WorkerStateStore, mss ManagerStateStore) (*Manager, error) {
 	remoteCfg := ffiwrapper.RemoteCfg{
 		SealSector:                  sc.RemoteSeal,
 		WindowPoSt:                  sc.RemoteWdPoSt,
@@ -187,9 +142,11 @@ func New(ctx context.Context, lstor *paths.Local, stor paths.Store, ls paths.Loc
 
 		Prover: prover,
 
-		parallelCheckLimit:        sc.ParallelCheckLimit,
-		disableBuiltinWindowPoSt:  sc.DisableBuiltinWindowPoSt,
-		disableBuiltinWinningPoSt: sc.DisableBuiltinWinningPoSt,
+		parallelCheckLimit:        pc.ParallelCheckLimit,
+		singleCheckTimeout:        time.Duration(pc.SingleCheckTimeout),
+		partitionCheckTimeout:     time.Duration(pc.PartitionCheckTimeout),
+		disableBuiltinWindowPoSt:  pc.DisableBuiltinWindowPoSt,
+		disableBuiltinWinningPoSt: pc.DisableBuiltinWinningPoSt,
 		disallowRemoteFinalize:    sc.DisallowRemoteFinalize,
 
 		work:       mss,
@@ -238,7 +195,7 @@ func New(ctx context.Context, lstor *paths.Local, stor paths.Store, ls paths.Loc
 	}
 
 	wcfg := WorkerConfig{
-		IgnoreResourceFiltering: sc.ResourceFiltering == ResourceFilteringDisabled,
+		IgnoreResourceFiltering: sc.ResourceFiltering == config.ResourceFilteringDisabled,
 		TaskTypes:               localTasks,
 		Name:                    sc.LocalWorkerName,
 	}
@@ -261,8 +218,8 @@ func (m *Manager) AddLocalStorage(ctx context.Context, path string) error {
 		return xerrors.Errorf("opening local path: %w", err)
 	}
 
-	if err := m.ls.SetStorage(func(sc *paths.StorageConfig) {
-		sc.StoragePaths = append(sc.StoragePaths, paths.LocalPath{Path: path})
+	if err := m.ls.SetStorage(func(sc *storiface.StorageConfig) {
+		sc.StoragePaths = append(sc.StoragePaths, storiface.LocalPath{Path: path})
 	}); err != nil {
 		return xerrors.Errorf("get storage config: %w", err)
 	}
@@ -295,8 +252,8 @@ func (m *Manager) DetachLocalStorage(ctx context.Context, path string) error {
 
 	// drop from the persisted storage.json
 	var found bool
-	if err := m.ls.SetStorage(func(sc *paths.StorageConfig) {
-		out := make([]paths.LocalPath, 0, len(sc.StoragePaths))
+	if err := m.ls.SetStorage(func(sc *storiface.StorageConfig) {
+		out := make([]storiface.LocalPath, 0, len(sc.StoragePaths))
 		for _, storagePath := range sc.StoragePaths {
 			if storagePath.Path != path {
 				out = append(out, storagePath)
@@ -836,11 +793,6 @@ func (m *Manager) FinalizeReplicaUpdate(ctx context.Context, sector storiface.Se
 	move := func(types storiface.SectorFileType) error {
 		// get a selector for moving stuff into long-term storage
 		fetchSel := newMoveSelector(m.index, sector.ID, types, storiface.PathStorage, !m.disallowRemoteFinalize)
-		{
-			if len(keepUnsealed) == 0 {
-				moveUnsealed = storiface.FTNone
-			}
-		}
 
 		err = m.sched.Schedule(ctx, sector, sealtasks.TTFetch, fetchSel,
 			m.schedFetch(sector, types, storiface.PathStorage, storiface.AcquireMove),
@@ -856,7 +808,8 @@ func (m *Manager) FinalizeReplicaUpdate(ctx context.Context, sector storiface.Se
 
 	err = multierr.Append(move(storiface.FTUpdate|storiface.FTUpdateCache), move(storiface.FTCache))
 	err = multierr.Append(err, move(storiface.FTSealed)) // Sealed separate from cache just in case ReleaseSectorKey was already called
-	if moveUnsealed != storiface.FTNone {
+	// if we found unsealed files, AND have been asked to keep at least one, move unsealed
+	if moveUnsealed != storiface.FTNone && len(keepUnsealed) != 0 {
 		err = multierr.Append(err, move(moveUnsealed))
 	}
 

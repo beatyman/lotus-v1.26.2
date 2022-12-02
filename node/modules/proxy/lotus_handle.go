@@ -43,6 +43,18 @@ type LotusImpl struct {
 	token  string
 }
 
+func (s *LotusImpl) StartTime(ctx context.Context) (time.Time, error) {
+	return bestNodeApi().StartTime(ctx)
+}
+
+func (s *LotusImpl) RaftState(ctx context.Context) (*api.RaftStateData, error) {
+	return bestNodeApi().RaftState(ctx)
+}
+
+func (s *LotusImpl) RaftLeader(ctx context.Context) (peer.ID, error) {
+	return bestNodeApi().RaftLeader(ctx)
+}
+
 func (s *LotusImpl) StateGetAllocationForPendingDeal(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*verifreg.Allocation, error) {
 	return bestNodeApi().StateGetAllocationForPendingDeal(p0, p1,p2)
 }
