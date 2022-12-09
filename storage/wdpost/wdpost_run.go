@@ -184,10 +184,9 @@ func (s *WindowPoStScheduler) runSubmitPoST(
 		// Submit PoST
 		leftRetryTimes := 5
 	retry:
-		sm, err := s.submitPoStMessage(ctx, post)
-		if err != nil {
+		sm, submitErr := s.submitPoStMessage(ctx, post)
+		if submitErr != nil {
 			log.Errorf("submit window post failed, retry left:%d,: %+v", leftRetryTimes, submitErr)
-			submitErr = err
 			leftRetryTimes--
 			if leftRetryTimes > 0 {
 				time.Sleep(time.Duration(build.BlockDelaySecs) * time.Second)
