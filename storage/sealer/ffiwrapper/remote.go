@@ -519,7 +519,7 @@ selectWorker:
 		}
 
 		// only select the fastest success result to return
-		return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, err
+		return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, nil
 	}
 	return res.res.WindowPoStProofOut, res.res.WindowPoStIgnSectors, err
 }
