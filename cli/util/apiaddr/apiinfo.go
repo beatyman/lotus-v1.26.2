@@ -52,7 +52,7 @@ func (a *APIInfo) DialArgs(version string, repoType repo.RepoType) (string, erro
 		}
 
 		switch repoType {
-		case repo.FullNode, repo.StorageMiner,repo.Markets:
+		case repo.FullNode, repo.StorageMiner, repo.Markets:
 			return "wss://" + addr + "/rpc/" + version, nil
 		default:
 			return "ws://" + addr + "/rpc/" + version, nil
@@ -66,7 +66,6 @@ func (a *APIInfo) DialArgs(version string, repoType repo.RepoType) (string, erro
 	}
 	return a.Addr + "/rpc/" + version, nil
 }
-
 func (a *APIInfo) Host() (string, error) {
 	ma, err := multiaddr.NewMultiaddr(a.Addr)
 	if err == nil {
@@ -100,13 +99,7 @@ func ParseApiInfoMulti(s string) []APIInfo {
 	allAddrs := strings.SplitN(s, ",", -1)
 
 	for _, addr := range allAddrs {
-		if infoWithToken.Match([]byte(addr)) {
-			sp := strings.SplitN(addr, ":", 2)
-			apiInfos = append(apiInfos, APIInfo{
-				Addr:  sp[1],
-				Token: []byte(sp[0]),
-			})
-		}
+		apiInfos = append(apiInfos, ParseApiInfo(addr))
 	}
 
 	return apiInfos
