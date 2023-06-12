@@ -53,7 +53,7 @@ type HlmMinerStorage interface {
 	AddHLMStorage(ctx context.Context, info *database.StorageAuth) error
 	DisableHLMStorage(ctx context.Context, id int64, disable bool) error
 	MountHLMStorage(ctx context.Context, id int64) error
-	RelinkHLMStorage(ctx context.Context, id int64,minerAddr string) error
+	RelinkHLMStorage(ctx context.Context, id int64, minerAddr string) error
 	ReplaceHLMStorage(ctx context.Context, info *database.StorageAuth) error
 	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
 	StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error)
@@ -64,6 +64,11 @@ type HlmMinerStorage interface {
 }
 
 type HlmMinerWorker interface {
+	StatWorkerSealNumFn(ctx context.Context, startTime, endTime time.Time) (database.StatWorkerSealNums, error)
+	StatWorkerSealTimeFn(ctx context.Context, workerID string, startTime, endTime time.Time) (database.StatWorkerSealTimes, error)
+
+	WorkerProducerIdle(ctx context.Context) (int, error)
+
 	PauseSeal(ctx context.Context, pause int32) error
 
 	WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error)

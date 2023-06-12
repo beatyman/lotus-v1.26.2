@@ -1,11 +1,13 @@
 package database
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -223,6 +225,156 @@ func MountAllStorage(block bool) error {
 	return nil
 }
 
+// if the mountUri is local file, it would make a link.
+func MountPostWorker(ctx context.Context, mountType, mountUri, mountPoint, mountOpts string) error {
+	switch mountType {
+	case MOUNT_TYPE_OSS:
+		return nil
+	case MOUNT_TYPE_CUSTOM:
+		// close for customer protocal
+		//判断服务是否启动
+		serviceStart, err := CheckProRunning("kodo-fcfs")
+		if err != nil {
+			return errors.As(err, mountPoint)
+		}
+		//如果服务未启动，启动服务
+		if !serviceStart {
+			_, err = RunCommand("systemctl start kodo-fcfs.service ")
+			if err != nil {
+				return errors.As(err, " start service fault ", mountPoint)
+			}
+		}
+		//判断根目录存不存在，不存在直接报错
+		_, err = os.Stat(mountUri)
+		if err != nil {
+			return errors.As(err, " root not exist ", mountUri)
+		}
+		//判断目录是否存在
+		_, err = os.Stat(mountPoint)
+		isLink := false
+		if err == nil {
+
+			fileInfo, err := os.Lstat(mountPoint)
+			if err != nil {
+				return errors.As(err, " os.Lstat ", mountPoint)
+			}
+			if fileInfo.Mode()&os.ModeSymlink != 0 {
+				log.Info("===========目录是软连接不做操作", mountPoint)
+				//fmt.Println("目录是软连接，删除", mountPoint)
+				//err = os.RemoveAll(mountPoint)
+				//if err != nil {
+				//	fmt.Println("删除失败！")
+				//	return errors.As(err, " RemoveAll ", mountPoint)
+				//}
+				//isLink = true
+			} else {
+				//判断里面是否有文件，如果有文件，则不删除， 没有则删除
+				files, err := os.Open(mountPoint) //open the directory to read files in the directory
+				if err != nil {
+					fmt.Println("error opening directory:", err) //print error if directory is not opened
+					return errors.As(err, " Open ", mountPoint)
+				}
+				defer files.Close() //close the directory opened
+
+				fileInfos, err := files.Readdir(-1) //read the files from the directory
+				if err != nil {
+					fmt.Println("error reading directory:", err) //if directory is not read properly print error message
+					return errors.As(err, " Readdir ", mountPoint)
+				}
+				if len(fileInfos) > 0 {
+					return nil
+				}
+				err = os.RemoveAll(mountPoint)
+				if err != nil {
+					fmt.Println("删除失败！")
+					return errors.As(err, " RemoveAll ", mountPoint)
+				}
+				isLink = true
+			}
+		} else {
+			//目录不存在，创建软连接
+			isLink = true
+		}
+		if isLink {
+			//检查上级目录存不存在
+			_, err := os.Stat(mountPoint[0:strings.LastIndex(mountPoint, "/")])
+			if err != nil {
+				os.MkdirAll(mountPoint[0:strings.LastIndex(mountPoint, "/")], 0776)
+			}
+			err = os.Symlink(mountUri, mountPoint)
+			if err != nil {
+				return errors.As(err, " Symlink ", mountPoint)
+			}
+		}
+		return nil
+	}
+
+	// umount
+	if _, err := Umount(mountPoint); err != nil {
+		return errors.As(err, mountPoint)
+	}
+
+	// remove link
+	info, err := os.Lstat(mountPoint)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return errors.As(err, mountPoint)
+		}
+		// name not exist.
+	} else {
+		// clean the mount point
+		m := info.Mode()
+		if m&os.ModeSymlink == os.ModeSymlink {
+			// clean old link
+			if err := os.Remove(mountPoint); err != nil {
+				return errors.As(err, mountPoint)
+			}
+		} else if !m.IsDir() {
+			return errors.New("file has existed").As(mountPoint)
+		}
+	}
+
+	switch mountType {
+	case MOUNT_TYPE_HLM:
+		nfsClient := hlmclient.NewNFSClient(mountUri, mountOpts)
+		//nfsClient := hlmclient.NewNFSClient(mountUri, mountOpts)
+		if err := nfsClient.Mount(ctx, mountPoint); err != nil {
+			return errors.As(err, mountPoint)
+		}
+		return nil
+	case "":
+		if err := os.MkdirAll(filepath.Dir(mountPoint), 0755); err != nil {
+			return errors.As(err, mountUri, mountPoint)
+		}
+		if err := os.Symlink(mountUri, mountPoint); err != nil {
+			return errors.As(err, mountUri, mountPoint)
+		}
+	default:
+		if err := os.MkdirAll(mountPoint, 0755); err != nil {
+			return errors.As(err)
+		}
+
+		args := []string{
+			"-t", mountType, mountUri, mountPoint,
+		}
+		opts := strings.Split(mountOpts, " ")
+		for _, opt := range opts {
+			o := strings.TrimSpace(opt)
+			if len(o) > 0 {
+				args = append(args, o)
+			}
+		}
+		log.Info("storage mount", args)
+		timeoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		if out, err := exec.CommandContext(timeoutCtx, "mount", args...).CombinedOutput(); err != nil {
+			cancel()
+			return errors.As(err, string(out), args)
+		}
+		cancel()
+	}
+	return nil
+}
+
 // gc concurrency worker on the storage.
 func GetTimeoutTask(invalidTime time.Time) ([]SectorInfo, error) {
 	db := GetDB()
@@ -239,4 +391,79 @@ func GetTimeoutTask(invalidTime time.Time) ([]SectorInfo, error) {
 		}
 	}
 	return dropTasks, nil
+}
+
+func IsExeRuning(strKey string, strExeName string) bool {
+	buf := bytes.Buffer{}
+	cmd := exec.Command("wmic", "process", "get", "name,executablepath")
+	cmd.Stdout = &buf
+	cmd.Run()
+
+	cmd2 := exec.Command("findstr", strKey)
+	cmd2.Stdin = &buf
+	data, err := cmd2.CombinedOutput()
+	if err != nil && err.Error() != "exit status 1" {
+		//XBLog.LogF("ServerMonitor", "IsExeRuning CombinedOutput error, err:%s", err.Error())
+		return false
+	}
+
+	strData := string(data)
+	if strings.Contains(strData, strExeName) {
+		return true
+	} else {
+		return false
+	}
+}
+
+func runInWindows(cmd string) (string, error) {
+	result, err := exec.Command("cmd", "/c", cmd).Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(result)), err
+}
+
+func RunCommand(cmd string) (string, error) {
+	if runtime.GOOS == "windows" {
+		return runInWindows(cmd)
+	} else {
+		return runInLinux(cmd)
+	}
+}
+
+func Link(cmd string) (string, error) {
+	out, err := exec.Command("ll", cmd).Output()
+	if err != nil {
+		fmt.Println("执行命令出错：", err)
+		return "", err
+	}
+
+	fmt.Println(string(out))
+	return string(out), nil
+}
+
+func runInLinux(cmd string) (string, error) {
+	fmt.Println("Running Linux cmd:" + cmd)
+	result, err := exec.Command("/bin/sh", "-c", cmd).Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(result)), err
+}
+
+// 根据进程名判断进程是否运行
+func CheckProRunning(serverName string) (bool, error) {
+	a := `ps ux | awk '/` + serverName + `/ && !/awk/ {print $2}'`
+	pid, err := RunCommand(a)
+	if err != nil {
+		return false, err
+	}
+	return pid != "", nil
+}
+
+// 根据进程名称获取进程ID
+func GetPid(serverName string) (string, error) {
+	a := `ps ux | awk '/` + serverName + `/ && !/awk/ {print $2}'`
+	pid, err := RunCommand(a)
+	return pid, err
 }

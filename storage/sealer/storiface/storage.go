@@ -23,6 +23,8 @@ type SectorRef struct {
 
 	//扇区修复  0： 默认状态， 1.扇区修复标准状态， 2. 扇区修复执行指定二进制文件
 	SectorRepairStatus int
+	//是否存储unseal
+	StoreUnseal bool
 }
 type ProofSectorInfo struct {
 	SectorRef

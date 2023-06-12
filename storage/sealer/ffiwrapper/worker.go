@@ -307,6 +307,27 @@ func (sb *Sealer) PauseSeal(ctx context.Context, pause int32) error {
 	return nil
 }
 
+func (sb *Sealer) WorkerProducerIdle() int {
+	left := 0
+	_remotes.Range(func(key, val interface{}) bool {
+		r := val.(*remote)
+
+		if r.disable {
+			return true
+		}
+		if r.cfg.ParallelPledge <= 0 || r.cfg.ParallelPrecommit1 <= 0 {
+			return true
+		}
+
+		idle := r.Idle()
+		if idle > 0 {
+			left += idle
+		}
+		return true
+	})
+	return left
+}
+
 func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan WorkerTask, error) {
 	if len(cfg.ID) == 0 {
 		return nil, errors.New("Worker ID not found").As(cfg)
@@ -362,7 +383,7 @@ func (sb *Sealer) AddWorker(oriCtx context.Context, cfg WorkerCfg) (<-chan Worke
 	return rmt.sealTasks, nil
 }
 
-//worker(p1,c2)重启(或首次启动)的时候需要做一次初始化(重连的时候不需要)
+// worker(p1,c2)重启(或首次启动)的时候需要做一次初始化(重连的时候不需要)
 func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote, err error) {
 	log.Infof("init worker(%v) starting...", cfg.ID)
 
@@ -1438,6 +1459,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 	r.offlineRW.RLock()
 	cycle, retry := r.cfg.Cycle, r.cfg.Retry
 	r.offlineRW.RUnlock()
+	beginTime := time.Now()
 	defer func() {
 		_remoteResultLk.Lock()
 		delete(_remoteResult, taskKey)
@@ -1451,6 +1473,29 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 			r.UpdateTask(task.SectorName(), state) // set state to done
 			log.Infof("Delete task waiting :%s", taskKey)
 		}
+
+		// seal stat
+		endTime := time.Now()
+		sealStat := "success"
+		if len(res.Err) > 0 {
+			sealStat = res.Err
+		} else if res.GoErr != nil {
+			sealStat = res.GoErr.Error()
+		}
+		stSeal := &database.StatisSeal{
+			TaskID:    task.Key(),
+			Sid:       task.SectorName(),
+			Stage:     task.Type.Stage(),
+			WorkerID:  res.WorkerCfg.ID,
+			BeginTime: beginTime,
+			EndTime:   endTime,
+			Used:     int64(endTime.Sub(beginTime).Seconds()),
+			Error:     sealStat,
+		}
+		if err := database.PutStatisSeal(stSeal); err != nil {
+			log.Warn(errors.As(err))
+		}
+
 	}()
 
 	// send the task to daemon work.

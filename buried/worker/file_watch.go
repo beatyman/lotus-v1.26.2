@@ -18,7 +18,7 @@ var WORKER_WATCH_FILE = "../../etc/worker.yml"
 var FIEXED_ENV = "{\"IPFS_GATEWAY\":\"https://proof-parameters.s3.cn-south-1.jdcloud-oss.com/ipfs/\",\"FIL_PROOFS_USE_GPU_COLUMN_BUILDER\":\"1\",\"FIL_PROOFS_USE_GPU_TREE_BUILDER\":\"1\",\"FIL_PROOFS_MAXIMIZE_CACHING\":\"1\",\"FIL_PROOFS_USE_MULTICORE_SDR\":\"1\",\"FIL_PROOFS_PARENT_CACHE\":\"/data/cache/filecoin-parents\",\"FIL_PROOFS_PARAMETER_CACHE\":\"/data/cache/filecoin-proof-parameters/v28\",\"RUST_LOG\":\"info\",\"RUST_BACKTRACE\":\"1\"}"
 var ENVIRONMENT_VARIABLE = "{\"ENABLE_COPY_MERKLE_TREE\":\"1\",\"US3\":\"\"}"
 
-var cfg_worker = model.WorkerConf{}
+var CFG_WORKER = model.WorkerConf{}
 
 func InitWatch(ctx context.Context, workerId string, napi *api.RetryHlmMinerSchedulerAPI) chan bool {
 	log.Info("=================")
@@ -101,16 +101,16 @@ func Watch(ctx context.Context, watcher *fsnotify.Watcher, workerId string, napi
 						WdPoStSrv:          t.WdPoStSrv,
 						WnPoStSrv:          t.WnPoStSrv,
 					}
-					log.Info("==========1=111111111111111=1", cfg_worker)
+					log.Info("==========1=111111111111111=1", CFG_WORKER)
 					json1.ID = workerId
-					if !reflect.DeepEqual(cfg_worker, t) {
-						cfg_worker = t
+					if !reflect.DeepEqual(CFG_WORKER, t) {
+						CFG_WORKER = t
 						//发送api
 						err := napi.WorkerFileWatch(ctx, json1)
 						if err != nil {
 							log.Error("================WorkerFileWatch_ERR=========", err.Error())
 						}
-						log.Info("==========2=222222222222=2", cfg_worker)
+						log.Info("==========2=222222222222=2", CFG_WORKER)
 					}
 				}
 			}

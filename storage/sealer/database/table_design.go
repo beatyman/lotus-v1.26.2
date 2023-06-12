@@ -1,5 +1,17 @@
 package database
 
+import (
+	"fmt"
+	"github.com/gwaylib/database"
+	"github.com/gwaylib/errors"
+	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	_MONTH_TABLE_NAME = "MONTH_TABLE_NAME"
+)
 const (
 	tb_worker_sql = `
 CREATE TABLE IF NOT EXISTS worker_info (
@@ -104,6 +116,27 @@ CREATE TABLE IF NOT EXISTS statis_win (
 	win_used INTEGER NOT NULL DEFAULT 0 /*本地计算中奖的用时，单位为毫秒，除以win_gen可得到平均用时*/
 );
 `
+	tb_statis_seal_headname = "statis_seal"
+	tb_statis_seal_sql      = `
+CREATE TABLE IF NOT EXISTS MONTH_TABLE_NAME (
+	task_id TEXT NOT NULL PRIMARY KEY,
+	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
+	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
+
+	sid TEXT NOT NULL,
+	stage TEXT NOT NULL,
+	worker_id TEXT NOT NULL DEFAULT '',
+	begin_time DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
+	end_time DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
+	used INTEGER NOT NULL DEFAULT 0, /* ns */
+
+	error TEXT NOT NULL DEFAULT '' /* success, other's failed message. */
+
+);
+CREATE INDEX IF NOT EXISTS MONTH_TABLE_NAME_idx0 ON MONTH_TABLE_NAME(sid);
+CREATE INDEX IF NOT EXISTS MONTH_TABLE_NAME_idx1 ON MONTH_TABLE_NAME(created_at,worker_id);
+CREATE INDEX IF NOT EXISTS MONTH_TABLE_NAME_idx2 ON MONTH_TABLE_NAME(begin_time,stage);
+`
 	tb_market_deal_sql = `
 CREATE TABLE IF NOT EXISTS market_deal (
 	id TEXT NOT NULL PRIMARY KEY, /* propid */
@@ -128,3 +161,37 @@ CREATE INDEX IF NOT EXISTS market_deal_idx2 ON market_deal(file_local);
 `
 
 )
+
+var (
+	monthTbNameCache = map[string]string{}
+	monthTbLock      = sync.Mutex{}
+)
+
+func getMonthTableName(tableNameHead string, date time.Time) string {
+	timefmt := date.Format("200601")
+	return fmt.Sprintf(tableNameHead + "_" + timefmt)
+}
+
+// -- create sql need contain _MONTH_TABLE_NAME
+func createMonthTable(exec database.Execer, tableNameHead, createSql string, currentTime time.Time) (string, error) {
+	monthTbLock.Lock()
+	defer monthTbLock.Unlock()
+
+	tmpTbName := getMonthTableName(tableNameHead, currentTime)
+
+	// read from cache
+	tbName, ok := monthTbNameCache[tableNameHead]
+	if ok && tmpTbName == tbName {
+		return tbName, nil
+	}
+
+	tbName = tmpTbName
+	// create a new table to storage the log
+	destSql := strings.Replace(createSql, _MONTH_TABLE_NAME, tbName, -1)
+	if _, err := exec.Exec(destSql); err != nil {
+		return "", errors.As(err)
+	}
+	// put in cache when created successfull
+	monthTbNameCache[tableNameHead] = tbName
+	return tbName, nil
+}

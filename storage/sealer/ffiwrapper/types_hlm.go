@@ -57,6 +57,7 @@ const (
 	WorkerCommit                        = 40
 	WorkerCommitDone                    = 41
 	WorkerFinalize                      = 50
+	WorkerFinalizeDone                  = 51
 	WorkerUnseal                        = 60
 	WorkerUnsealDone                    = 61
 
@@ -65,6 +66,43 @@ const (
 	WorkerWindowPoSt  = 1000
 	WorkerWinningPoSt = 1010
 )
+
+func (wt WorkerTaskType) IsSealStage() bool {
+	switch wt {
+	case WorkerPledge, WorkerPledgeDone,
+		WorkerPreCommit1, WorkerPreCommit1Done,
+		WorkerPreCommit2, WorkerPreCommit2Done,
+		WorkerCommit, WorkerCommitDone,
+		WorkerFinalize, WorkerFinalizeDone,
+		WorkerUnseal, WorkerUnsealDone,
+		WorkerWindowPoSt, WorkerWinningPoSt:
+		return true
+	}
+	return false
+
+}
+
+func (wt WorkerTaskType) Stage() string {
+	switch wt {
+	case WorkerPledge, WorkerPledgeDone:
+		return database.SEAL_STAGE_AP
+	case WorkerPreCommit1, WorkerPreCommit1Done:
+		return database.SEAL_STAGE_P1
+	case WorkerPreCommit2, WorkerPreCommit2Done:
+		return database.SEAL_STAGE_P2
+	case WorkerCommit, WorkerCommitDone:
+		return database.SEAL_STAGE_COMMIT
+	case WorkerFinalize, WorkerFinalizeDone:
+		return database.SEAL_STAGE_FZ
+	case WorkerUnseal, WorkerUnsealDone:
+		return database.SEAL_STAGE_US
+	case WorkerWindowPoSt:
+		return database.SEAL_STAGE_WD
+	case WorkerWinningPoSt:
+		return database.SEAL_STAGE_WN
+	}
+	return fmt.Sprintf("unknow_%d", wt)
+}
 
 var (
 	ErrWorkerExit   = errors.New("Worker Exit")
@@ -178,6 +216,8 @@ type WorkerTask struct {
 
 	//扇区修复  0： 默认状态， 1.扇区修复标准状态， 2. 扇区修复执行指定二进制文件
 	SectorRepairStatus int
+	//是否存储unseal
+	StoreUnseal bool
 }
 
 func ParseTaskKey(key string) (string, int, error) {
@@ -239,6 +279,7 @@ type WorkerRemoteStats struct {
 	Srv      bool
 	BusyOn   string
 	SectorOn database.WorkingSectors
+	Cfg      WorkerCfg
 }
 
 func (w *WorkerRemoteStats) String() string {
@@ -332,6 +373,35 @@ func (r *remote) fakeFullTask() bool {
 		}
 	}
 	return count >= r.cfg.MaxTaskNum
+}
+
+func (r *remote) Idle() int {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+	// TODO: consider the queue?
+	num := 0
+	for _, val := range r.busyOnTasks {
+		if r.cfg.ID != val.WorkerID {
+			continue
+		}
+		switch val.Type {
+		case WorkerPledge:
+			num++
+		case WorkerPledgeDone:
+			num++
+		case WorkerPreCommit1:
+			num++
+		case WorkerPreCommit1Done:
+			num++
+		case WorkerPreCommit2:
+			num++
+		case WorkerUnseal:
+			num++
+		case WorkerUnsealDone:
+			num++
+		}
+	}
+	return r.cfg.MaxTaskNum - num
 }
 
 // for control the memory

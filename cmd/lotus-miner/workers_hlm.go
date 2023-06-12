@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/filecoin-project/lotus/monitor"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"huangdong2012/filecoin-monitor/model"
 	"huangdong2012/filecoin-monitor/trace/spans"
+	"sort"
 	"time"
 
 	"github.com/filecoin-project/lotus/api"
@@ -28,6 +31,9 @@ var hlmWorkerCmd = &cli.Command{
 		disableHLMWorkerCmd,
 		pauseHLMSealCmd,
 		unpauseHLMSealCmd,
+		producerIdleCmd,
+		statSealNumCmd,
+		statSealTimeCmd,
 	},
 }
 
@@ -365,5 +371,204 @@ var unpauseHLMSealCmd = &cli.Command{
 			return err
 		}
 		return printWorkerStat(ctx, nodeApi)
+	},
+}
+
+var producerIdleCmd = &cli.Command{
+	Name:  "producer-idle",
+	Usage: "stat idle of the worker producer",
+	Flags: []cli.Flag{},
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		num, err := nodeApi.WorkerProducerIdle(ctx)
+		if err != nil {
+			return errors.As(err)
+		}
+		fmt.Println(num)
+		return nil
+	},
+}
+var statSealNumCmd = &cli.Command{
+	Name:  "stat-seal-num",
+	Usage: "statis worker seal count number",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "stat-time",
+			Usage: "format is '2006-01-02 15:04:05' in local zone, using current time is not set",
+		},
+		&cli.IntFlag{
+			Name:  "past-hours",
+			Value: 12,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		endTime := time.Now()
+		endTimeStr := cctx.String("stat-time")
+		if len(endTimeStr) > 0 {
+			stTime, err := time.ParseInLocation("2006-01-02 15:04:05", endTimeStr, time.Local)
+			if err != nil {
+				return errors.As(err, endTimeStr)
+			}
+			endTime = stTime
+		}
+
+		pastHours := cctx.Int("past-hours")
+		if pastHours <= 0 {
+			return errors.New("error past-hours")
+		}
+		startTime := endTime.Add(time.Duration(-pastHours) * time.Hour)
+		result, err := nodeApi.StatWorkerSealNumFn(ctx, startTime, endTime)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("begin-time:%s, end-time:%s\n",
+			startTime.Format(time.RFC3339),
+			endTime.Format(time.RFC3339),
+		)
+		result.SortByFinalized()
+		result.Dump()
+		result.SumDump()
+		return nil
+	},
+}
+
+var statSealTimeCmd = &cli.Command{
+	Name:  "stat-seal-time",
+	Usage: "statis worker seal time",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "worker-id",
+			Usage: "Show all workers if id not set",
+		},
+		&cli.StringFlag{
+			Name:  "stat-time",
+			Usage: "format is '2006-01-06 15:04:05' in local zone, using current time is not set",
+		},
+		&cli.IntFlag{
+			Name:  "past-hours",
+			Value: 24,
+		},
+		&cli.BoolFlag{
+			Name:  "show-disabled",
+			Value: true,
+		},
+		&cli.BoolFlag{
+			Name:  "show-commit2",
+			Value: true,
+		},
+		&cli.BoolFlag{
+			Name:  "show-wdpost",
+			Value: true,
+		},
+		&cli.BoolFlag{
+			Name:  "show-wnpost",
+			Value: true,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		nodeApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+		endTime := time.Now()
+		endTimeStr := cctx.String("stat-time")
+		if len(endTimeStr) > 0 {
+			stTime, err := time.ParseInLocation("2006-01-02 15:04:05", endTimeStr, time.Local)
+			if err != nil {
+				return errors.As(err, endTimeStr)
+			}
+			endTime = stTime
+		}
+
+		pastHours := cctx.Int("past-hours")
+		if pastHours <= 0 {
+			return errors.New("error past-hours")
+		}
+		workerID := cctx.String("worker-id")
+		startTime := endTime.Add(time.Duration(-pastHours) * time.Hour)
+		fmt.Printf("begin-time:%s, end-time:%s\n",
+			startTime.Format(time.RFC3339),
+			endTime.Format(time.RFC3339),
+		)
+		if len(workerID) > 0 {
+			result, err := nodeApi.StatWorkerSealTimeFn(ctx, workerID, startTime, endTime)
+			if err != nil {
+				return err
+			}
+			result.Dump()
+		} else {
+			// show all
+			infos, err := nodeApi.WorkerStatusAll(ctx)
+			if err != nil {
+				return errors.As(err)
+			}
+			output := []struct {
+				Worker ffiwrapper.WorkerRemoteStats
+				Seal   database.StatWorkerSealTimes
+			}{}
+			showDisabled := cctx.Bool("show-disabled")
+			showCommit2Srv := cctx.Bool("show-commit2")
+			showWdPoStSrv := cctx.Bool("show-wdpost")
+			showWnPoStSrv := cctx.Bool("show-wnpost")
+			for _, r := range infos {
+				if r.Disable && !showDisabled {
+					continue
+				}
+				if r.Cfg.Commit2Srv && !showCommit2Srv {
+					continue
+				}
+				if r.Cfg.WdPoStSrv && !showWdPoStSrv {
+					continue
+				}
+				if r.Cfg.WnPoStSrv && !showWnPoStSrv {
+					continue
+				}
+				result, err := nodeApi.StatWorkerSealTimeFn(ctx, r.ID, startTime, endTime)
+				if err != nil {
+					return err
+				}
+				if len(result) > 0 {
+					output = append(output, struct {
+						Worker ffiwrapper.WorkerRemoteStats
+						Seal   database.StatWorkerSealTimes
+					}{
+						Worker: r,
+						Seal:   result,
+					})
+				}
+			}
+			// sort
+			sort.Slice(output, func(i, j int) bool {
+				if output[i].Worker.Srv != output[j].Worker.Srv {
+					return output[i].Worker.Srv && !output[j].Worker.Srv
+				}
+				if output[i].Worker.IP != output[j].Worker.IP {
+					return output[i].Worker.IP < output[j].Worker.IP
+				}
+				return output[i].Worker.ID < output[j].Worker.ID
+			})
+			for _, o := range output {
+				fmt.Println()
+				fmt.Printf("worker:%s(%s),p1:%d,p2:%d,c2:%t,wdpost:%t,wnpost:%t\n",
+					o.Worker.ID[:8], o.Worker.IP, o.Worker.Cfg.ParallelPrecommit1, o.Worker.Cfg.ParallelPrecommit2,
+					o.Worker.Cfg.Commit2Srv, o.Worker.Cfg.WdPoStSrv, o.Worker.Cfg.WnPoStSrv,
+				)
+				o.Seal.Dump()
+			}
+		}
+		return nil
 	},
 }
