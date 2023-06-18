@@ -459,18 +459,16 @@ require (
 
 replace github.com/filecoin-project/filecoin-ffi => ./extern/filecoin-ffi
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.1.1-0.20221014042533-13f5193f5672
+replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
-replace go.etcd.io/etcd/clientv3 => github.com/etcd-io/etcd/clientv3 v0.0.0-20210512015243-d19fbe541bf9
+replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.1.1-0.20230413113057-87d07838d99b
 
 replace github.com/filecoin-project/test-vectors => ./extern/test-vectors
 
-replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
-
-replace github.com/ipfs/go-ipfs-blockstore => github.com/ipfs/go-ipfs-blockstore v1.1.2
-
-replace github.com/drand/drand => github.com/beatyman/drand v1.3.1-0.20220322013436-8d791775a900
+replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.5
 
 replace huangdong2012/filecoin-monitor => github.com/huangdong2012/filecoin-monitor v0.0.0-20211111023751-88bf10c05cd1
 
-replace go.opencensus.io => github.com/huangdong2012/opencensus-go v0.0.0-20210811152114-2cc76fc1a84f
+replace go.opencensus.io => github.com/hlm-filecoin/opencensus-go v0.0.0-20230418095303-226cd2477b0a
+
+replace github.com/uber/jaeger-client-go => github.com/uber/jaeger-client-go v2.25.0+incompatiblea84f
