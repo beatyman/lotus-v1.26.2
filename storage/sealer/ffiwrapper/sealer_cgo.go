@@ -10,12 +10,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"github.com/filecoin-project/go-fil-markets/shared"
-	"github.com/filecoin-project/go-padreader"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
-	carv2 "github.com/ipld/go-car/v2"
 	"io"
 	"io/ioutil"
 	"math/bits"
@@ -299,12 +296,11 @@ func (sb *Sealer) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, 
 		PieceCID: pieceCID,
 	}, nil
 }
-func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, pieceData io.Reader) (abi.PieceInfo, error) {
-
+func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, file storiface.Data) (abi.PieceInfo, error) {
 	if err := os.Mkdir(filepath.Dir(sector.UnsealedFile()), 0755); err != nil { // nolint
 		log.Warnf("existing unseal repo in %s", sector.UnsealedRepo)
 	}
-	origPieceData := pieceData
+	origPieceData := file
 	defer func() {
 		closer, ok := origPieceData.(io.Closer)
 		if !ok {
@@ -315,7 +311,7 @@ func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, exis
 			log.Warnw("closing pieceData in AddPiece", "error", err)
 		}
 	}()
-
+	isSectorCc:=!sector.SectorFile.IsMarketSector
 	// uprade SectorRef
 	var err error
 	sector, err = database.FillSectorFile(sector, sb.RepoPath())
@@ -329,16 +325,7 @@ func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, exis
 	log.Info("secors =============", sector)
 	log.Info("existingPieceSizes len =============", len(existingPieceSizes))
 	log.Info("pieceSize==== =============", pieceSize)
-	isSectorCc := false
-	//todo hb_fix
-	if len(existingPieceSizes) == 0 {
-		isSectorCc = true
-	}
-	//当miner为有效订单是 isSectorCc 设置为false
-	if sector.SectorFile.IsMarketSector {
-		log.Info("sector.SectorFile.IsMarketSector Eff order===========================================", sector.SectorFile.IsMarketSector, sector.ID)
-		isSectorCc = false
-	}
+	log.Info("file========= =============", file)
 	//判断扇区是否是空单数据
 	log.Info("SecotrId _ isSectorCc====================", sector.ID, isSectorCc)
 	if isSectorCc {
@@ -401,12 +388,13 @@ func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, exis
 			}
 		}
 	}()
+
 	unsealedPath := sector.UnsealedFile()
 	if err := os.MkdirAll(filepath.Dir(unsealedPath), 0755); err != nil {
 		return abi.PieceInfo{}, xerrors.Errorf("creating unsealed sector file: %w", err)
 	}
 	if len(existingPieceSizes) == 0 {
-		stagedFile, err = partialfile.CreatePartialFile(maxPieceSize, sector.UnsealedFile())
+		stagedFile, err = partialfile.CreateUnsealedPartialFile(maxPieceSize, sector)
 		//拷贝文件
 		if isSectorCc {
 			log.Info("copyFile path ====================", path)
@@ -420,12 +408,11 @@ func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, exis
 		}
 	} else {
 		log.Info("===============================================Effective order======", sector.ID)
-		stagedFile, err = partialfile.OpenPartialFile(maxPieceSize, sector.UnsealedFile())
+		stagedFile, err = partialfile.OpenUnsealedPartialFile(maxPieceSize, sector)
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("opening unsealed sector file: %w", err)
 		}
 	}
-
 	w, err := stagedFile.Writer(storiface.UnpaddedByteIndex(offset).Padded(), pieceSize.Padded())
 	if err != nil {
 		return abi.PieceInfo{}, xerrors.Errorf("getting partial file writer: %w", err)
@@ -433,7 +420,7 @@ func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, exis
 
 	pw := fr32.NewPadWriter(w)
 
-	pr := io.TeeReader(io.LimitReader(pieceData, int64(pieceSize)), pw)
+	pr := io.TeeReader(io.LimitReader(file, int64(pieceSize)), pw)
 
 	throttle := make(chan []byte, parallel)
 	piecePromises := make([]func() (abi.PieceInfo, error), 0)
@@ -574,52 +561,6 @@ func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, exis
 		Size:     pieceSize.Padded(),
 		PieceCID: pieceCID,
 	}, nil
-}
-func (sb *Sealer) AddPieceX(ctx context.Context, sid abi.SectorID, sz abi.UnpaddedPieceSize, rdr io.Reader) (io.Reader, string,error) {
-	if !IsAddPieceDeal(ctx) {
-		return rdr, "",nil
-	}
-	log.Infof("AddPieceX: %+v",IsAddPieceDeal(ctx))
-	var (
-		err   error
-		dInfo *DealInfo
-		dPath string
-		size  uint64
-		v2r   *carv2.Reader
-		dr    carv2.SectionReader
-		pr    io.Reader
-	)
-	defer func() {
-		log.Infow("add piece with mount deal", "miner", sid.Miner, "number", sid.Number, "path", dPath, "total-size", size, "target-size", int64(sz), "err", err)
-	}()
-	if dInfo, err = parseDealInfo(rdr); err != nil {
-		return nil, "",fmt.Errorf("parse deal info: %w", err)
-	}
-	dPath=dInfo.FilePath
-	/*	if dPath, err = parseDealPath(sb.RepoPath(), dInfo); err != nil {
-		return nil, fmt.Errorf("parse deal path: %w", err)
-	}*/
-	if v2r, err = carv2.OpenReader(dPath); err != nil {
-		return nil,"", fmt.Errorf("failed to open car file(%v): %w", dPath, err)
-	}
-	switch v2r.Version {
-	case 1:
-		st, err := os.Stat(dPath)
-		if err != nil {
-			return nil,"", fmt.Errorf("failed to stat CARv1 file: %w", err)
-		}
-		size = uint64(st.Size())
-	case 2:
-		size = v2r.Header.DataSize
-	}
-	if dr, err = v2r.DataReader(); err != nil {
-		return nil,"", fmt.Errorf("failed to get data reader over CAR file: %w", err)
-	}
-	if pr, err = padreader.NewInflator(dr, size, sz); err != nil {
-		_ = v2r.Close()
-		return nil, "",fmt.Errorf("failed to create inflator: %w", err)
-	}
-	return newReadCloser(pr, v2r),dPath, nil
 }
 func (sb *Sealer) pieceCid(spt abi.RegisteredSealProof, in []byte) (cid.Cid, error) {
 	prf, werr, err := commpffi.ToReadableFile(bytes.NewReader(in), int64(len(in)))
@@ -1662,7 +1603,7 @@ func (sb *Sealer) GenerateWindowPoStWithVanilla(ctx context.Context, proofType a
 	}, nil
 }
 
-//拷贝文件
+// 拷贝文件
 func CopyFile(src, dst string) bool {
 	if len(src) == 0 || len(dst) == 0 {
 		return false

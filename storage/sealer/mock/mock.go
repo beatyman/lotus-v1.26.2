@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"github.com/filecoin-project/go-fil-markets/shared"
 	"io"
 	"math/rand"
 	"sync"
@@ -86,9 +87,12 @@ func (mgr *SectorMgr) DataCid(ctx context.Context, size abi.UnpaddedPieceSize, r
 	panic("todo")
 }
 
-func (mgr *SectorMgr) AddPiece(ctx context.Context, sectorID storiface.SectorRef, existingPieces []abi.UnpaddedPieceSize, size abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
+func (mgr *SectorMgr) AddPiece(ctx context.Context, sectorID storiface.SectorRef, existingPieces []abi.UnpaddedPieceSize, size abi.UnpaddedPieceSize,  pieceData storiface.PieceData) (abi.PieceInfo, error) {
 	log.Warn("Add piece: ", sectorID, size, sectorID.ProofType)
-
+	r, err := pieceData.ToReader()
+	if err != nil {
+		return abi.PieceInfo{}, xerrors.Errorf("failed to get piece data: %w", err)
+	}
 	var b bytes.Buffer
 	tr := io.TeeReader(r, &b)
 
@@ -497,7 +501,7 @@ func (mgr *SectorMgr) StageFakeData(mid abi.ActorID, spt abi.RegisteredSealProof
 		ProofType: spt,
 	}
 
-	pi, err := mgr.AddPiece(context.TODO(), id, nil, usize, bytes.NewReader(buf))
+	pi, err := mgr.AddPiece(context.TODO(), id, nil, usize, shared.NewRandPieceData(usize))
 	if err != nil {
 		return storiface.SectorRef{}, nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/docker/go-units"
+	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/go-state-types/abi"
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
@@ -11,7 +12,6 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"math"
-	"math/rand"
 	"os"
 	"os/signal"
 	"sort"
@@ -470,8 +470,9 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 	switch task.Type {
 	case TASK_KIND_ADDPIECE:
 		startTime := time.Now()
-		r := rand.New(rand.NewSource(100 + int64(task.SectorID.Number)))
-		pi, err := sb.AddPiece(ctx, sid, nil, abi.PaddedPieceSize(sectorSize).Unpadded(), r)
+		//r := rand.New(rand.NewSource(100 + int64(task.SectorID.Number)))
+		pieceSize := abi.PaddedPieceSize(sectorSize).Unpadded()
+		pi, err := sb.AddPiece(ctx, sid, nil, abi.PaddedPieceSize(sectorSize).Unpadded(), shared.NewRandPieceData(pieceSize))
 		if err != nil {
 			panic(err) // failed
 		}

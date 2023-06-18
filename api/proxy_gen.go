@@ -5,6 +5,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"time"
 
@@ -934,7 +935,7 @@ type StorageMinerMethods struct {
 
 	DealsConsiderVerifiedStorageDeals func(p0 context.Context) (bool, error) `perm:"admin"`
 
-	DealsImportData func(p0 context.Context, p1 cid.Cid, p2 string) error `perm:"admin"`
+	DealsImportData func(p0 context.Context, p1 shared.PieceDataInfo) error `perm:"admin"`
 
 	DealsList func(p0 context.Context) ([]*MarketDeal, error) `perm:"admin"`
 
@@ -970,7 +971,7 @@ type StorageMinerMethods struct {
 
 	MarketGetRetrievalAsk func(p0 context.Context) (*retrievalmarket.Ask, error) `perm:"read"`
 
-	MarketImportDealData func(p0 context.Context, p1 cid.Cid, p2 string) error `perm:"write"`
+	MarketImportDealData func(p0 context.Context, p1 shared.PieceDataInfo) error `perm:"write"`
 
 	MarketListDataTransfers func(p0 context.Context) ([]DataTransferChannel, error) `perm:"write"`
 
@@ -1111,8 +1112,6 @@ type StorageMinerMethods struct {
 	ReadPieceStorageInfo func(p0 context.Context, p1 storiface.SectorRef) (database.SectorStorage, error) `perm:"admin"`
 
 	SectorsUpdate func(p0 context.Context, p1 abi.SectorNumber, p2 SectorState) error `perm:"admin"`
-
-	ReadPieceStorageInfo func(p0 context.Context, p1 storiface.SectorRef) (database.SectorStorage, error) `perm:"admin"`
 
 	StorageAddLocal func(p0 context.Context, p1 string) error `perm:"admin"`
 
@@ -5582,14 +5581,14 @@ func (s *StorageMinerStub) DealsConsiderVerifiedStorageDeals(p0 context.Context)
 	return false, ErrNotSupported
 }
 
-func (s *StorageMinerStruct) DealsImportData(p0 context.Context, p1 cid.Cid, p2 string) error {
+func (s *StorageMinerStruct) DealsImportData(p0 context.Context, p1 shared.PieceDataInfo) error {
 	if s.Internal.DealsImportData == nil {
 		return ErrNotSupported
 	}
-	return s.Internal.DealsImportData(p0, p1, p2)
+	return s.Internal.DealsImportData(p0, p1)
 }
 
-func (s *StorageMinerStub) DealsImportData(p0 context.Context, p1 cid.Cid, p2 string) error {
+func (s *StorageMinerStub) DealsImportData(p0 context.Context, p1 shared.PieceDataInfo) error {
 	return ErrNotSupported
 }
 
@@ -5780,14 +5779,14 @@ func (s *StorageMinerStub) MarketGetRetrievalAsk(p0 context.Context) (*retrieval
 	return nil, ErrNotSupported
 }
 
-func (s *StorageMinerStruct) MarketImportDealData(p0 context.Context, p1 cid.Cid, p2 string) error {
+func (s *StorageMinerStruct) MarketImportDealData(p0 context.Context, p1 shared.PieceDataInfo) error {
 	if s.Internal.MarketImportDealData == nil {
 		return ErrNotSupported
 	}
-	return s.Internal.MarketImportDealData(p0, p1, p2)
+	return s.Internal.MarketImportDealData(p0, p1)
 }
 
-func (s *StorageMinerStub) MarketImportDealData(p0 context.Context, p1 cid.Cid, p2 string) error {
+func (s *StorageMinerStub) MarketImportDealData(p0 context.Context, p1 shared.PieceDataInfo) error {
 	return ErrNotSupported
 }
 

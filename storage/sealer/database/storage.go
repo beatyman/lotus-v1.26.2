@@ -32,6 +32,7 @@ const (
 	MOUNT_TYPE_CUSTOM = "custom"
 	MOUNT_TYPE_CEPH   = "ceph"
 	MOUNT_TYPE_OSS    = "oss"
+	MOUNT_TYPE_PB     = "pb-storage"    // the auth save with params url and will set to env
 )
 
 type StorageMountPoint struct {

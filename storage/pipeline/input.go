@@ -3,11 +3,9 @@ package sealing
 import (
 	"context"
 	"github.com/filecoin-project/go-fil-markets/shared"
-	"github.com/filecoin-project/go-jsonrpc/meta"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/gwaylib/errors"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -197,13 +195,6 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 
 	return false, nil
 }
-func SetPieceDealInfo(ctx context.Context, deal api.PieceDealInfo) context.Context {
-	ctx = meta.Set(ctx, ffiwrapper.MetaSealerDealID, strconv.FormatInt(int64(deal.DealID), 10))
-	if deal.PublishCid != nil {
-		ctx = meta.Set(ctx, ffiwrapper.MetaSealerDealPublishCID, deal.PublishCid.String())
-	}
-	return ctx
-}
 
 func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) error {
 	ssize, err := sector.SectorType.SectorSize()
@@ -264,8 +255,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 		log.Infow("Add pads piece", "deal", deal.deal.DealID, "sector", sector.SectorNumber)
 		for _, p := range pads {
 			expectCid := zerocomm.ZeroPieceCommitment(p.Unpadded())
-			sCtx := sealer.WithPriority(ctx.Context(), DealSectorPriority)
-			ppi, err := m.sealer.AddPiece(ffiwrapper.SetAddPiecePad(sCtx),
+			ppi, err := m.sealer.AddPiece(sealer.WithPriority(ctx.Context(), DealSectorPriority),
 				m.minerSector(sector.SectorType, sector.SectorNumber),
 				pieceSizes,
 				p.Unpadded(),
@@ -306,9 +296,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 				return errors.As(err)
 			}
 		}
-		sCtx := sealer.WithPriority(ctx.Context(), DealSectorPriority)
-		sCtx = SetPieceDealInfo(sCtx, deal.deal)
-		ppi, err := m.sealer.AddPiece(ffiwrapper.SetAddPieceDeal(sCtx),
+		ppi, err := m.sealer.AddPiece(sealer.WithPriority(ctx.Context(), DealSectorPriority),
 			m.minerSector(sector.SectorType, sector.SectorNumber),
 			pieceSizes,
 			deal.size,
@@ -451,6 +439,9 @@ func (m *Sealing) addPendingPiece(ctx context.Context, size abi.UnpaddedPieceSiz
 
 		doneCh:   doneCh,
 		assigned: false,
+	}
+	if pp.deal.DealProposal != nil{
+		log.Infof("deal meta=> propid:%s,dealnum:%d ,%+v ",pp.data.PropCid, pp.deal.DealID,data)
 	}
 	pp.accepted = func(sn abi.SectorNumber, offset abi.UnpaddedPieceSize, err error) {
 		if err == nil && database.HasDB() && pp.deal.DealProposal != nil {

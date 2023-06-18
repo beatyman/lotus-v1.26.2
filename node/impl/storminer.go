@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"net/http"
-	"os"
 	"sort"
 	"strconv"
 	"time"
@@ -508,14 +508,12 @@ func (sm *StorageMinerAPI) SealingRemoveRequest(ctx context.Context, schedId uui
 	return sm.StorageMgr.RemoveSchedRequest(ctx, schedId)
 }
 
-func (sm *StorageMinerAPI) MarketImportDealData(ctx context.Context, propCid cid.Cid, path string) error {
-	fi, err := os.Open(path)
+func (sm *StorageMinerAPI) MarketImportDealData(ctx context.Context, pieceData shared.PieceDataInfo) error {
+	dealId, err := pieceData.ProposeCid()
 	if err != nil {
-		return xerrors.Errorf("failed to open file: %w", err)
+		return err
 	}
-	defer fi.Close() //nolint:errcheck
-
-	return sm.StorageProvider.ImportDataForDeal(ctx, propCid, fi)
+	return sm.StorageProvider.ImportDataForDeal(ctx, dealId, pieceData)
 }
 
 func (sm *StorageMinerAPI) listDeals(ctx context.Context) ([]*api.MarketDeal, error) {
@@ -1217,14 +1215,12 @@ func (sm *StorageMinerAPI) DealsSetExpectedSealDurationFunc(ctx context.Context,
 	return sm.SetExpectedSealDurationFunc(d)
 }
 
-func (sm *StorageMinerAPI) DealsImportData(ctx context.Context, deal cid.Cid, fname string) error {
-	fi, err := os.Open(fname)
+func (sm *StorageMinerAPI) DealsImportData(ctx context.Context, pieceData shared.PieceDataInfo) error {
+	dealId, err := pieceData.ProposeCid()
 	if err != nil {
-		return xerrors.Errorf("failed to open given file: %w", err)
+		return err
 	}
-	defer fi.Close() //nolint:errcheck
-
-	return sm.StorageProvider.ImportDataForDeal(ctx, deal, fi)
+	return sm.StorageProvider.ImportDataForDeal(ctx, dealId, pieceData)
 }
 
 func (sm *StorageMinerAPI) DealsPieceCidBlocklist(ctx context.Context) ([]cid.Cid, error) {

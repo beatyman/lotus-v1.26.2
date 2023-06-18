@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -53,6 +54,14 @@ func NewStorageFileServer(repo string) *StorageFileServer {
 	mu.PathPrefix("/file/filecoin-proof-parameters").Handler(http.StripPrefix(
 		"/file/filecoin-proof-parameters",
 		&fileHandle{handler: http.FileServer(http.Dir(paramsPath))}, // TODO: get from env
+	))
+	dealStagePath := os.Getenv("FIL_DEAL_STAGING_CACHE")
+	if len(dealStagePath) == 0 {
+		dealStagePath = filepath.Join(repo, "deal-staging")
+	}
+	mu.PathPrefix("/file/deal-staging").Handler(http.StripPrefix(
+		"/file/deal-staging",
+		&fileHandle{handler: http.FileServer(http.Dir(dealStagePath))},
 	))
 	return &StorageFileServer{
 		repo:   repo,

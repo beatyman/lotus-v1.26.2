@@ -61,6 +61,8 @@ type HlmMinerSchedulerStruct struct {
 		RequestDisableWorker func(ctx context.Context, wid string) error `perm:"read"`
 		//miner info
 		GetMinerInfo func(ctx context.Context) string `perm:"read"`
+		//store info
+		GetStorage  func(ctx context.Context, storageId int64) (*database.StorageInfo, error) `perm:"read"`
 	}
 }
 
@@ -157,5 +159,7 @@ func (c *HlmMinerSchedulerStruct) RequestDisableWorker(ctx context.Context, wid 
 func (c *HlmMinerSchedulerStruct) GetMinerInfo(ctx context.Context) string {
 	return c.Internal.GetMinerInfo(ctx)
 }
-
+func (c *HlmMinerSchedulerStruct) GetStorage(ctx context.Context, storageId int64) (*database.StorageInfo, error) {
+	return c.Internal.GetStorage(ctx,storageId)
+}
 var _ HlmMinerSchedulerAPI = &HlmMinerSchedulerStruct{}

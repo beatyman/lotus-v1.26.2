@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/filecoin-project/go-fil-markets/shared"
 	"io"
 	"os"
 	"path/filepath"
@@ -363,6 +364,13 @@ var dealsImportDataCmd = &cli.Command{
 	Name:      "import-data",
 	Usage:     "Manually import data for a deal",
 	ArgsUsage: "<proposal CID> <file>",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:  "storage-id",
+			Usage: "which storage will be used.",
+			Value: 0,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := lcli.GetMarketsAPI(cctx)
 		if err != nil {
@@ -372,7 +380,7 @@ var dealsImportDataCmd = &cli.Command{
 
 		ctx := lcli.DaemonContext(cctx)
 
-		if cctx.NArg() != 2 {
+		if cctx.NArg() != 3 {
 			return lcli.IncorrectNumArgs(cctx)
 		}
 
@@ -382,9 +390,19 @@ var dealsImportDataCmd = &cli.Command{
 		}
 
 		fpath := cctx.Args().Get(1)
+		remoteUri := ""
+		if cctx.Args().Len() > 2 {
+			remoteUri = cctx.Args().Get(2)
+		}
 
-		return api.DealsImportData(ctx, propCid, fpath)
-
+		pieceData := shared.PieceDataInfo{
+			ReaderKind:    shared.PIECE_DATA_KIND_FILE,
+			LocalPath:     fpath,
+			ServerStorage: cctx.Int64("storage-id"),
+			ServerFullUri: remoteUri,
+			PropCid:       fmt.Sprintf("%s", propCid),
+		}
+		return api.DealsImportData(ctx, pieceData)
 	},
 }
 

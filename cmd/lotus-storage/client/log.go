@@ -5,7 +5,7 @@ import (
 
 	"github.com/gwaylib/log/logger"
 	"github.com/gwaylib/log/logger/adapter/stdio"
-	"github.com/gwaylib/log/logger/proto"
+	"github.com/gwaylib/log/proto"
 )
 
 var log *logger.Logger

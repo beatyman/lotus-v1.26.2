@@ -50,4 +50,5 @@ type HlmMinerSchedulerAPI interface {
 	GetWorkerBusyTask(ctx context.Context, wid string) (int, error)
 	RequestDisableWorker(ctx context.Context, wid string) error
 	GetMinerInfo(ctx context.Context) string
+	GetStorage(ctx context.Context, storageId int64) (*database.StorageInfo, error)
 }

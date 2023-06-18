@@ -1201,8 +1201,10 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		if ok || !r.LimitParallel(WorkerFinalize, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
+			log.Infow("finalize task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 		} else {
 			sb.returnTaskWithoutCounter(*wc)
+			log.Infow("finalize task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 			time.Sleep(time.Second * 3)
 		}
 	}

@@ -290,3 +290,19 @@ func (a *RetryHlmMinerSchedulerAPI) RetryHlmSectorGetState(ctx context.Context, 
 	}
 	return out, err
 }
+func (a *RetryHlmMinerSchedulerAPI) RetryGetStorage(ctx context.Context, storageId int64) (*database.StorageInfo, error) {
+	var (
+		err error
+		out *database.StorageInfo
+	)
+	for i := 0; true; i++ {
+		if out, err = a.HlmMinerSchedulerAPI.GetStorage(ctx, storageId); err == nil {
+			return out, nil
+		}
+		if !a.RetryEnable(err) {
+			return out, err
+		}
+		time.Sleep(time.Second * 10)
+	}
+	return out, err
+}

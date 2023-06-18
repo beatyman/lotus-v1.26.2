@@ -8,6 +8,7 @@ import (
 	"go.opencensus.io/trace/propagation"
 	"math"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -82,7 +83,7 @@ func (sb *Sealer) addPieceRemote(call workerCall) (abi.PieceInfo, error) {
 func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, pieceData storiface.PieceData) (abi.PieceInfo, error) {
 	log.Infof("DEBUG:AddPiece in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
 	defer log.Infof("DEBUG:AddPiece out,%+v", sector.ID)
-	if database.HasDB() {
+	if database.HasDB() && len(pieceData.PropCid) > 0 {
 		// fix piece data
 		dbDeal, err := database.GetMarketDealInfo(pieceData.PropCid)
 		if err == nil {
@@ -90,9 +91,13 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 			if dbDeal.FileStorage > 0 {
 				pieceData.ServerStorage = dbDeal.FileStorage // restore from db
 				pieceData.ServerFullUri = dbDeal.FileRemote  // restore from db
+				if len(pieceData.ServerFileName)==0{
+					pieceData.ServerFileName =filepath.Base(dbDeal.FileLocal)
+				}
 				log.Infof("Restore AddPieceData:%+v", pieceData)
 			}
 		}
+		log.Infof("fixed AddPiece meta data: %+v", pieceData)
 	}
 	//todo fix_hb
 	atomic.AddInt32(&_pledgeWait, 1)
@@ -112,7 +117,6 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 			SectorID:           sector.ID,
 			ExistingPieceSizes: existingPieceSizes,
 			PieceSize:          pieceSize,
-			AddPieceKind:       GetAddPieceKind(ctx),
 			PieceData:          pieceData,
 		},
 		ret: make(chan SealRes),
@@ -140,8 +144,7 @@ func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 		return []abi.PieceInfo{}, xerrors.New("sectorbuilder stopped")
 	}
 }
-//todo hb_fix
-/*
+
 func (sb *Sealer) PledgeSector(ctx context.Context, sector storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	snap := false
 	if v := ctx.Value("SNAP"); v != nil {
@@ -178,7 +181,6 @@ func (sb *Sealer) PledgeSector(ctx context.Context, sector storiface.SectorRef, 
 		return sb.pledgeRemote(call)
 	}
 }
-*/
 func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storiface.PreCommit1Out, error) {
 	select {
 	case ret := <-call.ret:

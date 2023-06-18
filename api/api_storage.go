@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"time"
 
@@ -220,7 +221,7 @@ type StorageMiner interface {
 	StorageDetachLocal(ctx context.Context, path string) error                           //perm:admin
 	StorageRedeclareLocal(ctx context.Context, id *storiface.ID, dropMissing bool) error //perm:admin
 
-	MarketImportDealData(ctx context.Context, propcid cid.Cid, path string) error //perm:write
+	MarketImportDealData(ctx context.Context, pieceData shared.PieceDataInfo) error //perm:write
 	MarketListDeals(ctx context.Context) ([]*MarketDeal, error)                   //perm:read
 
 	// MarketListRetrievalDeals is deprecated, returns empty list
@@ -302,7 +303,7 @@ type StorageMiner interface {
 	// in this instance.
 	RuntimeSubsystems(ctx context.Context) (MinerSubsystems, error) //perm:read
 
-	DealsImportData(ctx context.Context, dealPropCid cid.Cid, file string) error //perm:admin
+	DealsImportData(ctx context.Context, pieceData shared.PieceDataInfo) error //perm:admin
 	DealsList(ctx context.Context) ([]*MarketDeal, error)                        //perm:admin
 	DealsConsiderOnlineStorageDeals(context.Context) (bool, error)               //perm:admin
 	DealsSetConsiderOnlineStorageDeals(context.Context, bool) error              //perm:admin

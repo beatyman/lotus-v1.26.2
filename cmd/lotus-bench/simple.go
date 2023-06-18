@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/mitchellh/go-homedir"
 	"os"
 	"strconv"
@@ -193,14 +194,17 @@ var simpleAddPiece = &cli.Command{
 			ProofType: spt(sectorSize),
 		}
 
-		data, err := os.Open(cctx.Args().First())
+		/*data, err := os.Open(cctx.Args().First())
 		if err != nil {
 			return xerrors.Errorf("open data file: %w", err)
-		}
+		}*/
 
 		start := time.Now()
-
-		pi, err := sealer.AddPiece(ctx, sr, []abi.UnpaddedPieceSize{}, abi.PaddedPieceSize(sectorSize).Unpadded(), data)
+		pieceData := shared.PieceDataInfo{
+			ReaderKind: shared.PIECE_DATA_KIND_FILE,
+			LocalPath:  cctx.Args().First(),
+		}
+		pi, err := sealer.AddPiece(ctx, sr, []abi.UnpaddedPieceSize{}, abi.PaddedPieceSize(sectorSize).Unpadded(), pieceData)
 		if err != nil {
 			return xerrors.Errorf("add piece: %w", err)
 		}

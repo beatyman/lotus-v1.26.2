@@ -165,6 +165,8 @@ func (hs *HlmMinerScheduler) RequestDisableWorker(ctx context.Context, wid strin
 func (hs *HlmMinerScheduler) GetMinerInfo(ctx context.Context) string {
 	return hs.sm.Miner.Maddr()
 }
-
+func (hs *HlmMinerScheduler) GetStorage(ctx context.Context, storageId int64) (*database.StorageInfo, error) {
+	return database.GetStorageInfo(storageId)
+}
 // for build testing
 var _ api.HlmMinerSchedulerAPI = &HlmMinerScheduler{}

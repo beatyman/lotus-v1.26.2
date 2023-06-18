@@ -357,11 +357,6 @@ reAllocate:
 			}
 			// fetch done
 		default:
-			if task.Type == ffiwrapper.WorkerPledge && task.AddPieceKind == "deal" && task.DealInfo != nil && len(task.DealInfo.FilePath) > 0 {
-				if err := w.fetchDeal(ctx, sealer, task); err != nil {
-					return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
-				}
-			}
 			if task.Type == ffiwrapper.WorkerPledge || task.Type == ffiwrapper.WorkerPreCommit1 {
 				// get the market unsealed data, and copy to local
 				if err := w.fetchUnseal(ctx, sealer, task); err != nil {
@@ -419,6 +414,7 @@ reAllocate:
 			SectorId:     storiface.SectorName(task.SectorID),
 			SealedRepo:   sealer.RepoPath(),
 			UnsealedRepo: sealer.RepoPath(),
+			IsMarketSector: task.SectorStorage.UnsealedStorage.ID!=0,
 		},
 	}
 	switch task.Type {
@@ -442,37 +438,14 @@ reAllocate:
 			task.PieceData.ReaderKind = shared.PIECE_DATA_KIND_FILE
 			task.PieceData.LocalPath = tmpFile
 		}
-		/*
-		log.Infof("ffiwrapper.WorkerPledge: %+v, %+v",task.AddPieceKind,task.DealInfo)
-		ctx=ffiwrapper.SetAddPieceKind(ctx,task.AddPieceKind)
-		switch task.AddPieceKind {
-		case "pad":
-			if res.Piece, err = sealer.AddPiece(ctx, sector, task.ExistingPieceSizes, task.PieceSize, shared.NewNullPieceData(task.PieceSize)); err != nil {
+		if len(task.ExtSizes)!=0{
+			if res.Pieces, err = sealer.PledgeSector(ctx, sector, task.ExistingPieceSizes,  task.ExtSizes...); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-		case "deal":
+		}else {
 			if res.Piece, err = sealer.AddPiece(ctx, sector, task.ExistingPieceSizes, task.PieceSize, task.PieceData); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-		case "packing":
-			if res.Pieces, err = sealer.PledgeSector(ctx, sector, task.ExistingPieceSizes, task.ExtSizes...); err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
-		default:
-			rsp, err := sealer.PledgeSector(ctx,
-				sector,
-				task.ExistingPieceSizes,
-				task.ExtSizes...,
-			)
-
-			res.Pieces = rsp
-			if err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
-		}
-		 */
-		if res.Piece, err = sealer.AddPiece(ctx, sector, task.ExistingPieceSizes, task.PieceSize, task.PieceData); err != nil {
-			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 		if oriReaderKind == shared.PIECE_DATA_KIND_SERVER {
 			// push unsealed, so the market addpiece can make a index for continue

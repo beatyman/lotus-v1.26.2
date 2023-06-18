@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"github.com/filecoin-project/go-fil-markets/shared"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -666,54 +670,119 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 	}
 	return nil
 }
-func (w *worker) fetchDeal(ctx context.Context, workerSB *ffiwrapper.Sealer, task ffiwrapper.WorkerTask) error {
-	sid := task.SectorName()
-	log.Infof("fetchDeal:%+v", sid)
-	defer log.Infof("fetchDeal exit:%+v", sid)
-	if task.DealStorageInfo == nil || task.DealStorageInfo.ID <= 0 {
-		return errors.New("deal storage invalid")
-	}
-	if task.DealStorageInfo.MountType != database.MOUNT_TYPE_NFS &&
-		task.DealStorageInfo.MountType != database.MOUNT_TYPE_CEPH {
-		return errors.New("deal storage mount-type invalid")
-	}
-
-	var (
-		err      error
-		mountDir = filepath.Join(w.sealedRepo, sid, task.DealInfo.StoreID)
-		fromPath = filepath.Join(mountDir, filepath.Base(task.DealInfo.FilePath))
-		toPath   = filepath.Join(workerSB.SectorPath("fstmp", sid), filepath.Base(task.DealInfo.FilePath))
-	)
-	if err = os.MkdirAll(filepath.Dir(toPath), 0755); err != nil {
-		return err
-	}
-	if err = w.mountRemote(
-		ctx,
-		sid,
-		task.DealStorageInfo.MountType,
-		task.DealStorageInfo.MountTransfUri,
-		mountDir,
-		task.DealStorageInfo.MountOpt,
-	); err != nil {
-		return errors.As(err)
-	}
-	defer func() {
-		if err = w.umountRemote(sid, mountDir); err != nil {
-			log.Errorw("fetchDeal unmount error", "err", err, "sid", sid)
-		}
-	}()
-
-	if err = w.rsync(ctx, fromPath, toPath); err != nil {
-		log.Errorw("fetchDeal rsync error", "err", err, "sid", sid)
-		if !errors.ErrNoData.Equal(err) {
-			return errors.As(err)
-		}
-	}
-	task.DealInfo.FilePath = toPath
-	return err
-}
-
 func (w *worker) FetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, task ffiwrapper.WorkerTask) (string, error) {
-	log.Infof("FetchStaging: %+v",task)
-	return "",nil
+	log.Infof("FetchStaging: %+v", task)
+	var tmpFile string
+	var err error
+	for {
+		tmpFile, err = w.fetchStaging(ctx, workerSB, task)
+		if err != nil {
+			log.Warn(errors.As(err))
+			time.Sleep(10e9)
+			continue
+		}
+		break
+	}
+	return tmpFile, errors.As(err)
+}
+func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, task ffiwrapper.WorkerTask) (string, error) {
+	sid := task.SectorName()
+	log.Infof("fetchStaging:%+v,%+v", sid, task.PieceData)
+	defer log.Infof("fetchStaging exit:%+v", sid)
+
+	oriReaderKind := task.PieceData.ReaderKind
+	if oriReaderKind != shared.PIECE_DATA_KIND_SERVER {
+		// not a server kind
+		return "", nil
+	}
+	tmpFile := filepath.Join(workerSB.SectorPath("fstmp", sid), task.PieceData.ServerFileName)
+	if task.PieceData.ServerStorage == 0 {
+		// download to local
+		uri := fmt.Sprintf("http://"+w.minerEndpoint+"/file/deal-staging/%s", task.PieceData.ServerFileName)
+		if err := w.fetchRemoteFile(uri, tmpFile); err != nil {
+			return tmpFile, errors.As(err, uri, tmpFile)
+		}
+		return tmpFile, nil
+	}
+
+	nodeApi, err := GetNodeApi()
+	if err != nil {
+		return tmpFile, errors.As(err)
+	}
+	ss, err := nodeApi.RetryGetStorage(ctx, task.PieceData.ServerStorage)
+	if err != nil {
+		return tmpFile, errors.As(err)
+	}
+	switch ss.MountType {
+	case database.MOUNT_TYPE_CUSTOM:
+		// fetch the unsealed file
+		mountDir := filepath.Join(w.sealedRepo, fmt.Sprintf("%d", ss.ID))
+		fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
+		// fetch do a quick checksum
+		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
+			if !errors.ErrNoData.Equal(err) {
+				return tmpFile, errors.As(err)
+			}
+			// no data to fetch.
+		}
+	case database.MOUNT_TYPE_PB:
+		params, err := url.ParseQuery(ss.MountAuth)
+		if err != nil {
+			return tmpFile, errors.As(err)
+		}
+		fetchCmd := exec.CommandContext(ctx, "./pb-cli.sh", "fetch", task.PieceData.PropCid, task.PieceData.ServerFullUri, task.PieceData.ServerFileName, tmpFile)
+		for key, _ := range params {
+			fetchCmd.Env = append(fetchCmd.Env, fmt.Sprintf("%s=%s", key, params.Get(key)))
+		}
+		log.Info("exec pb-cli.sh fetch, %+v", task.PieceData)
+		if _, err := fetchCmd.Output(); err != nil {
+			return tmpFile, errors.As(err)
+		}
+	case database.MOUNT_TYPE_HLM:
+		tmpAuth, err := nodeApi.RetryNewHLMStorageTmpAuth(ctx, ss.ID, sid)
+		if err != nil {
+			return tmpFile, errors.As(err)
+		}
+		fc := hlmclient.NewHttpClient(ss.MountTransfUri, sid, tmpAuth)
+
+		if err := fc.Download(ctx, tmpFile, filepath.Join("deal-staging", task.PieceData.ServerFileName)); err != nil {
+			if !os.IsNotExist(err) {
+				return tmpFile, errors.As(err)
+			}
+			// it's ok if the unsealed not exist.
+		}
+		if err := nodeApi.RetryDelHLMStorageTmpAuth(ctx, ss.ID, sid); err != nil {
+			log.Warn(errors.As(err))
+		}
+	default:
+		mountUri := ss.MountTransfUri
+		mountDir := filepath.Join(w.sealedRepo, sid)
+		if err := w.mountRemote(
+			ctx,
+			sid,
+			ss.MountType,
+			mountUri,
+			mountDir,
+			ss.MountOpt,
+		); err != nil {
+			return tmpFile, errors.As(err)
+		}
+
+		// fetch the staging file
+		//fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
+		// fetch do a quick checksum
+		fromPath := filepath.Join(mountDir, task.PieceData.ServerFileName)
+		log.Infof("from : %+v => to : %+v",fromPath,tmpFile)
+		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
+			if !errors.ErrNoData.Equal(err) {
+				return tmpFile, errors.As(err)
+			}
+			// no data to fetch.
+		}
+
+		if err := w.umountRemote(sid, mountDir); err != nil {
+			return tmpFile, errors.As(err)
+		}
+	}
+	return tmpFile, nil
 }

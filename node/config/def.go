@@ -167,7 +167,6 @@ func DefaultStorageMiner() *StorageMiner {
 			TerminateBatchMin:                      1,
 			TerminateBatchMax:                      100,
 			TerminateBatchWait:                     Duration(5 * time.Minute),
-			MaxSectorProveCommitsSubmittedPerEpoch: 20,
 		},
 
 		Proving: ProvingConfig{
