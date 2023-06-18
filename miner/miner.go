@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	logging "github.com/ipfs/go-log/v2"
 	"golang.org/x/xerrors"
 
@@ -68,7 +68,7 @@ func randTimeOffset(width time.Duration) time.Duration {
 // NewMiner instantiates a miner with a concrete WinningPoStProver and a miner
 // address (which can be different from the worker's address).
 func NewMiner(api v1api.FullNode, epp gen.WinningPoStProver, addr address.Address, sf *slashfilter.SlashFilter, j journal.Journal) *Miner {
-	arc, err := lru.NewARC(10000)
+	arc, err := lru.NewARC[abi.ChainEpoch, bool](10000)
 	if err != nil {
 		panic(err)
 	}
@@ -131,7 +131,7 @@ type Miner struct {
 	// minedBlockHeights is a safeguard that caches the last heights we mined.
 	// It is consulted before publishing a newly mined block, for a sanity check
 	// intended to avoid slashings in case of a bug.
-	minedBlockHeights *lru.ARCCache
+	minedBlockHeights *lru.ARCCache[abi.ChainEpoch, bool]
 
 	evtTypes [1]journal.EventType
 	journal  journal.Journal
@@ -410,13 +410,12 @@ func (m *Miner) mine(ctx context.Context) {
 				continue
 			}
 
-			blkKey := fmt.Sprintf("%d", b.Header.Height)
-			if _, ok := m.minedBlockHeights.Get(blkKey); ok {
+			if _, ok := m.minedBlockHeights.Get(b.Header.Height); ok {
 				log.Warnw("Created a block at the same height as another block we've created", "height", b.Header.Height, "miner", b.Header.Miner, "parents", b.Header.Parents)
 				continue
 			}
 
-			m.minedBlockHeights.Add(blkKey, true)
+			m.minedBlockHeights.Add(b.Header.Height, true)
 
 			for i := 0; i < 10; i++ {
 				if err := m.api.SyncSubmitBlock(ctx, b); err != nil {

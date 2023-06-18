@@ -13,10 +13,15 @@ import (
 var log = logging.Logger("lotus-shed")
 
 func main() {
-	logging.SetLogLevel("*", "INFO")
+	_ = logging.SetLogLevel("*", "INFO")
+	_ = logging.SetLogLevelRegex("badger*", "ERROR")
+	_ = logging.SetLogLevel("drand", "ERROR")
+	_ = logging.SetLogLevel("chainstore", "ERROR")
 
 	local := []*cli.Command{
 		addressCmd,
+		statActorCmd,
+		statObjCmd,
 		base64Cmd,
 		base32Cmd,
 		base16Cmd,
@@ -46,9 +51,9 @@ func main() {
 		minerCmd,
 		mpoolStatsCmd,
 		exportChainCmd,
+		ethCmd,
 		exportCarCmd,
 		consensusCmd,
-		storageStatsCmd,
 		syncCmd,
 		stateTreePruneCmd,
 		datastoreCmd,
@@ -76,6 +81,8 @@ func main() {
 		msigCmd,
 		fip36PollCmd,
 		invariantsCmd,
+		gasTraceCmd,
+		replayOfflineCmd,
 	}
 
 	app := &cli.App{
@@ -108,7 +115,7 @@ func main() {
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		log.Warnf("%+v", err)
+		log.Errorf("%+v", err)
 		os.Exit(1)
 		return
 	}

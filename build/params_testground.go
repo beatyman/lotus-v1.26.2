@@ -42,9 +42,6 @@ var (
 
 	AllowableClockDriftSecs = uint64(1)
 
-	Finality            = policy.ChainFinality
-	ForkLengthThreshold = Finality
-
 	SlashablePowerDelay        = 20
 	InteractivePoRepConfidence = 6
 
@@ -108,6 +105,9 @@ var (
 	UpgradeOhSnapHeight     abi.ChainEpoch = -17
 	UpgradeSkyrHeight       abi.ChainEpoch = -18
 	UpgradeSharkHeight      abi.ChainEpoch = -19
+	UpgradeHyggeHeight      abi.ChainEpoch = -20
+	UpgradeLightningHeight  abi.ChainEpoch = -21
+	UpgradeThunderHeight    abi.ChainEpoch = -22
 
 	DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 		0: DrandMainnet,
@@ -116,6 +116,7 @@ var (
 	GenesisNetworkVersion = network.Version0
 	NetworkBundle         = "devnet"
 	BundleOverrides       map[actorstypes.Version]string
+	ActorDebugging        = true
 
 	NewestNetworkVersion       = network.Version16
 	ActorUpgradeNetworkVersion = network.Version16
@@ -128,4 +129,11 @@ var (
 	GenesisFile       = ""
 )
 
+const Finality = policy.ChainFinality
+const ForkLengthThreshold = Finality
+
 const BootstrapPeerThreshold = 1
+
+// ChainId defines the chain ID used in the Ethereum JSON-RPC endpoint.
+// As per https://github.com/ethereum-lists/chains
+const Eip155ChainId = 31415926

@@ -3,11 +3,11 @@ package blockstore
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	httpapi "github.com/ipfs/go-ipfs-http-client"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/ipfs/interface-go-ipfs-core/path"
@@ -103,7 +103,7 @@ func (i *IPFSBlockstore) Get(ctx context.Context, cid cid.Cid) (blocks.Block, er
 		return nil, xerrors.Errorf("getting ipfs block: %w", err)
 	}
 
-	data, err := ioutil.ReadAll(rd)
+	data, err := io.ReadAll(rd)
 	if err != nil {
 		return nil, err
 	}

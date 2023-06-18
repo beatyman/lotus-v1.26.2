@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -54,7 +55,8 @@ func ServeRPC(h http.Handler, id, repo string, addr multiaddr.Multiaddr) (StopFu
 
 	// Instantiate the server and start listening.
 	srv := &http.Server{
-		Handler: h,
+		Handler:           h,
+		ReadHeaderTimeout: 30 * time.Second,
 		BaseContext: func(listener net.Listener) context.Context {
 			ctx, _ := tag.New(context.Background(), tag.Upsert(metrics.APIInterface, id))
 			return ctx
@@ -82,9 +84,11 @@ func FullNodeHandler(a v1api.FullNode, permissioned bool, opts ...jsonrpc.Server
 	m := mux.NewRouter()
 
 	serveRpc := func(path string, hnd interface{}) {
-		rpcServer := jsonrpc.NewServer(append(opts, jsonrpc.WithServerErrors(api.RPCErrors))...)
+		rpcServer := jsonrpc.NewServer(append(opts, jsonrpc.WithReverseClient[api.EthSubscriberMethods]("Filecoin"), jsonrpc.WithServerErrors(api.RPCErrors))...)
 		rpcServer.Register("Filecoin", hnd)
 		rpcServer.AliasMethod("rpc.discover", "Filecoin.Discover")
+
+		api.CreateEthRPCAliases(rpcServer)
 
 		var handler http.Handler = rpcServer
 		if permissioned {
@@ -99,8 +103,9 @@ func FullNodeHandler(a v1api.FullNode, permissioned bool, opts ...jsonrpc.Server
 		fnapi = api.PermissionedFullAPI(fnapi)
 	}
 
+	var v0 v0api.FullNode = &(struct{ v0api.FullNode }{&v0api.WrapperV1Full{FullNode: fnapi}})
 	serveRpc("/rpc/v1", fnapi)
-	serveRpc("/rpc/v0", &v0api.WrapperV1Full{FullNode: fnapi})
+	serveRpc("/rpc/v0", v0)
 
 	// Import handler
 	handleImportFunc := handleImport(a.(*impl.FullNodeAPI))
@@ -112,7 +117,6 @@ func FullNodeHandler(a v1api.FullNode, permissioned bool, opts ...jsonrpc.Server
 			Next:   handleImportFunc,
 		}
 		m.Handle("/rest/v0/import", importAH)
-
 		exportAH := &auth.Handler{
 			Verify: a.AuthVerify,
 			Next:   handleExportFunc,

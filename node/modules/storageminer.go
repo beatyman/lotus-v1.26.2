@@ -19,15 +19,16 @@ import (
 	graphsync "github.com/ipfs/go-graphsync/impl"
 	gsnet "github.com/ipfs/go-graphsync/network"
 	"github.com/ipfs/go-graphsync/storeutil"
+	provider "github.com/ipni/index-provider"
 	"github.com/libp2p/go-libp2p/core/host"
 	"go.uber.org/fx"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
-	dtimpl "github.com/filecoin-project/go-data-transfer/impl"
-	dtnet "github.com/filecoin-project/go-data-transfer/network"
-	dtgstransport "github.com/filecoin-project/go-data-transfer/transport/graphsync"
+	dtimpl "github.com/filecoin-project/go-data-transfer/v2/impl"
+	dtnet "github.com/filecoin-project/go-data-transfer/v2/network"
+	dtgstransport "github.com/filecoin-project/go-data-transfer/v2/transport/graphsync"
 	piecefilestore "github.com/filecoin-project/go-fil-markets/filestore"
 	piecestoreimpl "github.com/filecoin-project/go-fil-markets/piecestore/impl"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
@@ -43,7 +44,6 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-statestore"
-	provider "github.com/filecoin-project/index-provider"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/v0api"
@@ -234,7 +234,7 @@ func PreflightChecks(mctx helpers.MetricsCtx, lc fx.Lifecycle, api v1api.FullNod
 			return xerrors.New("key for worker not found in local wallet")
 		}
 
-		log.Infof("starting up miner %s, worker addr %s", maddr, workerKey)
+		log.Infof("starting up miner %s, worker addr %s", address.Address(maddr), workerKey)
 		return nil
 	}})
 

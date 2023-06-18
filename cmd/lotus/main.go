@@ -6,6 +6,7 @@ import (
 	"huangdong2012/filecoin-monitor/model"
 	"os"
 
+	"github.com/fatih/color"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
@@ -54,6 +55,10 @@ func main() {
 			trace.UnregisterExporter(jaeger)
 			jaeger = tracing.SetupJaegerTracing("lotus/" + cmd.Name)
 
+			if cctx.IsSet("color") {
+				color.NoColor = !cctx.Bool("color")
+			}
+
 			if originBefore != nil {
 				return originBefore(cctx)
 			}
@@ -76,6 +81,12 @@ func main() {
 				EnvVars: []string{"LOTUS_PANIC_REPORT_PATH"},
 				Hidden:  true,
 				Value:   "~/.lotus", // should follow --repo default
+			},
+			&cli.BoolFlag{
+				// examined in the Before above
+				Name:        "color",
+				Usage:       "use color in display output",
+				DefaultText: "depends on output being a TTY",
 			},
 			&cli.StringFlag{
 				Name:    "repo",

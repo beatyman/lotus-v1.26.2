@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -163,7 +162,7 @@ func ReaderParamEncoder(addr string) jsonrpc.Option {
 					}
 
 					if resp.StatusCode != http.StatusOK {
-						b, _ := ioutil.ReadAll(resp.Body)
+						b, _ := io.ReadAll(resp.Body)
 						log.Errorf("sending reader param (%s): non-200 status: %s, msg: '%s'", u.String(), resp.Status, string(b))
 						return
 					}
@@ -187,7 +186,7 @@ func ReaderParamEncoder(addr string) jsonrpc.Option {
 				defer resp.Body.Close() //nolint
 
 				if resp.StatusCode != http.StatusOK {
-					b, _ := ioutil.ReadAll(resp.Body)
+					b, _ := io.ReadAll(resp.Body)
 					log.Errorf("sending reader param (%s): non-200 status: %s, msg: '%s'", u.String(), resp.Status, string(b))
 					return
 				}
@@ -226,7 +225,7 @@ type RpcReader struct {
 
 	res       chan readRes
 	beginOnce *sync.Once
-	closeOnce sync.Once
+	closeOnce *sync.Once
 }
 
 var ErrHasBody = errors.New("RPCReader has body, either already read from or from a client with no redirect support")
@@ -270,6 +269,7 @@ func (w *RpcReader) beginPost() {
 		w.postBody = nr.postBody
 		w.res = nr.res
 		w.beginOnce = nr.beginOnce
+		w.closeOnce = nr.closeOnce
 	}
 }
 
@@ -287,7 +287,7 @@ func (w *RpcReader) Read(p []byte) (int, error) {
 	}
 
 	if w.postBody == nil {
-		return 0, xerrors.Errorf("reader already closed or redirected")
+		return 0, xerrors.Errorf("reader already closed, redirected or cancelled")
 	}
 
 	n, err := w.postBody.Read(p)
@@ -360,6 +360,7 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 			res:       make(chan readRes),
 			next:      ch,
 			beginOnce: &sync.Once{},
+			closeOnce: &sync.Once{},
 		}
 
 		switch req.Method {
@@ -411,6 +412,29 @@ func ReaderParamDecoder() (http.HandlerFunc, jsonrpc.ServerOption) {
 			return
 		case <-req.Context().Done():
 			log.Errorf("context error in reader stream handler (2): %v", req.Context().Err())
+
+			closed := make(chan struct{})
+			// start a draining goroutine
+			go func() {
+				for {
+					select {
+					case r, ok := <-wr.res:
+						if !ok {
+							return
+						}
+						log.Errorw("discarding read res", "type", r.rt, "meta", r.meta)
+					case <-closed:
+						return
+					}
+				}
+			}()
+
+			wr.beginOnce.Do(func() {})
+			wr.closeOnce.Do(func() {
+				close(wr.res)
+			})
+			close(closed)
+
 			resp.WriteHeader(500)
 			return
 		}

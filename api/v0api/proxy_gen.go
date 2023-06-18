@@ -5,14 +5,14 @@ package v0api
 import (
 	"context"
 
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
-	datatransfer "github.com/filecoin-project/go-data-transfer"
+	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -39,393 +39,394 @@ type FullNodeStruct struct {
 
 	NetStruct
 
-	Internal struct {
+	Internal FullNodeMethods
+}
 
-		//implement by hlm
-		MpoolSignMessage    func(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) `perm:"sign"`
-		ChainComputeBaseFee func(context.Context, types.TipSetKey) (types.BigInt, error)                                       `perm:"read"`
-		SyncProgress        func(context.Context) (api.SyncProgress, error)                                                    `perm:"read"`
-		InputWalletStatus   func(context.Context) (string, error)                                                              `perm:"admin"`
-		InputWalletPasswd   func(context.Context, string) error                                                                `perm:"admin"`
-		WalletEncode        func(context.Context, address.Address, string) error                                               `perm:"admin"`
-		//implement by hlm end
+type FullNodeMethods struct {
+	//implement by hlm
+	MpoolSignMessage    func(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) `perm:"sign"`
+	ChainComputeBaseFee func(context.Context, types.TipSetKey) (types.BigInt, error)                                       `perm:"read"`
+	SyncProgress        func(context.Context) (api.SyncProgress, error)                                                    `perm:"read"`
+	InputWalletStatus   func(context.Context) (string, error)                                                              `perm:"admin"`
+	InputWalletPasswd   func(context.Context, string) error                                                                `perm:"admin"`
+	WalletEncode        func(context.Context, address.Address, string) error                                               `perm:"admin"`
+	//implement by hlm end
 
-		BeaconGetEntry func(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) `perm:"read"`
+	BeaconGetEntry func(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) `perm:"read"`
 
-		ChainDeleteObj func(p0 context.Context, p1 cid.Cid) error `perm:"admin"`
+	ChainDeleteObj func(p0 context.Context, p1 cid.Cid) error `perm:"admin"`
 
-		ChainExport func(p0 context.Context, p1 abi.ChainEpoch, p2 bool, p3 types.TipSetKey) (<-chan []byte, error) `perm:"read"`
+	ChainExport func(p0 context.Context, p1 abi.ChainEpoch, p2 bool, p3 types.TipSetKey) (<-chan []byte, error) `perm:"read"`
 
-		ChainGetBlock func(p0 context.Context, p1 cid.Cid) (*types.BlockHeader, error) `perm:"read"`
+	ChainGetBlock func(p0 context.Context, p1 cid.Cid) (*types.BlockHeader, error) `perm:"read"`
 
-		ChainGetBlockMessages func(p0 context.Context, p1 cid.Cid) (*api.BlockMessages, error) `perm:"read"`
+	ChainGetBlockMessages func(p0 context.Context, p1 cid.Cid) (*api.BlockMessages, error) `perm:"read"`
 
-		ChainGetGenesis func(p0 context.Context) (*types.TipSet, error) `perm:"read"`
+	ChainGetGenesis func(p0 context.Context) (*types.TipSet, error) `perm:"read"`
 
-		ChainGetMessage func(p0 context.Context, p1 cid.Cid) (*types.Message, error) `perm:"read"`
+	ChainGetMessage func(p0 context.Context, p1 cid.Cid) (*types.Message, error) `perm:"read"`
 
-		ChainGetMessagesInTipset func(p0 context.Context, p1 types.TipSetKey) ([]api.Message, error) `perm:"read"`
+	ChainGetMessagesInTipset func(p0 context.Context, p1 types.TipSetKey) ([]api.Message, error) `perm:"read"`
 
-		ChainGetNode func(p0 context.Context, p1 string) (*api.IpldObject, error) `perm:"read"`
+	ChainGetNode func(p0 context.Context, p1 string) (*api.IpldObject, error) `perm:"read"`
 
-		ChainGetParentMessages func(p0 context.Context, p1 cid.Cid) ([]api.Message, error) `perm:"read"`
+	ChainGetParentMessages func(p0 context.Context, p1 cid.Cid) ([]api.Message, error) `perm:"read"`
 
-		ChainGetParentReceipts func(p0 context.Context, p1 cid.Cid) ([]*types.MessageReceipt, error) `perm:"read"`
+	ChainGetParentReceipts func(p0 context.Context, p1 cid.Cid) ([]*types.MessageReceipt, error) `perm:"read"`
 
-		ChainGetPath func(p0 context.Context, p1 types.TipSetKey, p2 types.TipSetKey) ([]*api.HeadChange, error) `perm:"read"`
+	ChainGetPath func(p0 context.Context, p1 types.TipSetKey, p2 types.TipSetKey) ([]*api.HeadChange, error) `perm:"read"`
 
-		ChainGetRandomnessFromBeacon func(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) `perm:"read"`
+	ChainGetRandomnessFromBeacon func(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) `perm:"read"`
 
-		ChainGetRandomnessFromTickets func(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) `perm:"read"`
+	ChainGetRandomnessFromTickets func(p0 context.Context, p1 types.TipSetKey, p2 crypto.DomainSeparationTag, p3 abi.ChainEpoch, p4 []byte) (abi.Randomness, error) `perm:"read"`
 
-		ChainGetTipSet func(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) `perm:"read"`
+	ChainGetTipSet func(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) `perm:"read"`
 
-		ChainGetTipSetByHeight func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) `perm:"read"`
+	ChainGetTipSetByHeight func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) `perm:"read"`
 
-		ChainHasObj func(p0 context.Context, p1 cid.Cid) (bool, error) `perm:"read"`
+	ChainHasObj func(p0 context.Context, p1 cid.Cid) (bool, error) `perm:"read"`
 
-		ChainHead func(p0 context.Context) (*types.TipSet, error) `perm:"read"`
+	ChainHead func(p0 context.Context) (*types.TipSet, error) `perm:"read"`
 
-		ChainNotify func(p0 context.Context) (<-chan []*api.HeadChange, error) `perm:"read"`
+	ChainNotify func(p0 context.Context) (<-chan []*api.HeadChange, error) `perm:"read"`
 
-		ChainPutObj func(p0 context.Context, p1 blocks.Block) error ``
+	ChainPutObj func(p0 context.Context, p1 blocks.Block) error ``
 
-		ChainReadObj func(p0 context.Context, p1 cid.Cid) ([]byte, error) `perm:"read"`
+	ChainReadObj func(p0 context.Context, p1 cid.Cid) ([]byte, error) `perm:"read"`
 
-		ChainSetHead func(p0 context.Context, p1 types.TipSetKey) error `perm:"admin"`
+	ChainSetHead func(p0 context.Context, p1 types.TipSetKey) error `perm:"admin"`
 
-		ChainStatObj func(p0 context.Context, p1 cid.Cid, p2 cid.Cid) (api.ObjStat, error) `perm:"read"`
+	ChainStatObj func(p0 context.Context, p1 cid.Cid, p2 cid.Cid) (api.ObjStat, error) `perm:"read"`
 
-		ChainTipSetWeight func(p0 context.Context, p1 types.TipSetKey) (types.BigInt, error) `perm:"read"`
+	ChainTipSetWeight func(p0 context.Context, p1 types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
-		ClientCalcCommP func(p0 context.Context, p1 string) (*api.CommPRet, error) `perm:"write"`
+	ClientCalcCommP func(p0 context.Context, p1 string) (*api.CommPRet, error) `perm:"write"`
 
-		ClientCancelDataTransfer func(p0 context.Context, p1 datatransfer.TransferID, p2 peer.ID, p3 bool) error `perm:"write"`
+	ClientCancelDataTransfer func(p0 context.Context, p1 datatransfer.TransferID, p2 peer.ID, p3 bool) error `perm:"write"`
 
-		ClientCancelRetrievalDeal func(p0 context.Context, p1 retrievalmarket.DealID) error `perm:"write"`
+	ClientCancelRetrievalDeal func(p0 context.Context, p1 retrievalmarket.DealID) error `perm:"write"`
 
-		ClientDataTransferUpdates func(p0 context.Context) (<-chan api.DataTransferChannel, error) `perm:"write"`
+	ClientDataTransferUpdates func(p0 context.Context) (<-chan api.DataTransferChannel, error) `perm:"write"`
 
-		ClientDealPieceCID func(p0 context.Context, p1 cid.Cid) (api.DataCIDSize, error) `perm:"read"`
+	ClientDealPieceCID func(p0 context.Context, p1 cid.Cid) (api.DataCIDSize, error) `perm:"read"`
 
-		ClientDealSize func(p0 context.Context, p1 cid.Cid) (api.DataSize, error) `perm:"read"`
+	ClientDealSize func(p0 context.Context, p1 cid.Cid) (api.DataSize, error) `perm:"read"`
 
-		ClientFindData func(p0 context.Context, p1 cid.Cid, p2 *cid.Cid) ([]api.QueryOffer, error) `perm:"read"`
+	ClientFindData func(p0 context.Context, p1 cid.Cid, p2 *cid.Cid) ([]api.QueryOffer, error) `perm:"read"`
 
-		ClientGenCar func(p0 context.Context, p1 api.FileRef, p2 string) error `perm:"write"`
+	ClientGenCar func(p0 context.Context, p1 api.FileRef, p2 string) error `perm:"write"`
 
-		ClientGetDealInfo func(p0 context.Context, p1 cid.Cid) (*api.DealInfo, error) `perm:"read"`
+	ClientGetDealInfo func(p0 context.Context, p1 cid.Cid) (*api.DealInfo, error) `perm:"read"`
 
-		ClientGetDealStatus func(p0 context.Context, p1 uint64) (string, error) `perm:"read"`
+	ClientGetDealStatus func(p0 context.Context, p1 uint64) (string, error) `perm:"read"`
 
-		ClientGetDealUpdates func(p0 context.Context) (<-chan api.DealInfo, error) `perm:"write"`
+	ClientGetDealUpdates func(p0 context.Context) (<-chan api.DealInfo, error) `perm:"write"`
 
-		ClientGetRetrievalUpdates func(p0 context.Context) (<-chan api.RetrievalInfo, error) `perm:"write"`
+	ClientGetRetrievalUpdates func(p0 context.Context) (<-chan api.RetrievalInfo, error) `perm:"write"`
 
-		ClientHasLocal func(p0 context.Context, p1 cid.Cid) (bool, error) `perm:"write"`
+	ClientHasLocal func(p0 context.Context, p1 cid.Cid) (bool, error) `perm:"write"`
 
-		ClientImport func(p0 context.Context, p1 api.FileRef) (*api.ImportRes, error) `perm:"admin"`
+	ClientImport func(p0 context.Context, p1 api.FileRef) (*api.ImportRes, error) `perm:"admin"`
 
-		ClientListDataTransfers func(p0 context.Context) ([]api.DataTransferChannel, error) `perm:"write"`
+	ClientListDataTransfers func(p0 context.Context) ([]api.DataTransferChannel, error) `perm:"write"`
 
-		ClientListDeals func(p0 context.Context) ([]api.DealInfo, error) `perm:"write"`
+	ClientListDeals func(p0 context.Context) ([]api.DealInfo, error) `perm:"write"`
 
-		ClientListImports func(p0 context.Context) ([]api.Import, error) `perm:"write"`
+	ClientListImports func(p0 context.Context) ([]api.Import, error) `perm:"write"`
 
-		ClientListRetrievals func(p0 context.Context) ([]api.RetrievalInfo, error) `perm:"write"`
+	ClientListRetrievals func(p0 context.Context) ([]api.RetrievalInfo, error) `perm:"write"`
 
-		ClientMinerQueryOffer func(p0 context.Context, p1 address.Address, p2 cid.Cid, p3 *cid.Cid) (api.QueryOffer, error) `perm:"read"`
+	ClientMinerQueryOffer func(p0 context.Context, p1 address.Address, p2 cid.Cid, p3 *cid.Cid) (api.QueryOffer, error) `perm:"read"`
 
-		ClientQueryAsk func(p0 context.Context, p1 peer.ID, p2 address.Address) (*storagemarket.StorageAsk, error) `perm:"read"`
+	ClientQueryAsk func(p0 context.Context, p1 peer.ID, p2 address.Address) (*storagemarket.StorageAsk, error) `perm:"read"`
 
-		ClientRemoveImport func(p0 context.Context, p1 imports.ID) error `perm:"admin"`
+	ClientRemoveImport func(p0 context.Context, p1 imports.ID) error `perm:"admin"`
 
-		ClientRestartDataTransfer func(p0 context.Context, p1 datatransfer.TransferID, p2 peer.ID, p3 bool) error `perm:"write"`
+	ClientRestartDataTransfer func(p0 context.Context, p1 datatransfer.TransferID, p2 peer.ID, p3 bool) error `perm:"write"`
 
-		ClientRetrieve func(p0 context.Context, p1 RetrievalOrder, p2 *api.FileRef) error `perm:"admin"`
+	ClientRetrieve func(p0 context.Context, p1 RetrievalOrder, p2 *api.FileRef) error `perm:"admin"`
 
-		ClientRetrieveTryRestartInsufficientFunds func(p0 context.Context, p1 address.Address) error `perm:"write"`
+	ClientRetrieveTryRestartInsufficientFunds func(p0 context.Context, p1 address.Address) error `perm:"write"`
 
-		ClientRetrieveWithEvents func(p0 context.Context, p1 RetrievalOrder, p2 *api.FileRef) (<-chan marketevents.RetrievalEvent, error) `perm:"admin"`
+	ClientRetrieveWithEvents func(p0 context.Context, p1 RetrievalOrder, p2 *api.FileRef) (<-chan marketevents.RetrievalEvent, error) `perm:"admin"`
 
-		ClientStartDeal func(p0 context.Context, p1 *api.StartDealParams) (*cid.Cid, error) `perm:"admin"`
+	ClientStartDeal func(p0 context.Context, p1 *api.StartDealParams) (*cid.Cid, error) `perm:"admin"`
 
-		ClientStatelessDeal func(p0 context.Context, p1 *api.StartDealParams) (*cid.Cid, error) `perm:"write"`
+	ClientStatelessDeal func(p0 context.Context, p1 *api.StartDealParams) (*cid.Cid, error) `perm:"write"`
 
-		CreateBackup func(p0 context.Context, p1 string) error `perm:"admin"`
+	CreateBackup func(p0 context.Context, p1 string) error `perm:"admin"`
 
-		GasEstimateFeeCap func(p0 context.Context, p1 *types.Message, p2 int64, p3 types.TipSetKey) (types.BigInt, error) `perm:"read"`
+	GasEstimateFeeCap func(p0 context.Context, p1 *types.Message, p2 int64, p3 types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
-		GasEstimateGasLimit func(p0 context.Context, p1 *types.Message, p2 types.TipSetKey) (int64, error) `perm:"read"`
+	GasEstimateGasLimit func(p0 context.Context, p1 *types.Message, p2 types.TipSetKey) (int64, error) `perm:"read"`
 
-		GasEstimateGasPremium func(p0 context.Context, p1 uint64, p2 address.Address, p3 int64, p4 types.TipSetKey) (types.BigInt, error) `perm:"read"`
+	GasEstimateGasPremium func(p0 context.Context, p1 uint64, p2 address.Address, p3 int64, p4 types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
-		GasEstimateMessageGas func(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) `perm:"read"`
+	GasEstimateMessageGas func(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) `perm:"read"`
 
-		MarketAddBalance func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (cid.Cid, error) `perm:"sign"`
+	MarketAddBalance func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (cid.Cid, error) `perm:"sign"`
 
-		MarketGetReserved func(p0 context.Context, p1 address.Address) (types.BigInt, error) `perm:"sign"`
+	MarketGetReserved func(p0 context.Context, p1 address.Address) (types.BigInt, error) `perm:"sign"`
 
-		MarketReleaseFunds func(p0 context.Context, p1 address.Address, p2 types.BigInt) error `perm:"sign"`
+	MarketReleaseFunds func(p0 context.Context, p1 address.Address, p2 types.BigInt) error `perm:"sign"`
 
-		MarketReserveFunds func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (cid.Cid, error) `perm:"sign"`
+	MarketReserveFunds func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (cid.Cid, error) `perm:"sign"`
 
-		MarketWithdraw func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (cid.Cid, error) `perm:"sign"`
+	MarketWithdraw func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (cid.Cid, error) `perm:"sign"`
 
-		MinerCreateBlock func(p0 context.Context, p1 *api.BlockTemplate) (*types.BlockMsg, error) `perm:"write"`
+	MinerCreateBlock func(p0 context.Context, p1 *api.BlockTemplate) (*types.BlockMsg, error) `perm:"write"`
 
-		MinerGetBaseInfo func(p0 context.Context, p1 address.Address, p2 abi.ChainEpoch, p3 types.TipSetKey) (*api.MiningBaseInfo, error) `perm:"read"`
+	MinerGetBaseInfo func(p0 context.Context, p1 address.Address, p2 abi.ChainEpoch, p3 types.TipSetKey) (*api.MiningBaseInfo, error) `perm:"read"`
 
-		MpoolBatchPush func(p0 context.Context, p1 []*types.SignedMessage) ([]cid.Cid, error) `perm:"write"`
+	MpoolBatchPush func(p0 context.Context, p1 []*types.SignedMessage) ([]cid.Cid, error) `perm:"write"`
 
-		MpoolBatchPushMessage func(p0 context.Context, p1 []*types.Message, p2 *api.MessageSendSpec) ([]*types.SignedMessage, error) `perm:"sign"`
+	MpoolBatchPushMessage func(p0 context.Context, p1 []*types.Message, p2 *api.MessageSendSpec) ([]*types.SignedMessage, error) `perm:"sign"`
 
-		MpoolBatchPushUntrusted func(p0 context.Context, p1 []*types.SignedMessage) ([]cid.Cid, error) `perm:"write"`
+	MpoolBatchPushUntrusted func(p0 context.Context, p1 []*types.SignedMessage) ([]cid.Cid, error) `perm:"write"`
 
-		MpoolClear func(p0 context.Context, p1 bool) error `perm:"write"`
+	MpoolClear func(p0 context.Context, p1 bool) error `perm:"write"`
 
-		MpoolGetConfig func(p0 context.Context) (*types.MpoolConfig, error) `perm:"read"`
+	MpoolGetConfig func(p0 context.Context) (*types.MpoolConfig, error) `perm:"read"`
 
-		MpoolGetNonce func(p0 context.Context, p1 address.Address) (uint64, error) `perm:"read"`
+	MpoolGetNonce func(p0 context.Context, p1 address.Address) (uint64, error) `perm:"read"`
 
-		MpoolPending func(p0 context.Context, p1 types.TipSetKey) ([]*types.SignedMessage, error) `perm:"read"`
+	MpoolPending func(p0 context.Context, p1 types.TipSetKey) ([]*types.SignedMessage, error) `perm:"read"`
 
-		MpoolPush func(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) `perm:"write"`
+	MpoolPush func(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) `perm:"write"`
 
-		MpoolPushMessage func(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) `perm:"sign"`
+	MpoolPushMessage func(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec) (*types.SignedMessage, error) `perm:"sign"`
 
-		MpoolPushUntrusted func(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) `perm:"write"`
+	MpoolPushUntrusted func(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) `perm:"write"`
 
-		MpoolSelect func(p0 context.Context, p1 types.TipSetKey, p2 float64) ([]*types.SignedMessage, error) `perm:"read"`
+	MpoolSelect func(p0 context.Context, p1 types.TipSetKey, p2 float64) ([]*types.SignedMessage, error) `perm:"read"`
 
-		MpoolSetConfig func(p0 context.Context, p1 *types.MpoolConfig) error `perm:"admin"`
+	MpoolSetConfig func(p0 context.Context, p1 *types.MpoolConfig) error `perm:"admin"`
 
-		MpoolSub func(p0 context.Context) (<-chan api.MpoolUpdate, error) `perm:"read"`
+	MpoolSub func(p0 context.Context) (<-chan api.MpoolUpdate, error) `perm:"read"`
 
-		MsigAddApprove func(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address, p6 bool) (cid.Cid, error) `perm:"sign"`
+	MsigAddApprove func(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address, p6 bool) (cid.Cid, error) `perm:"sign"`
 
-		MsigAddCancel func(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 bool) (cid.Cid, error) `perm:"sign"`
+	MsigAddCancel func(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 bool) (cid.Cid, error) `perm:"sign"`
 
-		MsigAddPropose func(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 bool) (cid.Cid, error) `perm:"sign"`
+	MsigAddPropose func(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 bool) (cid.Cid, error) `perm:"sign"`
 
-		MsigApprove func(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address) (cid.Cid, error) `perm:"sign"`
+	MsigApprove func(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address) (cid.Cid, error) `perm:"sign"`
 
-		MsigApproveTxnHash func(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 address.Address, p5 types.BigInt, p6 address.Address, p7 uint64, p8 []byte) (cid.Cid, error) `perm:"sign"`
+	MsigApproveTxnHash func(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 address.Address, p5 types.BigInt, p6 address.Address, p7 uint64, p8 []byte) (cid.Cid, error) `perm:"sign"`
 
-		MsigCancel func(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 types.BigInt, p5 address.Address, p6 uint64, p7 []byte) (cid.Cid, error) `perm:"sign"`
+	MsigCancel func(p0 context.Context, p1 address.Address, p2 uint64, p3 address.Address, p4 types.BigInt, p5 address.Address, p6 uint64, p7 []byte) (cid.Cid, error) `perm:"sign"`
 
-		MsigCreate func(p0 context.Context, p1 uint64, p2 []address.Address, p3 abi.ChainEpoch, p4 types.BigInt, p5 address.Address, p6 types.BigInt) (cid.Cid, error) `perm:"sign"`
+	MsigCreate func(p0 context.Context, p1 uint64, p2 []address.Address, p3 abi.ChainEpoch, p4 types.BigInt, p5 address.Address, p6 types.BigInt) (cid.Cid, error) `perm:"sign"`
 
-		MsigGetAvailableBalance func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (types.BigInt, error) `perm:"read"`
+	MsigGetAvailableBalance func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
-		MsigGetPending func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]*api.MsigTransaction, error) `perm:"read"`
+	MsigGetPending func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]*api.MsigTransaction, error) `perm:"read"`
 
-		MsigGetVested func(p0 context.Context, p1 address.Address, p2 types.TipSetKey, p3 types.TipSetKey) (types.BigInt, error) `perm:"read"`
+	MsigGetVested func(p0 context.Context, p1 address.Address, p2 types.TipSetKey, p3 types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
-		MsigGetVestingSchedule func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MsigVesting, error) `perm:"read"`
+	MsigGetVestingSchedule func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MsigVesting, error) `perm:"read"`
 
-		MsigPropose func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt, p4 address.Address, p5 uint64, p6 []byte) (cid.Cid, error) `perm:"sign"`
+	MsigPropose func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt, p4 address.Address, p5 uint64, p6 []byte) (cid.Cid, error) `perm:"sign"`
 
-		MsigRemoveSigner func(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 bool) (cid.Cid, error) `perm:"sign"`
+	MsigRemoveSigner func(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 bool) (cid.Cid, error) `perm:"sign"`
 
-		MsigSwapApprove func(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address, p6 address.Address) (cid.Cid, error) `perm:"sign"`
+	MsigSwapApprove func(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address, p6 address.Address) (cid.Cid, error) `perm:"sign"`
 
-		MsigSwapCancel func(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address) (cid.Cid, error) `perm:"sign"`
+	MsigSwapCancel func(p0 context.Context, p1 address.Address, p2 address.Address, p3 uint64, p4 address.Address, p5 address.Address) (cid.Cid, error) `perm:"sign"`
 
-		MsigSwapPropose func(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 address.Address) (cid.Cid, error) `perm:"sign"`
+	MsigSwapPropose func(p0 context.Context, p1 address.Address, p2 address.Address, p3 address.Address, p4 address.Address) (cid.Cid, error) `perm:"sign"`
 
-		PaychAllocateLane func(p0 context.Context, p1 address.Address) (uint64, error) `perm:"sign"`
+	PaychAllocateLane func(p0 context.Context, p1 address.Address) (uint64, error) `perm:"sign"`
 
-		PaychAvailableFunds func(p0 context.Context, p1 address.Address) (*api.ChannelAvailableFunds, error) `perm:"sign"`
+	PaychAvailableFunds func(p0 context.Context, p1 address.Address) (*api.ChannelAvailableFunds, error) `perm:"sign"`
 
-		PaychAvailableFundsByFromTo func(p0 context.Context, p1 address.Address, p2 address.Address) (*api.ChannelAvailableFunds, error) `perm:"sign"`
+	PaychAvailableFundsByFromTo func(p0 context.Context, p1 address.Address, p2 address.Address) (*api.ChannelAvailableFunds, error) `perm:"sign"`
 
-		PaychCollect func(p0 context.Context, p1 address.Address) (cid.Cid, error) `perm:"sign"`
+	PaychCollect func(p0 context.Context, p1 address.Address) (cid.Cid, error) `perm:"sign"`
 
-		PaychGet func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (*api.ChannelInfo, error) `perm:"sign"`
+	PaychGet func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (*api.ChannelInfo, error) `perm:"sign"`
 
-		PaychGetWaitReady func(p0 context.Context, p1 cid.Cid) (address.Address, error) `perm:"sign"`
+	PaychGetWaitReady func(p0 context.Context, p1 cid.Cid) (address.Address, error) `perm:"sign"`
 
-		PaychList func(p0 context.Context) ([]address.Address, error) `perm:"read"`
+	PaychList func(p0 context.Context) ([]address.Address, error) `perm:"read"`
 
-		PaychNewPayment func(p0 context.Context, p1 address.Address, p2 address.Address, p3 []api.VoucherSpec) (*api.PaymentInfo, error) `perm:"sign"`
+	PaychNewPayment func(p0 context.Context, p1 address.Address, p2 address.Address, p3 []api.VoucherSpec) (*api.PaymentInfo, error) `perm:"sign"`
 
-		PaychSettle func(p0 context.Context, p1 address.Address) (cid.Cid, error) `perm:"sign"`
+	PaychSettle func(p0 context.Context, p1 address.Address) (cid.Cid, error) `perm:"sign"`
 
-		PaychStatus func(p0 context.Context, p1 address.Address) (*api.PaychStatus, error) `perm:"read"`
+	PaychStatus func(p0 context.Context, p1 address.Address) (*api.PaychStatus, error) `perm:"read"`
 
-		PaychVoucherAdd func(p0 context.Context, p1 address.Address, p2 *paych.SignedVoucher, p3 []byte, p4 types.BigInt) (types.BigInt, error) `perm:"write"`
+	PaychVoucherAdd func(p0 context.Context, p1 address.Address, p2 *paych.SignedVoucher, p3 []byte, p4 types.BigInt) (types.BigInt, error) `perm:"write"`
 
-		PaychVoucherCheckSpendable func(p0 context.Context, p1 address.Address, p2 *paych.SignedVoucher, p3 []byte, p4 []byte) (bool, error) `perm:"read"`
+	PaychVoucherCheckSpendable func(p0 context.Context, p1 address.Address, p2 *paych.SignedVoucher, p3 []byte, p4 []byte) (bool, error) `perm:"read"`
 
-		PaychVoucherCheckValid func(p0 context.Context, p1 address.Address, p2 *paych.SignedVoucher) error `perm:"read"`
+	PaychVoucherCheckValid func(p0 context.Context, p1 address.Address, p2 *paych.SignedVoucher) error `perm:"read"`
 
-		PaychVoucherCreate func(p0 context.Context, p1 address.Address, p2 types.BigInt, p3 uint64) (*api.VoucherCreateResult, error) `perm:"sign"`
+	PaychVoucherCreate func(p0 context.Context, p1 address.Address, p2 types.BigInt, p3 uint64) (*api.VoucherCreateResult, error) `perm:"sign"`
 
-		PaychVoucherList func(p0 context.Context, p1 address.Address) ([]*paych.SignedVoucher, error) `perm:"write"`
+	PaychVoucherList func(p0 context.Context, p1 address.Address) ([]*paych.SignedVoucher, error) `perm:"write"`
 
-		PaychVoucherSubmit func(p0 context.Context, p1 address.Address, p2 *paych.SignedVoucher, p3 []byte, p4 []byte) (cid.Cid, error) `perm:"sign"`
+	PaychVoucherSubmit func(p0 context.Context, p1 address.Address, p2 *paych.SignedVoucher, p3 []byte, p4 []byte) (cid.Cid, error) `perm:"sign"`
 
-		StateAccountKey func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) `perm:"read"`
+	StateAccountKey func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) `perm:"read"`
 
-		StateActorCodeCIDs func(p0 context.Context, p1 abinetwork.Version) (map[string]cid.Cid, error) `perm:"read"`
+	StateActorCodeCIDs func(p0 context.Context, p1 abinetwork.Version) (map[string]cid.Cid, error) `perm:"read"`
 
-		StateActorManifestCID func(p0 context.Context, p1 abinetwork.Version) (cid.Cid, error) `perm:"read"`
+	StateActorManifestCID func(p0 context.Context, p1 abinetwork.Version) (cid.Cid, error) `perm:"read"`
 
-		StateAllMinerFaults func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) ([]*api.Fault, error) `perm:"read"`
+	StateAllMinerFaults func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) ([]*api.Fault, error) `perm:"read"`
 
-		StateCall func(p0 context.Context, p1 *types.Message, p2 types.TipSetKey) (*api.InvocResult, error) `perm:"read"`
+	StateCall func(p0 context.Context, p1 *types.Message, p2 types.TipSetKey) (*api.InvocResult, error) `perm:"read"`
 
-		StateChangedActors func(p0 context.Context, p1 cid.Cid, p2 cid.Cid) (map[string]types.Actor, error) `perm:"read"`
+	StateChangedActors func(p0 context.Context, p1 cid.Cid, p2 cid.Cid) (map[string]types.Actor, error) `perm:"read"`
 
-		StateCirculatingSupply func(p0 context.Context, p1 types.TipSetKey) (abi.TokenAmount, error) `perm:"read"`
+	StateCirculatingSupply func(p0 context.Context, p1 types.TipSetKey) (abi.TokenAmount, error) `perm:"read"`
 
-		StateCompute func(p0 context.Context, p1 abi.ChainEpoch, p2 []*types.Message, p3 types.TipSetKey) (*api.ComputeStateOutput, error) `perm:"read"`
+	StateCompute func(p0 context.Context, p1 abi.ChainEpoch, p2 []*types.Message, p3 types.TipSetKey) (*api.ComputeStateOutput, error) `perm:"read"`
 
-		StateDealProviderCollateralBounds func(p0 context.Context, p1 abi.PaddedPieceSize, p2 bool, p3 types.TipSetKey) (api.DealCollateralBounds, error) `perm:"read"`
+	StateDealProviderCollateralBounds func(p0 context.Context, p1 abi.PaddedPieceSize, p2 bool, p3 types.TipSetKey) (api.DealCollateralBounds, error) `perm:"read"`
 
-		StateDecodeParams func(p0 context.Context, p1 address.Address, p2 abi.MethodNum, p3 []byte, p4 types.TipSetKey) (interface{}, error) `perm:"read"`
+	StateDecodeParams func(p0 context.Context, p1 address.Address, p2 abi.MethodNum, p3 []byte, p4 types.TipSetKey) (interface{}, error) `perm:"read"`
 
-		StateGetActor func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) `perm:"read"`
+	StateGetActor func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) `perm:"read"`
 
-		StateGetAllocation func(p0 context.Context, p1 address.Address, p2 verifregtypes.AllocationId, p3 types.TipSetKey) (*verifregtypes.Allocation, error) `perm:"read"`
+	StateGetAllocation func(p0 context.Context, p1 address.Address, p2 verifregtypes.AllocationId, p3 types.TipSetKey) (*verifregtypes.Allocation, error) `perm:"read"`
 
-		StateGetAllocationForPendingDeal func(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*verifregtypes.Allocation, error) `perm:"read"`
+	StateGetAllocationForPendingDeal func(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*verifregtypes.Allocation, error) `perm:"read"`
 
-		StateGetAllocations func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) `perm:"read"`
+	StateGetAllocations func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) `perm:"read"`
 
-		StateGetClaim func(p0 context.Context, p1 address.Address, p2 verifregtypes.ClaimId, p3 types.TipSetKey) (*verifregtypes.Claim, error) `perm:"read"`
+	StateGetClaim func(p0 context.Context, p1 address.Address, p2 verifregtypes.ClaimId, p3 types.TipSetKey) (*verifregtypes.Claim, error) `perm:"read"`
 
-		StateGetClaims func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.ClaimId]verifregtypes.Claim, error) `perm:"read"`
+	StateGetClaims func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.ClaimId]verifregtypes.Claim, error) `perm:"read"`
 
-		StateGetNetworkParams func(p0 context.Context) (*api.NetworkParams, error) `perm:"read"`
+	StateGetNetworkParams func(p0 context.Context) (*api.NetworkParams, error) `perm:"read"`
 
-		StateGetRandomnessFromBeacon func(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) `perm:"read"`
+	StateGetRandomnessFromBeacon func(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) `perm:"read"`
 
-		StateGetRandomnessFromTickets func(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) `perm:"read"`
+	StateGetRandomnessFromTickets func(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) `perm:"read"`
 
-		StateGetReceipt func(p0 context.Context, p1 cid.Cid, p2 types.TipSetKey) (*types.MessageReceipt, error) `perm:"read"`
+	StateGetReceipt func(p0 context.Context, p1 cid.Cid, p2 types.TipSetKey) (*types.MessageReceipt, error) `perm:"read"`
 
-		StateListActors func(p0 context.Context, p1 types.TipSetKey) ([]address.Address, error) `perm:"read"`
+	StateListActors func(p0 context.Context, p1 types.TipSetKey) ([]address.Address, error) `perm:"read"`
 
-		StateListMessages func(p0 context.Context, p1 *api.MessageMatch, p2 types.TipSetKey, p3 abi.ChainEpoch) ([]cid.Cid, error) `perm:"read"`
+	StateListMessages func(p0 context.Context, p1 *api.MessageMatch, p2 types.TipSetKey, p3 abi.ChainEpoch) ([]cid.Cid, error) `perm:"read"`
 
-		StateListMiners func(p0 context.Context, p1 types.TipSetKey) ([]address.Address, error) `perm:"read"`
+	StateListMiners func(p0 context.Context, p1 types.TipSetKey) ([]address.Address, error) `perm:"read"`
 
-		StateLookupID func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) `perm:"read"`
+	StateLookupID func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) `perm:"read"`
 
-		StateMarketBalance func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MarketBalance, error) `perm:"read"`
+	StateMarketBalance func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MarketBalance, error) `perm:"read"`
 
-		StateMarketDeals func(p0 context.Context, p1 types.TipSetKey) (map[string]*api.MarketDeal, error) `perm:"read"`
+	StateMarketDeals func(p0 context.Context, p1 types.TipSetKey) (map[string]*api.MarketDeal, error) `perm:"read"`
 
-		StateMarketParticipants func(p0 context.Context, p1 types.TipSetKey) (map[string]api.MarketBalance, error) `perm:"read"`
+	StateMarketParticipants func(p0 context.Context, p1 types.TipSetKey) (map[string]api.MarketBalance, error) `perm:"read"`
 
-		StateMarketStorageDeal func(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*api.MarketDeal, error) `perm:"read"`
+	StateMarketStorageDeal func(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*api.MarketDeal, error) `perm:"read"`
 
-		StateMinerActiveSectors func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]*miner.SectorOnChainInfo, error) `perm:"read"`
+	StateMinerActiveSectors func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]*miner.SectorOnChainInfo, error) `perm:"read"`
 
-		StateMinerAvailableBalance func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (types.BigInt, error) `perm:"read"`
+	StateMinerAvailableBalance func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
-		StateMinerDeadlines func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]api.Deadline, error) `perm:"read"`
+	StateMinerDeadlines func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]api.Deadline, error) `perm:"read"`
 
-		StateMinerFaults func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) `perm:"read"`
+	StateMinerFaults func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) `perm:"read"`
 
-		StateMinerInfo func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MinerInfo, error) `perm:"read"`
+	StateMinerInfo func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MinerInfo, error) `perm:"read"`
 
-		StateMinerInitialPledgeCollateral func(p0 context.Context, p1 address.Address, p2 miner.SectorPreCommitInfo, p3 types.TipSetKey) (types.BigInt, error) `perm:"read"`
+	StateMinerInitialPledgeCollateral func(p0 context.Context, p1 address.Address, p2 miner.SectorPreCommitInfo, p3 types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
-		StateMinerPartitions func(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]api.Partition, error) `perm:"read"`
+	StateMinerPartitions func(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]api.Partition, error) `perm:"read"`
 
-		StateMinerPower func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*api.MinerPower, error) `perm:"read"`
+	StateMinerPower func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*api.MinerPower, error) `perm:"read"`
 
-		StateMinerPreCommitDepositForPower func(p0 context.Context, p1 address.Address, p2 miner.SectorPreCommitInfo, p3 types.TipSetKey) (types.BigInt, error) `perm:"read"`
+	StateMinerPreCommitDepositForPower func(p0 context.Context, p1 address.Address, p2 miner.SectorPreCommitInfo, p3 types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
-		StateMinerProvingDeadline func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*dline.Info, error) `perm:"read"`
+	StateMinerProvingDeadline func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*dline.Info, error) `perm:"read"`
 
-		StateMinerRecoveries func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) `perm:"read"`
+	StateMinerRecoveries func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) `perm:"read"`
 
-		StateMinerSectorAllocated func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (bool, error) `perm:"read"`
+	StateMinerSectorAllocated func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (bool, error) `perm:"read"`
 
-		StateMinerSectorCount func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MinerSectors, error) `perm:"read"`
+	StateMinerSectorCount func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MinerSectors, error) `perm:"read"`
 
-		StateMinerSectors func(p0 context.Context, p1 address.Address, p2 *bitfield.BitField, p3 types.TipSetKey) ([]*miner.SectorOnChainInfo, error) `perm:"read"`
+	StateMinerSectors func(p0 context.Context, p1 address.Address, p2 *bitfield.BitField, p3 types.TipSetKey) ([]*miner.SectorOnChainInfo, error) `perm:"read"`
 
-		StateNetworkName func(p0 context.Context) (dtypes.NetworkName, error) `perm:"read"`
+	StateNetworkName func(p0 context.Context) (dtypes.NetworkName, error) `perm:"read"`
 
-		StateNetworkVersion func(p0 context.Context, p1 types.TipSetKey) (apitypes.NetworkVersion, error) `perm:"read"`
+	StateNetworkVersion func(p0 context.Context, p1 types.TipSetKey) (apitypes.NetworkVersion, error) `perm:"read"`
 
-		StateReadState func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*api.ActorState, error) `perm:"read"`
+	StateReadState func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*api.ActorState, error) `perm:"read"`
 
-		StateReplay func(p0 context.Context, p1 types.TipSetKey, p2 cid.Cid) (*api.InvocResult, error) `perm:"read"`
+	StateReplay func(p0 context.Context, p1 types.TipSetKey, p2 cid.Cid) (*api.InvocResult, error) `perm:"read"`
 
-		StateSearchMsg func(p0 context.Context, p1 cid.Cid) (*api.MsgLookup, error) `perm:"read"`
+	StateSearchMsg func(p0 context.Context, p1 cid.Cid) (*api.MsgLookup, error) `perm:"read"`
 
-		StateSearchMsgLimited func(p0 context.Context, p1 cid.Cid, p2 abi.ChainEpoch) (*api.MsgLookup, error) `perm:"read"`
+	StateSearchMsgLimited func(p0 context.Context, p1 cid.Cid, p2 abi.ChainEpoch) (*api.MsgLookup, error) `perm:"read"`
 
-		StateSectorExpiration func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorExpiration, error) `perm:"read"`
+	StateSectorExpiration func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorExpiration, error) `perm:"read"`
 
-		StateSectorGetInfo func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorOnChainInfo, error) `perm:"read"`
+	StateSectorGetInfo func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorOnChainInfo, error) `perm:"read"`
 
-		StateSectorPartition func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorLocation, error) `perm:"read"`
+	StateSectorPartition func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorLocation, error) `perm:"read"`
 
-		StateSectorPreCommitInfo func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) `perm:"read"`
+	StateSectorPreCommitInfo func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) `perm:"read"`
 
-		StateVMCirculatingSupplyInternal func(p0 context.Context, p1 types.TipSetKey) (api.CirculatingSupply, error) `perm:"read"`
+	StateVMCirculatingSupplyInternal func(p0 context.Context, p1 types.TipSetKey) (api.CirculatingSupply, error) `perm:"read"`
 
-		StateVerifiedClientStatus func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*abi.StoragePower, error) `perm:"read"`
+	StateVerifiedClientStatus func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*abi.StoragePower, error) `perm:"read"`
 
-		StateVerifiedRegistryRootKey func(p0 context.Context, p1 types.TipSetKey) (address.Address, error) `perm:"read"`
+	StateVerifiedRegistryRootKey func(p0 context.Context, p1 types.TipSetKey) (address.Address, error) `perm:"read"`
 
-		StateVerifierStatus func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*abi.StoragePower, error) `perm:"read"`
+	StateVerifierStatus func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*abi.StoragePower, error) `perm:"read"`
 
-		StateWaitMsg func(p0 context.Context, p1 cid.Cid, p2 uint64) (*api.MsgLookup, error) `perm:"read"`
+	StateWaitMsg func(p0 context.Context, p1 cid.Cid, p2 uint64) (*api.MsgLookup, error) `perm:"read"`
 
-		StateWaitMsgLimited func(p0 context.Context, p1 cid.Cid, p2 uint64, p3 abi.ChainEpoch) (*api.MsgLookup, error) `perm:"read"`
+	StateWaitMsgLimited func(p0 context.Context, p1 cid.Cid, p2 uint64, p3 abi.ChainEpoch) (*api.MsgLookup, error) `perm:"read"`
 
-		SyncCheckBad func(p0 context.Context, p1 cid.Cid) (string, error) `perm:"read"`
+	SyncCheckBad func(p0 context.Context, p1 cid.Cid) (string, error) `perm:"read"`
 
-		SyncCheckpoint func(p0 context.Context, p1 types.TipSetKey) error `perm:"admin"`
+	SyncCheckpoint func(p0 context.Context, p1 types.TipSetKey) error `perm:"admin"`
 
-		SyncIncomingBlocks func(p0 context.Context) (<-chan *types.BlockHeader, error) `perm:"read"`
+	SyncIncomingBlocks func(p0 context.Context) (<-chan *types.BlockHeader, error) `perm:"read"`
 
-		SyncMarkBad func(p0 context.Context, p1 cid.Cid) error `perm:"admin"`
+	SyncMarkBad func(p0 context.Context, p1 cid.Cid) error `perm:"admin"`
 
-		SyncState func(p0 context.Context) (*api.SyncState, error) `perm:"read"`
+	SyncState func(p0 context.Context) (*api.SyncState, error) `perm:"read"`
 
-		SyncSubmitBlock func(p0 context.Context, p1 *types.BlockMsg) error `perm:"write"`
+	SyncSubmitBlock func(p0 context.Context, p1 *types.BlockMsg) error `perm:"write"`
 
-		SyncUnmarkAllBad func(p0 context.Context) error `perm:"admin"`
+	SyncUnmarkAllBad func(p0 context.Context) error `perm:"admin"`
 
-		SyncUnmarkBad func(p0 context.Context, p1 cid.Cid) error `perm:"admin"`
+	SyncUnmarkBad func(p0 context.Context, p1 cid.Cid) error `perm:"admin"`
 
-		SyncValidateTipset func(p0 context.Context, p1 types.TipSetKey) (bool, error) `perm:"read"`
+	SyncValidateTipset func(p0 context.Context, p1 types.TipSetKey) (bool, error) `perm:"read"`
 
-		WalletBalance func(p0 context.Context, p1 address.Address) (types.BigInt, error) `perm:"read"`
+	WalletBalance func(p0 context.Context, p1 address.Address) (types.BigInt, error) `perm:"read"`
 
-		WalletDefaultAddress func(p0 context.Context) (address.Address, error) `perm:"write"`
+	WalletDefaultAddress func(p0 context.Context) (address.Address, error) `perm:"write"`
 
-		WalletDelete func(p0 context.Context, p1 address.Address) error `perm:"admin"`
+	WalletDelete func(p0 context.Context, p1 address.Address) error `perm:"admin"`
 
-		WalletExport func(p0 context.Context, p1 address.Address) (*types.KeyInfo, error) `perm:"admin"`
+	WalletExport func(p0 context.Context, p1 address.Address) (*types.KeyInfo, error) `perm:"admin"`
 
-		WalletHas func(p0 context.Context, p1 address.Address) (bool, error) `perm:"write"`
+	WalletHas func(p0 context.Context, p1 address.Address) (bool, error) `perm:"write"`
 
-		WalletImport func(p0 context.Context, kinfo *types.KeyInfo) (address.Address, error) `perm:"admin"`
+	WalletImport func(p0 context.Context, kinfo *types.KeyInfo) (address.Address, error) `perm:"admin"`
 
-		WalletList func(p0 context.Context) ([]address.Address, error) `perm:"write"`
+	WalletList func(p0 context.Context) ([]address.Address, error) `perm:"write"`
 
-		WalletNew func(p0 context.Context, p1 types.KeyType, passwd string) (address.Address, error) `perm:"write"`
+	WalletNew func(p0 context.Context, p1 types.KeyType, passwd string) (address.Address, error) `perm:"write"`
 
-		WalletSetDefault func(p0 context.Context, p1 address.Address) error `perm:"write"`
+	WalletSetDefault func(p0 context.Context, p1 address.Address) error `perm:"write"`
 
-		WalletSign func(p0 context.Context, p1 address.Address, p2 []byte) (*crypto.Signature, error) `perm:"sign"`
+	WalletSign func(p0 context.Context, p1 address.Address, p2 []byte) (*crypto.Signature, error) `perm:"sign"`
 
-		WalletSignMessage func(p0 context.Context, p1 address.Address, p2 *types.Message) (*types.SignedMessage, error) `perm:"sign"`
+	WalletSignMessage func(p0 context.Context, p1 address.Address, p2 *types.Message) (*types.SignedMessage, error) `perm:"sign"`
 
-		WalletValidateAddress func(p0 context.Context, p1 string) (address.Address, error) `perm:"read"`
+	WalletValidateAddress func(p0 context.Context, p1 string) (address.Address, error) `perm:"read"`
 
-		WalletVerify func(p0 context.Context, p1 address.Address, p2 []byte, p3 *crypto.Signature) (bool, error) `perm:"read"`
-	}
+	WalletVerify func(p0 context.Context, p1 address.Address, p2 []byte, p3 *crypto.Signature) (bool, error) `perm:"read"`
 }
 
 type FullNodeStub struct {
@@ -435,71 +436,81 @@ type FullNodeStub struct {
 }
 
 type GatewayStruct struct {
-	Internal struct {
-		ChainGetBlockMessages func(p0 context.Context, p1 cid.Cid) (*api.BlockMessages, error) ``
+	Internal GatewayMethods
+}
 
-		ChainGetMessage func(p0 context.Context, p1 cid.Cid) (*types.Message, error) ``
+type GatewayMethods struct {
+	ChainGetBlockMessages func(p0 context.Context, p1 cid.Cid) (*api.BlockMessages, error) ``
 
-		ChainGetTipSet func(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) ``
+	ChainGetMessage func(p0 context.Context, p1 cid.Cid) (*types.Message, error) ``
 
-		ChainGetTipSetByHeight func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) ``
+	ChainGetTipSet func(p0 context.Context, p1 types.TipSetKey) (*types.TipSet, error) ``
 
-		ChainHasObj func(p0 context.Context, p1 cid.Cid) (bool, error) ``
+	ChainGetTipSetByHeight func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (*types.TipSet, error) ``
 
-		ChainHead func(p0 context.Context) (*types.TipSet, error) ``
+	ChainHasObj func(p0 context.Context, p1 cid.Cid) (bool, error) ``
 
-		ChainNotify func(p0 context.Context) (<-chan []*api.HeadChange, error) ``
+	ChainHead func(p0 context.Context) (*types.TipSet, error) ``
 
-		ChainPutObj func(p0 context.Context, p1 blocks.Block) error ``
+	ChainNotify func(p0 context.Context) (<-chan []*api.HeadChange, error) ``
 
-		ChainReadObj func(p0 context.Context, p1 cid.Cid) ([]byte, error) ``
+	ChainPutObj func(p0 context.Context, p1 blocks.Block) error ``
 
-		GasEstimateMessageGas func(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) ``
+	ChainReadObj func(p0 context.Context, p1 cid.Cid) ([]byte, error) ``
 
-		MpoolPush func(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) ``
+	GasEstimateMessageGas func(p0 context.Context, p1 *types.Message, p2 *api.MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) ``
 
-		MsigGetAvailableBalance func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (types.BigInt, error) ``
+	MpoolGetNonce func(p0 context.Context, p1 address.Address) (uint64, error) ``
 
-		MsigGetPending func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]*api.MsigTransaction, error) ``
+	MpoolPush func(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) ``
 
-		MsigGetVested func(p0 context.Context, p1 address.Address, p2 types.TipSetKey, p3 types.TipSetKey) (types.BigInt, error) ``
+	MsigGetAvailableBalance func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (types.BigInt, error) ``
 
-		StateAccountKey func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) ``
+	MsigGetPending func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]*api.MsigTransaction, error) ``
 
-		StateDealProviderCollateralBounds func(p0 context.Context, p1 abi.PaddedPieceSize, p2 bool, p3 types.TipSetKey) (api.DealCollateralBounds, error) ``
+	MsigGetVested func(p0 context.Context, p1 address.Address, p2 types.TipSetKey, p3 types.TipSetKey) (types.BigInt, error) ``
 
-		StateGetActor func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) ``
+	StateAccountKey func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) ``
 
-		StateGetReceipt func(p0 context.Context, p1 cid.Cid, p2 types.TipSetKey) (*types.MessageReceipt, error) ``
+	StateCall func(p0 context.Context, p1 *types.Message, p2 types.TipSetKey) (*api.InvocResult, error) ``
 
-		StateListMiners func(p0 context.Context, p1 types.TipSetKey) ([]address.Address, error) ``
+	StateDealProviderCollateralBounds func(p0 context.Context, p1 abi.PaddedPieceSize, p2 bool, p3 types.TipSetKey) (api.DealCollateralBounds, error) ``
 
-		StateLookupID func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) ``
+	StateDecodeParams func(p0 context.Context, p1 address.Address, p2 abi.MethodNum, p3 []byte, p4 types.TipSetKey) (interface{}, error) ``
 
-		StateMarketBalance func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MarketBalance, error) ``
+	StateGetActor func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) ``
 
-		StateMarketStorageDeal func(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*api.MarketDeal, error) ``
+	StateGetReceipt func(p0 context.Context, p1 cid.Cid, p2 types.TipSetKey) (*types.MessageReceipt, error) ``
 
-		StateMinerInfo func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MinerInfo, error) ``
+	StateListMiners func(p0 context.Context, p1 types.TipSetKey) ([]address.Address, error) ``
 
-		StateMinerPower func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*api.MinerPower, error) ``
+	StateLookupID func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) ``
 
-		StateMinerProvingDeadline func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*dline.Info, error) ``
+	StateMarketBalance func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MarketBalance, error) ``
 
-		StateNetworkVersion func(p0 context.Context, p1 types.TipSetKey) (abinetwork.Version, error) ``
+	StateMarketStorageDeal func(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*api.MarketDeal, error) ``
 
-		StateSearchMsg func(p0 context.Context, p1 cid.Cid) (*api.MsgLookup, error) ``
+	StateMinerInfo func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (api.MinerInfo, error) ``
 
-		StateSectorGetInfo func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorOnChainInfo, error) ``
+	StateMinerPower func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*api.MinerPower, error) ``
 
-		StateVerifiedClientStatus func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*abi.StoragePower, error) ``
+	StateMinerProvingDeadline func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*dline.Info, error) ``
 
-		StateWaitMsg func(p0 context.Context, p1 cid.Cid, p2 uint64) (*api.MsgLookup, error) ``
+	StateNetworkName func(p0 context.Context) (dtypes.NetworkName, error) ``
 
-		Version func(p0 context.Context) (api.APIVersion, error) ``
+	StateNetworkVersion func(p0 context.Context, p1 types.TipSetKey) (abinetwork.Version, error) ``
 
-		WalletBalance func(p0 context.Context, p1 address.Address) (types.BigInt, error) ``
-	}
+	StateSearchMsg func(p0 context.Context, p1 cid.Cid) (*api.MsgLookup, error) ``
+
+	StateSectorGetInfo func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorOnChainInfo, error) ``
+
+	StateVerifiedClientStatus func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*abi.StoragePower, error) ``
+
+	StateWaitMsg func(p0 context.Context, p1 cid.Cid, p2 uint64) (*api.MsgLookup, error) ``
+
+	Version func(p0 context.Context) (api.APIVersion, error) ``
+
+	WalletBalance func(p0 context.Context, p1 address.Address) (types.BigInt, error) ``
 }
 
 type GatewayStub struct {
@@ -2737,6 +2748,17 @@ func (s *GatewayStub) GasEstimateMessageGas(p0 context.Context, p1 *types.Messag
 	return nil, ErrNotSupported
 }
 
+func (s *GatewayStruct) MpoolGetNonce(p0 context.Context, p1 address.Address) (uint64, error) {
+	if s.Internal.MpoolGetNonce == nil {
+		return 0, ErrNotSupported
+	}
+	return s.Internal.MpoolGetNonce(p0, p1)
+}
+
+func (s *GatewayStub) MpoolGetNonce(p0 context.Context, p1 address.Address) (uint64, error) {
+	return 0, ErrNotSupported
+}
+
 func (s *GatewayStruct) MpoolPush(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) {
 	if s.Internal.MpoolPush == nil {
 		return *new(cid.Cid), ErrNotSupported
@@ -2792,6 +2814,17 @@ func (s *GatewayStub) StateAccountKey(p0 context.Context, p1 address.Address, p2
 	return *new(address.Address), ErrNotSupported
 }
 
+func (s *GatewayStruct) StateCall(p0 context.Context, p1 *types.Message, p2 types.TipSetKey) (*api.InvocResult, error) {
+	if s.Internal.StateCall == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.StateCall(p0, p1, p2)
+}
+
+func (s *GatewayStub) StateCall(p0 context.Context, p1 *types.Message, p2 types.TipSetKey) (*api.InvocResult, error) {
+	return nil, ErrNotSupported
+}
+
 func (s *GatewayStruct) StateDealProviderCollateralBounds(p0 context.Context, p1 abi.PaddedPieceSize, p2 bool, p3 types.TipSetKey) (api.DealCollateralBounds, error) {
 	if s.Internal.StateDealProviderCollateralBounds == nil {
 		return *new(api.DealCollateralBounds), ErrNotSupported
@@ -2801,6 +2834,17 @@ func (s *GatewayStruct) StateDealProviderCollateralBounds(p0 context.Context, p1
 
 func (s *GatewayStub) StateDealProviderCollateralBounds(p0 context.Context, p1 abi.PaddedPieceSize, p2 bool, p3 types.TipSetKey) (api.DealCollateralBounds, error) {
 	return *new(api.DealCollateralBounds), ErrNotSupported
+}
+
+func (s *GatewayStruct) StateDecodeParams(p0 context.Context, p1 address.Address, p2 abi.MethodNum, p3 []byte, p4 types.TipSetKey) (interface{}, error) {
+	if s.Internal.StateDecodeParams == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.StateDecodeParams(p0, p1, p2, p3, p4)
+}
+
+func (s *GatewayStub) StateDecodeParams(p0 context.Context, p1 address.Address, p2 abi.MethodNum, p3 []byte, p4 types.TipSetKey) (interface{}, error) {
+	return nil, ErrNotSupported
 }
 
 func (s *GatewayStruct) StateGetActor(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) {
@@ -2900,6 +2944,17 @@ func (s *GatewayStruct) StateMinerProvingDeadline(p0 context.Context, p1 address
 
 func (s *GatewayStub) StateMinerProvingDeadline(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*dline.Info, error) {
 	return nil, ErrNotSupported
+}
+
+func (s *GatewayStruct) StateNetworkName(p0 context.Context) (dtypes.NetworkName, error) {
+	if s.Internal.StateNetworkName == nil {
+		return *new(dtypes.NetworkName), ErrNotSupported
+	}
+	return s.Internal.StateNetworkName(p0)
+}
+
+func (s *GatewayStub) StateNetworkName(p0 context.Context) (dtypes.NetworkName, error) {
+	return *new(dtypes.NetworkName), ErrNotSupported
 }
 
 func (s *GatewayStruct) StateNetworkVersion(p0 context.Context, p1 types.TipSetKey) (abinetwork.Version, error) {

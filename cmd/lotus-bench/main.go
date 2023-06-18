@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"os"
@@ -201,7 +200,7 @@ var sealBenchCmd = &cli.Command{
 				return xerrors.Errorf("creating sectorbuilder dir: %w", err)
 			}
 
-			tsdir, err := ioutil.TempDir(sdir, "bench")
+			tsdir, err := os.MkdirTemp(sdir, "bench")
 			if err != nil {
 				return err
 			}
@@ -291,7 +290,7 @@ var sealBenchCmd = &cli.Command{
 			// sectorbuilder directory... we need a better way to handle
 			// this in other cases
 
-			fdata, err := ioutil.ReadFile(filepath.Join(sbdir, "pre-seal-"+maddr.String()+".json"))
+			fdata, err := os.ReadFile(filepath.Join(sbdir, "pre-seal-"+maddr.String()+".json"))
 			if err != nil {
 				return err
 			}
@@ -431,8 +430,18 @@ var sealBenchCmd = &cli.Command{
 			}
 			verifyWinningPost2 := time.Now()
 
+			ppt, err := sealedSectors[0].SealProof.RegisteredWindowPoStProof()
+			if err != nil {
+				return err
+			}
+
+			ppt, err = ppt.ToV1_1PostProof()
+			if err != nil {
+				return err
+			}
+
 			log.Info("computing window post snark (cold)")
-			wproof1, _, err := sb.GenerateWindowPoSt(context.TODO(), mid, provenSectors, challenge[:])
+			wproof1, _, err := sb.GenerateWindowPoSt(context.TODO(), mid, ppt, provenSectors, challenge[:])
 			if err != nil {
 				return err
 			}
@@ -440,7 +449,7 @@ var sealBenchCmd = &cli.Command{
 			windowpost1 := time.Now()
 
 			log.Info("computing window post snark (hot)")
-			wproof2, _, err := sb.GenerateWindowPoSt(context.TODO(), mid, provenSectors, challenge[:])
+			wproof2, _, err := sb.GenerateWindowPoSt(context.TODO(), mid, ppt, provenSectors, challenge[:])
 			if err != nil {
 				return err
 			}
@@ -492,7 +501,7 @@ var sealBenchCmd = &cli.Command{
 		}
 
 		bo.EnvVar = make(map[string]string)
-		for _, envKey := range []string{"BELLMAN_NO_GPU", "FIL_PROOFS_MAXIMIZE_CACHING", "FIL_PROOFS_USE_GPU_COLUMN_BUILDER",
+		for _, envKey := range []string{"BELLMAN_NO_GPU", "FIL_PROOFS_USE_GPU_COLUMN_BUILDER",
 			"FIL_PROOFS_USE_GPU_TREE_BUILDER", "FIL_PROOFS_USE_MULTICORE_SDR", "BELLMAN_CUSTOM_GPU"} {
 			envValue, found := os.LookupEnv(envKey)
 			if found {
@@ -661,7 +670,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 							return err
 						}
 
-						if err := ioutil.WriteFile(saveC2inp, b, 0664); err != nil {
+						if err := os.WriteFile(saveC2inp, b, 0664); err != nil {
 							log.Warnf("%+v", err)
 						}
 					}
@@ -775,7 +784,7 @@ var proveCmd = &cli.Command{
 			return xerrors.Errorf("Usage: lotus-bench prove [input.json]")
 		}
 
-		inb, err := ioutil.ReadFile(c.Args().First())
+		inb, err := os.ReadFile(c.Args().First())
 		if err != nil {
 			return xerrors.Errorf("reading input file: %w", err)
 		}

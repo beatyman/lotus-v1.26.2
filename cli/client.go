@@ -31,7 +31,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
-	datatransfer "github.com/filecoin-project/go-data-transfer"
+	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -166,8 +166,8 @@ var clientDropCmd = &cli.Command{
 	Usage:     "Remove import",
 	ArgsUsage: "[import ID...]",
 	Action: func(cctx *cli.Context) error {
-		if !cctx.Args().Present() {
-			return xerrors.Errorf("no imports specified")
+		if cctx.NArg() != 1 {
+			return IncorrectNumArgs(cctx)
 		}
 
 		api, closer, err := GetFullNodeAPI(cctx)
@@ -627,7 +627,13 @@ uiLoop:
 
 			minDealDurationDays := uint64(build.MinDealDuration) / (builtin.SecondsInDay / build.BlockDelaySecs)
 			if days < int(minDealDurationDays) {
-				printErr(xerrors.Errorf("minimum duration is %d days", minDealDurationDays))
+				printErr(xerrors.Errorf("minimum duration is %d days, got %d", minDealDurationDays, days))
+				continue
+			}
+
+			maxDealDurationDays := uint64(build.MaxDealDuration) / (builtin.SecondsInDay / build.BlockDelaySecs)
+			if days > int(maxDealDurationDays) {
+				printErr(xerrors.Errorf("maximum duration is %d days, got %d", maxDealDurationDays, days))
 				continue
 			}
 
@@ -990,9 +996,8 @@ var clientFindCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if !cctx.Args().Present() {
-			fmt.Println("Usage: find [CID]")
-			return nil
+		if cctx.NArg() != 1 {
+			return IncorrectNumArgs(cctx)
 		}
 
 		file, err := cid.Parse(cctx.Args().First())
@@ -1061,8 +1066,7 @@ var clientQueryRetrievalAskCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		afmt := NewAppFmt(cctx.App)
 		if cctx.NArg() != 2 {
-			afmt.Println("Usage: retrieval-ask [minerAddress] [data CID]")
-			return nil
+			return IncorrectNumArgs(cctx)
 		}
 
 		maddr, err := address.NewFromString(cctx.Args().First())
@@ -1119,11 +1123,6 @@ var clientListRetrievalsCmd = &cli.Command{
 			Usage:   "print verbose deal details",
 		},
 		&cli.BoolFlag{
-			Name:        "color",
-			Usage:       "use color in display output",
-			DefaultText: "depends on output being a TTY",
-		},
-		&cli.BoolFlag{
 			Name:  "show-failed",
 			Usage: "show failed/failing deals",
 			Value: true,
@@ -1138,10 +1137,6 @@ var clientListRetrievalsCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if cctx.IsSet("color") {
-			color.NoColor = !cctx.Bool("color")
-		}
-
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
 			return err
@@ -1515,6 +1510,8 @@ func GetAsks(ctx context.Context, api lapi.FullNode) ([]QueriedAsk, error) {
 				}
 			}(miner)
 		}
+
+		wg.Wait()
 	}()
 
 loop:
@@ -1588,6 +1585,8 @@ loop:
 				lk.Unlock()
 			}(miner)
 		}
+
+		wg.Wait()
 	}()
 
 loop2:
@@ -1633,8 +1632,7 @@ var clientQueryAskCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		afmt := NewAppFmt(cctx.App)
 		if cctx.NArg() != 1 {
-			afmt.Println("Usage: query-ask [minerAddress]")
-			return nil
+			return IncorrectNumArgs(cctx)
 		}
 
 		maddr, err := address.NewFromString(cctx.Args().First())
@@ -1707,11 +1705,6 @@ var clientListDeals = &cli.Command{
 			Usage:   "print verbose deal details",
 		},
 		&cli.BoolFlag{
-			Name:        "color",
-			Usage:       "use color in display output",
-			DefaultText: "depends on output being a TTY",
-		},
-		&cli.BoolFlag{
 			Name:  "show-failed",
 			Usage: "show failed/failing deals",
 		},
@@ -1721,10 +1714,6 @@ var clientListDeals = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if cctx.IsSet("color") {
-			color.NoColor = !cctx.Bool("color")
-		}
-
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
 			return err
@@ -1938,8 +1927,8 @@ var clientGetDealCmd = &cli.Command{
 	Usage:     "Print detailed deal information",
 	ArgsUsage: "[proposalCID]",
 	Action: func(cctx *cli.Context) error {
-		if !cctx.Args().Present() {
-			return cli.ShowCommandHelp(cctx, cctx.Command.Name)
+		if cctx.NArg() != 1 {
+			return IncorrectNumArgs(cctx)
 		}
 
 		api, closer, err := GetFullNodeAPI(cctx)
@@ -2052,8 +2041,8 @@ var clientStat = &cli.Command{
 		defer closer()
 		ctx := ReqContext(cctx)
 
-		if !cctx.Args().Present() || cctx.NArg() != 1 {
-			return fmt.Errorf("must specify cid of data")
+		if cctx.NArg() != 1 {
+			return IncorrectNumArgs(cctx)
 		}
 
 		dataCid, err := cid.Parse(cctx.Args().First())
@@ -2074,8 +2063,9 @@ var clientStat = &cli.Command{
 }
 
 var clientRestartTransfer = &cli.Command{
-	Name:  "restart-transfer",
-	Usage: "Force restart a stalled data transfer",
+	Name:      "restart-transfer",
+	Usage:     "Force restart a stalled data transfer",
+	ArgsUsage: "[transferID]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "peerid",
@@ -2088,8 +2078,8 @@ var clientRestartTransfer = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if !cctx.Args().Present() {
-			return cli.ShowCommandHelp(cctx, cctx.Command.Name)
+		if cctx.NArg() != 1 {
+			return IncorrectNumArgs(cctx)
 		}
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
@@ -2134,8 +2124,9 @@ var clientRestartTransfer = &cli.Command{
 }
 
 var clientCancelTransfer = &cli.Command{
-	Name:  "cancel-transfer",
-	Usage: "Force cancel a data transfer",
+	Name:      "cancel-transfer",
+	Usage:     "Force cancel a data transfer",
+	ArgsUsage: "[transferID]",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "peerid",
@@ -2153,8 +2144,8 @@ var clientCancelTransfer = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if !cctx.Args().Present() {
-			return cli.ShowCommandHelp(cctx, cctx.Command.Name)
+		if cctx.NArg() != 1 {
+			return IncorrectNumArgs(cctx)
 		}
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
@@ -2237,11 +2228,6 @@ var clientListTransfers = &cli.Command{
 			Usage:   "print verbose transfer details",
 		},
 		&cli.BoolFlag{
-			Name:        "color",
-			Usage:       "use color in display output",
-			DefaultText: "depends on output being a TTY",
-		},
-		&cli.BoolFlag{
 			Name:  "completed",
 			Usage: "show completed data transfers",
 		},
@@ -2255,10 +2241,6 @@ var clientListTransfers = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if cctx.IsSet("color") {
-			color.NoColor = !cctx.Bool("color")
-		}
-
 		api, closer, err := GetFullNodeAPI(cctx)
 		if err != nil {
 			return err

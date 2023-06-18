@@ -208,7 +208,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 
 	mid, err := address.IDFromAddress(s.actor)
 	if err != nil {
-		return bitfield.BitField{}, err
+		return bitfield.BitField{}, xerrors.Errorf("failed to convert to ID addr: %w", err)
 	}
 	repo := ""
 	sm, ok := s.prover.(*sectorstorage.Manager)
@@ -224,7 +224,7 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 
 	sectorInfos, err := s.api.StateMinerSectors(ctx, s.actor, &check, tsk)
 	if err != nil {
-		return bitfield.BitField{}, err
+		return bitfield.BitField{}, xerrors.Errorf("failed to get sector infos: %w", err)
 	}
 	sFileNames := []string{}
 	for _, info := range sectorInfos {
@@ -271,6 +271,31 @@ func (s *WindowPoStScheduler) checkSectors(ctx context.Context, check bitfield.B
 		})
 	}
 
+	nv, err := s.api.StateNetworkVersion(ctx, types.EmptyTSK)
+	if err != nil {
+		return bitfield.BitField{}, xerrors.Errorf("failed to get network version: %w", err)
+	}
+
+	pp := s.proofType
+	// TODO: Drop after nv19 comes and goes
+	if nv >= network.Version19 {
+		pp, err = pp.ToV1_1PostProof()
+		if err != nil {
+			return bitfield.BitField{}, xerrors.Errorf("failed to convert to v1_1 post proof: %w", err)
+		}
+	}
+	/*
+	bad, err := s.faultTracker.CheckProvable(ctx, pp, tocheck, func(ctx context.Context, id abi.SectorID) (cid.Cid, bool, error) {
+		s, ok := sectors[id.Number]
+		if !ok {
+			return cid.Undef, false, xerrors.Errorf("sealed CID not found")
+		}
+		return s.sealed, s.update, nil
+	})
+	if err != nil {
+		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
+	}
+	*/
 	all, _, _, err := s.faultTracker.CheckProvable(ctx, s.proofType, tocheck, nil,timeout)
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
@@ -486,12 +511,16 @@ func (s *WindowPoStScheduler) runPoStCycle(ctx context.Context, manual bool, di 
 				return nil, err
 			}
 
+			ppt, err := xsinfos[0].SealProof.RegisteredWindowPoStProofByNetworkVersion(nv)
+			if err != nil {
+				return nil, xerrors.Errorf("failed to get window post type: %w", err)
+			}
 			defer func() {
 				if r := recover(); r != nil {
 					log.Errorf("recover: %s", r)
 				}
 			}()
-			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, append(abi.PoStRandomness{}, rand...))
+			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), ppt, sinfos, append(abi.PoStRandomness{}, rand...))
 			elapsed := time.Since(tsStart)
 			span.SetGenerateElapsed(int64(elapsed))
 			span.SetErrorCount(len(ps))

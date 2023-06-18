@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"github.com/filecoin-project/lotus/monitor"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"runtime/pprof"
 	"strings"
 
+	"github.com/DataDog/zstd"
 	metricsprom "github.com/ipfs/go-metrics-prometheus"
 	"github.com/mitchellh/go-homedir"
 	"github.com/multiformats/go-multiaddr"
@@ -33,6 +33,7 @@ import (
 
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/consensus"
 	"github.com/filecoin-project/lotus/chain/consensus/filcns"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
@@ -255,7 +256,7 @@ var DaemonCmd = &cli.Command{
 
 		var genBytes []byte
 		if cctx.String("genesis") != "" {
-			genBytes, err = ioutil.ReadFile(cctx.String("genesis"))
+			genBytes, err = os.ReadFile(cctx.String("genesis"))
 			if err != nil {
 				return xerrors.Errorf("reading genesis: %w", err)
 			}
@@ -411,7 +412,7 @@ func importKey(ctx context.Context, api lapi.FullNode, f string) error {
 		return err
 	}
 
-	hexdata, err := ioutil.ReadFile(f)
+	hexdata, err := os.ReadFile(f)
 	if err != nil {
 		return err
 	}
@@ -504,6 +505,11 @@ func ImportChain(ctx context.Context, r repo.Repo, fname string, snapshot bool) 
 
 	bufr := bufio.NewReaderSize(rd, 1<<20)
 
+	header, err := bufr.Peek(4)
+	if err != nil {
+		return xerrors.Errorf("peek header: %w", err)
+	}
+
 	bar := pb.New64(l)
 	br := bar.NewProxyReader(bufr)
 	bar.ShowTimeLeft = true
@@ -511,8 +517,20 @@ func ImportChain(ctx context.Context, r repo.Repo, fname string, snapshot bool) 
 	bar.ShowSpeed = true
 	bar.Units = pb.U_BYTES
 
+	var ir io.Reader = br
+
+	if string(header[1:]) == "\xB5\x2F\xFD" { // zstd
+		zr := zstd.NewReader(br)
+		defer func() {
+			if err := zr.Close(); err != nil {
+				log.Errorw("closing zstd reader", "error", err)
+			}
+		}()
+		ir = zr
+	}
+
 	bar.Start()
-	ts, err := cst.Import(ctx, br)
+	ts, err := cst.Import(ctx, ir)
 	bar.Finish()
 
 	if err != nil {
@@ -534,7 +552,7 @@ func ImportChain(ctx context.Context, r repo.Repo, fname string, snapshot bool) 
 	}
 
 	// TODO: We need to supply the actual beacon after v14
-	stm, err := stmgr.NewStateManager(cst, filcns.NewTipSetExecutor(), vm.Syscalls(ffiwrapper.ProofVerifier), filcns.DefaultUpgradeSchedule(), nil)
+	stm, err := stmgr.NewStateManager(cst, consensus.NewTipSetExecutor(filcns.RewardFunc), vm.Syscalls(ffiwrapper.ProofVerifier), filcns.DefaultUpgradeSchedule(), nil, mds)
 	if err != nil {
 		return err
 	}
