@@ -33,7 +33,6 @@ import (
 	"github.com/filecoin-project/lotus/journal/alerting"
 	sealing "github.com/filecoin-project/lotus/storage/pipeline"
 	"github.com/filecoin-project/lotus/storage/sealer/sealtasks"
-	"github.com/gwaylib/errors"
 )
 
 var infoCmd = &cli.Command{
@@ -159,19 +158,23 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 		return err
 	}
 
-	rpercI := types.BigDiv(types.BigMul(pow.MinerPower.RawBytePower, types.NewInt(1000000)), pow.TotalPower.RawBytePower)
-	qpercI := types.BigDiv(types.BigMul(pow.MinerPower.QualityAdjPower, types.NewInt(1000000)), pow.TotalPower.QualityAdjPower)
-
 	fmt.Printf("Power: %s / %s (%0.4f%%)\n",
 		color.GreenString(types.DeciStr(pow.MinerPower.QualityAdjPower)),
 		types.DeciStr(pow.TotalPower.QualityAdjPower),
-		float64(qpercI.Int64())/10000)
+		types.BigDivFloat(
+			types.BigMul(pow.MinerPower.QualityAdjPower, big.NewInt(100)),
+			pow.TotalPower.QualityAdjPower,
+		),
+	)
 
 	fmt.Printf("\tRaw: %s / %s (%0.4f%%)\n",
 		color.BlueString(types.SizeStr(pow.MinerPower.RawBytePower)),
 		types.SizeStr(pow.TotalPower.RawBytePower),
-		float64(rpercI.Int64())/10000)
-
+		types.BigDivFloat(
+			types.BigMul(pow.MinerPower.RawBytePower, big.NewInt(100)),
+			pow.TotalPower.RawBytePower,
+		),
+	)
 	secCounts, err := fullapi.StateMinerSectorCount(ctx, maddr, types.EmptyTSK)
 
 	if err != nil {
@@ -186,20 +189,18 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 	} else {
 		var faultyPercentage float64
 		if secCounts.Live != 0 {
-			faultyPercentage = float64(10000*nfaults/secCounts.Live) / 100.
+			faultyPercentage = float64(100*nfaults) / float64(secCounts.Live)
 		}
 		fmt.Printf("\tProving: %s (%s Faulty, %.2f%%)\n",
 			types.SizeStr(types.BigMul(types.NewInt(proving), types.NewInt(uint64(mi.SectorSize)))),
 			types.SizeStr(types.BigMul(types.NewInt(nfaults), types.NewInt(uint64(mi.SectorSize)))),
 			faultyPercentage)
 	}
-	head, err := fullapi.ChainHead(ctx)
-	if err != nil {
-		return err
-	}
+
 	if !pow.HasMinPower {
-		fmt.Print("Below minimum power threshold, no blocks will be won\n")
+		fmt.Print("Below minimum power threshold, no blocks will be won")
 	} else {
+
 		winRatio := new(corebig.Rat).SetFrac(
 			types.BigMul(pow.MinerPower.QualityAdjPower, types.NewInt(build.BlocksPerEpoch)).Int,
 			pow.TotalPower.QualityAdjPower.Int,
@@ -248,141 +249,8 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 			)
 			fmt.Println("(projections DO NOT account for future network and miner growth)")
 		}
-		expWinChance := float64(types.BigMul(qpercI, types.NewInt(build.BlocksPerEpoch)).Int64()) / 1000000
-		//expWinChance := float64(qpercI.Int64()) / 1000000
-		if expWinChance > 0 {
-			if expWinChance > 1 {
-				expWinChance = 1
-			}
-			winRate := time.Duration(float64(time.Second*time.Duration(build.BlockDelaySecs)) / expWinChance)
-			winPerDay := float64(time.Hour*24) / float64(winRate)
-			fmt.Printf("Expected block win rate(%.4f%%): ", expWinChance*100)
-			color.Blue("%.4f blocks/day (every %s)", winPerDay, winRate.Truncate(time.Second))
-			fmt.Println()
-
-			limit := cctx.Int("statis-win-limit")
-			now := time.Unix(int64(head.MinTimestamp()), 0).UTC()
-			statisWins, err := nodeApi.StatisWins(ctx, now, limit)
-			if err != nil {
-				fmt.Printf("Statis Win %s\n", errors.As(err).Code())
-			} else if len(statisWins) == 0 {
-				fmt.Printf("Statis Win %s\n", "No data found")
-			} else {
-				// for current
-				statisWin := statisWins[0]
-				beginDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-				rounds := now.Sub(beginDay) / (time.Second * time.Duration(build.BlockDelaySecs))
-				if rounds > time.Duration(head.Height()) {
-					rounds = time.Duration(head.Height())
-				}
-				expDayRounds := int(time.Hour * 24 / (time.Second * time.Duration(build.BlockDelaySecs)))
-				expectNum := int(float64(rounds) * expWinChance)
-				avgUsed := time.Duration(0)
-				if statisWin.WinGen > 0 {
-					avgUsed = time.Duration(statisWin.WinUsed / int64(statisWin.WinGen))
-				}
-				pDrawRate := float64(0)
-				if rounds > 0 {
-					pDrawRate = float64(statisWin.WinAll*100) / float64(rounds)
-				}
-				pWinRate := float64(0)
-				pSucRate := float64(0)
-				if expectNum > 0 {
-					pWinRate = float64(statisWin.WinGen*100) / float64(expectNum)
-					pSucRate = float64(statisWin.WinSuc*100) / float64(expectNum)
-				}
-				fmt.Printf(
-					`Statis Win %s(UTC): 
-	expect day:  rounds:%d, win:%d 
-	expect cur:  rounds:%d, win:%d 
-	actual run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d,
-	actual rate: draw rate:%.2f%%, win rate:%.2f%%, suc rate:%.2f%%
-	average win took: %s
-`,
-					statisWin.Id,
-
-					expDayRounds, statisWin.WinExp,
-					rounds, expectNum,
-
-					statisWin.WinAll, statisWin.WinErr, statisWin.WinGen,
-					statisWin.WinSuc, statisWin.WinErr+(statisWin.WinGen-statisWin.WinSuc),
-
-					pDrawRate, pWinRate, pSucRate,
-
-					avgUsed,
-				)
-
-				// sum for limit day
-				sumExpRounds := expDayRounds*(len(statisWins)-1) + int(rounds)
-				sumExpWin := expectNum
-				sumDraw := statisWin.WinAll
-				sumErr := statisWin.WinErr
-				sumWin := statisWin.WinGen
-				sumSuc := statisWin.WinSuc
-				for i := 1; i < len(statisWins); i++ {
-					w := statisWins[i]
-					sumExpWin += w.WinExp
-					sumDraw += w.WinAll
-					sumErr += w.WinErr
-					sumWin += w.WinGen
-					sumSuc += w.WinSuc
-				}
-				sumDrawRate := float64(0)
-				if sumExpRounds > 0 {
-					sumDrawRate = float64(sumDraw*100) / float64(sumExpRounds)
-				}
-				sumWinRate := float64(0)
-				if sumExpWin > 0 {
-					sumWinRate = float64(sumWin*100) / float64(sumExpWin)
-				}
-				sumSucRate := float64(0)
-				if sumExpWin > 0 {
-					sumSucRate = float64(sumSuc*100) / float64(sumExpWin)
-				}
-				fmt.Printf(
-					`Statis %d days win:
-	expect all:  rounds:%d, win:%d 
-	actual run:  draw:%d, err:%d, win:%d, suc:%d, lost:%d,
-	actual rate: draw rate:%.2f%%, win rate:%.2f%%, suc rate:%.2f%%
-`,
-					len(statisWins),
-					sumExpRounds, sumExpWin,
-					sumDraw, sumErr, sumWin, sumSuc, sumErr+sumWin-sumSuc,
-					sumDrawRate, sumWinRate, sumSucRate,
-				)
-			}
-		}
-	}
-	fmt.Println()
-
-	deals, err := nodeApi.MarketListIncompleteDeals(ctx)
-	if err != nil {
-		return err
 	}
 
-	var nactiveDeals, nVerifDeals, ndeals uint64
-	var activeDealBytes, activeVerifDealBytes, dealBytes abi.PaddedPieceSize
-	for _, deal := range deals {
-		if deal.State == storagemarket.StorageDealError {
-			continue
-		}
-
-		ndeals++
-		dealBytes += deal.Proposal.PieceSize
-
-		if deal.State == storagemarket.StorageDealActive {
-			nactiveDeals++
-			activeDealBytes += deal.Proposal.PieceSize
-
-			if deal.Proposal.VerifiedDeal {
-				nVerifDeals++
-				activeVerifDealBytes += deal.Proposal.PieceSize
-			}
-		}
-	}
-
-	fmt.Printf("Deals: %d, %s\n", ndeals, types.SizeStr(types.NewInt(uint64(dealBytes))))
-	fmt.Printf("\tActive: %d, %s (Verified: %d, %s)\n", nactiveDeals, types.SizeStr(types.NewInt(uint64(activeDealBytes))), nVerifDeals, types.SizeStr(types.NewInt(uint64(activeVerifDealBytes))))
 	fmt.Println()
 
 	spendable := big.Zero()
@@ -460,7 +328,7 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 	}
 	fmt.Println()
 
-	if !cctx.Bool("hide-sectors-info") || cctx.Bool("seal") {
+	if !cctx.Bool("hide-sectors-info") {
 		fmt.Println("Sectors:")
 		err = sectorsInfo(ctx, nodeApi)
 		if err != nil {

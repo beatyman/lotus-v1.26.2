@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"encoding/json"
+	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-state-types/builtin/v8/paych"
 	"github.com/filecoin-project/go-state-types/builtin/v9/miner"
@@ -11,24 +12,25 @@ import (
 	abinetwork "github.com/filecoin-project/go-state-types/network"
 	"github.com/filecoin-project/lotus/api"
 	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 	"github.com/filecoin-project/lotus/journal/alerting"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo/imports"
 	"github.com/gbrlsnchs/jwt/v3"
 	"github.com/google/uuid"
 	blocks "github.com/ipfs/go-block-format"
-	metrics "github.com/libp2p/go-libp2p-core/metrics"
-	"github.com/libp2p/go-libp2p-core/network"
-	protocol "github.com/libp2p/go-libp2p-core/protocol"
+	metrics "github.com/libp2p/go-libp2p/core/metrics"
+	"github.com/libp2p/go-libp2p/core/network"
+	protocol "github.com/libp2p/go-libp2p/core/protocol"
 	"golang.org/x/xerrors"
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
-	datatransfer "github.com/filecoin-project/go-data-transfer"
+	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
@@ -41,6 +43,22 @@ import (
 type LotusImpl struct {
 	secret *dtypes.APIAlg
 	token  string
+}
+
+func (s *LotusImpl) ChainExportRangeInternal(ctx context.Context, p0, p1 types.TipSetKey, p2 api.ChainExportConfig) error {
+	return bestNodeApi().ChainExportRangeInternal(ctx,p0,p1,p2)
+}
+
+func (s *LotusImpl) ChainHotGC(ctx context.Context, p0 api.HotGCOpts) error {
+	return bestNodeApi().ChainHotGC(ctx,p0)
+}
+
+func (s *LotusImpl) EthGetTransactionByHashLimited(ctx context.Context, p0 *ethtypes.EthHash, p1 abi.ChainEpoch) (*ethtypes.EthTx, error) {
+	return bestNodeApi().EthGetTransactionByHashLimited(ctx,p0,p1)
+}
+
+func (s *LotusImpl) EthGetTransactionReceiptLimited(ctx context.Context, p0 ethtypes.EthHash, p1 abi.ChainEpoch) (*api.EthTxReceipt, error) {
+	return bestNodeApi().EthGetTransactionReceiptLimited(ctx,p0,p1)
 }
 
 func (s *LotusImpl) StartTime(ctx context.Context) (time.Time, error) {
@@ -84,6 +102,159 @@ func NewLotusProxy(token string) api.FullNode {
 
 type jwtPayload struct {
 	Allow []auth.Permission
+}
+
+func (s *LotusImpl ) FilecoinAddressToEthAddress(ctx context.Context, p1 address.Address) (ethtypes.EthAddress, error)  {
+	return bestNodeApi().FilecoinAddressToEthAddress(ctx,p1)
+}
+func (s *LotusImpl) EthAddressToFilecoinAddress(ctx context.Context, p1 ethtypes.EthAddress) (address.Address, error){
+	return bestNodeApi().EthAddressToFilecoinAddress(ctx,p1)
+}
+func (s *LotusImpl) ChainGetEvents(ctx context.Context, p1 cid.Cid) ([]types.Event, error){
+	return bestNodeApi().ChainGetEvents(ctx,p1)
+}
+func (s *LotusImpl) EthAccounts(ctx context.Context) ([]ethtypes.EthAddress, error) {
+	return bestNodeApi().EthAccounts(ctx)
+}
+
+func (s *LotusImpl) EthBlockNumber(ctx context.Context) (ethtypes.EthUint64, error) {
+	return bestNodeApi().EthBlockNumber(ctx)
+}
+
+func (s *LotusImpl) EthGetBlockTransactionCountByNumber(ctx context.Context, p1 ethtypes.EthUint64) (ethtypes.EthUint64, error) {
+	return bestNodeApi().EthGetBlockTransactionCountByNumber(ctx,p1)
+}
+
+func (s *LotusImpl) EthGetBlockTransactionCountByHash(ctx context.Context, p1 ethtypes.EthHash) (ethtypes.EthUint64, error) {
+	return bestNodeApi().EthGetBlockTransactionCountByHash(ctx,p1)
+}
+
+func (s *LotusImpl) EthGetBlockByHash(ctx context.Context, p1 ethtypes.EthHash, p2 bool) (ethtypes.EthBlock, error) {
+	return bestNodeApi().EthGetBlockByHash(ctx,p1,p2)
+}
+
+func (s *LotusImpl) EthGetBlockByNumber(ctx context.Context, p1 string, p2 bool) (ethtypes.EthBlock, error) {
+	return bestNodeApi().EthGetBlockByNumber(ctx,p1,p2)
+}
+
+func (s *LotusImpl) EthGetTransactionByHash(ctx context.Context, p1 *ethtypes.EthHash) (*ethtypes.EthTx, error) {
+	return bestNodeApi().EthGetTransactionByHash(ctx,p1)
+}
+
+func (s *LotusImpl) EthGetTransactionHashByCid(ctx context.Context, p1 cid.Cid) (*ethtypes.EthHash, error)      {
+	return bestNodeApi().EthGetTransactionHashByCid(ctx,p1)
+}
+
+func (s *LotusImpl) EthGetMessageCidByTransactionHash(ctx context.Context, p1 *ethtypes.EthHash) (*cid.Cid, error)       {
+	return bestNodeApi().EthGetMessageCidByTransactionHash(ctx,p1)
+}
+
+func (s *LotusImpl) EthGetTransactionCount(ctx context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthUint64, error) {
+	return bestNodeApi().EthGetTransactionCount(ctx,p1,p2)
+}
+
+func (s *LotusImpl) EthGetTransactionReceipt(ctx context.Context, p1 ethtypes.EthHash) (*api.EthTxReceipt, error) {
+	return bestNodeApi().EthGetTransactionReceipt(ctx,p1)
+}
+
+func (s *LotusImpl) EthGetTransactionByBlockHashAndIndex(ctx context.Context, p1 ethtypes.EthHash, p2 ethtypes.EthUint64) (ethtypes.EthTx, error) {
+	return bestNodeApi().EthGetTransactionByBlockHashAndIndex(ctx,p1,p2)
+}
+
+func (s *LotusImpl) EthGetTransactionByBlockNumberAndIndex(ctx context.Context, p1 ethtypes.EthUint64, p2 ethtypes.EthUint64) (ethtypes.EthTx, error) {
+	return bestNodeApi().EthGetTransactionByBlockNumberAndIndex(ctx,p1,p2)
+}
+
+func (s *LotusImpl) EthGetCode(ctx context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBytes, error) {
+	return bestNodeApi().EthGetCode(ctx,p1,p2)
+}
+
+func (s *LotusImpl) EthGetStorageAt(ctx context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 string) (ethtypes.EthBytes, error) {
+	return bestNodeApi().EthGetStorageAt(ctx,p1,p2,p3)
+}
+
+func (s *LotusImpl) EthGetBalance(ctx context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBigInt, error) {
+	return bestNodeApi().EthGetBalance(ctx,p1,p2)
+}
+
+func (s *LotusImpl) EthChainId(ctx context.Context) (ethtypes.EthUint64, error) {
+	return bestNodeApi().EthChainId(ctx)
+}
+
+func (s *LotusImpl) NetVersion(ctx context.Context) (string, error) {
+	return bestNodeApi().NetVersion(ctx)
+}
+
+func (s *LotusImpl) NetListening(ctx context.Context) (bool, error) {
+	return bestNodeApi().NetListening(ctx)
+}
+
+func (s *LotusImpl) EthProtocolVersion(ctx context.Context) (ethtypes.EthUint64, error) {
+	return bestNodeApi().EthProtocolVersion(ctx)
+}
+
+func (s *LotusImpl) EthGasPrice(ctx context.Context) (ethtypes.EthBigInt, error) {
+	return bestNodeApi().EthGasPrice(ctx)
+}
+
+func (s *LotusImpl) 	EthFeeHistory(ctx context.Context, p1 jsonrpc.RawParams) (ethtypes.EthFeeHistory, error)    {
+	return bestNodeApi().EthFeeHistory(ctx,p1)
+}
+
+func (s *LotusImpl) EthMaxPriorityFeePerGas(ctx context.Context) (ethtypes.EthBigInt, error) {
+	return bestNodeApi().EthMaxPriorityFeePerGas(ctx)
+}
+
+func (s *LotusImpl) EthEstimateGas(ctx context.Context, p1 ethtypes.EthCall) (ethtypes.EthUint64, error) {
+	return bestNodeApi().EthEstimateGas(ctx,p1)
+}
+
+func (s *LotusImpl) EthCall(ctx context.Context, p1 ethtypes.EthCall, p2 string) (ethtypes.EthBytes, error) {
+	return bestNodeApi().EthCall(ctx,p1,p2)
+}
+
+func (s *LotusImpl) EthSendRawTransaction(ctx context.Context, p1 ethtypes.EthBytes) (ethtypes.EthHash, error) {
+	return bestNodeApi().EthSendRawTransaction(ctx,p1)
+}
+
+func (s *LotusImpl) EthGetLogs(ctx context.Context, p1 *ethtypes.EthFilterSpec) (*ethtypes.EthFilterResult, error) {
+	return bestNodeApi().EthGetLogs(ctx,p1)
+}
+
+func (s *LotusImpl) EthGetFilterChanges(ctx context.Context, p1 ethtypes.EthFilterID) (*ethtypes.EthFilterResult, error) {
+	return bestNodeApi().EthGetFilterChanges(ctx,p1)
+}
+
+func (s *LotusImpl) EthGetFilterLogs(ctx context.Context, p1 ethtypes.EthFilterID) (*ethtypes.EthFilterResult, error) {
+	return bestNodeApi().EthGetFilterLogs(ctx,p1)
+}
+
+func (s *LotusImpl) EthNewFilter(ctx context.Context, p1 *ethtypes.EthFilterSpec) (ethtypes.EthFilterID, error) {
+	return bestNodeApi().EthNewFilter(ctx,p1)
+}
+
+func (s *LotusImpl) EthNewBlockFilter(ctx context.Context) (ethtypes.EthFilterID, error) {
+	return bestNodeApi().EthNewBlockFilter(ctx)
+}
+
+func (s *LotusImpl) EthNewPendingTransactionFilter(ctx context.Context) (ethtypes.EthFilterID, error) {
+	return bestNodeApi().EthNewPendingTransactionFilter(ctx)
+}
+
+func (s *LotusImpl) EthUninstallFilter(ctx context.Context, p1 ethtypes.EthFilterID) (bool, error) {
+	return bestNodeApi().EthUninstallFilter(ctx,p1)
+}
+
+func (s *LotusImpl) EthSubscribe(ctx context.Context, p1 jsonrpc.RawParams) (ethtypes.EthSubscriptionID, error) {
+	return bestNodeApi().EthSubscribe(ctx,p1)
+}
+
+func (s *LotusImpl) EthUnsubscribe(ctx context.Context, p1 ethtypes.EthSubscriptionID) (bool, error) {
+	return bestNodeApi().EthUnsubscribe(ctx,p1)
+}
+
+func (s *LotusImpl) Web3ClientVersion(ctx context.Context) (string, error) {
+	return bestNodeApi().Web3ClientVersion(ctx)
 }
 func (s *LotusImpl)NetPing (ctx context.Context, p1 peer.ID) (time.Duration, error){
 	return bestNodeApi().NetPing(ctx, p1)

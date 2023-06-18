@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"sync"
+	"time"
 
 	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
@@ -57,10 +58,18 @@ func newSectorCommittedManager(ev eventsCalledAPI, dealInfo dealInfoAPI, dpcAPI 
 }
 
 func (mgr *SectorCommittedManager) OnDealSectorPreCommitted(ctx context.Context, provider address.Address, proposal market.DealProposal, publishCid cid.Cid, callback storagemarket.DealSectorPreCommittedCallback) error {
+	log.Infof("DEBUG: OnDealSectorPreCommitted in, publishCid:%s", publishCid.String())
+	defer log.Infof("DEBUG: OnDealSectorPreCommitted out, publishCid:%s", publishCid.String())
 	// Ensure callback is only called once
 	var once sync.Once
 	cb := func(sectorNumber abi.SectorNumber, isActive bool, err error) {
 		once.Do(func() {
+			log.Infof("DEBUG: OnDealSectorPreCommitted.cb in, publishCid:%s, sector:%+v, isActive:%t,err:%+v",
+				publishCid.String(), sectorNumber, isActive, err,
+			)
+			defer log.Infof("DEBUG: OnDealSectorPreCommitted.cb out, publishCid:%s, sector:%+v,isActive:%t,err:%+v",
+				publishCid.String(), sectorNumber, isActive, err,
+			)
 			callback(sectorNumber, isActive, err)
 		})
 	}
@@ -137,7 +146,7 @@ func (mgr *SectorCommittedManager) OnDealSectorPreCommitted(ctx context.Context,
 
 		// When there is a reorg, the deal ID may change, so get the
 		// current deal ID from the publish message CID
-		res, err := mgr.dealInfo.GetCurrentDealInfo(ctx, ts.Key(), &proposal, publishCid)
+		res, err := mgr.dealInfo.GetCurrentDealInfo(ctx, types.EmptyTSK, &proposal, publishCid)
 		if err != nil {
 			return false, xerrors.Errorf("failed to get dealinfo: %w", err)
 		}
@@ -184,6 +193,8 @@ func (mgr *SectorCommittedManager) OnDealSectorPreCommitted(ctx context.Context,
 }
 
 func (mgr *SectorCommittedManager) OnDealSectorCommitted(ctx context.Context, provider address.Address, sectorNumber abi.SectorNumber, proposal market.DealProposal, publishCid cid.Cid, callback storagemarket.DealSectorCommittedCallback) error {
+	log.Infof("DEBUG: OnDealSectorCommitted in, publishCid:%s, sector:%d", publishCid.String(), sectorNumber)
+	defer log.Infof("DEBUG: OnDealSectorCommitted out, publishCid:%s, sector:%d", publishCid.String(), sectorNumber)
 	// Ensure callback is only called once
 	var once sync.Once
 	cb := func(err error) {
@@ -243,16 +254,22 @@ func (mgr *SectorCommittedManager) OnDealSectorCommitted(ctx context.Context, pr
 		if rec.ExitCode != 0 {
 			return true, nil
 		}
-
+		retryTimes := 100
+	retry:
 		// Get the deal info
-		res, err := mgr.dealInfo.GetCurrentDealInfo(ctx, ts.Key(), &proposal, publishCid)
+		//res, err := mgr.dealInfo.GetCurrentDealInfo(ctx, ts.Key(), &proposal, publishCid)
+		res, err := mgr.dealInfo.GetCurrentDealInfo(ctx, types.EmptyTSK, &proposal, publishCid)
 		if err != nil {
 			return false, xerrors.Errorf("failed to look up deal on chain: %w", err)
 		}
 
 		// Make sure the deal is active
 		if res.MarketDeal.State.SectorStartEpoch < 1 {
-			return false, xerrors.Errorf("deal wasn't active: deal=%d, parentState=%s, h=%d", res.DealID, ts.ParentState(), ts.Height())
+			//return false, xerrors.Errorf("deal wasn't active: deal=%d, parentState=%s, h=%d", res.DealID, ts.ParentState(), ts.Height())
+			log.Warn(xerrors.Errorf("deal wasn't active: deal=%d, state:%+v", res.DealID, res.MarketDeal.State))
+			time.Sleep(30 * time.Second)
+			retryTimes--
+			goto retry
 		}
 
 		log.Infof("Storage deal %d activated at epoch %d", res.DealID, res.MarketDeal.State.SectorStartEpoch)
@@ -379,7 +396,7 @@ func sectorInCommitMsg(msg *types.Message, sectorNumber abi.SectorNumber) (bool,
 }
 
 func (mgr *SectorCommittedManager) checkIfDealAlreadyActive(ctx context.Context, ts *types.TipSet, proposal *market.DealProposal, publishCid cid.Cid) (pipeline.CurrentDealInfo, bool, error) {
-	res, err := mgr.dealInfo.GetCurrentDealInfo(ctx, ts.Key(), proposal, publishCid)
+	res, err := mgr.dealInfo.GetCurrentDealInfo(ctx,  types.EmptyTSK, proposal, publishCid)
 	if err != nil {
 		// TODO: This may be fine for some errors
 		return res, false, xerrors.Errorf("failed to look up deal on chain: %w", err)

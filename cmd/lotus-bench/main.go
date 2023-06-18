@@ -304,7 +304,6 @@ var sealBenchCmd = &cli.Command{
 			if !ok {
 				return xerrors.Errorf("preseal file didnt have expected miner in it")
 			}
-
 			for _, s := range genm.Sectors {
 				extendedSealedSectors = append(extendedSealedSectors, prooftypes.ExtendedSectorInfo{
 					SealedCID:    s.CommR,
@@ -321,15 +320,16 @@ var sealBenchCmd = &cli.Command{
 		}
 		var provenSectors []storiface.ProofSectorInfo
 		for _, c := range sealedSectors {
+			sid := abi.SectorID{
+				Miner:  mid,
+				Number: c.SectorNumber,
+			}
 			provenSectors = append(provenSectors, storiface.ProofSectorInfo{
 				SectorRef: storiface.SectorRef{
-					ID: abi.SectorID{
-						Number: c.SectorNumber,
-						Miner:  mid,
-					},
+					ID: sid,
 					ProofType: c.SealProof,
 					SectorFile: storiface.SectorFile{
-						SectorId:     fmt.Sprintf("s-t0%s-%d", mid, c.SectorNumber),
+						SectorId:     storiface.SectorName(sid),
 						SealedRepo:   sbdir,
 						UnsealedRepo: sbdir,
 					},

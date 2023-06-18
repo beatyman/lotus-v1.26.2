@@ -210,7 +210,7 @@ type pendingPiece struct {
 
 	claimTerms pieceClaimBounds
 
-	data storiface.Data
+	data storiface.PieceData
 
 	assigned bool // assigned to a sector?
 	accepted func(abi.SectorNumber, abi.UnpaddedPieceSize, error)

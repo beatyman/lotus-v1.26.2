@@ -57,16 +57,21 @@ func GetSectorInfo(id string) (*SectorInfo, error) {
 	info := &SectorInfo{
 		ID: id,
 	}
-	if err := database.QueryStruct(mdb, info, "SELECT * FROM sector_info WHERE id=?", id); err != nil {
+	sqlStr := "SELECT * FROM sector_info WHERE id=?"
+	if err := database.QueryStruct(mdb, info, sqlStr, id); err != nil {
 		if !errors.ErrNoData.Equal(err) {
 			return nil, errors.As(err)
 		}
-		info.StorageSealed = 1
-		info.WorkerId = "default"
+		if rebuilt, err := ForceRebuildSector(id); err != nil {
+			if !errors.ErrNoData.Equal(err) {
+				return nil, errors.As(err)
+			}
+		} else {
+			info = rebuilt
+		}
 	}
 	return info, nil
 }
-
 func GetSectorState(id string) (int, error) {
 	mdb := GetDB()
 	state := -1

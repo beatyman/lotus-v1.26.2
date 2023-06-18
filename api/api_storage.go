@@ -50,6 +50,7 @@ type StorageMiner interface {
 	HlmMinerSector
 	HlmMinerStorage
 	HlmMinerWorker
+	HlmMinerMarket
 
 	ActorAddress(context.Context) (address.Address, error) //perm:read
 
@@ -81,11 +82,11 @@ type StorageMiner interface {
 	// Add piece to an open sector. If no sectors with enough space are open,
 	// either a new sector will be created, or this call will block until more
 	// sectors can be created.
-	SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, r storiface.Data, d PieceDealInfo) (SectorOffset, error) //perm:admin
+	SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, r storiface.PieceData, d PieceDealInfo) (SectorOffset, error) //perm:admin
+
+	ReadPieceStorageInfo(ctx context.Context, sector storiface.SectorRef) (database.SectorStorage, error) //perm:admin
 
 	SectorsUnsealPiece(ctx context.Context, sector storiface.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error //perm:admin
-	ReadPieceStorageInfo(ctx context.Context, sector storiface.SectorRef) (database.SectorStorage, error)                                                                                    //perm:admin                                                                                  //perm:read
-
 	// List all staged sectors
 	SectorsList(context.Context) ([]abi.SectorNumber, error) //perm:read
 

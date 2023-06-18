@@ -31,6 +31,6 @@ type WorkerHlmAPI interface {
 
 	SealCommit2(context.Context, SectorRef, storiface.Commit1Out) (storiface.Proof, error)
 	GenerateWinningPoSt(context.Context, abi.ActorID, []storiface.ProofSectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error)
-	GenerateWindowPoSt(context.Context, abi.ActorID, []storiface.ProofSectorInfo, abi.PoStRandomness) (WindowPoStResp, error)
+	GenerateWindowPoSt(context.Context, abi.ActorID,abi.RegisteredPoStProof, []storiface.ProofSectorInfo, abi.PoStRandomness) (WindowPoStResp, error)
 	ProveReplicaUpdate2(context.Context, SectorRef, storiface.ReplicaVanillaProofs) (storiface.ReplicaUpdateProof, error)
 }

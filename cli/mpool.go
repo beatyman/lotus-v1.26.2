@@ -113,7 +113,7 @@ var mpoolSetCfg = &cli.Command{
 		}
 		radio := cctx.Float64("ReplaceByFeeRatio")
 		if radio > -1 {
-			cfg.ReplaceByFeeRatio = radio
+			cfg.ReplaceByFeeRatio = types.Percent(radio)
 		}
 
 		limitLow := cctx.Int("SizeLimitLow")

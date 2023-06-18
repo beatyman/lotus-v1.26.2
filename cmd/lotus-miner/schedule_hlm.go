@@ -41,7 +41,7 @@ func (s *SchedulerServer) Shutdown(ctx context.Context) error {
 
 func listenSchedulerApi(cctx *cli.Context, repoFs *repo.FsRepo, sm *impl.StorageMinerAPI) (*SchedulerServer, error) {
 	defCfg := config.DefaultStorageMiner()
-	cfgI, err := config.FromFile(repoFs.ConfigPath(), defCfg)
+	cfgI, err := config.FromFile(repoFs.ConfigPath(), config.SetDefault(func() (interface{}, error) { return defCfg, nil }))
 	if err != nil {
 		return nil, err
 	}

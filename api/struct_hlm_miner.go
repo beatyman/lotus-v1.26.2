@@ -1,4 +1,3 @@
-//
 // Doc for apistruct
 //
 // 1, desgian lotus/api/api_storage_hlm.go
@@ -43,11 +42,13 @@ type HlmMinerSectorStruct struct {
 		StopPledgeSector    func(context.Context) error                 `perm:"admin"`
 		RebuildPledgeSector func(context.Context, string, uint64) error `perm:"admin"`
 
-		HlmSectorGetState func(ctx context.Context, sid string) (*database.SectorInfo, error)                     `perm:"read"`
-		HlmSectorSetState func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) `perm:"admin"`
-		HlmSectorListAll  func(context.Context) ([]SectorInfo, error)                                             `perm:"read"`
-		HlmSectorFile     func(ctx context.Context, sid string) (*storiface.SectorFile, error)                    `perm:"read"`
-		HlmSectorCheck    func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)     `perm:"read"`
+		HlmSectorGetState   func(ctx context.Context, sid string) (*database.SectorInfo, error)                     `perm:"read"`
+		HlmSectorSetState   func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error) `perm:"admin"`
+		HlmSectorListAll    func(context.Context) ([]SectorInfo, error)                                             `perm:"read"`
+		HlmSectorFile       func(ctx context.Context, sid string) (*storiface.SectorFile, error)                    `perm:"read"`
+		HlmSectorCheck      func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)     `perm:"read"`
+		HlmSectorGetStartID func(ctx context.Context) (uint64, error)                                               `perm:"read"`
+		HlmSectorSetStartID func(ctx context.Context, baseID uint64) error                                          `perm:"admin"`
 	}
 }
 
@@ -64,7 +65,7 @@ type HlmMinerStorageStruct struct {
 		DisableHLMStorage      func(ctx context.Context, id int64, disable bool) error                                      `perm:"admin"`
 		MountHLMStorage        func(ctx context.Context, id int64) error                                                    `perm:"admin"`
 		UMountHLMStorage       func(ctx context.Context, id int64) error                                                    `perm:"admin"`
-		RelinkHLMStorage       func(ctx context.Context, id int64) error                                                    `perm:"admin"`
+		RelinkHLMStorage       func(ctx context.Context, id int64, minerAddr string) error                                  `perm:"admin"`
 		ReplaceHLMStorage      func(ctx context.Context, info *database.StorageAuth) error                                  `perm:"write"`
 		ScaleHLMStorage        func(ctx context.Context, id int64, size int64, work int64) error                            `perm:"admin"`
 		StatusHLMStorage       func(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error) `perm:"read"`
@@ -148,6 +149,12 @@ func (c *HlmMinerSectorStruct) HlmSectorFile(ctx context.Context, sid string) (*
 func (c *HlmMinerSectorStruct) HlmSectorCheck(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error) {
 	return c.Internal.HlmSectorCheck(ctx, sid, timeout)
 }
+func (c *HlmMinerSectorStruct) HlmSectorGetStartID(ctx context.Context) (uint64, error) {
+	return c.Internal.HlmSectorGetStartID(ctx)
+}
+func (c *HlmMinerSectorStruct) HlmSectorSetStartID(ctx context.Context, baseID uint64) error {
+	return c.Internal.HlmSectorSetStartID(ctx, baseID)
+}
 
 // HlmMinerStorageStruct
 func (c *HlmMinerStorageStruct) StatusMinerStorage(ctx context.Context) ([]byte, error) {
@@ -175,8 +182,8 @@ func (c *HlmMinerStorageStruct) MountHLMStorage(ctx context.Context, id int64) e
 func (c *HlmMinerStorageStruct) UMountHLMStorage(ctx context.Context, id int64) error {
 	return c.Internal.UMountHLMStorage(ctx, id)
 }
-func (c *HlmMinerStorageStruct) RelinkHLMStorage(ctx context.Context, id int64) error {
-	return c.Internal.RelinkHLMStorage(ctx, id)
+func (c *HlmMinerStorageStruct) RelinkHLMStorage(ctx context.Context, id int64, minerAddr string) error {
+	return c.Internal.RelinkHLMStorage(ctx, id, minerAddr)
 }
 func (c *HlmMinerStorageStruct) ReplaceHLMStorage(ctx context.Context, info *database.StorageAuth) error {
 	return c.Internal.ReplaceHLMStorage(ctx, info)
@@ -226,8 +233,38 @@ func (c *HlmMinerWorkerStruct) WorkerDisable(ctx context.Context, wid string, di
 	return c.Internal.WorkerDisable(ctx, wid, disable)
 }
 
+type HlmMinerMarketStruct struct {
+	Internal struct {
+		NewMarketDealFSTMP func(context.Context) (string, error)                                               `perm:"admin"`
+		AddMarketDeal      func(context.Context, *database.MarketDealInfo) error                               `perm:"admin"`
+		GetMarketDeal      func(context.Context, string) (*database.MarketDealInfo, error)                     `perm:"read"`
+		GetMarketDealBySid func(context.Context, string) ([]database.MarketDealInfo, error)                    `perm:"read"`
+		ListMarketDeal     func(context.Context, time.Time, time.Time, int) ([]database.MarketDealInfo, error) `perm:"read"`
+		UpdateMarketDeal   func(context.Context, *database.MarketDealInfo) error                               `perm:"admin"`
+	}
+}
+// FStarMinerMarketStruct
+func (c *HlmMinerMarketStruct) NewMarketDealFSTMP(ctx context.Context) (string, error) {
+	return c.Internal.NewMarketDealFSTMP(ctx)
+}
+func (c *HlmMinerMarketStruct) AddMarketDeal(ctx context.Context, deal *database.MarketDealInfo) error {
+	return c.Internal.AddMarketDeal(ctx, deal)
+}
+func (c *HlmMinerMarketStruct) GetMarketDeal(ctx context.Context, propCid string) (*database.MarketDealInfo, error) {
+	return c.Internal.GetMarketDeal(ctx, propCid)
+}
+func (c *HlmMinerMarketStruct) GetMarketDealBySid(ctx context.Context, sid string) ([]database.MarketDealInfo, error) {
+	return c.Internal.GetMarketDealBySid(ctx, sid)
+}
+func (c *HlmMinerMarketStruct) ListMarketDeal(ctx context.Context, beginTime, endTime time.Time, state int) ([]database.MarketDealInfo, error) {
+	return c.Internal.ListMarketDeal(ctx, beginTime, endTime, state)
+}
+func (c *HlmMinerMarketStruct) UpdateMarketDeal(ctx context.Context, deal *database.MarketDealInfo) error {
+	return c.Internal.UpdateMarketDeal(ctx, deal)
+}
 var _ HlmMinerProxy = &HlmMinerProxyStruct{}
 var _ HlmMinerProving = &HlmMinerProvingStruct{}
 var _ HlmMinerSector = &HlmMinerSectorStruct{}
 var _ HlmMinerStorage = &HlmMinerStorageStruct{}
 var _ HlmMinerWorker = &HlmMinerWorkerStruct{}
+var _ HlmMinerMarket= &HlmMinerMarketStruct{}

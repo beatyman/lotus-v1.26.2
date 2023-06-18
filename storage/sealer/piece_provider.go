@@ -3,18 +3,19 @@ package sealer
 import (
 	"bufio"
 	"context"
-	"github.com/filecoin-project/dagstore/mount"
-	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/partialfile"
 	"github.com/gwaylib/errors"
-	"github.com/ipfs/go-cid"
 	"golang.org/x/xerrors"
 	"io"
 	"os"
 
+	"github.com/filecoin-project/dagstore/mount"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/ipfs/go-cid"
+
 	"github.com/filecoin-project/lotus/storage/paths"
-	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/fr32"
-	"github.com/filecoin-project/lotus/storage/sealer/partialfile"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
@@ -60,7 +61,26 @@ func (p *pieceProvider) IsUnsealed(ctx context.Context, sector storiface.SectorR
 	if err := size.Validate(); err != nil {
 		return false, xerrors.Errorf("size is not a valid piece size: %w", err)
 	}
+	info, err := p.uns.ReadPieceStorageInfo(ctx, sector)
+	if err != nil {
+		log.Error(err)
+		return false,err
+	} else {
+		log.Infof("%+v", info)
+	}
 
+	ssize, err := sector.ProofType.SectorSize()
+	if err != nil {
+		return false,err
+	}
+	maxPieceSize := abi.PaddedPieceSize(ssize)
+	log.Info("Start OpenUnsealedPartialFileV2")
+	_, err = partialfile.OpenUnsealedPartialFileV2(maxPieceSize, sector, info)
+	if err != nil {
+		log.Error(err)
+		return false,err
+	}
+	return true,nil
 	ctxLock, cancel := context.WithCancel(ctx)
 	defer cancel()
 

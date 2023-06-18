@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/filecoin-project/go-fil-markets/shared"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"os"
 	"path/filepath"
 
@@ -29,7 +31,6 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/storage/pipeline/lib/nullreader"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
@@ -130,8 +131,7 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 		if err == nil {
 			if s.MountType == database.MOUNT_TYPE_OSS {
 				id := m.minerSectorID(sector.SectorNumber)
-				sid := fmt.Sprintf("s-t0%d-%d", id.Miner, id.Number)
-
+				sid:= storiface.SectorName(id)
 				filepath.Walk(QINIU_VIRTUAL_MOUNTPOINT,
 					func(path string, f os.FileInfo, err error) error {
 						if f == nil {
@@ -172,7 +172,7 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 
 func (m *Sealing) padSector(ctx context.Context, sectorID storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	// use remote worker mode. hack by hlm
-	return m.sealer.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
+	return m.sealer.PledgeSector(ffiwrapper.SetAddPiecePacking(ctx), sectorID, existingPieceSizes, sizes...)
 
 	if len(sizes) == 0 {
 		return nil, nil
@@ -184,7 +184,7 @@ func (m *Sealing) padSector(ctx context.Context, sectorID storiface.SectorRef, e
 	for i, size := range sizes {
 		expectCid := zerocomm.ZeroPieceCommitment(size)
 
-		ppi, err := m.sealer.AddPiece(ctx, sectorID, existingPieceSizes, size, nullreader.NewNullReader(size))
+		ppi, err := m.sealer.AddPiece(ctx, sectorID, existingPieceSizes, size, shared.NewNullPieceData(size))
 		if err != nil {
 			return nil, xerrors.Errorf("add piece: %w", err)
 		}

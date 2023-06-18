@@ -210,27 +210,12 @@ type SectorPaths struct {
 }
 
 func ParseSectorID(baseName string) (abi.SectorID, error) {
-	var n abi.SectorNumber
-	var mid abi.ActorID
-	read, err := fmt.Sscanf(baseName, "s-t0%d-%d", &mid, &n)
-	if err != nil {
-		return abi.SectorID{}, xerrors.Errorf("sscanf sector name ('%s'): %w", baseName, err)
-	}
-
-	if read != 2 {
-		return abi.SectorID{}, xerrors.Errorf("parseSectorID expected to scan 2 values, got %d", read)
-	}
-
-	return abi.SectorID{
-		Miner:  mid,
-		Number: n,
-	}, nil
+	return parseSectorID(baseName)
 }
 
 func SectorName(sid abi.SectorID) string {
-	return fmt.Sprintf("s-t0%d-%d", sid.Miner, sid.Number)
+	return fmt.Sprintf("%s0%d-%d", SectorHead, sid.Miner, sid.Number)
 }
-
 func PathByType(sps SectorPaths, fileType SectorFileType) string {
 	switch fileType {
 	case FTUnsealed:

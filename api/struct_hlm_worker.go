@@ -11,9 +11,9 @@ type WorkerHlmStruct struct {
 	Internal struct {
 		Version func(context.Context) (string, error) `perm:"read"`
 
-		SealCommit2         func(context.Context, SectorRef, storiface.Commit1Out) (storiface.Proof, error)                                `perm:"admin"`
+		SealCommit2         func(context.Context, SectorRef, storiface.Commit1Out) (storiface.Proof, error)                                  `perm:"admin"`
 		GenerateWinningPoSt func(context.Context, abi.ActorID, []storiface.ProofSectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error) `perm:"admin"`
-		GenerateWindowPoSt  func(context.Context, abi.ActorID, []storiface.ProofSectorInfo, abi.PoStRandomness) (WindowPoStResp, error)    `perm:"admin"`
+		GenerateWindowPoSt  func(context.Context, abi.ActorID,abi.RegisteredPoStProof, []storiface.ProofSectorInfo, abi.PoStRandomness) (WindowPoStResp, error)    `perm:"admin"`
 		ProveReplicaUpdate2 func(context.Context, SectorRef, storiface.ReplicaVanillaProofs) (storiface.ReplicaUpdateProof, error)         `perm:"admin"`
 	}
 }
@@ -29,8 +29,8 @@ func (w *WorkerHlmStruct) SealCommit2(ctx context.Context, sector SectorRef, com
 func (w *WorkerHlmStruct) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
 	return w.Internal.GenerateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 }
-func (w *WorkerHlmStruct) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) (WindowPoStResp, error) {
-	return w.Internal.GenerateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+func (w *WorkerHlmStruct) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, poStProofType abi.RegisteredPoStProof,sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) (WindowPoStResp, error) {
+	return w.Internal.GenerateWindowPoSt(ctx, minerID, poStProofType,sectorInfo, randomness)
 }
 func (w *WorkerHlmStruct) ProveReplicaUpdate2(ctx context.Context, sector SectorRef, vanillaProofs storiface.ReplicaVanillaProofs) (storiface.ReplicaUpdateProof, error) {
 	return w.Internal.ProveReplicaUpdate2(ctx, sector, vanillaProofs)

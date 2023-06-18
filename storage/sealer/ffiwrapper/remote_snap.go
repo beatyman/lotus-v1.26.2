@@ -112,7 +112,7 @@ func (sb *Sealer) finalizeReplicaUpdateRemote(call workerCall) error {
 	}
 }
 
-func (sb *Sealer) FinalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef, keepUnsealed []storiface.Range) error {
+func (sb *Sealer) FinalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef) error {
 	log.Infof("DEBUG:FinalizeReplicaUpdate in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
 	defer log.Infof("DEBUG:FinalizeReplicaUpdate out,%+v", sector.ID)
 	// return sb.finalizeSector(ctx, sector)
@@ -120,7 +120,7 @@ func (sb *Sealer) FinalizeReplicaUpdate(ctx context.Context, sector storiface.Se
 	atomic.AddInt32(&_finalizeWait, 1)
 	if !sb.remoteCfg.SealSector {
 		atomic.AddInt32(&_finalizeWait, -1)
-		return sb.finalizeReplicaUpdate(ctx, sector, keepUnsealed)
+		return sb.finalizeReplicaUpdate(ctx, sector)
 	}
 
 	call := workerCall{

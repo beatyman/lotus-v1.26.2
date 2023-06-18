@@ -44,14 +44,14 @@ sudo systemctl enable lotus-daemon
 sudo systemctl start lotus-daemon
 
 sudo cp scripts/bootstrap.toml /root/.lotus/config.toml
-sudo bash -c "echo -e '[Metrics]\nNickname=\"Boot-bootstrap\"' >> /root/.lotus/config.toml"
+#sudo bash -c "echo -e '[Metrics]\nNickname=\"Boot-bootstrap\"' >> /root/.lotus/config.toml"
 sudo systemctl restart lotus-daemon
 
 sleep 30
 
 log 'Extracting addr info'
 sudo lotus --repo=/data/lotus/dev/.lotus net listen > scripts/bootstrappers.pi
-
+cat scripts/bootstrappers.pi
 log 'Connect to t0111'
 genesisAddr=$(sudo lotus --repo=/data/lotus/dev/.ldt0111 net listen|grep "127.0.0.1")
 sudo lotus --repo=/data/lotus/dev/.lotus net connect $genesisAddr

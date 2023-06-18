@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	_ "net/http/pprof"
 	"os"
 
@@ -192,6 +193,12 @@ var runCmd = &cli.Command{
 			}
 			log.Info("Check done")
 			// end by zhoushuyue
+			if len(cfg.MinerEnv.SectorHead) > 0 {
+				storiface.SectorHead = cfg.MinerEnv.SectorHead
+			}
+			if len(cfg.MinerEnv.SN) > 0 {
+				os.Setenv("LOTUS_GRANT_SN", cfg.MinerEnv.SN)
+			}
 		}
 
 		shutdownChan := make(chan struct{})

@@ -54,6 +54,14 @@ var rebuildCmd = &cli.Command{
 			Name:  "miner-id",
 			Value: 0,
 		},
+		&cli.Int64Flag{
+			Name:  "sector-size",
+			Value: 2048,
+		},
+		&cli.StringFlag{
+			Name:  "sector-head",
+			Value: "s-f",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := cctx.Context
@@ -69,8 +77,10 @@ var rebuildCmd = &cli.Command{
 		if minerId == 0 {
 			return errors.New("need input miner id")
 		}
+		ssize := abi.SectorSize(cctx.Int64("sector-size"))
+		storiface.SectorHead = cctx.String("sector-head")
 		// TODO: sector size
-		diskPool := NewDiskPool(abi.SectorSize(2048), ffiwrapper.WorkerCfg{}, workerRepo)
+		diskPool := NewDiskPool(ssize, ffiwrapper.WorkerCfg{}, workerRepo)
 		mapstr, err := diskPool.ShowExt()
 		if err != nil {
 			return err
@@ -82,8 +92,7 @@ var rebuildCmd = &cli.Command{
 		getSealer := func(minerId uint64, num abi.SectorNumber) (*ffiwrapper.Sealer, error) {
 			workMu.Lock()
 			defer workMu.Unlock()
-
-			sectorName := fmt.Sprintf("s-t0%d-%d", minerId, num)
+			sectorName := storiface.SectorName(abi.SectorID{Miner: abi.ActorID(minerId), Number: num})
 			dpState, err := diskPool.Allocate(sectorName)
 			if err != nil {
 				return nil, errors.As(err)
@@ -272,7 +281,7 @@ var rebuildCmd = &cli.Command{
 				// ignore c2
 
 				// do finalize
-				if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
+				if err := sealer.FinalizeSector(ctx, sector); err != nil {
 					result <- errors.As(err)
 					continue
 				}

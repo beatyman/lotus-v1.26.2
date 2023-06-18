@@ -181,7 +181,7 @@ var addHLMStorageCmd = &cli.Command{
 	Action: func(cctx *cli.Context) error {
 		kind := cctx.Int("kind")
 		switch kind {
-		case database.STORAGE_KIND_SEALED, database.STORAGE_KIND_UNSEALED:
+		case database.STORAGE_KIND_SEALED, database.STORAGE_KIND_UNSEALED,database.STORAGE_KIND_MARKET:
 		default:
 			fmt.Printf("unknow kind:%d\n", kind)
 			return nil
@@ -348,7 +348,12 @@ var relinkHLMStorageCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
-		return nodeApi.RelinkHLMStorage(ctx, id)
+		maddr, err := nodeApi.ActorAddress(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("======== relink miner: %+v,sectors from storage nodes ==========\n",maddr.String())
+		return nodeApi.RelinkHLMStorage(ctx, id,maddr.String())
 	},
 }
 

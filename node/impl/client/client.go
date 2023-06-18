@@ -550,7 +550,7 @@ func (a *API) ClientImport(ctx context.Context, ref api.FileRef) (res *api.Impor
 		}()
 
 		// perform the unixfs chunking.
-		root, err = unixfs.CreateFilestore(ctx, ref.Path, carPath)
+		root, err = unixfs.CreateFilestore(ctx, ref.Path, carPath,os.TempDir())
 		if err != nil {
 			return nil, xerrors.Errorf("failed to import file using unixfs: %w", err)
 		}
@@ -1414,7 +1414,7 @@ func (a *API) ClientGenCar(ctx context.Context, ref api.FileRef, outputPath stri
 	defer os.Remove(tmp) //nolint:errcheck
 
 	// generate and import the UnixFS DAG into a filestore (positional reference) CAR.
-	root, err := unixfs.CreateFilestore(ctx, ref.Path, tmp)
+	root, err := unixfs.CreateFilestore(ctx, ref.Path, tmp,os.TempDir())
 	if err != nil {
 		return xerrors.Errorf("failed to import file using unixfs: %w", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"os"
 	"path/filepath"
 
@@ -62,7 +63,14 @@ func PreSeal(maddr address.Address, spt abi.RegisteredSealProof, offset abi.Sect
 	var sealedSectors []*genesis.PreSeal
 	for i := 0; i < sectors; i++ {
 		sid := abi.SectorID{Miner: abi.ActorID(mid), Number: next}
-		ref := storiface.SectorRef{ID: sid, ProofType: spt}
+		ref := storiface.SectorRef{
+			ID: sid, 
+			ProofType: spt,
+		}
+		ref, err = database.FillSectorFile(ref, sb.RepoPath())
+		if err != nil {
+			return nil, nil, err
+		}
 		next++
 
 		var preseal *genesis.PreSeal

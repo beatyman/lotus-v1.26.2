@@ -2,9 +2,12 @@ package sealing
 
 import (
 	"context"
+	"github.com/filecoin-project/go-fil-markets/shared"
+	"github.com/filecoin-project/go-jsonrpc/meta"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/gwaylib/errors"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -22,7 +25,6 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/storage/pipeline/lib/nullreader"
 	"github.com/filecoin-project/lotus/storage/pipeline/sealiface"
 	"github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
@@ -176,7 +178,7 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 		dealSafeSealTime := time.Now().Add(time.Duration(dealSafeSealEpoch-ts.Height()) * blockTime)
 		if dealSafeSealTime.Before(sealTime) {
 			log.Debugw("deal safe time is before seal time", "dealSafeSealTime", dealSafeSealTime, "sealTime", sealTime)
-			sealTime = dealSafeSealTime
+			//sealTime = dealSafeSealTime
 		}
 
 		if now.After(sealTime) {
@@ -194,6 +196,13 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 	}
 
 	return false, nil
+}
+func SetPieceDealInfo(ctx context.Context, deal api.PieceDealInfo) context.Context {
+	ctx = meta.Set(ctx, ffiwrapper.MetaSealerDealID, strconv.FormatInt(int64(deal.DealID), 10))
+	if deal.PublishCid != nil {
+		ctx = meta.Set(ctx, ffiwrapper.MetaSealerDealPublishCID, deal.PublishCid.String())
+	}
+	return ctx
 }
 
 func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) error {
@@ -255,12 +264,13 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 		log.Infow("Add pads piece", "deal", deal.deal.DealID, "sector", sector.SectorNumber)
 		for _, p := range pads {
 			expectCid := zerocomm.ZeroPieceCommitment(p.Unpadded())
-
-			ppi, err := m.sealer.AddPiece(sealer.WithPriority(ctx.Context(), DealSectorPriority),
+			sCtx := sealer.WithPriority(ctx.Context(), DealSectorPriority)
+			ppi, err := m.sealer.AddPiece(ffiwrapper.SetAddPiecePad(sCtx),
 				m.minerSector(sector.SectorType, sector.SectorNumber),
 				pieceSizes,
 				p.Unpadded(),
-				nullreader.NewNullReader(p.Unpadded()))
+				shared.NewNullPieceData(p.Unpadded()))
+				//nullreader.NewNullReader(p.Unpadded()))
 			if err != nil {
 				err = xerrors.Errorf("writing padding piece: %w", err)
 				deal.accepted(sector.SectorNumber, offset, err)
@@ -296,7 +306,9 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 				return errors.As(err)
 			}
 		}
-		ppi, err := m.sealer.AddPiece(sealer.WithPriority(ctx.Context(), DealSectorPriority),
+		sCtx := sealer.WithPriority(ctx.Context(), DealSectorPriority)
+		sCtx = SetPieceDealInfo(sCtx, deal.deal)
+		ppi, err := m.sealer.AddPiece(ffiwrapper.SetAddPieceDeal(sCtx),
 			m.minerSector(sector.SectorType, sector.SectorNumber),
 			pieceSizes,
 			deal.size,
@@ -332,7 +344,7 @@ func (m *Sealing) handleAddPieceFailed(ctx statemachine.Context, sector SectorIn
 	return ctx.Send(SectorRetryWaitDeals{})
 }
 
-func (m *Sealing) SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.Data, deal api.PieceDealInfo) (api.SectorOffset, error) {
+func (m *Sealing) SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.PieceData, deal api.PieceDealInfo) (api.SectorOffset, error)  {
 	log.Infof("Adding piece for deal %d (publish msg: %s)", deal.DealID, deal.PublishCid)
 	if (padreader.PaddedSize(uint64(size))) != size {
 		return api.SectorOffset{}, xerrors.Errorf("cannot allocate unpadded piece")
@@ -428,7 +440,7 @@ func (m *Sealing) getClaimTerms(ctx context.Context, deal api.PieceDealInfo, tsk
 }
 
 // called with m.inputLk; transfers the lock to another goroutine!
-func (m *Sealing) addPendingPiece(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.Data, deal api.PieceDealInfo, ct pieceClaimBounds, sp abi.RegisteredSealProof) *pendingPiece {
+func (m *Sealing) addPendingPiece(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.PieceData, deal api.PieceDealInfo, ct pieceClaimBounds, sp abi.RegisteredSealProof) *pendingPiece {
 	doneCh := make(chan struct{})
 	pp := &pendingPiece{
 		size:       size,
@@ -441,6 +453,52 @@ func (m *Sealing) addPendingPiece(ctx context.Context, size abi.UnpaddedPieceSiz
 		assigned: false,
 	}
 	pp.accepted = func(sn abi.SectorNumber, offset abi.UnpaddedPieceSize, err error) {
+		if err == nil && database.HasDB() && pp.deal.DealProposal != nil {
+			log.Infof("DEBUG: accepted propid:%s,dealnum:%d,file:%s to sector %d", pp.data.PropCid, pp.deal.DealID, pp.data.LocalPath, sn)
+			dbDeal, err := database.GetMarketDealInfo(pp.data.PropCid)
+			if err != nil {
+				if !errors.ErrNoData.Equal(err) {
+					log.Error(errors.As(err))
+				} else {
+					if err := database.AddMarketDealInfo(&database.MarketDealInfo{
+						ID:          pp.data.PropCid,
+						UpdatedAt:   time.Now(),
+						PieceCid:    pp.deal.DealProposal.PieceCID.String(),
+						PieceSize:   int64(pp.data.UnpaddedSize),
+						ClientAddr:  pp.deal.DealProposal.Client.String(),
+						FileLocal:   pp.data.LocalPath,
+						FileRemote:  pp.data.ServerFullUri,
+						FileStorage: pp.data.ServerStorage,
+						Sid:         storiface.SectorName(m.minerSectorID(sn)),
+						DealNum:     int64(pp.deal.DealID),
+						Offset:      int64(offset),
+					}); err != nil {
+						log.Error(errors.As(err))
+					}
+				}
+			} else {
+				sName := storiface.SectorName(m.minerSectorID(sn))
+				if len(dbDeal.Sid) > 0 && sName != dbDeal.Sid {
+					log.Errorf("the deal already allocated to sector:%s, but now it make a new one:%s", dbDeal.Sid, sName)
+				}
+
+				// update data
+				if dbDeal.FileStorage > 0 {
+					pp.data.ServerStorage = dbDeal.FileStorage // restore from db
+					pp.data.ServerFullUri = dbDeal.FileRemote  // restore from db
+					log.Infof("Restore PieceData:%+v", pp.data)
+				}
+				if err := database.UpdateMarketDeal(&database.MarketDealInfo{
+					ID:        pp.data.PropCid,
+					UpdatedAt: time.Now(),
+					Sid:       sName,
+					DealNum:   int64(pp.deal.DealID),
+					Offset:    int64(offset),
+				}); err != nil {
+					log.Error(errors.As(err))
+				}
+			}
+		}
 		pp.resp = &pieceAcceptResp{sn, offset, err}
 		close(pp.doneCh)
 	}

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -149,7 +150,7 @@ func WorkerAPISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.Worke
 	if errors.Is(err, types.ErrKeyInfoNotFound) {
 		log.Warn("Generating new worker API secret")
 
-		sk, err := ioutil.ReadAll(io.LimitReader(rand.Reader, 32))
+		sk, err := io.ReadAll(io.LimitReader(rand.Reader, 32))
 		if err != nil {
 			return nil, err
 		}
@@ -173,13 +174,26 @@ func WorkerAPISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.Worke
 			return nil, err
 		}
 
-		if err := ioutil.WriteFile(filepath.Join(lr.Path(), "worker_token"), cliToken, 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(lr.Path(), "worker_token"), cliToken, 0600); err != nil {
 			return nil, err
 		}
 	} else if err != nil {
 		return nil, xerrors.Errorf("could not get JWT Token: %w", err)
 	}
-
+	//hb
+	if _, err := os.Stat(filepath.Join(lr.Path(), "worker_token")); errors.Is(err, fs.ErrNotExist) {
+		// TODO: make this configurable
+		p := JwtPayload{
+			Allow: api.AllPermissions,
+		}
+		cliToken, err := jwt.Sign(&p, jwt.NewHS256(key.PrivateKey))
+		if err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(filepath.Join(lr.Path(), "worker_token"), cliToken, 0600); err != nil {
+			return nil, err
+		}
+	}
 	return (*dtypes.WorkerAPIAlg)(jwt.NewHS256(key.PrivateKey)), nil
 }
 
@@ -219,7 +233,19 @@ func APISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.APIAlg, err
 	} else if err != nil {
 		return nil, xerrors.Errorf("could not get JWT Token: %w", err)
 	}
-
+	if _, err := os.Stat(filepath.Join(lr.Path(), "token")); errors.Is(err, fs.ErrNotExist) {
+		// TODO: make this configurable
+		p := JwtPayload{
+			Allow: api.AllPermissions,
+		}
+		cliToken, err := jwt.Sign(&p, jwt.NewHS256(key.PrivateKey))
+		if err != nil {
+			return nil, err
+		}
+		if err := lr.SetAPIToken(cliToken); err != nil {
+			return nil, err
+		}
+	}
 	return (*dtypes.APIAlg)(jwt.NewHS256(key.PrivateKey)), nil
 }
 

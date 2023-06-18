@@ -37,6 +37,9 @@ type HlmMinerSector interface {
 	HlmSectorListAll(context.Context) ([]SectorInfo, error)
 	HlmSectorFile(ctx context.Context, sid string) (*storiface.SectorFile, error)
 	HlmSectorCheck(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)
+
+	HlmSectorGetStartID(ctx context.Context) (uint64, error)
+	HlmSectorSetStartID(ctx context.Context, baseID uint64) error
 }
 
 type HlmMinerStorage interface {
@@ -50,7 +53,7 @@ type HlmMinerStorage interface {
 	AddHLMStorage(ctx context.Context, info *database.StorageAuth) error
 	DisableHLMStorage(ctx context.Context, id int64, disable bool) error
 	MountHLMStorage(ctx context.Context, id int64) error
-	RelinkHLMStorage(ctx context.Context, id int64) error
+	RelinkHLMStorage(ctx context.Context, id int64,minerAddr string) error
 	ReplaceHLMStorage(ctx context.Context, info *database.StorageAuth) error
 	ScaleHLMStorage(ctx context.Context, id int64, size int64, work int64) error
 	StatusHLMStorage(ctx context.Context, id int64, timeout time.Duration) ([]database.StorageStatus, error)
@@ -71,4 +74,13 @@ type HlmMinerWorker interface {
 	WorkerInfo(ctx context.Context, wid string) (*database.WorkerInfo, error)
 	WorkerSearch(ctx context.Context, ip string) ([]database.WorkerInfo, error)
 	WorkerDisable(ctx context.Context, wid string, disable bool) error
+}
+
+type HlmMinerMarket interface {
+	NewMarketDealFSTMP(ctx context.Context) (string, error)
+	AddMarketDeal(ctx context.Context, deal *database.MarketDealInfo) error
+	GetMarketDeal(ctx context.Context, propCid string) (*database.MarketDealInfo, error)
+	GetMarketDealBySid(ctx context.Context, sid string) ([]database.MarketDealInfo, error)
+	ListMarketDeal(ctx context.Context, beginTime, endTime time.Time, state int) ([]database.MarketDealInfo, error)
+	UpdateMarketDeal(ctx context.Context, deal *database.MarketDealInfo) error
 }

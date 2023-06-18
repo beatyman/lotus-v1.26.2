@@ -2,7 +2,7 @@ package sealer
 
 import (
 	"context"
-	"io"
+
 	"net/http"
 	"sort"
 	"sync"
@@ -17,7 +17,6 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"go.uber.org/multierr"
 	"golang.org/x/xerrors"
-
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-statestore"
@@ -445,7 +444,7 @@ func (m *Manager) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, 
 	return out, err
 }
 
-func (m *Manager) AddPiece(ctx context.Context, sector storiface.SectorRef, existingPieces []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
+func (m *Manager) AddPiece(ctx context.Context, sector storiface.SectorRef, existingPieces []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r storiface.PieceData) (abi.PieceInfo, error) {
 	return m.hlmWorker.AddPiece(ctx, sector, existingPieces, sz, r)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

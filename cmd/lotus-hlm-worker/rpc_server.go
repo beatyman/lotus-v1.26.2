@@ -45,7 +45,7 @@ type rpcServer struct {
 }
 
 func (w *rpcServer) sectorName(sid abi.SectorID) string {
-	return fmt.Sprintf("s-t0%d-%d", sid.Miner, sid.Number)
+	return storiface.SectorName(sid)
 }
 
 func (w *rpcServer) getC2sids() []abi.SectorID {
@@ -188,7 +188,7 @@ func (w *rpcServer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID
 
 	return w.sb.GenerateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 }
-func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
+func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,  poStProofType abi.RegisteredPoStProof,sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
 	log.Infof("GenerateWindowPoSt RPC in:%d", minerID)
 	defer log.Infof("GenerateWindowPoSt RPC out:%d", minerID)
 	napi, err := GetNodeApi()
@@ -199,7 +199,7 @@ func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,
 	if err := w.loadMinerStorage(ctx, napi); err != nil {
 		return api.WindowPoStResp{}, errors.As(err)
 	}
-	proofs, ignore, err := w.sb.GenerateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+	proofs, ignore, err := w.sb.GenerateWindowPoSt(ctx, minerID, poStProofType,sectorInfo, randomness)
 	if err != nil {
 		log.Warnf("ignore len:%d", len(ignore))
 	}

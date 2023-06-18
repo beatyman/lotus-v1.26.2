@@ -1,7 +1,13 @@
 package impl
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	sealing "github.com/filecoin-project/lotus/storage/pipeline"
+	"github.com/ipfs/go-datastore"
+	"io/ioutil"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -111,6 +117,22 @@ func (sm *StorageMinerAPI) HlmSectorFile(ctx context.Context, sid string) (*stor
 	repo := sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RepoPath()
 	return database.GetSectorFile(sid, repo)
 }
+func (sm *StorageMinerAPI) HlmSectorGetStartID(ctx context.Context) (uint64, error) {
+	val, err := sm.DS.Get(ctx, datastore.NewKey(sealing.StorageCounterDSPrefix))
+	if err != nil {
+		return 0, errors.As(err)
+	}
+	id, err := binary.ReadUvarint(bytes.NewReader(val))
+	if err != nil {
+		return 0, errors.As(err)
+	}
+	return id, nil
+}
+func (sm *StorageMinerAPI) HlmSectorSetStartID(ctx context.Context, startID uint64) error {
+	buf := make([]byte, binary.MaxVarintLen64)
+	size := binary.PutUvarint(buf, uint64(startID))
+	return errors.As(sm.DS.Put(ctx, datastore.NewKey(sealing.StorageCounterDSPrefix), buf[:size]))
+}
 func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error) {
 	maddr, err := sm.ActorAddress(ctx)
 	if err != nil {
@@ -204,8 +226,8 @@ func (sm *StorageMinerAPI) MountHLMStorage(ctx context.Context, id int64) error 
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).MountStorage(ctx, id)
 }
 
-func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id)
+func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64,minerAddr string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id,minerAddr)
 }
 func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, info *database.StorageAuth) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ReplaceStorage(ctx, info)
@@ -229,4 +251,30 @@ func (c *StorageMinerAPI) GetFaultCheckTimeout(ctx context.Context) (time.Durati
 func (c *StorageMinerAPI) SetFaultCheckTimeout(ctx context.Context, timeout time.Duration) error {
 	build.SetFaultCheckTimeout(timeout)
 	return nil
+}
+
+func (sm *StorageMinerAPI) NewMarketDealFSTMP(ctx context.Context) (string, error) {
+	repo := sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RepoPath()
+	dealPath := filepath.Join(repo, "deal-staging")
+	f, err := ioutil.TempFile(dealPath, "fstmp")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	return f.Name(), nil
+}
+func (sm *StorageMinerAPI) AddMarketDeal(ctx context.Context, deal *database.MarketDealInfo) error {
+	return database.AddMarketDealInfo(deal)
+}
+func (sm *StorageMinerAPI) GetMarketDeal(ctx context.Context, propCid string) (*database.MarketDealInfo, error) {
+	return database.GetMarketDealInfo(propCid)
+}
+func (sm *StorageMinerAPI) GetMarketDealBySid(ctx context.Context, sid string) ([]database.MarketDealInfo, error) {
+	return database.GetMarketDealInfoBySid(sid)
+}
+func (sm *StorageMinerAPI) ListMarketDeal(ctx context.Context, beginTime, endTime time.Time, state int) ([]database.MarketDealInfo, error) {
+	return database.ListMarketDealInfo(beginTime, endTime, state)
+}
+func (sm *StorageMinerAPI) UpdateMarketDeal(ctx context.Context, deal *database.MarketDealInfo) error {
+	return database.UpdateMarketDeal(deal)
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -29,6 +30,8 @@ var hlmSectorCmd = &cli.Command{
 		getHlmSectorStateCmd,
 		setHlmSectorStateCmd,
 		checkHlmSectorCmd,
+		setHlmSectorStartCmd,
+		getHlmSectorStartCmd,
 	},
 }
 
@@ -225,6 +228,49 @@ var checkHlmSectorCmd = &cli.Command{
 			return err
 		}
 		fmt.Printf("used:%s\n", used)
+		return nil
+	},
+}
+var setHlmSectorStartCmd = &cli.Command{
+	Name:  "set-start-id",
+	Usage: "set the sector id start",
+	Flags: []cli.Flag{},
+	Action: func(cctx *cli.Context) error {
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+
+		startIDStr := cctx.Args().First()
+		startID, err := strconv.ParseUint(startIDStr, 10, 64)
+		if err != nil {
+			return errors.As(err, startIDStr)
+		}
+		if err := mApi.HlmSectorSetStartID(ctx, startID); err != nil {
+			return err
+		}
+		return nil
+	},
+}
+var getHlmSectorStartCmd = &cli.Command{
+	Name:  "get-start-id",
+	Usage: "get the sector id start",
+	Flags: []cli.Flag{},
+	Action: func(cctx *cli.Context) error {
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := lcli.ReqContext(cctx)
+
+		startID, err := mApi.HlmSectorGetStartID(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Println("start id:", startID)
 		return nil
 	},
 }

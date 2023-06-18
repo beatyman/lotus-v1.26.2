@@ -11,8 +11,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/go-fil-markets/shared"
+	"github.com/filecoin-project/go-padreader"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
+	carv2 "github.com/ipld/go-car/v2"
 	"io"
+	"io/ioutil"
 	"math/bits"
 	"os"
 	"path/filepath"
@@ -37,10 +42,8 @@ import (
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/filecoin-project/lotus/lib/nullreader"
 	spaths "github.com/filecoin-project/lotus/storage/paths"
-	nr "github.com/filecoin-project/lotus/storage/pipeline/lib/nullreader"
 	"github.com/filecoin-project/lotus/storage/sealer/fr32"
 	"github.com/filecoin-project/lotus/storage/sealer/partialfile"
-	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
 )
 
@@ -151,7 +154,7 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storiface.SectorRef) err
 		now := time.Now()
 		seInfo := &database.SectorInfo{
 			ID:              sName,
-			MinerId:         fmt.Sprintf("s-t0%d", sector.ID.Miner),
+			MinerId:         storiface.MinerID(sector.ID.Miner),
 			UpdateTime:      now,
 			StorageUnsealed: unsealedStorageId,
 			State:           state,
@@ -296,9 +299,12 @@ func (sb *Sealer) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, 
 		PieceCID: pieceCID,
 	}, nil
 }
+func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, pieceData io.Reader) (abi.PieceInfo, error) {
 
-func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, file storiface.Data) (abi.PieceInfo, error) {
-	origPieceData := file
+	if err := os.Mkdir(filepath.Dir(sector.UnsealedFile()), 0755); err != nil { // nolint
+		log.Warnf("existing unseal repo in %s", sector.UnsealedRepo)
+	}
+	origPieceData := pieceData
 	defer func() {
 		closer, ok := origPieceData.(io.Closer)
 		if !ok {
@@ -309,6 +315,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 			log.Warnw("closing pieceData in AddPiece", "error", err)
 		}
 	}()
+
 	// uprade SectorRef
 	var err error
 	sector, err = database.FillSectorFile(sector, sb.RepoPath())
@@ -322,8 +329,8 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 	log.Info("secors =============", sector)
 	log.Info("existingPieceSizes len =============", len(existingPieceSizes))
 	log.Info("pieceSize==== =============", pieceSize)
-	log.Info("file========= =============", file)
 	isSectorCc := false
+	//todo hb_fix
 	if len(existingPieceSizes) == 0 {
 		isSectorCc = true
 	}
@@ -394,13 +401,12 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 			}
 		}
 	}()
-
 	unsealedPath := sector.UnsealedFile()
 	if err := os.MkdirAll(filepath.Dir(unsealedPath), 0755); err != nil {
 		return abi.PieceInfo{}, xerrors.Errorf("creating unsealed sector file: %w", err)
 	}
 	if len(existingPieceSizes) == 0 {
-		stagedFile, err = partialfile.CreateUnsealedPartialFile(maxPieceSize, sector)
+		stagedFile, err = partialfile.CreatePartialFile(maxPieceSize, sector.UnsealedFile())
 		//拷贝文件
 		if isSectorCc {
 			log.Info("copyFile path ====================", path)
@@ -414,11 +420,12 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 		}
 	} else {
 		log.Info("===============================================Effective order======", sector.ID)
-		stagedFile, err = partialfile.OpenUnsealedPartialFile(maxPieceSize, sector)
+		stagedFile, err = partialfile.OpenPartialFile(maxPieceSize, sector.UnsealedFile())
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("opening unsealed sector file: %w", err)
 		}
 	}
+
 	w, err := stagedFile.Writer(storiface.UnpaddedByteIndex(offset).Padded(), pieceSize.Padded())
 	if err != nil {
 		return abi.PieceInfo{}, xerrors.Errorf("getting partial file writer: %w", err)
@@ -426,7 +433,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 
 	pw := fr32.NewPadWriter(w)
 
-	pr := io.TeeReader(io.LimitReader(file, int64(pieceSize)), pw)
+	pr := io.TeeReader(io.LimitReader(pieceData, int64(pieceSize)), pw)
 
 	throttle := make(chan []byte, parallel)
 	piecePromises := make([]func() (abi.PieceInfo, error), 0)
@@ -568,7 +575,52 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 		PieceCID: pieceCID,
 	}, nil
 }
-
+func (sb *Sealer) AddPieceX(ctx context.Context, sid abi.SectorID, sz abi.UnpaddedPieceSize, rdr io.Reader) (io.Reader, string,error) {
+	if !IsAddPieceDeal(ctx) {
+		return rdr, "",nil
+	}
+	log.Infof("AddPieceX: %+v",IsAddPieceDeal(ctx))
+	var (
+		err   error
+		dInfo *DealInfo
+		dPath string
+		size  uint64
+		v2r   *carv2.Reader
+		dr    carv2.SectionReader
+		pr    io.Reader
+	)
+	defer func() {
+		log.Infow("add piece with mount deal", "miner", sid.Miner, "number", sid.Number, "path", dPath, "total-size", size, "target-size", int64(sz), "err", err)
+	}()
+	if dInfo, err = parseDealInfo(rdr); err != nil {
+		return nil, "",fmt.Errorf("parse deal info: %w", err)
+	}
+	dPath=dInfo.FilePath
+	/*	if dPath, err = parseDealPath(sb.RepoPath(), dInfo); err != nil {
+		return nil, fmt.Errorf("parse deal path: %w", err)
+	}*/
+	if v2r, err = carv2.OpenReader(dPath); err != nil {
+		return nil,"", fmt.Errorf("failed to open car file(%v): %w", dPath, err)
+	}
+	switch v2r.Version {
+	case 1:
+		st, err := os.Stat(dPath)
+		if err != nil {
+			return nil,"", fmt.Errorf("failed to stat CARv1 file: %w", err)
+		}
+		size = uint64(st.Size())
+	case 2:
+		size = v2r.Header.DataSize
+	}
+	if dr, err = v2r.DataReader(); err != nil {
+		return nil,"", fmt.Errorf("failed to get data reader over CAR file: %w", err)
+	}
+	if pr, err = padreader.NewInflator(dr, size, sz); err != nil {
+		_ = v2r.Close()
+		return nil, "",fmt.Errorf("failed to create inflator: %w", err)
+	}
+	return newReadCloser(pr, v2r),dPath, nil
+}
 func (sb *Sealer) pieceCid(spt abi.RegisteredSealProof, in []byte) (cid.Cid, error) {
 	prf, werr, err := commpffi.ToReadableFile(bytes.NewReader(in), int64(len(in)))
 	if err != nil {
@@ -623,7 +675,7 @@ func (sb *Sealer) AcquireSectorKeyOrRegenerate(ctx context.Context, sector stori
 	}
 	paddedSize := abi.PaddedPieceSize(sectorSize)
 
-	_, err = sb.AddPiece(ctx, sector, nil, paddedSize.Unpadded(), nr.NewNullReader(paddedSize.Unpadded()))
+	_, err = sb.AddPiece(ctx, sector, nil, paddedSize.Unpadded(), shared.NewNullPieceData(paddedSize.Unpadded()))
 	if err != nil {
 		return paths, done, xerrors.Errorf("recomputing empty data: %w", err)
 	}
@@ -653,8 +705,6 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storiface.SectorRef, o
 	}
 	maxPieceSize := abi.PaddedPieceSize(ssize)
 
-	// try finding existing
-	//unsealedPath, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, storiface.FTNone, storiface.PathSealing)
 	// implements from hlm
 	sPath := storiface.SectorPaths{
 		ID:       sector.ID,
@@ -732,18 +782,18 @@ func (sb *Sealer) unsealPiece(ctx context.Context, sector storiface.SectorRef, o
 		return pf.MarkAllocated(0, maxPieceSize)
 	}
 	/*
-	// Piece data sealed in sector
-	srcPaths, srcDone, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTCache|storiface.FTSealed, storiface.FTNone, storiface.PathSealing)
-	if err != nil {
-		return xerrors.Errorf("acquire sealed sector paths: %w", err)
-	}
-	defer srcDone()
+		// Piece data sealed in sector
+		srcPaths, srcDone, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTCache|storiface.FTSealed, storiface.FTNone, storiface.PathSealing)
+		if err != nil {
+			return xerrors.Errorf("acquire sealed sector paths: %w", err)
+		}
+		defer srcDone()
 
-	sealed, err := os.OpenFile(srcPaths.Sealed, os.O_RDONLY, 0644) // nolint:gosec
-	if err != nil {
-		return xerrors.Errorf("opening sealed file: %w", err)
-	}
-	defer sealed.Close() // nolint
+		sealed, err := os.OpenFile(srcPaths.Sealed, os.O_RDONLY, 0644) // nolint:gosec
+		if err != nil {
+			return xerrors.Errorf("opening sealed file: %w", err)
+		}
+		defer sealed.Close() // nolint
 	*/
 	up := os.Getenv("US3")
 	var sealed *os.File
@@ -870,14 +920,13 @@ type funcCloser func() error
 func (f funcCloser) Close() error {
 	return f()
 }
-
 func (sb *Sealer) ReadPieceQiniu(ctx context.Context, sector storiface.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (io.ReadCloser, bool, error) {
 	p, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, storiface.FTNone, storiface.PathStorage)
 	if err != nil {
 		return nil, false, xerrors.Errorf("acquire unsealed sector path: %w", err)
 	}
 	defer done()
-	sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
+	sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, storiface.SectorName(sector.ID))
 	p.Cache = filepath.Join(sp, storiface.FTCache.String(), storiface.SectorName(sector.ID))
 	p.Sealed = filepath.Join(sp, storiface.FTSealed.String(), storiface.SectorName(sector.ID))
 	p.Unsealed = filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
@@ -887,7 +936,7 @@ func (sb *Sealer) PieceReader(ctx context.Context, sector storiface.SectorRef, o
 	up := os.Getenv("US3")
 	if up != "" {
 		return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
-			sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
+			sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, storiface.SectorName(sector.ID))
 			unsealed := filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
 			index := storiface.UnpaddedByteIndex(storiface.PaddedByteIndex(offset) + startOffsetAligned)
 			offset := size - abi.PaddedPieceSize(startOffsetAligned)
@@ -930,13 +979,13 @@ func (sb *Sealer) PieceReader(ctx context.Context, sector storiface.SectorRef, o
 	ok, err := pf.HasAllocated(storiface.UnpaddedByteIndex(offset.Unpadded()), size.Unpadded())
 	if err != nil {
 		_ = pf.Close()
-		return nil, false,err
+		return nil, false, err
 	}
 	if !ok {
 		_ = pf.Close()
-		return nil, false,nil
+		return nil, false, nil
 	}
-	return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error){
+	return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
 		r, err := pf.Reader(storiface.PaddedByteIndex(offset)+startOffsetAligned, size-abi.PaddedPieceSize(startOffsetAligned))
 		if err != nil {
 			_ = pf.Close()
@@ -953,7 +1002,7 @@ func (sb *Sealer) PieceReader(ctx context.Context, sector storiface.SectorRef, o
 				return nil
 			}),
 		}, nil
-	},true,nil
+	}, true, nil
 }
 func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector storiface.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize) (bool, error) {
 	log.Infof("DEBUG:PieceReader in, sector:%+v", sector)

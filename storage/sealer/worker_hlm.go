@@ -82,7 +82,7 @@ func (l *hlmWorker) PledgeSector(ctx context.Context, sectorID storiface.SectorR
 	return l.sb.PledgeSector(ctx, sectorID, existingPieceSizes, sizes...)
 }
 
-func (l *hlmWorker) AddPiece(ctx context.Context, sector storiface.SectorRef, epcs []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r io.Reader) (abi.PieceInfo, error) {
+func (l *hlmWorker) AddPiece(ctx context.Context, sector storiface.SectorRef, epcs []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r storiface.PieceData) (abi.PieceInfo, error) {
 	return l.sb.AddPiece(ctx, sector, epcs, sz, r)
 }
 
@@ -107,8 +107,8 @@ func (l *hlmWorker) SealCommit(ctx context.Context, sector storiface.SectorRef, 
 	return l.sb.SealCommit(ctx, sector, ticket, seed, pieces, cids)
 }
 
-func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storiface.SectorRef, keepUnsealed []storiface.Range) error {
-	if err := l.sb.FinalizeSector(ctx, sector, keepUnsealed); err != nil {
+func (l *hlmWorker) FinalizeSector(ctx context.Context, sector storiface.SectorRef) error {
+	if err := l.sb.FinalizeSector(ctx, sector); err != nil {
 		return xerrors.Errorf("finalizing sector: %w", err)
 	}
 	// TODO: release unsealed
@@ -148,8 +148,8 @@ func (m *hlmWorker) ProveReplicaUpdate(ctx context.Context, sector storiface.Sec
 	return m.sb.ProveReplicaUpdate(ctx, sector, sectorKey, newSealed, newUnsealed)
 }
 
-func (m *hlmWorker) FinalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef, keepUnsealed []storiface.Range) error {
-	return m.sb.FinalizeReplicaUpdate(ctx, sector, keepUnsealed)
+func (m *hlmWorker) FinalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef) error {
+	return m.sb.FinalizeReplicaUpdate(ctx, sector)
 }
 
 //snap end
@@ -312,6 +312,7 @@ func (l *hlmWorker) readPiece(ctx context.Context, sector storiface.SectorRef, p
 	cancel()
 	return nil, false, errors.New("readPiece not done")
 }
+
 func (l *hlmWorker) ReadPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
 	// acquire a lock purely for reading unsealed sectors
 	var err error

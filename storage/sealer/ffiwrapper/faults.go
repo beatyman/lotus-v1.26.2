@@ -89,7 +89,7 @@ func CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []st
 		}
 
 		if sectors[0].SealedStorageType == database.MOUNT_TYPE_OSS {
-			sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, fmt.Sprintf("s-t0%d-%d", sector.ID.Miner, sector.ID.Number))
+			sp := filepath.Join(partialfile.QINIU_VIRTUAL_MOUNTPOINT, storiface.SectorName(sector.ID))
 			lp.Cache = filepath.Join(sp, storiface.FTCache.String(), storiface.SectorName(sector.ID))
 			lp.Sealed = filepath.Join(sp, storiface.FTSealed.String(), storiface.SectorName(sector.ID))
 			lp.Unsealed = filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))

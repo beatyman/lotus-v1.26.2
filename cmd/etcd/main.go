@@ -22,8 +22,8 @@
 //
 package main
 
-import "go.etcd.io/etcd/etcdmain"
+import "go.etcd.io/etcd/server/v3/etcdmain"
 
 func main() {
-	etcdmain.Main()
+	etcdmain.Main(nil)
 }

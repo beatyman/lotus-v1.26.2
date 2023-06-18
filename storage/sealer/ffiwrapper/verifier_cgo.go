@@ -21,7 +21,7 @@ func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 	if len(sectorInfo) == 0 {
 		return nil, xerrors.Errorf("must provide sectors for winning post")
 	}
-	ppt, err := sectorInfo[0].SealProof.RegisteredWinningPoStProof()
+	ppt, err := sectorInfo[0].ProofType.RegisteredWinningPoStProof()
 	if err != nil {
 		return nil, xerrors.Errorf("failed to convert to winning post proof: %w", err)
 	}
@@ -91,16 +91,6 @@ func (sb *Sealer) pubExtendedSectorToPriv(ctx context.Context, mid abi.ActorID, 
 			Update:      s.UpdateFile(),
 			UpdateCache: s.UpdateCachePath(),
 		}
-		proveUpdate := s.SectorKey != nil
-		var cache string
-		var sealed string
-		if proveUpdate {
-			cache = paths.UpdateCache
-			sealed = paths.Update
-		} else {
-			cache = paths.Cache
-			sealed = paths.Sealed
-		}
 
 		ffiInfo := proof.SectorInfo{
 			SealProof:    s.ProofType,
@@ -108,9 +98,9 @@ func (sb *Sealer) pubExtendedSectorToPriv(ctx context.Context, mid abi.ActorID, 
 			SealedCID:    s.SealedCID,
 		}
 		out = append(out, ffi.PrivateSectorInfo{
-			CacheDirPath:     cache,
+			CacheDirPath:     paths.Cache,
 			PoStProofType:    postProofType,
-			SealedSectorPath: sealed,
+			SealedSectorPath: paths.Sealed,
 			SectorInfo:       ffiInfo,
 		})
 	}

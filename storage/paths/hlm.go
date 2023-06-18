@@ -1,7 +1,6 @@
 package paths
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -9,7 +8,7 @@ import (
 )
 
 func HLMSectorPath(sectorID abi.SectorID, repo string) storiface.SectorPaths {
-	sectorName := fmt.Sprintf("s-t0%d-%d", sectorID.Miner, sectorID.Number)
+	sectorName:=storiface.SectorName(sectorID)
 	return storiface.SectorPaths{
 		ID:       sectorID,
 		Unsealed: filepath.Join(repo, "unsealed", sectorName),

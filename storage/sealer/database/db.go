@@ -58,7 +58,9 @@ func InitDB(repo string) {
 	if _, err := db.Exec(tb_statis_win_sql); err != nil {
 		panic(err)
 	}
-
+	if _, err := db.Exec(tb_market_deal_sql); err != nil {
+		panic(err)
+	}
 	go initSectorFileCache(repo)
 }
 

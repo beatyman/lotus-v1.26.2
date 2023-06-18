@@ -51,10 +51,16 @@ type Logging struct {
 	// SubsystemLevels specify per-subsystem log levels
 	SubsystemLevels map[string]string
 }
-
+type MinerEnv struct {
+	SN         string
+	SectorHead string
+}
 // StorageMiner is a miner config
 type StorageMiner struct {
 	Common
+	// ft
+	MinerEnv MinerEnv
+	// end ft
 
 	Subsystems    MinerSubsystemConfig
 	WorkerAPI  WorkerAddrConfig
@@ -116,7 +122,10 @@ type MinerSubsystemConfig struct {
 	EnableSealing       bool
 	EnableSectorStorage bool
 	EnableMarkets       bool
-
+	// by ft
+	EnableWnPoSt bool
+	EnableWdPoSt bool
+	// end by ft
 	SealerApiInfo      string // if EnableSealing == false
 	SectorIndexApiInfo string // if EnableSectorStorage == false
 }

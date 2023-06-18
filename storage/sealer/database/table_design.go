@@ -104,4 +104,27 @@ CREATE TABLE IF NOT EXISTS statis_win (
 	win_used INTEGER NOT NULL DEFAULT 0 /*本地计算中奖的用时，单位为毫秒，除以win_gen可得到平均用时*/
 );
 `
+	tb_market_deal_sql = `
+CREATE TABLE IF NOT EXISTS market_deal (
+	id TEXT NOT NULL PRIMARY KEY, /* propid */
+	created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
+	updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
+	root_cid TEXT NOT NULL DEFAULT '',
+	piece_cid TEXT NOT NULL DEFAULT '',
+	piece_size BIGINT NOT NULL DEFAULT 0, /* unppded?*/
+	client_addr TEXT NOT NULL DEFAULT '',
+	file_local TEXT NOT NULL DEFAULT '',
+	file_remote TEXT NOT NULL DEFAULT '',
+	file_storage INT NOT NULL DEFAULT 0,
+	
+	sid TEXT NOT NULL DEFAULT '', /* maybe not allocated, and maybe several deals for one sector. */
+	deal_num BIGINT NOT NULL DEFAULT -1, /* a deal id num in sector sealing. */
+	offset BIGINT NOT NULL DEFAULT 0,
+	state INT NOT NULL DEFAULT 0 /* same as sector_info */
+);
+CREATE INDEX IF NOT EXISTS market_deal_idx0 ON market_deal(sid);
+CREATE INDEX IF NOT EXISTS market_deal_idx1 ON market_deal(created_at);
+CREATE INDEX IF NOT EXISTS market_deal_idx2 ON market_deal(file_local);
+`
+
 )

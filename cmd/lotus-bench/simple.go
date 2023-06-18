@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mitchellh/go-homedir"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"time"

@@ -37,6 +37,9 @@ func (w *worker) removeRepoSector(ctx context.Context, repo, sid string) error {
 	if err := os.RemoveAll(filepath.Join(repo, "update-cache", sid)); err != nil {
 		log.Error(errors.As(err, sid))
 	}
+	if err := os.RemoveAll(filepath.Join(repo, "fstmp", sid)); err != nil {
+		log.Error(errors.As(err, sid))
+	}
 	if err := w.diskPool.Delete(sid); err != nil {
 		log.Error(errors.As(err))
 	}
@@ -55,6 +58,9 @@ func (w *worker) GcRepoSectors(ctx context.Context) error {
 			return errors.As(err)
 		}
 		if err := w.gcRepo(ctx, repo, "unsealed"); err != nil {
+			return errors.As(err)
+		}
+		if err := w.gcRepo(ctx, repo, "fstmp"); err != nil {
 			return errors.As(err)
 		}
 		//delete(w.sealers, repo)
@@ -659,4 +665,55 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		return errors.As(err)
 	}
 	return nil
+}
+func (w *worker) fetchDeal(ctx context.Context, workerSB *ffiwrapper.Sealer, task ffiwrapper.WorkerTask) error {
+	sid := task.SectorName()
+	log.Infof("fetchDeal:%+v", sid)
+	defer log.Infof("fetchDeal exit:%+v", sid)
+	if task.DealStorageInfo == nil || task.DealStorageInfo.ID <= 0 {
+		return errors.New("deal storage invalid")
+	}
+	if task.DealStorageInfo.MountType != database.MOUNT_TYPE_NFS &&
+		task.DealStorageInfo.MountType != database.MOUNT_TYPE_CEPH {
+		return errors.New("deal storage mount-type invalid")
+	}
+
+	var (
+		err      error
+		mountDir = filepath.Join(w.sealedRepo, sid, task.DealInfo.StoreID)
+		fromPath = filepath.Join(mountDir, filepath.Base(task.DealInfo.FilePath))
+		toPath   = filepath.Join(workerSB.SectorPath("fstmp", sid), filepath.Base(task.DealInfo.FilePath))
+	)
+	if err = os.MkdirAll(filepath.Dir(toPath), 0755); err != nil {
+		return err
+	}
+	if err = w.mountRemote(
+		ctx,
+		sid,
+		task.DealStorageInfo.MountType,
+		task.DealStorageInfo.MountTransfUri,
+		mountDir,
+		task.DealStorageInfo.MountOpt,
+	); err != nil {
+		return errors.As(err)
+	}
+	defer func() {
+		if err = w.umountRemote(sid, mountDir); err != nil {
+			log.Errorw("fetchDeal unmount error", "err", err, "sid", sid)
+		}
+	}()
+
+	if err = w.rsync(ctx, fromPath, toPath); err != nil {
+		log.Errorw("fetchDeal rsync error", "err", err, "sid", sid)
+		if !errors.ErrNoData.Equal(err) {
+			return errors.As(err)
+		}
+	}
+	task.DealInfo.FilePath = toPath
+	return err
+}
+
+func (w *worker) FetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, task ffiwrapper.WorkerTask) (string, error) {
+	log.Infof("FetchStaging: %+v",task)
+	return "",nil
 }

@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -435,7 +434,7 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 	sInfo, err := database.GetSectorInfo(storiface.SectorName(m.minerSectorID(state.SectorNumber)))
 	if err != nil {
 		log.Warn(errors.As(err))
-	} else {
+	} else if len(sInfo.MinerId) != 0 {
 		switch state.State {
 		case Removing, RemoveFailed, Removed:
 			// update hlm database statue to failed.

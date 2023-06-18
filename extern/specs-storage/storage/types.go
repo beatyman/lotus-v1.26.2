@@ -30,11 +30,6 @@ func ParseSectorID(baseName string) (abi.SectorID, error) {
 	}, nil
 }
 
-// copy from sector-storage/stores/filetype.go
-func SectorName(sid abi.SectorID) string {
-	return fmt.Sprintf("s-t0%d-%d", sid.Miner, sid.Number)
-}
-
 type SectorFile struct {
 	SectorId string
 

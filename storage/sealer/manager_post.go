@@ -83,22 +83,21 @@ func (m *Manager) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 }
 
 func (m *Manager) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, postProofType abi.RegisteredPoStProof, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) (proof []proof.PoStProof, skipped []abi.SectorID, err error) {
-	return m.Prover.GenerateWindowPoSt(ctx, minerID, postProofType,sectorInfo, randomness)
+	return m.Prover.GenerateWindowPoSt(ctx, minerID,postProofType, sectorInfo, randomness)
 	/*
 	if !m.disableBuiltinWindowPoSt && !m.windowPoStSched.CanSched(ctx) {
 		// if builtin PoSt isn't disabled, and there are no workers, compute the PoSt locally
 
 		log.Info("GenerateWindowPoSt run at lotus-miner")
-		p, s, err := m.Prover.GenerateWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
+		p, s, err := m.localProver.GenerateWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("local prover: %w", err)
 		}
 
 		return p, s, nil
 	}
-	 */
-
 	return m.generateWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
+	 */
 }
 
 func dedupeSectorInfo(sectorInfo []proof.ExtendedSectorInfo) []proof.ExtendedSectorInfo {

@@ -64,7 +64,7 @@ func (l *LotusMount) Info() mount.Info {
 		Kind:             mount.KindRemote,
 		AccessSequential: true,
 		AccessSeek:       true,
-		AccessRandom:     true,
+		AccessRandom:     false, //此处故意设置为false for RegisterShard
 	}
 }
 

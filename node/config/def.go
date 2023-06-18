@@ -124,7 +124,10 @@ func DefaultFullNode() *FullNode {
 func DefaultStorageMiner() *StorageMiner {
 	cfg := &StorageMiner{
 		Common: defCommon(),
-
+		MinerEnv: MinerEnv{
+			SN:         "",    // sn for ft-worker limit
+			SectorHead: "s-f", // s-f for new mainnet; s-t for old mainnet
+		},
 		WorkerAPI: WorkerAddrConfig{
 			ListenAddress: "/ip4/127.0.0.1/tcp/2347/http",
 		},
@@ -161,9 +164,10 @@ func DefaultStorageMiner() *StorageMiner {
 			BatchPreCommitAboveBaseFee: types.FIL(types.BigMul(types.PicoFil, types.NewInt(320))), // 0.32 nFIL
 			AggregateAboveBaseFee:      types.FIL(types.BigMul(types.PicoFil, types.NewInt(320))), // 0.32 nFIL
 
-			TerminateBatchMin:  1,
-			TerminateBatchMax:  100,
-			TerminateBatchWait: Duration(5 * time.Minute),
+			TerminateBatchMin:                      1,
+			TerminateBatchMax:                      100,
+			TerminateBatchWait:                     Duration(5 * time.Minute),
+			MaxSectorProveCommitsSubmittedPerEpoch: 20,
 		},
 
 		Proving: ProvingConfig{
@@ -242,6 +246,10 @@ func DefaultStorageMiner() *StorageMiner {
 			EnableSealing:       true,
 			EnableSectorStorage: true,
 			EnableMarkets:       true,
+			// by ft
+			EnableWnPoSt: true,
+			EnableWdPoSt: true,
+			// end by ft
 		},
 
 		Fees: MinerFeeConfig{

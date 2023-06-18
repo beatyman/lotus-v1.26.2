@@ -15,3 +15,5 @@ ListenAddresses = ["/ip4/0.0.0.0/tcp/12340", "/ip6/::/tcp/12340"]
 #  HeadNotifs = false
 #  PubsubTracing = false
 #
+[Chainstore]
+  EnableSplitstore = true

@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -61,6 +62,7 @@ func ServeRPC(h http.Handler, id, repo string, addr multiaddr.Multiaddr) (StopFu
 			ctx, _ := tag.New(context.Background(), tag.Upsert(metrics.APIInterface, id))
 			return ctx
 		},
+		TLSConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
 	log.Info("rebuild tls cert automatic")

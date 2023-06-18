@@ -2,16 +2,12 @@ package fileserver
 
 import (
 	"encoding/xml"
-	"fmt"
 	"net/http"
 	"os"
 	"sync"
 
-	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gorilla/mux"
 	logging "github.com/ipfs/go-log/v2"
-	"golang.org/x/xerrors"
 )
 
 var log = logging.Logger("fileserver")
@@ -87,29 +83,4 @@ func (f *StorageFileServer) FileHttpServer(w http.ResponseWriter, r *http.Reques
 	//}
 
 	f.router.ServeHTTP(w, r)
-}
-
-func parseSectorID(baseName string) (string, error) {
-	var n abi.SectorNumber
-	var mid abi.ActorID
-	read, err := fmt.Sscanf(baseName, "s-t0%d-%d", &mid, &n)
-	if err != nil {
-		return "", xerrors.Errorf("sscanf sector name ('%s'): %w", baseName, err)
-	}
-	if read != 2 {
-		return "", xerrors.Errorf("parseSectorID expected to scan 2 values, got %d", read)
-	}
-	return baseName, nil
-}
-func ftFromString(t string) (string, error) {
-	switch t {
-	case storiface.FTUnsealed.String():
-	case storiface.FTSealed.String():
-	case storiface.FTCache.String():
-	case "all":
-		return t, nil
-	default:
-		return "", xerrors.Errorf("unknown sector file type: '%s'", t)
-	}
-	return t, nil
 }

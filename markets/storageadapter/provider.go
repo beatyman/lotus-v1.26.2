@@ -87,7 +87,7 @@ func (n *ProviderNodeAdapter) PublishDeals(ctx context.Context, deal storagemark
 	return n.dealPublisher.Publish(ctx, deal.ClientDealProposal)
 }
 
-func (n *ProviderNodeAdapter) OnDealComplete(ctx context.Context, deal storagemarket.MinerDeal, pieceSize abi.UnpaddedPieceSize, pieceData shared.ReadSeekStarter) (*storagemarket.PackingResult, error) {
+func (n *ProviderNodeAdapter) OnDealComplete(ctx context.Context, deal storagemarket.MinerDeal, pieceSize abi.UnpaddedPieceSize, pieceData shared.PieceDataInfo) (*storagemarket.PackingResult, error) {
 	if deal.PublishCid == nil {
 		return nil, xerrors.Errorf("deal.PublishCid can't be nil")
 	}
@@ -123,10 +123,10 @@ func (n *ProviderNodeAdapter) OnDealComplete(ctx context.Context, deal storagema
 		select {
 		case <-build.Clock.After(addPieceRetryWait):
 			// Reset the reader to the start
-			err = pieceData.SeekStart()
-			if err != nil {
-				return nil, xerrors.Errorf("failed to reset piece reader to start before retrying AddPiece for deal %d: %w", deal.DealID, err)
-			}
+			//err = pieceData.SeekStart()
+			//if err != nil {
+			//	return nil, xerrors.Errorf("failed to reset piece reader to start before retrying AddPiece for deal %d: %w", deal.DealID, err)
+			//}
 
 			// Attempt to add the piece again
 			p, offset, err = n.secb.AddPiece(ctx, pieceSize, pieceData, sdInfo)

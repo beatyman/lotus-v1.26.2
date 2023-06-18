@@ -2,8 +2,14 @@ package ffiwrapper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
+	"io"
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -129,16 +135,21 @@ type WorkerTask struct {
 
 	Type WorkerTaskType
 	// TaskID uint64 // using SecotrID instead
-
+	PostProofType abi.RegisteredPoStProof
 	ProofType     abi.RegisteredSealProof
 	SectorID      abi.SectorID
 	WorkerID      string
 	SectorStorage database.SectorStorage
 
 	// addpiece
+	PieceSize          abi.UnpaddedPieceSize
+	DealInfo           *DealInfo
+	AddPieceKind       string
+	PieceData          storiface.PieceData
+
 	ExistingPieceSizes []abi.UnpaddedPieceSize
 	ExtSizes           []abi.UnpaddedPieceSize // size ...abi.UnpaddedPieceSize
-
+	DealStorageInfo    *database.StorageInfo
 	// unseal
 	UnsealOffset   storiface.UnpaddedByteIndex
 	UnsealSize     abi.UnpaddedPieceSize
@@ -191,7 +202,7 @@ func ParseTaskKey(key string) (string, int, error) {
 }
 
 func (w *WorkerTask) Key() string {
-	return fmt.Sprintf("s-t0%d-%d_%d", w.SectorID.Miner, w.SectorID.Number, w.Type)
+	return fmt.Sprintf("%s_%d", w.SectorName(), w.Type)
 }
 
 func (w *WorkerTask) SectorName() string {
@@ -436,7 +447,7 @@ func (r *remote) freeTask(sid string) bool {
 	return ok
 }
 
-//根据worker上报的状态恢复因checkCache或ctx.Done()加1的任务
+// 根据worker上报的状态恢复因checkCache或ctx.Done()加1的任务
 func (r *remote) checkBusy(wBusy []string) {
 	log.Infow("check busy starting", "worker-id", r.cfg.ID, "worker-busy", wBusy)
 	if len(wBusy) == 0 {
@@ -548,6 +559,7 @@ type SealRes struct {
 
 	WindowPoStProofOut   []proof.PoStProof
 	WindowPoStIgnSectors []abi.SectorID
+	Piece                abi.PieceInfo
 }
 
 func (s *SealRes) SectorID() string {
@@ -557,3 +569,65 @@ func (s *SealRes) SectorID() string {
 	}
 	return ""
 }
+
+// DealInfo map from boost with add-piece data
+type DealInfo struct {
+	StoreID  string
+	FilePath string
+}
+
+func parseDealInfo(rdr io.Reader) (*DealInfo, error) {
+	data, err := ioutil.ReadAll(rdr)
+	if err != nil {
+		return nil, err
+	}
+	info := &DealInfo{}
+	if err = json.Unmarshal(data, info); err != nil {
+		return nil, err
+	}
+	return info, nil
+}
+
+func parseDealPath(workerRepo string, info *DealInfo) (string, error) {
+	if len(info.StoreID) == 0 || len(info.FilePath) == 0 {
+		return "", errors.New("deal-info invalid")
+	}
+	dPath := filepath.Join(workerRepo, "incoming", info.StoreID, path.Base(info.FilePath))
+	if !PathExist(dPath) {
+		return "", fmt.Errorf("deal file not found: %v", dPath)
+	}
+	return dPath, nil
+}
+func PathExist(path string) bool {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsExist(err) {
+			return true
+		}
+		return false
+	}
+	return true
+}
+func newReadCloser(r io.Reader, c io.Closer) *ReadCloser {
+	return &ReadCloser{r: r, c: c}
+}
+
+type ReadCloser struct {
+	r io.Reader
+	c io.Closer
+}
+
+func (rc *ReadCloser) Read(p []byte) (n int, err error) {
+	return rc.r.Read(p)
+}
+
+func (rc *ReadCloser) Close() error {
+	if rc.c == nil {
+		return nil
+	}
+	return rc.c.Close()
+}
+
+const (
+	SectorKindGarbage = "garbage"
+	SectorKindMarket  = "market"
+)

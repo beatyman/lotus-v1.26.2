@@ -3,6 +3,7 @@ package wdpost
 import (
 	"bytes"
 	"context"
+	"github.com/filecoin-project/go-state-types/network"
 	"encoding/hex"
 	"fmt"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
@@ -198,8 +199,15 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, manual bool, 
 				span.Finish(err)
 				return nil, err
 			}
-
-			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), sinfos, append(abi.PoStRandomness{}, rand...))
+			pp := s.proofType
+			// TODO: Drop after nv19 comes and goes
+			if nv >= network.Version19 {
+				pp, err = pp.ToV1_1PostProof()
+				if err != nil {
+					return nil, xerrors.Errorf("failed to convert to v1_1 post proof: %w", err)
+				}
+			}
+			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid),pp, sinfos, append(abi.PoStRandomness{}, rand...))
 			elapsed := time.Since(tsStart)
 			span.SetGenerateElapsed(int64(elapsed))
 			span.SetErrorCount(len(ps))

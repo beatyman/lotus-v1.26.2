@@ -3,6 +3,8 @@ package ffiwrapper
 import (
 	"context"
 	"fmt"
+	"github.com/filecoin-project/go-fil-markets/shared"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"go.opencensus.io/trace/propagation"
 	"math"
 	"os"
@@ -64,6 +66,67 @@ func nextSourceID() int64 {
 	}
 	return sourceId
 }
+func (sb *Sealer) addPieceRemote(call workerCall) (abi.PieceInfo, error) {
+	select {
+	case ret := <-call.ret:
+		var err error
+		if ret.Err != "" {
+			err = xerrors.New(ret.Err)
+		}
+		return ret.Piece, err
+	case <-sb.stopping:
+		return abi.PieceInfo{}, xerrors.New("addPieceRemote stopped")
+	}
+}
+
+func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, pieceSize abi.UnpaddedPieceSize, pieceData storiface.PieceData) (abi.PieceInfo, error) {
+	log.Infof("DEBUG:AddPiece in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
+	defer log.Infof("DEBUG:AddPiece out,%+v", sector.ID)
+	if database.HasDB() {
+		// fix piece data
+		dbDeal, err := database.GetMarketDealInfo(pieceData.PropCid)
+		if err == nil {
+			// update data
+			if dbDeal.FileStorage > 0 {
+				pieceData.ServerStorage = dbDeal.FileStorage // restore from db
+				pieceData.ServerFullUri = dbDeal.FileRemote  // restore from db
+				log.Infof("Restore AddPieceData:%+v", pieceData)
+			}
+		}
+	}
+	//todo fix_hb
+	atomic.AddInt32(&_pledgeWait, 1)
+	if !sb.remoteCfg.SealSector {
+		reader, err := pieceData.ToPaddedReader()
+		if err != nil {
+			return abi.PieceInfo{}, errors.As(err)
+		}
+		return sb.addPiece(ctx, sector, existingPieceSizes, pieceSize, reader)
+	}
+
+	call := workerCall{
+		// no need worker id
+		task: WorkerTask{
+			Type:               WorkerPledge,
+			ProofType:          sector.ProofType,
+			SectorID:           sector.ID,
+			ExistingPieceSizes: existingPieceSizes,
+			PieceSize:          pieceSize,
+			AddPieceKind:       GetAddPieceKind(ctx),
+			PieceData:          pieceData,
+		},
+		ret: make(chan SealRes),
+	}
+	//todo fix_hb
+	// force the local kind to server mode when send to remote.
+	if pieceData.ReaderKind == shared.PIECE_DATA_KIND_FILE {
+		call.task.PieceData.ReaderKind = shared.PIECE_DATA_KIND_SERVER
+	}
+	select { // prefer remote
+	case _pledgeTasks <- call:
+		return sb.addPieceRemote(call)
+	}
+}
 
 func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 	select {
@@ -77,7 +140,8 @@ func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 		return []abi.PieceInfo{}, xerrors.New("sectorbuilder stopped")
 	}
 }
-
+//todo hb_fix
+/*
 func (sb *Sealer) PledgeSector(ctx context.Context, sector storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
 	snap := false
 	if v := ctx.Value("SNAP"); v != nil {
@@ -114,7 +178,7 @@ func (sb *Sealer) PledgeSector(ctx context.Context, sector storiface.SectorRef, 
 		return sb.pledgeRemote(call)
 	}
 }
-
+*/
 func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storiface.PreCommit1Out, error) {
 	select {
 	case ret := <-call.ret:
@@ -264,7 +328,7 @@ func (sb *Sealer) finalizeSectorRemote(call workerCall) error {
 	}
 }
 
-func (sb *Sealer) FinalizeSector(ctx context.Context, sector storiface.SectorRef, keepUnsealed []storiface.Range) error {
+func (sb *Sealer) FinalizeSector(ctx context.Context, sector storiface.SectorRef) error {
 	log.Infof("DEBUG:FinalizeSector in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
 	defer log.Infof("DEBUG:FinalizeSector out,%+v", sector.ID)
 	// return sb.finalizeSector(ctx, sector)
@@ -272,7 +336,7 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storiface.SectorRef
 	atomic.AddInt32(&_finalizeWait, 1)
 	if !sb.remoteCfg.SealSector {
 		atomic.AddInt32(&_finalizeWait, -1)
-		return sb.finalizeSector(ctx, sector, keepUnsealed)
+		return sb.finalizeSector(ctx, sector)
 	}
 	// close finalize because it has done in commit2
 	//atomic.AddInt32(&_finalizeWait, -1)
@@ -442,7 +506,7 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 	return res.res.WinningPoStProofOut, err
 }
 
-func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
+func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, postProofType abi.RegisteredPoStProof, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
 	if len(sectorInfo) == 0 {
 		return nil, nil, errors.New("not sectors set")
 	}
@@ -452,7 +516,7 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 
 	// remote worker is not set, use local mode
 	if sb.remoteCfg.WindowPoSt == 0 {
-		return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+		return sb.generateWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
 	}
 
 	type req = struct {
@@ -464,12 +528,13 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 selectWorker:
 	for i := 0; i < sb.remoteCfg.WindowPoSt; i++ {
 		task := WorkerTask{
-			TraceContext: propagation.Inject(ctx), //传播trace-id
-			Type:         WorkerWindowPoSt,
-			ProofType:    sectorInfo[0].ProofType,
-			SectorID:     abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
-			SectorInfo:   sectorInfo,
-			Randomness:   randomness,
+			TraceContext:  propagation.Inject(ctx), //传播trace-id
+			Type:          WorkerWindowPoSt,
+			ProofType:     sectorInfo[0].ProofType,
+			SectorID:      abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
+			SectorInfo:    sectorInfo,
+			Randomness:    randomness,
+			PostProofType: postProofType,
 		}
 		sid := task.SectorName()
 		r, ok := sb.selectGPUService(ctx, sid, task)
@@ -484,7 +549,7 @@ selectWorker:
 
 		if !sb.remoteCfg.EnableForceRemoteWindowPoSt {
 			log.Info("No GpuService for window PoSt, using local mode")
-			return sb.generateWindowPoSt(ctx, minerID, sectorInfo, randomness)
+			return sb.generateWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
 		}
 
 		retrycount++

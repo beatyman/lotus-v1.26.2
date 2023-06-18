@@ -883,6 +883,7 @@ type StorageMinerStruct struct {
 	HlmMinerSectorStruct
 	HlmMinerStorageStruct
 	HlmMinerWorkerStruct
+	HlmMinerMarketStruct
 	Internal StorageMinerMethods
 }
 
@@ -1051,7 +1052,7 @@ type StorageMinerMethods struct {
 
 	SectorAbortUpgrade func(p0 context.Context, p1 abi.SectorNumber) error `perm:"admin"`
 
-	SectorAddPieceToAny func(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.Data, p3 PieceDealInfo) (SectorOffset, error) `perm:"admin"`
+	SectorAddPieceToAny func(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.PieceData, p3 PieceDealInfo) (SectorOffset, error) `perm:"admin"`
 
 	SectorCommitFlush func(p0 context.Context) ([]sealiface.CommitBatchRes, error) `perm:"admin"`
 
@@ -1106,6 +1107,8 @@ type StorageMinerMethods struct {
 	SectorsSummary func(p0 context.Context) (map[SectorState]int, error) `perm:"read"`
 
 	SectorsUnsealPiece func(p0 context.Context, p1 storiface.SectorRef, p2 storiface.UnpaddedByteIndex, p3 abi.UnpaddedPieceSize, p4 abi.SealRandomness, p5 *cid.Cid) error `perm:"admin"`
+
+	ReadPieceStorageInfo func(p0 context.Context, p1 storiface.SectorRef) (database.SectorStorage, error) `perm:"admin"`
 
 	SectorsUpdate func(p0 context.Context, p1 abi.SectorNumber, p2 SectorState) error `perm:"admin"`
 
@@ -1190,7 +1193,7 @@ type WorkerStruct struct {
 }
 
 type WorkerMethods struct {
-	AddPiece func(p0 context.Context, p1 storiface.SectorRef, p2 []abi.UnpaddedPieceSize, p3 abi.UnpaddedPieceSize, p4 storiface.Data) (storiface.CallID, error) `perm:"admin"`
+	AddPiece func(p0 context.Context, p1 storiface.SectorRef, p2 []abi.UnpaddedPieceSize, p3 abi.UnpaddedPieceSize, p4 storiface.PieceData) (storiface.CallID, error) `perm:"admin"`
 
 	DataCid func(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.Data) (storiface.CallID, error) `perm:"admin"`
 
@@ -6228,14 +6231,14 @@ func (s *StorageMinerStub) SectorAbortUpgrade(p0 context.Context, p1 abi.SectorN
 	return ErrNotSupported
 }
 
-func (s *StorageMinerStruct) SectorAddPieceToAny(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.Data, p3 PieceDealInfo) (SectorOffset, error) {
+func (s *StorageMinerStruct) SectorAddPieceToAny(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.PieceData, p3 PieceDealInfo) (SectorOffset, error) {
 	if s.Internal.SectorAddPieceToAny == nil {
 		return *new(SectorOffset), ErrNotSupported
 	}
 	return s.Internal.SectorAddPieceToAny(p0, p1, p2, p3)
 }
 
-func (s *StorageMinerStub) SectorAddPieceToAny(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.Data, p3 PieceDealInfo) (SectorOffset, error) {
+func (s *StorageMinerStub) SectorAddPieceToAny(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.PieceData, p3 PieceDealInfo) (SectorOffset, error) {
 	return *new(SectorOffset), ErrNotSupported
 }
 
@@ -6524,7 +6527,6 @@ func (s *StorageMinerStruct) SectorsSummary(p0 context.Context) (map[SectorState
 func (s *StorageMinerStub) SectorsSummary(p0 context.Context) (map[SectorState]int, error) {
 	return *new(map[SectorState]int), ErrNotSupported
 }
-
 func (s *StorageMinerStruct) SectorsUnsealPiece(p0 context.Context, p1 storiface.SectorRef, p2 storiface.UnpaddedByteIndex, p3 abi.UnpaddedPieceSize, p4 abi.SealRandomness, p5 *cid.Cid) error {
 	if s.Internal.SectorsUnsealPiece == nil {
 		return ErrNotSupported
@@ -6871,14 +6873,14 @@ func (s *WalletStub) WalletSign(p0 context.Context, p1 address.Address, p2 []byt
 	return nil, ErrNotSupported
 }
 
-func (s *WorkerStruct) AddPiece(p0 context.Context, p1 storiface.SectorRef, p2 []abi.UnpaddedPieceSize, p3 abi.UnpaddedPieceSize, p4 storiface.Data) (storiface.CallID, error) {
+func (s *WorkerStruct) AddPiece(p0 context.Context, p1 storiface.SectorRef, p2 []abi.UnpaddedPieceSize, p3 abi.UnpaddedPieceSize, p4 storiface.PieceData) (storiface.CallID, error) {
 	if s.Internal.AddPiece == nil {
 		return *new(storiface.CallID), ErrNotSupported
 	}
 	return s.Internal.AddPiece(p0, p1, p2, p3, p4)
 }
 
-func (s *WorkerStub) AddPiece(p0 context.Context, p1 storiface.SectorRef, p2 []abi.UnpaddedPieceSize, p3 abi.UnpaddedPieceSize, p4 storiface.Data) (storiface.CallID, error) {
+func (s *WorkerStub) AddPiece(p0 context.Context, p1 storiface.SectorRef, p2 []abi.UnpaddedPieceSize, p3 abi.UnpaddedPieceSize, p4 storiface.PieceData) (storiface.CallID, error) {
 	return *new(storiface.CallID), ErrNotSupported
 }
 

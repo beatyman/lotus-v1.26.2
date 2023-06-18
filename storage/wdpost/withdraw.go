@@ -135,8 +135,7 @@ func (s *WindowPoStScheduler) autoWithdraw(ts *types.TipSet) {
 		log.Info("auto withdraw repo not found")
 		return
 	}
-
-	cfgI, err := config.FromFile(filepath.Join(repo, "withdraw.toml"), &WithdrawConfig{})
+	cfgI, err := config.FromFile(filepath.Join(repo, "withdraw.toml"), config.SetDefault(func() (interface{}, error) { return &WithdrawConfig{}, nil }))
 	if err != nil {
 		log.Warn(errors.As(err))
 		return

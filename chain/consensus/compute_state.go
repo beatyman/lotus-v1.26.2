@@ -261,16 +261,16 @@ func (t *TipSetExecutor) ApplyBlocks(ctx context.Context,
 			span.Finish(rErr)
 			return cid.Undef, cid.Undef, xerrors.Errorf("error applying reward: %w", rErr)
 		}
+		span.Finish(nil)
 	}
 
 	vmMsg := partDone()
 	partDone = metrics.Timer(ctx, metrics.VMApplyCron)
 
 	if err := runCron(vmi, epoch); err != nil {
-		span.Finish(err)
 		return cid.Cid{}, cid.Cid{}, err
 	}
-	span.Finish(nil)
+
 	vmCron := partDone()
 	partDone = metrics.Timer(ctx, metrics.VMApplyFlush)
 

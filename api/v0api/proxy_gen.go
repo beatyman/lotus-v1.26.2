@@ -51,7 +51,6 @@ type FullNodeMethods struct {
 	InputWalletPasswd   func(context.Context, string) error                                                                `perm:"admin"`
 	WalletEncode        func(context.Context, address.Address, string) error                                               `perm:"admin"`
 	//implement by hlm end
-
 	BeaconGetEntry func(p0 context.Context, p1 abi.ChainEpoch) (*types.BeaconEntry, error) `perm:"read"`
 
 	ChainDeleteObj func(p0 context.Context, p1 cid.Cid) error `perm:"admin"`

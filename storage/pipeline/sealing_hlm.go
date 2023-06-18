@@ -79,7 +79,7 @@ func (m *Sealing) RebuildSector(ctx context.Context, sid string, storageId uint6
 			return errors.As(err)
 		}
 		// do finalize
-		if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
+		if err := sealer.FinalizeSector(ctx, sector); err != nil {
 			return errors.As(err)
 		}
 		if err := database.RebuildSectorDone(sid); err != nil {

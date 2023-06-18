@@ -5,6 +5,13 @@ import (
 	"crypto/md5"
 	"database/sql"
 	"fmt"
+	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
@@ -15,6 +22,7 @@ import (
 const (
 	STORAGE_KIND_SEALED   = 0
 	STORAGE_KIND_UNSEALED = 1
+	STORAGE_KIND_MARKET   = 10
 )
 
 const (
@@ -22,6 +30,7 @@ const (
 	MOUNT_TYPE_GFS    = "glusterfs"
 	MOUNT_TYPE_HLM    = "hlm-storage"
 	MOUNT_TYPE_CUSTOM = "custom"
+	MOUNT_TYPE_CEPH   = "ceph"
 	MOUNT_TYPE_OSS    = "oss"
 )
 
@@ -74,7 +83,7 @@ type StorageInfo struct {
 }
 type StorageAuth struct {
 	StorageInfo
-	// TODO: make auth scope
+	//MountAuth string `db:"mount_auth"` // TODO: make auth scope
 }
 
 func (s *StorageInfo) SetLastInsertId(id int64, err error) {
@@ -314,6 +323,14 @@ func GetStorageCheck(id int64) (StorageStatusSort, error) {
 	}
 	return list, nil
 }
+func GetMarketStorageInfo() (*StorageInfo, error) {
+	db := GetDB()
+	info := &StorageInfo{}
+	if err := database.QueryStruct(db, info, "SELECT * FROM storage_info WHERE disable = 0 and kind = ? limit 1", STORAGE_KIND_MARKET); err != nil {
+		return nil, errors.As(err)
+	}
+	return info, nil
+}
 func GetAllStorageInfoAll() ([]StorageInfo, error) {
 	list := []StorageInfo{}
 	db := GetDB()
@@ -321,4 +338,236 @@ func GetAllStorageInfoAll() ([]StorageInfo, error) {
 		return nil, errors.As(err, "all")
 	}
 	return list, nil
+}
+func rebuildSectorFromSealedStorage(tx *sql.Tx, sid string, sealedStorage int64) (*SectorInfo, error) {
+	sectorID, err := storiface.ParseSectorID(sid)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	info := &SectorInfo{
+		ID: sid,
+	}
+	found := false
+	if err := database.QueryStruct(tx, info, "SELECT * FROM sector_info WHERE id=?", sid); err != nil {
+		if !errors.ErrNoData.Equal(err) {
+			return nil, errors.As(err)
+		}
+		// data not found
+		// rebuild sector info
+	} else {
+		found = true
+	}
+	if info.StorageSealed > 0 {
+		return info, nil
+	}
+	now := time.Now()
+	info.MinerId = storiface.MinerID(sectorID.Miner)
+	info.StorageSealed = sealedStorage
+	info.State = 200
+	info.StateTime = now
+	info.UpdateTime = now
+	info.CreateTime = now
+	if !found {
+		if _, err := database.InsertStruct(tx, info, "sector_info"); err != nil {
+			return info, errors.As(err, sid)
+		}
+	} else {
+		if _, err := database.Exec(tx, "UPDATE sector_info SET storage_sealed=? WHERE id=?", info.StorageSealed, info.ID); err != nil {
+			return info, errors.As(err, sid)
+		}
+	}
+
+	log.Infof("Rebuild sector sealed:%s,%d", info.ID, info.StorageSealed)
+	return info, nil
+}
+
+func rebuildSectorFromUnsealedStorage(tx *sql.Tx, sid string, unsealedStorage int64) (*SectorInfo, error) {
+	sectorID, err := storiface.ParseSectorID(sid)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	info := &SectorInfo{
+		ID: sid,
+	}
+	found := false
+	if err := database.QueryStruct(tx, info, "SELECT * FROM sector_info WHERE id=?", sid); err != nil {
+		if !errors.ErrNoData.Equal(err) {
+			return nil, errors.As(err)
+		}
+		// data not found
+		// rebuild sector info
+	} else {
+		found = true
+	}
+
+	now := time.Now()
+	info.MinerId = storiface.MinerID(sectorID.Miner)
+	info.StorageUnsealed = unsealedStorage
+	info.UpdateTime = now
+	info.CreateTime = now
+	if !found {
+		if _, err := database.InsertStruct(tx, info, "sector_info"); err != nil {
+			return info, errors.As(err, sid)
+		}
+	} else {
+		if _, err := database.Exec(tx, "UPDATE sector_info SET storage_unsealed=? WHERE id=?", info.StorageUnsealed, info.ID); err != nil {
+			return info, errors.As(err, sid)
+		}
+	}
+
+	log.Infof("Rebuild sector unsealed:%s,%d", info.ID, info.StorageUnsealed)
+	return info, nil
+}
+
+func ForceRebuildSector(id string) (*SectorInfo, error) {
+	// data not found, search the storage
+	sealedStorageInfo, err := SearchSectorFromSealedStorage(id)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	unsealedStorageInfo, _ := SearchSectorFromUnsealedStorage(id)
+
+	tx, err := mdb.Begin()
+	if err != nil {
+		return nil, errors.As(err)
+	}
+
+	// rebuild sector info
+	info, err := rebuildSectorFromSealedStorage(tx, id, sealedStorageInfo.ID)
+	if err != nil {
+		database.Rollback(tx)
+		return nil, errors.As(err)
+	}
+	if unsealedStorageInfo != nil {
+		info, err = rebuildSectorFromUnsealedStorage(tx, id, unsealedStorageInfo.ID)
+		if err != nil {
+			database.Rollback(tx)
+			return nil, errors.As(err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		database.Rollback(tx)
+		return nil, errors.As(err)
+	}
+	return info, nil
+}
+func RebuildSectorFromStorage(ctx context.Context, storageId int64,minerAddr string) error {
+	mi, err := address.NewFromString(minerAddr)
+	if err != nil {
+		return errors.As(err)
+	}
+	mid, err := address.IDFromAddress(mi)
+	if err != nil {
+		return errors.As(err)
+	}
+	rows, err := mdb.Query("SELECT id,mount_dir,kind FROM storage_info")
+	if err != nil {
+		return errors.As(err)
+	}
+	defer rows.Close()
+
+	sealedPaths := map[int64]string{}
+	unsealedPaths := map[int64]string{}
+	for rows.Next() {
+		id := int64(0)
+		mountDir := ""
+		kind := 0
+		if err := rows.Scan(&id, &mountDir, &kind); err != nil {
+			return errors.As(err)
+		}
+		if storageId > 0 && storageId != id {
+			continue
+		}
+		switch kind {
+		case 0:
+			sealedPaths[id] = filepath.Join(mountDir, strconv.FormatInt(id, 10), "sealed")
+		case 1:
+			unsealedPaths[id] = filepath.Join(mountDir, strconv.FormatInt(id, 10), "unsealed")
+		}
+	}
+	tx, err := mdb.Begin()
+	if err != nil {
+		return errors.As(err)
+	}
+	for sealedId, sealedPath := range sealedPaths {
+		// read sector name
+		files, err := fsutil.ReadDir(sealedPath)
+		if err != nil {
+			database.Rollback(tx)
+			return errors.As(err, sealedId, sealedPath)
+		}
+		for _, f := range files {
+			sid := f.Name()
+			if strings.Contains(sid, strconv.Itoa(int(mid))) {
+				if _, err := rebuildSectorFromSealedStorage(tx, sid, sealedId); err != nil {
+					log.Warn(errors.As(err, sealedPath))
+					continue
+				}
+			}
+		}
+	}
+	for unsealedId, unsealedPath := range unsealedPaths {
+		// read sector name
+		files, err := fsutil.ReadDir(unsealedPath)
+		if err != nil {
+			database.Rollback(tx)
+			return errors.As(err, unsealedId, unsealedPath)
+		}
+		for _, f := range files {
+			sid := f.Name()
+			if strings.Contains(sid, strconv.Itoa(int(mid))) {
+				if _, err := rebuildSectorFromUnsealedStorage(tx, sid, unsealedId); err != nil {
+					log.Warn(errors.As(err, unsealedPath))
+					continue
+				}
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		database.Rollback(tx)
+		return errors.As(err)
+	}
+	return nil
+}
+func SearchSectorFromSealedStorage(sectorID string) (*StorageInfo, error) {
+	storages := []StorageInfo{}
+	err := database.QueryStructs(mdb, &storages, "SELECT * FROM storage_info WHERE kind=0 ORDER BY id DESC")
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	for _, st := range storages {
+		path := filepath.Join(st.MountDir, strconv.FormatInt(st.ID, 10), "sealed", sectorID)
+		_, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			log.Warn(errors.As(err))
+			continue
+		}
+		// found
+		return &st, nil
+	}
+	return nil, errors.ErrNoData.As(sectorID)
+}
+func SearchSectorFromUnsealedStorage(sectorID string) (*StorageInfo, error) {
+	storages := []StorageInfo{}
+	err := database.QueryStructs(mdb, &storages, "SELECT * FROM storage_info WHERE kind=1 ORDER BY id DESC")
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	for _, st := range storages {
+		path := filepath.Join(st.MountDir, strconv.FormatInt(st.ID, 10), "unsealed", sectorID)
+		_, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			log.Warn(errors.As(err))
+			continue
+		}
+		// found
+		return &st, nil
+	}
+	return nil, errors.ErrNoData.As(sectorID)
 }

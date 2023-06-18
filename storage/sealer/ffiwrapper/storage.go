@@ -205,7 +205,8 @@ func (sb *Sealer) UMountStorage(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (sb *Sealer) RelinkStorage(ctx context.Context, storageId int64) error {
+func (sb *Sealer) RelinkStorage(ctx context.Context, storageId int64,minerAddr string) error {
+	return database.RebuildSectorFromStorage(ctx,storageId,minerAddr)
 	storageInfo, err := database.GetStorageInfo(storageId)
 	if err != nil {
 		return err

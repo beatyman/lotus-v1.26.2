@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/lotus/buried/utils"
 	"github.com/google/uuid"
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
 	"huangdong2012/filecoin-monitor/trace/spans"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -279,6 +282,7 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerWindowPoSt:
 		proofs, err := w.rpcServer.GenerateWindowPoSt(ctx,
 			task.SectorID.Miner,
+			task.PostProofType,
 			task.SectorInfo,
 			task.Randomness,
 		)
@@ -353,6 +357,11 @@ reAllocate:
 			}
 			// fetch done
 		default:
+			if task.Type == ffiwrapper.WorkerPledge && task.AddPieceKind == "deal" && task.DealInfo != nil && len(task.DealInfo.FilePath) > 0 {
+				if err := w.fetchDeal(ctx, sealer, task); err != nil {
+					return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
+				}
+			}
 			if task.Type == ffiwrapper.WorkerPledge || task.Type == ffiwrapper.WorkerPreCommit1 {
 				// get the market unsealed data, and copy to local
 				if err := w.fetchUnseal(ctx, sealer, task); err != nil {
@@ -414,17 +423,66 @@ reAllocate:
 	}
 	switch task.Type {
 	case ffiwrapper.WorkerPledge:
-		rsp, err := sealer.PledgeSector(ctx,
-			sector,
-			task.ExistingPieceSizes,
-			task.ExtSizes...,
-		)
+		// fetch market deal
+		tmpFile := ""
+		defer func() {
+			if len(tmpFile) > 0 {
+				os.Remove(tmpFile)
+			}
+		}()
+		// fetch staging file
+		oriReaderKind := task.PieceData.ReaderKind
+		if oriReaderKind == shared.PIECE_DATA_KIND_SERVER {
+			stagingFile, err := w.FetchStaging(ctx, sealer, task)
+			tmpFile = stagingFile
+			if err != nil {
+				return errRes(errors.As(err, task), &res)
+			}
+			// update to local mode
+			task.PieceData.ReaderKind = shared.PIECE_DATA_KIND_FILE
+			task.PieceData.LocalPath = tmpFile
+		}
+		/*
+		log.Infof("ffiwrapper.WorkerPledge: %+v, %+v",task.AddPieceKind,task.DealInfo)
+		ctx=ffiwrapper.SetAddPieceKind(ctx,task.AddPieceKind)
+		switch task.AddPieceKind {
+		case "pad":
+			if res.Piece, err = sealer.AddPiece(ctx, sector, task.ExistingPieceSizes, task.PieceSize, shared.NewNullPieceData(task.PieceSize)); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+		case "deal":
+			if res.Piece, err = sealer.AddPiece(ctx, sector, task.ExistingPieceSizes, task.PieceSize, task.PieceData); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+		case "packing":
+			if res.Pieces, err = sealer.PledgeSector(ctx, sector, task.ExistingPieceSizes, task.ExtSizes...); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+		default:
+			rsp, err := sealer.PledgeSector(ctx,
+				sector,
+				task.ExistingPieceSizes,
+				task.ExtSizes...,
+			)
 
-		res.Pieces = rsp
-		if err != nil {
+			res.Pieces = rsp
+			if err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+		}
+		 */
+		if res.Piece, err = sealer.AddPiece(ctx, sector, task.ExistingPieceSizes, task.PieceSize, task.PieceData); err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-
+		if oriReaderKind == shared.PIECE_DATA_KIND_SERVER {
+			// push unsealed, so the market addpiece can make a index for continue
+		retry:
+			if err := w.pushUnsealed(ctx, sealer, task); err != nil {
+				log.Warn(errors.As(err))
+				time.Sleep(10e9)
+				goto retry
+			}
+		}
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
@@ -570,7 +628,7 @@ reAllocate:
 				}
 				// no file to finalize, just return done.
 			} else {
-				if err := sealer.FinalizeReplicaUpdate(ctx, sector, nil); err != nil {
+				if err := sealer.FinalizeReplicaUpdate(ctx, sector); err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)
 				}
 				//push update updateCache 到远程存储
@@ -594,7 +652,7 @@ reAllocate:
 				if err := w.pushCache(ctx, sealer, task, false); err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)
 				}
-				if err := sealer.FinalizeSector(ctx, sector, nil); err != nil {
+				if err := sealer.FinalizeSector(ctx, sector); err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)
 				}
 				if err := w.RemoveRepoSector(ctx, sealer.RepoPath(), task.SectorName()); err != nil {
@@ -623,4 +681,39 @@ reAllocate:
 		}
 	}
 	return res
+}
+
+
+func ToJson(val interface{}) string {
+	data, _ := json.MarshalIndent(val, "", "   ")
+	return string(data)
+}
+func newSeekReader(str string) *StringSeekReader {
+	ssr := &StringSeekReader{
+		str: str,
+		rw:  &sync.RWMutex{},
+	}
+	_ = ssr.SeekStart()
+	return ssr
+}
+
+type StringSeekReader struct {
+	rw  *sync.RWMutex
+	rdr io.Reader
+	str string
+}
+
+func (s *StringSeekReader) Read(p []byte) (n int, err error) {
+	s.rw.RLock()
+	defer s.rw.RUnlock()
+
+	return s.rdr.Read(p)
+}
+
+func (s *StringSeekReader) SeekStart() error {
+	s.rw.Lock()
+	defer s.rw.Unlock()
+
+	s.rdr = strings.NewReader(s.str)
+	return nil
 }
