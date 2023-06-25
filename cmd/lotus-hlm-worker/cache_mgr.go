@@ -777,14 +777,17 @@ func (w *worker) FetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	log.Infof("FetchStaging: %+v", task)
 	var tmpFile string
 	var err error
-	for {
+refetch:
+	select {
+	case <-ctx.Done():
+		return tmpFile, ffiwrapper.ErrWorkerExit.As(task)
+	default:
 		tmpFile, err = w.fetchStaging(ctx, workerSB, task)
 		if err != nil {
 			log.Warn(errors.As(err))
 			time.Sleep(10e9)
-			continue
+			goto refetch
 		}
-		break
 	}
 	return tmpFile, errors.As(err)
 }
@@ -875,7 +878,7 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		//fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
 		// fetch do a quick checksum
 		fromPath := filepath.Join(mountDir, task.PieceData.ServerFileName)
-		log.Infof("from : %+v => to : %+v",fromPath,tmpFile)
+		log.Infof("from : %+v => to : %+v", fromPath, tmpFile)
 		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
 			if !errors.ErrNoData.Equal(err) {
 				return tmpFile, errors.As(err)
