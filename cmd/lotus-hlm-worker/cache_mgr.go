@@ -6,7 +6,6 @@ import (
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net/url"
 	"os"
 	"os/exec"
