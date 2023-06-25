@@ -203,6 +203,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 		//成功之后删除软连接
+		log.Info("push seal remove Link ====", mountDir)
 		os.RemoveAll(mountDir)
 
 	default:
@@ -311,6 +312,7 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 			return errors.As(err)
 		}
 		//成功之后删除软连接
+		log.Info("push unseal remove Link ====", mountDir)
 		os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
@@ -407,6 +409,7 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 			return errors.As(err)
 		}
 		//成功之后删除软连接
+		log.Info("fetchUnseal remove Link ====", mountDir)
 		os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
@@ -511,7 +514,9 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
 			return errors.As(err)
 		}
+		log.Info("sealedToPath = ", sealedToPath, " ====== cacheToPath", cacheToPath)
 		//成功之后删除软连接
+		log.Info("fetchSeal remove Link ====", mountDir)
 		os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
@@ -778,6 +783,7 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 		//成功之后删除软连接
+		log.Info("pushUpdate remove Link ====", mountDir)
 		os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
