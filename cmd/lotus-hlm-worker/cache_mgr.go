@@ -403,7 +403,7 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		}
 		// send the sealed
 		unsealedToPath := workerSB.SectorPath("unsealed", sid)
-		unsealedFromPath := filepath.Join(mountDir, "unsealed")
+		unsealedFromPath := filepath.Join(mountDir, "unsealed", sid)
 
 		if err := w.rsync(ctx, unsealedFromPath, unsealedToPath); err != nil {
 			return errors.As(err)
@@ -502,7 +502,7 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		}
 		// send the sealed
 		sealedToPath := workerSB.SectorPath("sealed", sid)
-		sealedFromPath := filepath.Join(mountDir, "sealed")
+		sealedFromPath := filepath.Join(mountDir, "sealed", sid)
 
 		if err := w.rsync(ctx, sealedFromPath, sealedToPath); err != nil {
 			return errors.As(err)
