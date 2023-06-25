@@ -6,6 +6,7 @@ import (
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/url"
 	"os"
 	"os/exec"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/filecoin-project/lotus/buried/utils"
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
@@ -166,7 +168,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(ss.MountDir, sid)
+		mountDir := filepath.Join(ss.MountDir, sid, "-"+utils.RandLow(5))
 		if err := database.MountPostWorker(
 			ctx,
 			ss.MountType,
@@ -290,7 +292,7 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(ss.MountDir, sid)
+		mountDir := filepath.Join(ss.MountDir, sid, "-"+utils.RandLow(5))
 		if err := database.MountPostWorker(
 			ctx,
 			ss.MountType,
@@ -309,7 +311,8 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if err := w.rsync(ctx, unsealedFromPath, filepath.Join(unsealedToPath, sid)); err != nil {
 			return errors.As(err)
 		}
-
+		//成功之后删除软连接
+		os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -386,6 +389,26 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		if err := w.download(ctx, unsealedFromPath, unsealedToPath); err != nil {
 			return errors.As(err)
 		}
+	case database.MOUNT_TYPE_CUSTOM:
+		mountDir := filepath.Join(ss.MountDir, sid, "-"+utils.RandLow(5))
+		if err := database.MountPostWorker(
+			ctx,
+			ss.MountType,
+			ss.MountSignalUri,
+			mountDir,
+			ss.MountOpt,
+		); err != nil {
+			return errors.As(err, "======MountPostWorker fault", mountDir)
+		}
+		// send the sealed
+		unsealedToPath := workerSB.SectorPath("unsealed", sid)
+		unsealedFromPath := filepath.Join(mountDir, "unsealed")
+
+		if err := w.rsync(ctx, unsealedFromPath, unsealedToPath); err != nil {
+			return errors.As(err)
+		}
+		//成功之后删除软连接
+		os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -464,6 +487,33 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		if err := w.download(ctx, cacheFromPath, cacheToPath); err != nil {
 			return errors.As(err)
 		}
+	case database.MOUNT_TYPE_CUSTOM:
+		mountDir := filepath.Join(ss.MountDir, sid, "-"+utils.RandLow(5))
+		if err := database.MountPostWorker(
+			ctx,
+			ss.MountType,
+			ss.MountSignalUri,
+			mountDir,
+			ss.MountOpt,
+		); err != nil {
+			return errors.As(err, "======MountPostWorker fault", mountDir)
+		}
+		// send the sealed
+		sealedToPath := workerSB.SectorPath("sealed", sid)
+		sealedFromPath := filepath.Join(mountDir, "sealed")
+
+		if err := w.rsync(ctx, sealedFromPath, sealedToPath); err != nil {
+			return errors.As(err)
+		}
+
+		cacheToPath := workerSB.SectorPath("cache", sid)
+		cacheFromPath := filepath.Join(mountDir, "cache")
+
+		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+			return errors.As(err)
+		}
+		//成功之后删除软连接
+		os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -693,7 +743,7 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(ss.MountDir, sid)
+		mountDir := filepath.Join(ss.MountDir, sid, "-"+utils.RandLow(5))
 		if err := database.MountPostWorker(
 			ctx,
 			ss.MountType,
@@ -728,7 +778,8 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
 			return errors.As(err)
 		}
-
+		//成功之后删除软连接
+		os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -875,7 +926,7 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		//fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
 		// fetch do a quick checksum
 		fromPath := filepath.Join(mountDir, task.PieceData.ServerFileName)
-		log.Infof("from : %+v => to : %+v",fromPath,tmpFile)
+		log.Infof("from : %+v => to : %+v", fromPath, tmpFile)
 		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
 			if !errors.ErrNoData.Equal(err) {
 				return tmpFile, errors.As(err)

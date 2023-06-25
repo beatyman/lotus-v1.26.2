@@ -12,6 +12,7 @@ import (
 	"github.com/gwaylib/log"
 	"github.com/shirou/gopsutil/host"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -24,6 +25,25 @@ import (
 
 var workerToken = ""
 var workerUrl = ""
+
+var longLetters = []byte("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+// RandLow 随机字符串，包含 1~9 和 a~z - [i,l,o]
+func RandLow(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	b := make([]byte, n)
+	arc := uint8(0)
+	if _, err := rand.Read(b[:]); err != nil {
+		return ""
+	}
+	for i, x := range b {
+		arc = x & 31
+		b[i] = longLetters[arc]
+	}
+	return string(b)
+}
 
 // 获取本机网卡IP
 func GetLocalIP() (ipv4 string, err error) {
