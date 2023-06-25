@@ -509,7 +509,7 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		}
 
 		cacheToPath := workerSB.SectorPath("cache", sid)
-		cacheFromPath := filepath.Join(mountDir, "cache")
+		cacheFromPath := filepath.Join(mountDir, "cache", sid)
 
 		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
 			return errors.As(err)
