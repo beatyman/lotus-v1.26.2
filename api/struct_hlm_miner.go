@@ -78,14 +78,17 @@ type HlmMinerStorageStruct struct {
 
 type HlmMinerWorkerStruct struct {
 	Internal struct {
-		PauseSeal       func(ctx context.Context, pause int32) error                                `perm:"write"`
-		WorkerStatus    func(context.Context) (ffiwrapper.WorkerStats, error)                       `perm:"read"`
-		WorkerStatusAll func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)               `perm:"read"`
-		WorkerWorking   func(ctx context.Context, workerId string) (database.WorkingSectors, error) `perm:"read"`
-		WorkerGcLock    func(ctx context.Context, workerId string) ([]string, error)                `perm:"write"`
-		WorkerInfo      func(ctx context.Context, wid string) (*database.WorkerInfo, error)         `perm:"read"`
-		WorkerSearch    func(ctx context.Context, ip string) ([]database.WorkerInfo, error)         `perm:"read"`
-		WorkerDisable   func(ctx context.Context, wid string, disable bool) error                   `perm:"admin"`
+		StatWorkerSealNumFn  func(ctx context.Context, startTime, endTime time.Time) (database.StatWorkerSealNums, error)                   `perm:"read"`
+		StatWorkerSealTimeFn func(ctx context.Context, workerID string, startTime, endTime time.Time) (database.StatWorkerSealTimes, error) `perm:"read"`
+		WorkerProducerIdle   func(ctx context.Context) (int, error)                                                                         `perm:"read"`
+		PauseSeal            func(ctx context.Context, pause int32) error                                                                   `perm:"write"`
+		WorkerStatus         func(context.Context) (ffiwrapper.WorkerStats, error)                                                          `perm:"read"`
+		WorkerStatusAll      func(context.Context) ([]ffiwrapper.WorkerRemoteStats, error)                                                  `perm:"read"`
+		WorkerWorking        func(ctx context.Context, workerId string) (database.WorkingSectors, error)                                    `perm:"read"`
+		WorkerGcLock         func(ctx context.Context, workerId string) ([]string, error)                                                   `perm:"write"`
+		WorkerInfo           func(ctx context.Context, wid string) (*database.WorkerInfo, error)                                            `perm:"read"`
+		WorkerSearch         func(ctx context.Context, ip string) ([]database.WorkerInfo, error)                                            `perm:"read"`
+		WorkerDisable        func(ctx context.Context, wid string, disable bool) error                                                      `perm:"admin"`
 	}
 }
 
@@ -206,6 +209,17 @@ func (c *HlmMinerStorageStruct) GetFaultCheckTimeout(ctx context.Context) (time.
 }
 func (c *HlmMinerStorageStruct) SetFaultCheckTimeout(ctx context.Context, timeout time.Duration) error {
 	return c.Internal.SetFaultCheckTimeout(ctx, timeout)
+}
+
+func (c *HlmMinerWorkerStruct) StatWorkerSealNumFn(ctx context.Context, startTime, endTime time.Time) (database.StatWorkerSealNums, error) {
+	return c.Internal.StatWorkerSealNumFn(ctx, startTime, endTime)
+}
+func (c *HlmMinerWorkerStruct) StatWorkerSealTimeFn(ctx context.Context, workerID string, startTime, endTime time.Time) (database.StatWorkerSealTimes, error) {
+	return c.Internal.StatWorkerSealTimeFn(ctx, workerID, startTime, endTime)
+}
+
+func (c *HlmMinerWorkerStruct) WorkerProducerIdle(ctx context.Context) (int, error) {
+	return c.Internal.WorkerProducerIdle(ctx)
 }
 
 func (c *HlmMinerWorkerStruct) PauseSeal(ctx context.Context, pause int32) error {

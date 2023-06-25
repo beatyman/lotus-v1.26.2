@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-fil-markets/shared"
@@ -11,7 +10,6 @@ import (
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
 	"huangdong2012/filecoin-monitor/trace/spans"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -74,7 +72,6 @@ func acceptJobs(ctx context.Context,
 	if err == nil {
 		log.Infof("new diskPool instance, worker ssd -> sector map tupple is:\r\n %+v", mapstr)
 	}
-
 	w := &worker{
 		minerEndpoint: minerEndpoint,
 		sealedRepo:    sealedRepo,
@@ -654,39 +651,4 @@ reAllocate:
 		}
 	}
 	return res
-}
-
-
-func ToJson(val interface{}) string {
-	data, _ := json.MarshalIndent(val, "", "   ")
-	return string(data)
-}
-func newSeekReader(str string) *StringSeekReader {
-	ssr := &StringSeekReader{
-		str: str,
-		rw:  &sync.RWMutex{},
-	}
-	_ = ssr.SeekStart()
-	return ssr
-}
-
-type StringSeekReader struct {
-	rw  *sync.RWMutex
-	rdr io.Reader
-	str string
-}
-
-func (s *StringSeekReader) Read(p []byte) (n int, err error) {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
-
-	return s.rdr.Read(p)
-}
-
-func (s *StringSeekReader) SeekStart() error {
-	s.rw.Lock()
-	defer s.rw.Unlock()
-
-	s.rdr = strings.NewReader(s.str)
-	return nil
 }

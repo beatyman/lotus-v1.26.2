@@ -189,6 +189,7 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 		t.ID = workerCfg.ID
 		t.IP = workerCfg.IP
 		t.SvcUri = workerCfg.SvcUri
+		t.AutoInstall = false
 		var str bytes.Buffer
 		_ = json.Indent(&str, []byte(ENVIRONMENT_VARIABLE), "", "    ")
 		t.EnvironmentVariable = str.String()
@@ -212,6 +213,7 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 	}
 
 	d, err := yaml.Marshal(&t)
+	CFG_WORKER = t
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}

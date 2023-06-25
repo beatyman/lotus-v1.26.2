@@ -51,4 +51,5 @@ type HlmMinerSchedulerAPI interface {
 	RequestDisableWorker(ctx context.Context, wid string) error
 	GetMinerInfo(ctx context.Context) string
 	GetStorage(ctx context.Context, storageId int64) (*database.StorageInfo, error)
+	PutStatisSeal(ctx context.Context, st database.StatisSeal) error
 }

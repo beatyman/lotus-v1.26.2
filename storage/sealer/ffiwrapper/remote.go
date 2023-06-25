@@ -350,6 +350,7 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storiface.SectorRef
 			Type:         WorkerFinalize,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
+			StoreUnseal:  sector.StoreUnseal,
 		},
 		ret: make(chan SealRes),
 	}

@@ -116,6 +116,7 @@ func (w *worker) gcRepo(ctx context.Context, repo, typ string) error {
 
 func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, task ffiwrapper.WorkerTask) error {
 	sid := task.SectorName()
+
 	log.Infof("pushSealed:%+v", sid)
 	defer log.Infof("pushSealed exit:%+v", sid)
 
@@ -127,6 +128,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 	if err != nil {
 		return errors.As(err)
 	}
+	log.Info("====================pushSealed===================", w.sealedRepo)
 	switch ss.MountType {
 	case database.MOUNT_TYPE_HLM:
 		tmpAuth, err := api.RetryNewHLMStorageTmpAuth(ctx, ss.ID, sid)
@@ -163,6 +165,45 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := w.upload(ctx, cacheFromPath, cacheToPath); err != nil {
 			return errors.As(err)
 		}
+	case database.MOUNT_TYPE_CUSTOM:
+		mountDir := filepath.Join(ss.MountDir, sid)
+		if err := database.MountPostWorker(
+			ctx,
+			ss.MountType,
+			ss.MountSignalUri,
+			mountDir,
+			ss.MountOpt,
+		); err != nil {
+			return errors.As(err, "======MountPostWorker fault", mountDir)
+		}
+		// send the sealed
+		sealedFromPath := workerSB.SectorPath("sealed", sid)
+		sealedToPath := filepath.Join(mountDir, "sealed")
+		if err := os.MkdirAll(sealedToPath, 0755); err != nil {
+			return errors.As(err)
+		}
+		//// push do a deep checksum
+		//hashKind := _HASH_KIND_NONE
+		//if w.needMd5Sum {
+		//	hashKind = _HASH_KIND_DEEP
+		//}
+		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+			return errors.As(err)
+		}
+
+		// send the cache
+		cacheFromPath := workerSB.SectorPath("cache", sid)
+		cacheToPath := filepath.Join(mountDir, "cache", sid)
+		if err := os.MkdirAll(cacheToPath, 0755); err != nil {
+			return errors.As(err)
+		}
+		// push do a deep checksum
+		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+			return errors.As(err)
+		}
+		//成功之后删除软连接
+		os.RemoveAll(mountDir)
+
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -248,6 +289,27 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if err := w.upload(ctx, unsealedFromPath, unsealedToPath); err != nil {
 			return errors.As(err)
 		}
+	case database.MOUNT_TYPE_CUSTOM:
+		mountDir := filepath.Join(ss.MountDir, sid)
+		if err := database.MountPostWorker(
+			ctx,
+			ss.MountType,
+			ss.MountSignalUri,
+			mountDir,
+			ss.MountOpt,
+		); err != nil {
+			return errors.As(err, "======MountPostWorker fault", mountDir)
+		}
+		// send the sealed
+		unsealedFromPath := workerSB.SectorPath("unsealed", sid)
+		unsealedToPath := filepath.Join(mountDir, "unsealed")
+		if err := os.MkdirAll(unsealedToPath, 0755); err != nil {
+			return errors.As(err)
+		}
+		if err := w.rsync(ctx, unsealedFromPath, filepath.Join(unsealedToPath, sid)); err != nil {
+			return errors.As(err)
+		}
+
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -469,10 +531,12 @@ repush:
 				goto repush
 			}
 		}
-		if err := w.pushUnsealed(ctx, workerSB, task); err != nil {
-			log.Error(errors.As(err, task))
-			time.Sleep(60e9)
-			goto repush
+		if task.StoreUnseal {
+			if err := w.pushUnsealed(ctx, workerSB, task); err != nil {
+				log.Error(errors.As(err, task))
+				time.Sleep(60e9)
+				goto repush
+			}
 		}
 	}
 	return nil
@@ -566,10 +630,12 @@ repush:
 				goto repush
 			}
 		}
-		if err := w.pushUnsealed(ctx, workerSB, task); err != nil {
-			log.Error(errors.As(err, task))
-			time.Sleep(60e9)
-			goto repush
+		if task.StoreUnseal {
+			if err := w.pushUnsealed(ctx, workerSB, task); err != nil {
+				log.Error(errors.As(err, task))
+				time.Sleep(60e9)
+				goto repush
+			}
 		}
 		if err := w.RemoveRepoSector(ctx, workerSB.RepoPath(), task.SectorName()); err != nil {
 			log.Warn(errors.As(err))
@@ -626,6 +692,43 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := w.upload(ctx, cacheFromPath, cacheToPath); err != nil {
 			return errors.As(err)
 		}
+	case database.MOUNT_TYPE_CUSTOM:
+		mountDir := filepath.Join(ss.MountDir, sid)
+		if err := database.MountPostWorker(
+			ctx,
+			ss.MountType,
+			ss.MountSignalUri,
+			mountDir,
+			ss.MountOpt,
+		); err != nil {
+			return errors.As(err, "======MountPostWorker fault", mountDir)
+		}
+		// send the sealed
+		sealedFromPath := workerSB.SectorPath("update", sid)
+		sealedToPath := filepath.Join(mountDir, "update")
+		if err := os.MkdirAll(sealedToPath, 0755); err != nil {
+			return errors.As(err)
+		}
+		//// push do a deep checksum
+		//hashKind := _HASH_KIND_NONE
+		//if w.needMd5Sum {
+		//	hashKind = _HASH_KIND_DEEP
+		//}
+		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+			return errors.As(err)
+		}
+
+		// send the cache
+		cacheFromPath := workerSB.SectorPath("update-cache", sid)
+		cacheToPath := filepath.Join(mountDir, "update-cache", sid)
+		if err := os.MkdirAll(cacheToPath, 0755); err != nil {
+			return errors.As(err)
+		}
+		// push do a deep checksum
+		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+			return errors.As(err)
+		}
+
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)

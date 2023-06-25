@@ -77,6 +77,7 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 	)
 
 	log.Infof("SealCommit2 RPC in:%v, current c2sids: %v", sector, w.getC2sids())
+	beginTime := time.Now()
 	defer func() {
 		log.Infof("SealCommit2 RPC out:%v, current c2sids: %v, error: %v", sector, w.getC2sids(), out.Err)
 		if dump { //正在执行中的任务 不能释放锁
@@ -97,6 +98,25 @@ func (w *rpcServer) SealCommit2(ctx context.Context, sector api.SectorRef, commi
 		if err := mApi.RetryUnlockGPUService(ctx, out); err != nil {
 			log.Errorf("SealCommit2 unlock gpu service error: %v", err)
 		}
+
+		endTime := time.Now()
+		statErr := "success"
+		if len(out.Err) > 0 {
+			statErr = out.Err
+		}
+		if err := mApi.PutStatisSeal(ctx, database.StatisSeal{
+			TaskID:    fmt.Sprintf("%s_41", sid),
+			Sid:       sid,
+			Stage:     database.SEAL_STAGE_C2,
+			WorkerID:  w.workerID,
+			BeginTime: beginTime,
+			EndTime:   endTime,
+			Used:      int64(endTime.Sub(beginTime).Seconds()),
+			Error:     statErr,
+		}); err != nil {
+			log.Error(err)
+		}
+
 	}()
 
 	w.c2sidsRW.Lock()
@@ -131,7 +151,6 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi *api.RetryHlmMine
 
 	w.storageLk.Lock()
 	defer w.storageLk.Unlock()
-
 	// checksum
 	list, err := napi.RetryChecksumStorage(ctx, w.storageVer)
 	if err != nil {
@@ -156,9 +175,8 @@ func (w *rpcServer) loadMinerStorage(ctx context.Context, napi *api.RetryHlmMine
 		if cacheInfo.Kind != database.STORAGE_KIND_SEALED {
 			continue
 		}
-
 		// version not match
-		if err := database.Mount(
+		if err := database.MountPostWorker(
 			ctx,
 			info.MountType,
 			info.MountSignalUri,
@@ -188,7 +206,7 @@ func (w *rpcServer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID
 
 	return w.sb.GenerateWinningPoSt(ctx, minerID, sectorInfo, randomness)
 }
-func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,  poStProofType abi.RegisteredPoStProof,sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
+func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, poStProofType abi.RegisteredPoStProof, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) (api.WindowPoStResp, error) {
 	log.Infof("GenerateWindowPoSt RPC in:%d", minerID)
 	defer log.Infof("GenerateWindowPoSt RPC out:%d", minerID)
 	napi, err := GetNodeApi()
@@ -199,7 +217,7 @@ func (w *rpcServer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID,
 	if err := w.loadMinerStorage(ctx, napi); err != nil {
 		return api.WindowPoStResp{}, errors.As(err)
 	}
-	proofs, ignore, err := w.sb.GenerateWindowPoSt(ctx, minerID, poStProofType,sectorInfo, randomness)
+	proofs, ignore, err := w.sb.GenerateWindowPoSt(ctx, minerID, poStProofType, sectorInfo, randomness)
 	if err != nil {
 		log.Warnf("ignore len:%d", len(ignore))
 	}
@@ -223,6 +241,7 @@ func (w *rpcServer) ProveReplicaUpdate2(ctx context.Context, sector api.SectorRe
 		}
 	)
 
+	beginTime := time.Now()
 	log.Infof("ProveReplicaUpdate2 RPC in:%v, current c2sids: %v", sector, w.getC2sids())
 	defer func() {
 		log.Infof("ProveReplicaUpdate2 RPC out:%v, current c2sids: %v, error: %v", sector, w.getC2sids(), out.Err)
@@ -243,6 +262,24 @@ func (w *rpcServer) ProveReplicaUpdate2(ctx context.Context, sector api.SectorRe
 		mApi, _ := GetNodeApi()
 		if err := mApi.RetryUnlockGPUService(ctx, out); err != nil {
 			log.Errorf("ProveReplicaUpdate2 unlock gpu service error: %v", err)
+		}
+
+		endTime := time.Now()
+		statErr := "success"
+		if len(out.Err) > 0 {
+			statErr = out.Err
+		}
+		if err := mApi.PutStatisSeal(ctx, database.StatisSeal{
+			TaskID:    fmt.Sprintf("%s_41", sid),
+			Sid:       sid,
+			Stage:     database.SEAL_STAGE_C2,
+			WorkerID:  w.workerID,
+			BeginTime: beginTime,
+			EndTime:   endTime,
+			Used:      int64(endTime.Sub(beginTime).Seconds()),
+			Error:     statErr,
+		}); err != nil {
+			log.Error(err)
 		}
 	}()
 

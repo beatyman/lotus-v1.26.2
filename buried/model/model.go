@@ -49,6 +49,7 @@ type WorkerConf struct {
 	WdPoStSrv           bool   `yaml:"WdPoStSrv,flow"`
 	WnPoStSrv           bool   `yaml:"WnPoStSrv,flow"`
 	EnvironmentVariable string `yaml:"EnvironmentVariable,flow"`
+	AutoInstall         bool   `yaml:"AutoInstall,flow"`
 }
 
 type WorkerInfo struct {

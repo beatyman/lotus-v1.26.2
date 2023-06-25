@@ -1,4 +1,3 @@
-//
 // Doc for apistruct
 //
 // 1, desgian lotus/api/api_storage_hlm.go
@@ -60,8 +59,8 @@ type HlmMinerSchedulerStruct struct {
 		//disable worker
 		RequestDisableWorker func(ctx context.Context, wid string) error `perm:"read"`
 		//miner info
-		GetMinerInfo func(ctx context.Context) string `perm:"read"`
-		//store info
+		GetMinerInfo  func(ctx context.Context) string                        `perm:"read"`
+		PutStatisSeal func(ctx context.Context, st database.StatisSeal) error `perm:"write"`
 		GetStorage  func(ctx context.Context, storageId int64) (*database.StorageInfo, error) `perm:"read"`
 	}
 }
@@ -159,6 +158,10 @@ func (c *HlmMinerSchedulerStruct) RequestDisableWorker(ctx context.Context, wid 
 func (c *HlmMinerSchedulerStruct) GetMinerInfo(ctx context.Context) string {
 	return c.Internal.GetMinerInfo(ctx)
 }
+func (c *HlmMinerSchedulerStruct) PutStatisSeal(ctx context.Context, st database.StatisSeal) error {
+	return c.Internal.PutStatisSeal(ctx, st)
+}
+
 func (c *HlmMinerSchedulerStruct) GetStorage(ctx context.Context, storageId int64) (*database.StorageInfo, error) {
 	return c.Internal.GetStorage(ctx,storageId)
 }

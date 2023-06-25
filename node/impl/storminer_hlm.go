@@ -179,6 +179,16 @@ func (sm *StorageMinerAPI) WorkerAddress(ctx context.Context, act address.Addres
 func (sm *StorageMinerAPI) PauseSeal(ctx context.Context, pause int32) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).PauseSeal(ctx, pause)
 }
+func (sm *StorageMinerAPI) StatWorkerSealNumFn(ctx context.Context, startTime, endTime time.Time) (database.StatWorkerSealNums, error) {
+	return database.StatWorkerSealNumFn(startTime, endTime)
+}
+func (sm *StorageMinerAPI) StatWorkerSealTimeFn(ctx context.Context, workerID string, startTime, endTime time.Time) (database.StatWorkerSealTimes, error) {
+	return database.StatWorkerSealTimeFn(workerID, startTime, endTime)
+}
+func (sm *StorageMinerAPI) WorkerProducerIdle(ctx context.Context) (int, error) {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).WorkerProducerIdle(), nil
+}
+
 func (sm *StorageMinerAPI) WorkerStatus(ctx context.Context) (ffiwrapper.WorkerStats, error) {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).WorkerStats(), nil
 }
@@ -226,8 +236,8 @@ func (sm *StorageMinerAPI) MountHLMStorage(ctx context.Context, id int64) error 
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).MountStorage(ctx, id)
 }
 
-func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64,minerAddr string) error {
-	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id,minerAddr)
+func (sm *StorageMinerAPI) RelinkHLMStorage(ctx context.Context, id int64, minerAddr string) error {
+	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).RelinkStorage(ctx, id, minerAddr)
 }
 func (sm *StorageMinerAPI) ReplaceHLMStorage(ctx context.Context, info *database.StorageAuth) error {
 	return sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ReplaceStorage(ctx, info)
