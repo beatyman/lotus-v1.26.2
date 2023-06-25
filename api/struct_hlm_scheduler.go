@@ -59,9 +59,11 @@ type HlmMinerSchedulerStruct struct {
 		//disable worker
 		RequestDisableWorker func(ctx context.Context, wid string) error `perm:"read"`
 		//miner info
-		GetMinerInfo  func(ctx context.Context) string                        `perm:"read"`
-		PutStatisSeal func(ctx context.Context, st database.StatisSeal) error `perm:"write"`
-		GetStorage  func(ctx context.Context, storageId int64) (*database.StorageInfo, error) `perm:"read"`
+		GetMinerInfo           func(ctx context.Context) string                                           `perm:"read"`
+		PutStatisSeal          func(ctx context.Context, st database.StatisSeal) error                    `perm:"write"`
+		GetStorage             func(ctx context.Context, storageId int64) (*database.StorageInfo, error)  `perm:"read"`
+		GetMarketDealInfo      func(ctx context.Context, propID string) (*database.MarketDealInfo, error) `perm:"read"`
+		GetMarketDealInfoBySid func(ctx context.Context, sid string) ([]database.MarketDealInfo, error)   `perm:"read"`
 	}
 }
 
@@ -163,6 +165,13 @@ func (c *HlmMinerSchedulerStruct) PutStatisSeal(ctx context.Context, st database
 }
 
 func (c *HlmMinerSchedulerStruct) GetStorage(ctx context.Context, storageId int64) (*database.StorageInfo, error) {
-	return c.Internal.GetStorage(ctx,storageId)
+	return c.Internal.GetStorage(ctx, storageId)
 }
+func (c *HlmMinerSchedulerStruct) GetMarketDealInfo(ctx context.Context, propID string) (*database.MarketDealInfo, error) {
+	return c.Internal.GetMarketDealInfo(ctx, propID)
+}
+func (c *HlmMinerSchedulerStruct) GetMarketDealInfoBySid(ctx context.Context, sid string) ([]database.MarketDealInfo, error) {
+	return c.Internal.GetMarketDealInfoBySid(ctx, sid)
+}
+
 var _ HlmMinerSchedulerAPI = &HlmMinerSchedulerStruct{}
