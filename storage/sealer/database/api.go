@@ -273,27 +273,27 @@ func MountPostWorker(ctx context.Context, mountType, mountUri, mountPoint, mount
 				//isLink = true
 			} else {
 				//判断里面是否有文件，如果有文件，则不删除， 没有则删除
-				files, err := os.Open(mountPoint) //open the directory to read files in the directory
-				if err != nil {
-					fmt.Println("error opening directory:", err) //print error if directory is not opened
-					return errors.As(err, " Open ", mountPoint)
-				}
-				defer files.Close() //close the directory opened
+				//files, err := os.Open(mountPoint) //open the directory to read files in the directory
+				//if err != nil {
+				//	fmt.Println("error opening directory:", err) //print error if directory is not opened
+				//	return errors.As(err, " Open ", mountPoint)
+				//}
+				//defer files.Close() //close the directory opened
 
-				fileInfos, err := files.Readdir(-1) //read the files from the directory
-				if err != nil {
-					fmt.Println("error reading directory:", err) //if directory is not read properly print error message
-					return errors.As(err, " Readdir ", mountPoint)
-				}
-				if len(fileInfos) > 0 {
-					return nil
-				}
-				err = os.RemoveAll(mountPoint)
-				if err != nil {
-					fmt.Println("删除失败！")
-					return errors.As(err, " RemoveAll ", mountPoint)
-				}
-				isLink = true
+				//fileInfos, err := files.Readdir(-1) //read the files from the directory
+				//if err != nil {
+				//	fmt.Println("error reading directory:", err) //if directory is not read properly print error message
+				//	return errors.As(err, " Readdir ", mountPoint)
+				//}
+				//if len(fileInfos) > 0 {
+				//	return nil
+				//}
+				//err = os.RemoveAll(mountPoint)
+				//if err != nil {
+				//	fmt.Println("删除失败！")
+				//	return errors.As(err, " RemoveAll ", mountPoint)
+				//}
+				//isLink = true
 			}
 		} else {
 			//目录不存在，创建软连接
