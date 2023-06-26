@@ -247,7 +247,11 @@ func MountPostWorker(ctx context.Context, mountType, mountUri, mountPoint, mount
 		//判断根目录存不存在，不存在直接报错
 		_, err = os.Stat(mountUri)
 		if err != nil {
-			return errors.As(err, " root not exist ", mountUri)
+			if os.IsNotExist(err) {
+				os.MkdirAll(mountUri,0776)
+			}else{
+				return errors.As(err,  mountUri)
+			}
 		}
 		//判断目录是否存在
 		_, err = os.Stat(mountPoint)
