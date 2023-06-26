@@ -52,4 +52,6 @@ type HlmMinerSchedulerAPI interface {
 	GetMinerInfo(ctx context.Context) string
 	GetStorage(ctx context.Context, storageId int64) (*database.StorageInfo, error)
 	PutStatisSeal(ctx context.Context, st database.StatisSeal) error
+	GetMarketDealInfo(ctx context.Context, propID string) (*database.MarketDealInfo, error)
+	GetMarketDealInfoBySid(ctx context.Context, sid string) ([]database.MarketDealInfo, error)
 }

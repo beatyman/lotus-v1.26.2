@@ -172,5 +172,19 @@ func (hs *HlmMinerScheduler) PutStatisSeal(ctx context.Context, st database.Stat
 func (hs *HlmMinerScheduler) GetStorage(ctx context.Context, storageId int64) (*database.StorageInfo, error) {
 	return database.GetStorageInfo(storageId)
 }
+func (hs *HlmMinerScheduler) GetMarketDealInfo(ctx context.Context, propID string) (*database.MarketDealInfo, error) {
+	m, err := database.GetMarketDealInfo(propID)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	return m, nil
+}
+func (hs *HlmMinerScheduler) GetMarketDealInfoBySid(ctx context.Context, sid string) ([]database.MarketDealInfo, error) {
+	m, err := database.GetMarketDealInfoBySid(sid)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	return m, nil
+}
 // for build testing
 var _ api.HlmMinerSchedulerAPI = &HlmMinerScheduler{}

@@ -457,6 +457,12 @@ reAllocate:
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
 	case ffiwrapper.WorkerPreCommit1:
+	retryConfirmStaging:
+		if err := w.ConfirmStaging(ctx, sealer, task.SectorName()); err != nil {
+			log.Warn(errors.As(err))
+			time.Sleep(10e9)
+			goto retryConfirmStaging
+		}
 		pieceInfo := task.Pieces
 		rspco, err := sealer.SealPreCommit1(ctx, sector, task.SealTicket, pieceInfo)
 

@@ -306,3 +306,36 @@ func (a *RetryHlmMinerSchedulerAPI) RetryGetStorage(ctx context.Context, storage
 	}
 	return out, err
 }
+
+func (a *RetryHlmMinerSchedulerAPI)RetryGetMarketDealInfo(ctx context.Context, propID string) (*database.MarketDealInfo, error) {
+	var (
+		err error
+		out *database.MarketDealInfo
+	)
+	for i := 0; true; i++ {
+		if out, err = a.HlmMinerSchedulerAPI.GetMarketDealInfo(ctx, propID); err == nil {
+			return out, nil
+		}
+		if !a.RetryEnable(err) {
+			return out, err
+		}
+		time.Sleep(time.Second * 10)
+	}
+	return out, err
+}
+func (a *RetryHlmMinerSchedulerAPI) RetryGetMarketDealInfoBySid(ctx context.Context, sid string) ([]database.MarketDealInfo, error) {
+	var (
+		err error
+		out []database.MarketDealInfo
+	)
+	for i := 0; true; i++ {
+		if out, err = a.HlmMinerSchedulerAPI.GetMarketDealInfoBySid(ctx, sid); err == nil {
+			return out, nil
+		}
+		if !a.RetryEnable(err) {
+			return out, err
+		}
+		time.Sleep(time.Second * 10)
+	}
+	return out, err
+}

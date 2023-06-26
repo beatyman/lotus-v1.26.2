@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/filecoin-project/go-fil-markets/shared"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"io"
 	"io/ioutil"
-	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -833,14 +834,17 @@ func (w *worker) FetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	log.Infof("FetchStaging: %+v", task)
 	var tmpFile string
 	var err error
-	for {
+refetch:
+	select {
+	case <-ctx.Done():
+		return tmpFile, ffiwrapper.ErrWorkerExit.As(task)
+	default:
 		tmpFile, err = w.fetchStaging(ctx, workerSB, task)
 		if err != nil {
 			log.Warn(errors.As(err))
 			time.Sleep(10e9)
-			continue
+			goto refetch
 		}
-		break
 	}
 	return tmpFile, errors.As(err)
 }
@@ -885,16 +889,18 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 			// no data to fetch.
 		}
 	case database.MOUNT_TYPE_PB:
-		params, err := url.ParseQuery(ss.MountAuth)
+		server, err := ParseFileOpt(task.PieceData.ServerFullUri)
 		if err != nil {
 			return tmpFile, errors.As(err)
 		}
-		fetchCmd := exec.CommandContext(ctx, "./pb-cli.sh", "fetch", task.PieceData.PropCid, task.PieceData.ServerFullUri, task.PieceData.ServerFileName, tmpFile)
-		for key, _ := range params {
-			fetchCmd.Env = append(fetchCmd.Env, fmt.Sprintf("%s=%s", key, params.Get(key)))
+		type File struct {
+			FileId string `json:"file_id"`
 		}
-		log.Info("exec pb-cli.sh fetch, %+v", task.PieceData)
-		if _, err := fetchCmd.Output(); err != nil {
+		fileId, err := json.Marshal(&File{FileId: server.FileId})
+		if err != nil {
+			return tmpFile, errors.As(err)
+		}
+		if err := BHFetch(task.PieceData.ServerFullUri+"?"+ss.MountAuth, string(fileId), tmpFile, true); err != nil {
 			return tmpFile, errors.As(err)
 		}
 	case database.MOUNT_TYPE_HLM:
@@ -944,4 +950,63 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		}
 	}
 	return tmpFile, nil
+}
+func (w *worker) ConfirmStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, sid string) error {
+	newCtx, _ := context.WithCancel(ctx)
+	nodeApi, err := GetNodeApi()
+	if err != nil {
+		return errors.As(err)
+	}
+	deals, err := nodeApi.RetryGetMarketDealInfoBySid(newCtx, sid)
+	if err != nil {
+		return errors.As(err)
+	}
+	for _, deal := range deals {
+		if err := w.confirmStaging(newCtx, workerSB, sid, storiface.PieceData{
+			ReaderKind:    shared.PIECE_DATA_KIND_SERVER,
+			LocalPath:     deal.FileLocal,
+			UnpaddedSize:  abi.UnpaddedPieceSize(deal.PieceSize),
+			ServerStorage: deal.FileStorage,
+			ServerFullUri: deal.FileRemote,
+			PropCid:       deal.ID,
+		}); err != nil {
+			return errors.As(err)
+		}
+	}
+	return nil
+}
+func (w *worker) confirmStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, sid string, pieceData storiface.PieceData) error {
+	log.Infof("confirmStaging:%+v", sid, pieceData)
+	defer log.Infof("confirmStaging exit:%+v", sid)
+	if pieceData.ServerStorage == 0 {
+		return nil
+	}
+	nodeApi, err := GetNodeApi()
+	if err != nil {
+		return errors.As(err)
+	}
+	ss, err := nodeApi.GetStorage(ctx, pieceData.ServerStorage)
+	if err != nil {
+		return errors.As(err)
+	}
+	switch ss.MountType {
+	case database.MOUNT_TYPE_PB:
+		server, err := ParseFileOpt(pieceData.ServerFullUri + "?" + ss.MountAuth)
+		if err != nil {
+			return errors.As(err)
+		}
+		type File struct {
+			FileId string `json:"file_id"`
+		}
+		fileId, err := json.Marshal(&File{FileId: server.FileId})
+		if err != nil {
+			return errors.As(err)
+		}
+		if err := BHConfirm(server.FileRemote, string(fileId), sid); err != nil {
+			return errors.As(err)
+		}
+	default:
+		return nil
+	}
+	return nil
 }
