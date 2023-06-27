@@ -380,10 +380,13 @@ func (r *remote) Idle() int {
 	defer r.lock.RUnlock()
 	// TODO: consider the queue?
 	num := 0
+	//a_json,_:=json.Marshal(r.busyOnTasks)
+	//log.Info("========a_json=======",string(a_json))
 	for _, val := range r.busyOnTasks {
-		if r.cfg.ID != val.WorkerID {
-			continue
-		}
+	//	if r.cfg.ID != val.WorkerID {
+	//		continue
+	//	}
+        //	log.Info("========type=======",val.Type)
 		switch val.Type {
 		case WorkerPledge:
 			num++
@@ -394,6 +397,8 @@ func (r *remote) Idle() int {
 		case WorkerPreCommit1Done:
 			num++
 		case WorkerPreCommit2:
+			num++
+		case WorkerPreCommit2Done:
 			num++
 		case WorkerUnseal:
 			num++
