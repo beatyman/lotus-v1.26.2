@@ -407,13 +407,13 @@ require (
 	huangdong2012/filecoin-monitor v0.0.0-00010101000000-000000000000
 )
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/filecoin-fivestar/go-jsonrpc v0.1.1-0.20230413113057-87d07838d99b
+replace github.com/filecoin-project/go-jsonrpc => github.com/jupiter-dao/go-jsonrpc v0.1.1-0.20230413113057-87d07838d99b
 
 replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.5
 
-replace huangdong2012/filecoin-monitor => github.com/huangdong2012/filecoin-monitor v0.0.0-20211111023751-88bf10c05cd1
+replace huangdong2012/filecoin-monitor => github.com/jupiter-dao/filecoin-monitor v0.0.0-20211111023751-88bf10c05cd1
 
-replace go.opencensus.io => github.com/hlm-filecoin/opencensus-go v0.0.0-20230418095303-226cd2477b0a
+replace go.opencensus.io => github.com/jupiter-dao/opencensus-go v0.0.0-20230418095303-226cd2477b0a
 
 replace github.com/uber/jaeger-client-go => github.com/uber/jaeger-client-go v2.25.0+incompatible
 
