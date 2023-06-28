@@ -296,8 +296,15 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 				return errors.As(err)
 			}
 		}
+		cfg, err := m.getConfig()
+		if err != nil {
+			return xerrors.Errorf("getting sealing config: %w", err)
+		}
+		sectorRef := m.minerSector(sector.SectorType, sector.SectorNumber)
+		sectorRef.StoreUnseal = cfg.AlwaysKeepUnsealedCopy
+		log.Info("=======================cfg.AlwaysKeepUnsealedCopy=========",cfg.AlwaysKeepUnsealedCopy)
 		ppi, err := m.sealer.AddPiece(sealer.WithPriority(ctx.Context(), DealSectorPriority),
-			m.minerSector(sector.SectorType, sector.SectorNumber),
+			sectorRef,
 			pieceSizes,
 			deal.size,
 			deal.data)

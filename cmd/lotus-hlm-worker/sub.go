@@ -413,6 +413,7 @@ reAllocate:
 			UnsealedRepo: sealer.RepoPath(),
 			IsMarketSector: task.SectorStorage.UnsealedStorage.ID!=0,
 		},
+		StoreUnseal: task.StoreUnseal,
 	}
 	switch task.Type {
 	case ffiwrapper.WorkerPledge:
@@ -447,10 +448,13 @@ reAllocate:
 		if oriReaderKind == shared.PIECE_DATA_KIND_SERVER {
 			// push unsealed, so the market addpiece can make a index for continue
 		retry:
-			if err := w.pushUnsealed(ctx, sealer, task); err != nil {
-				log.Warn(errors.As(err))
-				time.Sleep(10e9)
-				goto retry
+			log.Info("==================sector.StoreUnseal====================",sector.StoreUnseal)
+			if sector.StoreUnseal {
+				if err := w.pushUnsealed(ctx, sealer, task); err != nil {
+					log.Warn(errors.As(err))
+					time.Sleep(10e9)
+					goto retry
+				}
 			}
 		}
 		// checking is the next step interrupted

@@ -118,6 +118,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 			ExistingPieceSizes: existingPieceSizes,
 			PieceSize:          pieceSize,
 			PieceData:          pieceData,
+			StoreUnseal:        sector.StoreUnseal,
 		},
 		ret: make(chan SealRes),
 	}
@@ -172,6 +173,7 @@ func (sb *Sealer) PledgeSector(ctx context.Context, sector storiface.SectorRef, 
 			SectorID:           sector.ID,
 			ExistingPieceSizes: existingPieceSizes,
 			ExtSizes:           sizes,
+			StoreUnseal:        sector.StoreUnseal,
 		},
 		ret: make(chan SealRes),
 	}

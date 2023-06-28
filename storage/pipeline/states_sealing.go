@@ -158,7 +158,13 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 		}
 	}
 
-	fillerPieces, err := m.padSector(context.WithValue(sector.sealingCtx(ctx.Context()), "SNAP", sector.CCUpdate), m.minerSector(sector.SectorType, sector.SectorNumber), sector.existingPieceSizes(), fillerSizes...)
+	cfg, err := m.getConfig()
+	if err != nil {
+		return xerrors.Errorf("getting sealing config: %w", err)
+	}
+	sectorRef := m.minerSector(sector.SectorType, sector.SectorNumber)
+	sectorRef.StoreUnseal = cfg.AlwaysKeepUnsealedCopy
+	fillerPieces, err := m.padSector(context.WithValue(sector.sealingCtx(ctx.Context()), "SNAP", sector.CCUpdate), sectorRef, sector.existingPieceSizes(), fillerSizes...)
 	if err != nil {
 		return xerrors.Errorf("filling up the sector (%v): %w", fillerSizes, err)
 	}

@@ -586,13 +586,13 @@ repush:
 				goto repush
 			}
 		}
-		if task.StoreUnseal {
-			if err := w.pushUnsealed(ctx, workerSB, task); err != nil {
-				log.Error(errors.As(err, task))
-				time.Sleep(60e9)
-				goto repush
-			}
-		}
+		//if task.StoreUnseal {
+		//	if err := w.pushUnsealed(ctx, workerSB, task); err != nil {
+		//		log.Error(errors.As(err, task))
+		//		time.Sleep(60e9)
+		//		goto repush
+		//	}
+		//}
 	}
 	return nil
 }
