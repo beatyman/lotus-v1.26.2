@@ -82,7 +82,6 @@ func (sb *Sealer) pubExtendedSectorToPriv(ctx context.Context, mid abi.ActorID, 
 		if _, faulty := fmap[s.ID.Number]; faulty {
 			continue
 		}
-
 		paths := storiface.SectorPaths{
 			ID:          s.SectorID(),
 			Unsealed:    s.UnsealedFile(),
@@ -91,16 +90,25 @@ func (sb *Sealer) pubExtendedSectorToPriv(ctx context.Context, mid abi.ActorID, 
 			Update:      s.UpdateFile(),
 			UpdateCache: s.UpdateCachePath(),
 		}
-
+		proveUpdate := s.SectorKey != nil
+		var cache string
+		var sealed string
+		if proveUpdate {
+			cache = paths.UpdateCache
+			sealed = paths.Update
+		} else {
+			cache = paths.Cache
+			sealed = paths.Sealed
+		}
 		ffiInfo := proof.SectorInfo{
 			SealProof:    s.ProofType,
 			SectorNumber: s.ID.Number,
 			SealedCID:    s.SealedCID,
 		}
 		out = append(out, ffi.PrivateSectorInfo{
-			CacheDirPath:     paths.Cache,
+			CacheDirPath:     cache,
 			PoStProofType:    postProofType,
-			SealedSectorPath: paths.Sealed,
+			SealedSectorPath: sealed,
 			SectorInfo:       ffiInfo,
 		})
 	}
