@@ -952,7 +952,6 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 	return tmpFile, nil
 }
 func (w *worker) ConfirmStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, sid string) error {
-	return nil
 	newCtx, _ := context.WithCancel(ctx)
 	nodeApi, err := GetNodeApi()
 	if err != nil {
