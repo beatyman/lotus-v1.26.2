@@ -63,6 +63,12 @@ func (sb *Sealer) MakeLink(task *WorkerTask) error {
 
 func (sb *Sealer) AddStorage(ctx context.Context, sInfo *database.StorageAuth) error {
 	switch sInfo.MountType {
+	case database.MOUNT_TYPE_PB:
+		_, err := database.AddStorage(sInfo)
+		if err != nil {
+			return errors.As(err)
+		}
+		return nil
 	case database.MOUNT_TYPE_HLM:
 		// please remove $storage_auth_file if the origin auth is failed.
 		data, err := hlmclient.NewAuthClient(sInfo.MountAuthUri, "").ChangeAuth(ctx)

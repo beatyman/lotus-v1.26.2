@@ -53,10 +53,12 @@ func BHFetch(remoteHost string, file string, output string, offerConfirmation bo
 	}
 	outputPath, err := os.Create(output)
 	if err != nil {
+		log.Errorf("[BH] %v:%v access:%v, body: %v", resp.Status, resp.StatusCode, fetchUrl,output)
 		return err
 	}
 	defer outputPath.Close()
 	if _, err := io.Copy(outputPath, resp.Body); err != nil {
+		log.Errorf("[BH] %v:%v access:%v, body: %v", resp.Status, resp.StatusCode, fetchUrl, output)
 		return err
 	}
 	return nil

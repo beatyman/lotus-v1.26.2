@@ -900,7 +900,10 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if err != nil {
 			return tmpFile, errors.As(err)
 		}
-		if err := BHFetch(task.PieceData.ServerFullUri+"?"+ss.MountAuth, string(fileId), tmpFile, true); err != nil {
+		if err := os.MkdirAll(filepath.Dir(tmpFile), 0755);err != nil {
+			return tmpFile, errors.As(err)
+		}
+		if err := BHFetch(server.FileRemote, string(fileId), tmpFile, true); err != nil {
 			return tmpFile, errors.As(err)
 		}
 	case database.MOUNT_TYPE_HLM:
@@ -991,7 +994,7 @@ func (w *worker) confirmStaging(ctx context.Context, workerSB *ffiwrapper.Sealer
 	}
 	switch ss.MountType {
 	case database.MOUNT_TYPE_PB:
-		server, err := ParseFileOpt(pieceData.ServerFullUri + "?" + ss.MountAuth)
+		server, err := ParseFileOpt(pieceData.ServerFullUri)
 		if err != nil {
 			return errors.As(err)
 		}
