@@ -132,6 +132,8 @@ func Mount(ctx context.Context, mountType, mountUri, mountPoint, mountOpts strin
 	case MOUNT_TYPE_CUSTOM:
 		// close for customer protocal
 		return nil
+	case MOUNT_TYPE_PB:
+		return nil
 	}
 
 	// umount
