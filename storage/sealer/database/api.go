@@ -230,6 +230,8 @@ func MountAllStorage(block bool) error {
 // if the mountUri is local file, it would make a link.
 func MountPostWorker(ctx context.Context, mountType, mountUri, mountPoint, mountOpts string) error {
 	switch mountType {
+	case MOUNT_TYPE_PB:
+		return nil
 	case MOUNT_TYPE_OSS:
 		return nil
 	case MOUNT_TYPE_CUSTOM:
