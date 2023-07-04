@@ -130,7 +130,8 @@ CREATE TABLE IF NOT EXISTS MONTH_TABLE_NAME (
 	end_time DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
 	used INTEGER NOT NULL DEFAULT 0, /* ns */
 
-	error TEXT NOT NULL DEFAULT '' /* success, other's failed message. */
+	error TEXT NOT NULL DEFAULT '', /* success, other's failed message. */
+	is_rsync INTEGER NOT NULL DEFAULT 0 /* 0:no,1:yes */
 
 );
 CREATE INDEX IF NOT EXISTS MONTH_TABLE_NAME_idx0 ON MONTH_TABLE_NAME(sid);
@@ -159,7 +160,6 @@ CREATE INDEX IF NOT EXISTS market_deal_idx0 ON market_deal(sid);
 CREATE INDEX IF NOT EXISTS market_deal_idx1 ON market_deal(created_at);
 CREATE INDEX IF NOT EXISTS market_deal_idx2 ON market_deal(file_local);
 `
-
 )
 
 var (

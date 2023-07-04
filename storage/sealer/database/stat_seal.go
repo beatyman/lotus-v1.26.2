@@ -32,6 +32,7 @@ type StatisSeal struct {
 	EndTime   time.Time `db:"end_time"`
 	Used      int64     `db:"used"`
 	Error     string    `db:"error"` // success, other's failed
+	IsRsync   int64     `db:"is_rsync"`
 }
 
 func PutStatisSeal(st *StatisSeal) error {

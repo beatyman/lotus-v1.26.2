@@ -315,7 +315,9 @@ func (sb *Sealer) WorkerProducerIdle() int {
 		if r.disable {
 			return true
 		}
-		if r.cfg.ParallelPledge <= 0 || r.cfg.ParallelPrecommit1 <= 0 {
+		if r.offline == 1 {
+			return true
+			//if r.cfg.ParallelPledge <= 0 || r.cfg.ParallelPrecommit1 <= 0 {
 			return true
 		}
 
@@ -1489,7 +1491,7 @@ func (sb *Sealer) TaskSend(ctx context.Context, r *remote, task WorkerTask) (res
 			WorkerID:  res.WorkerCfg.ID,
 			BeginTime: beginTime,
 			EndTime:   endTime,
-			Used:     int64(endTime.Sub(beginTime).Seconds()),
+			Used:      int64(endTime.Sub(beginTime).Seconds()),
 			Error:     sealStat,
 		}
 		if err := database.PutStatisSeal(stSeal); err != nil {
