@@ -317,7 +317,8 @@ func (sb *Sealer) WorkerProducerIdle() int {
 		}
 		if r.offline == 1 {
 			return true
-			//if r.cfg.ParallelPledge <= 0 || r.cfg.ParallelPrecommit1 <= 0 {
+		}
+		if r.cfg.ParallelPledge <= 0 || r.cfg.ParallelPrecommit1 <= 0 {
 			return true
 		}
 
