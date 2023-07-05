@@ -174,8 +174,8 @@ type WorkerTask struct {
 	SectorStorage database.SectorStorage
 
 	// addpiece
-	PieceSize          abi.UnpaddedPieceSize
-	PieceData          storiface.PieceData
+	PieceSize abi.UnpaddedPieceSize
+	PieceData storiface.PieceData
 
 	ExistingPieceSizes []abi.UnpaddedPieceSize
 	ExtSizes           []abi.UnpaddedPieceSize // size ...abi.UnpaddedPieceSize
@@ -383,10 +383,10 @@ func (r *remote) Idle() int {
 	//a_json,_:=json.Marshal(r.busyOnTasks)
 	//log.Info("========a_json=======",string(a_json))
 	for _, val := range r.busyOnTasks {
-	//	if r.cfg.ID != val.WorkerID {
-	//		continue
-	//	}
-        //	log.Info("========type=======",val.Type)
+		//	if r.cfg.ID != val.WorkerID {
+		//		continue
+		//	}
+		//	log.Info("========type=======",val.Type)
 		switch val.Type {
 		case WorkerPledge:
 			num++
@@ -405,6 +405,9 @@ func (r *remote) Idle() int {
 		case WorkerUnsealDone:
 			num++
 		}
+	}
+	if r.cfg.MaxTaskNum-num < 0 {
+		return 0
 	}
 	return r.cfg.MaxTaskNum - num
 }
