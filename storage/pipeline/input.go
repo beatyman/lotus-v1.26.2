@@ -382,7 +382,9 @@ func (m *Sealing) SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPiec
 	if err != nil {
 		return api.SectorOffset{}, err
 	}
-
+	if data.ServerStorage<=0{
+		return api.SectorOffset{},xerrors.Errorf("illegal deal order parameter storage : %+v", data)
+	}
 	m.inputLk.Lock()
 	if pp, exist := m.pendingPieces[proposalCID(deal)]; exist {
 		m.inputLk.Unlock()
