@@ -408,10 +408,10 @@ reAllocate:
 		ID:        task.SectorID,
 		ProofType: task.ProofType,
 		SectorFile: storiface.SectorFile{
-			SectorId:     storiface.SectorName(task.SectorID),
-			SealedRepo:   sealer.RepoPath(),
-			UnsealedRepo: sealer.RepoPath(),
-			IsMarketSector: task.SectorStorage.UnsealedStorage.ID!=0,
+			SectorId:       storiface.SectorName(task.SectorID),
+			SealedRepo:     sealer.RepoPath(),
+			UnsealedRepo:   sealer.RepoPath(),
+			IsMarketSector: task.SectorStorage.UnsealedStorage.ID != 0,
 		},
 		StoreUnseal: task.StoreUnseal,
 	}
@@ -436,11 +436,11 @@ reAllocate:
 			task.PieceData.ReaderKind = shared.PIECE_DATA_KIND_FILE
 			task.PieceData.LocalPath = tmpFile
 		}
-		if len(task.ExtSizes)!=0{
-			if res.Pieces, err = sealer.PledgeSector(ctx, sector, task.ExistingPieceSizes,  task.ExtSizes...); err != nil {
+		if len(task.ExtSizes) != 0 {
+			if res.Pieces, err = sealer.PledgeSector(ctx, sector, task.ExistingPieceSizes, task.ExtSizes...); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-		}else {
+		} else {
 			if res.Piece, err = sealer.AddPiece(ctx, sector, task.ExistingPieceSizes, task.PieceSize, task.PieceData); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
@@ -448,7 +448,7 @@ reAllocate:
 		if oriReaderKind == shared.PIECE_DATA_KIND_SERVER {
 			// push unsealed, so the market addpiece can make a index for continue
 		retry:
-			log.Info("==================sector.StoreUnseal====================",sector.StoreUnseal)
+			log.Info("==================sector.StoreUnseal====================", sector.StoreUnseal)
 			if sector.StoreUnseal {
 				if err := w.pushUnsealed(ctx, sealer, task); err != nil {
 					log.Warn(errors.As(err))
@@ -495,7 +495,7 @@ reAllocate:
 			}
 		} else {
 			//out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
-			out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
+			out, err := ffiwrapper.ExecPrecommit2WithSupra(ctx, sealer, task)
 			res.PreCommit2Out = out
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
@@ -512,7 +512,7 @@ reAllocate:
 			for strings.EqualFold(commR, errCommR) && redoTimes < 2 {
 				redoTimes++
 				log.Infof("WARN###: Redo P2 : times %v ", redoTimes)
-				out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
+				out, err := ffiwrapper.ExecPrecommit2WithSupra(ctx, sealer, task)
 				res.PreCommit2Out = out
 				if err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)
