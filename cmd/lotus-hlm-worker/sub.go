@@ -495,7 +495,7 @@ reAllocate:
 			}
 		} else {
 			//out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
-			out, err := ffiwrapper.ExecPrecommit2WithSupra(ctx, sealer, task)
+			out, err := ffiwrapper.ExecPrecommit2(ctx, sealer, task)
 			res.PreCommit2Out = out
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
@@ -512,7 +512,7 @@ reAllocate:
 			for strings.EqualFold(commR, errCommR) && redoTimes < 2 {
 				redoTimes++
 				log.Infof("WARN###: Redo P2 : times %v ", redoTimes)
-				out, err := ffiwrapper.ExecPrecommit2WithSupra(ctx, sealer, task)
+				out, err := ffiwrapper.ExecPrecommit2(ctx, sealer, task)
 				res.PreCommit2Out = out
 				if err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)

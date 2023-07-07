@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	commcid "github.com/filecoin-project/go-fil-commcid"
@@ -46,61 +47,14 @@ func readUnixConn(conn net.Conn) ([]byte, error) {
 	return result, nil
 }
 
-func ExecPrecommit2WithSupra(ctx context.Context, sealer *Sealer, task WorkerTask) (storiface.SectorCids, error) {
-	defer func() {
-		if e := recover(); e != nil {
-			log.Errorf("ExecPrecommit2WithSupra panic: %v\n%v", e, string(debug.Stack()))
-		}
-	}()
-
-	ssize, err := task.ProofType.SectorSize()
-	if err != nil {
-		return storiface.SectorCids{}, err
+func ExecPrecommit2(ctx context.Context, sealer *Sealer, task WorkerTask) (storiface.SectorCids, error) {
+	if useSupra, ok := os.LookupEnv("X_USE_SupraSeal"); ok && strings.ToLower(useSupra) != "false" {
+		return execPrecommit2WithSupra(ctx, sealer, task)
 	}
-	sealedPath := sealer.SectorPath("sealed", task.SectorName())
-	cachePath := sealer.SectorPath("cache", task.SectorName())
-	commDPath := filepath.Join(cachePath, "comm_d")
-	commRPath := filepath.Join(cachePath, "comm_r")
-	outPath := filepath.Join(cachePath, "sealed-file")
-	program := fmt.Sprintf("./supra-p2-%v", ssize.ShortString())
-	cmd := exec.CommandContext(ctx, program,
-		"-d", sealedPath,
-		"-i", cachePath,
-		"-o", cachePath,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return storiface.SectorCids{}, err
-	}
-
-	commDBytes, err := os.ReadFile(commDPath)
-	if err != nil {
-		return storiface.SectorCids{}, err
-	}
-	commD, err := commcid.DataCommitmentV1ToCID(commDBytes)
-	if err != nil {
-		return storiface.SectorCids{}, err
-	}
-	commRBytes, err := os.ReadFile(commRPath)
-	if err != nil {
-		return storiface.SectorCids{}, err
-	}
-	commR, err := commcid.DataCommitmentV1ToCID(commRBytes)
-	if err != nil {
-		return storiface.SectorCids{}, err
-	}
-	if err = exec.CommandContext(ctx, "mv", "-f", outPath, sealedPath).Run(); err != nil {
-		return storiface.SectorCids{}, err
-	}
-
-	return storiface.SectorCids{
-		Unsealed: commD,
-		Sealed:   commR,
-	}, nil
+	return execPrecommit2(ctx, sealer.RepoPath(), task)
 }
 
-func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storiface.SectorCids, error) {
+func execPrecommit2(ctx context.Context, repo string, task WorkerTask) (storiface.SectorCids, error) {
 	defer func() {
 		if e := recover(); e != nil {
 			log.Errorf("ExecPrecommit2 panic: %v\n%v", e, string(debug.Stack()))
@@ -203,6 +157,60 @@ loopUnixConn:
 		return storiface.SectorCids{}, errors.Parse(resp.Err).As(args)
 	}
 	return resp.Data, nil
+}
+
+func execPrecommit2WithSupra(ctx context.Context, sealer *Sealer, task WorkerTask) (storiface.SectorCids, error) {
+	defer func() {
+		if e := recover(); e != nil {
+			log.Errorf("ExecPrecommit2WithSupra panic: %v\n%v", e, string(debug.Stack()))
+		}
+	}()
+
+	ssize, err := task.ProofType.SectorSize()
+	if err != nil {
+		return storiface.SectorCids{}, err
+	}
+	sealedPath := sealer.SectorPath("sealed", task.SectorName())
+	cachePath := sealer.SectorPath("cache", task.SectorName())
+	commDPath := filepath.Join(cachePath, "comm_d")
+	commRPath := filepath.Join(cachePath, "comm_r")
+	outPath := filepath.Join(cachePath, "sealed-file")
+	program := fmt.Sprintf("./supra-p2-%v", ssize.ShortString())
+	cmd := exec.CommandContext(ctx, program,
+		"-d", sealedPath,
+		"-i", cachePath,
+		"-o", cachePath,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return storiface.SectorCids{}, err
+	}
+
+	commDBytes, err := os.ReadFile(commDPath)
+	if err != nil {
+		return storiface.SectorCids{}, err
+	}
+	commD, err := commcid.DataCommitmentV1ToCID(commDBytes)
+	if err != nil {
+		return storiface.SectorCids{}, err
+	}
+	commRBytes, err := os.ReadFile(commRPath)
+	if err != nil {
+		return storiface.SectorCids{}, err
+	}
+	commR, err := commcid.DataCommitmentV1ToCID(commRBytes)
+	if err != nil {
+		return storiface.SectorCids{}, err
+	}
+	if err = exec.CommandContext(ctx, "mv", "-f", outPath, sealedPath).Run(); err != nil {
+		return storiface.SectorCids{}, err
+	}
+
+	return storiface.SectorCids{
+		Unsealed: commD,
+		Sealed:   commR,
+	}, nil
 }
 
 var P2Cmd = &cli.Command{
