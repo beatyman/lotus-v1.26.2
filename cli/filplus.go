@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/filecoin-project/go-state-types/builtin"
-	verifregtypes "github.com/filecoin-project/go-state-types/builtin/v10/verifreg"
 	lapi "github.com/filecoin-project/lotus/api"
 	"os"
 	"strconv"
@@ -959,7 +958,7 @@ var filplusExtendClaimsCmd = &cli.Command{
 			return fmt.Errorf("message execute error, exit code: %v", msgLookup.Receipt.ExitCode)
 		}
 
-		var claimTermsReturn verifregtypes.ExtendClaimTermsReturn
+		var claimTermsReturn verifregtypes9.ExtendClaimTermsReturn
 		if err := claimTermsReturn.UnmarshalCBOR(bytes.NewReader(msgLookup.Receipt.Return)); err != nil {
 			return err
 		}
