@@ -4,9 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"github.com/filecoin-project/go-state-types/builtin"
+	verifregtypes "github.com/filecoin-project/go-state-types/builtin/v10/verifreg"
+	lapi "github.com/filecoin-project/lotus/api"
 	"os"
 	"strconv"
+	"text/tabwriter"
 
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/urfave/cli/v2"
@@ -46,6 +51,7 @@ var filplusCmd = &cli.Command{
 		filplusListClaimsCmd,
 		filplusRemoveExpiredAllocationsCmd,
 		filplusRemoveExpiredClaimsCmd,
+		filplusExtendClaimsCmd,
 	},
 }
 
@@ -798,4 +804,227 @@ var filplusSignRemoveDataCapProposal = &cli.Command{
 
 		return nil
 	},
+}
+
+var filplusExtendClaimsCmd = &cli.Command{
+	Name:  "extend",
+	Usage: "extend datacap expiration",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:     "max-term",
+			Usage:    "datacap max term",
+			Required: true,
+		},
+		&cli.Uint64SliceFlag{
+			Name:  "claimId",
+			Usage: "claim id array",
+		},
+		&cli.StringFlag{
+			Name:  "from",
+			Usage: "address to send the message",
+		},
+		&cli.BoolFlag{
+			Name:  "auto",
+			Usage: "automatically select eligible datacap renewals",
+		},
+		&cli.Int64Flag{
+			Name:  "expiration-cutoff",
+			Usage: "when use --auto flag, skip datacap whose current expiration is more than <cutoff> epochs from now (infinity if unspecified)",
+		},
+	},
+	ArgsUsage: "<provider address>",
+	Action: func(cctx *cli.Context) error {
+		if cctx.Args().Len() == 0 {
+			return fmt.Errorf("must pass provider")
+		}
+		fapi, closer, err := GetFullNodeAPIV1(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		ctx := ReqContext(cctx)
+
+		provider, err := address.NewFromString(cctx.Args().First())
+		if err != nil {
+			return fmt.Errorf("parse provider failed: %v", err)
+		}
+		providerID, err := addressToActorID(provider)
+		if err != nil {
+			return err
+		}
+
+		var fromAddr address.Address
+		if cctx.IsSet("from") {
+			fromAddr, err = address.NewFromString(cctx.String("from"))
+			if err != nil {
+				return err
+			}
+		} else {
+			fromAddr, err = fapi.WalletDefaultAddress(ctx)
+			if err != nil {
+				return err
+			}
+		}
+		idAddr, err := fapi.StateLookupID(ctx, fromAddr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+		fromID, err := addressToActorID(idAddr)
+		if err != nil {
+			return err
+		}
+
+		termMax := abi.ChainEpoch(cctx.Int64("max-term"))
+		if termMax > verifregtypes9.MaximumVerifiedAllocationTerm {
+			return fmt.Errorf("max term %d greater than %d", termMax, verifregtypes9.MaximumVerifiedAllocationTerm)
+		}
+
+		head, err := fapi.ChainHead(ctx)
+		if err != nil {
+			return err
+		}
+		claims, err := fapi.StateGetClaims(ctx, provider, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		claimTermsParams := &verifregtypes9.ExtendClaimTermsParams{}
+		if cctx.Bool("auto") {
+			cutoff := abi.ChainEpoch(cctx.Int64("expiration-cutoff"))
+			for id, claim := range claims {
+				if err := checkClaim(ctx, fapi, head, provider, fromID, termMax, claim, cutoff); err != nil {
+					if !errors.Is(err, errNotNeedExtend) {
+						fmt.Printf("check claim %d error: %v\n", id, err)
+					}
+					continue
+				}
+				claimTermsParams.Terms = append(claimTermsParams.Terms, verifregtypes9.ClaimTerm{
+					Provider: providerID,
+					ClaimId:  id,
+					TermMax:  termMax,
+				})
+			}
+		} else if cctx.IsSet("claimId") {
+			claimIds := cctx.Uint64Slice("claimId")
+			for _, id := range claimIds {
+				claim, ok := claims[verifregtypes9.ClaimId(id)]
+				if !ok {
+					continue
+				}
+				if err := checkClaim(ctx, fapi, head, provider, fromID, termMax, claim, -1); err != nil {
+					if !errors.Is(err, errNotNeedExtend) {
+						fmt.Printf("check claim %d error: %v\n", id, err)
+					}
+					continue
+				}
+				claimTermsParams.Terms = append(claimTermsParams.Terms, verifregtypes9.ClaimTerm{
+					Provider: providerID,
+					ClaimId:  verifregtypes9.ClaimId(id),
+					TermMax:  termMax,
+				})
+			}
+		} else {
+			return fmt.Errorf("must pass --claimId flag or --auto flag")
+		}
+
+		if len(claimTermsParams.Terms) == 0 {
+			fmt.Println("no claim need extend")
+			return nil
+		}
+
+		params, err := actors.SerializeParams(claimTermsParams)
+		if err != nil {
+			return err
+		}
+
+		msg := types.Message{
+			From:   fromAddr,
+			To:     builtin.VerifiedRegistryActorAddr,
+			Method: builtin.MethodsVerifiedRegistry.ExtendClaimTerms,
+			Params: params,
+		}
+
+		msgCID, err := fapi.MpoolPushMessage(ctx, &msg, nil)
+		if err != nil {
+			return fmt.Errorf("push message error: %v", err)
+		}
+		fmt.Printf("wait message: %v\n", msgCID)
+
+		msgLookup, err := fapi.StateWaitMsg(ctx, msgCID.Cid(), build.MessageConfidence, build.Finality, true)
+		if err != nil {
+			return err
+		}
+
+		if msgLookup.Receipt.ExitCode.IsError() {
+			return fmt.Errorf("message execute error, exit code: %v", msgLookup.Receipt.ExitCode)
+		}
+
+		var claimTermsReturn verifregtypes.ExtendClaimTermsReturn
+		if err := claimTermsReturn.UnmarshalCBOR(bytes.NewReader(msgLookup.Receipt.Return)); err != nil {
+			return err
+		}
+
+		if len(claimTermsReturn.FailCodes) > 0 {
+			w := tabwriter.NewWriter(os.Stdout, 4, 4, 2, ' ', 0)
+			fmt.Fprintln(w, "\nError occurred:\nClaimID\tErrorCode")
+
+			for _, failCode := range claimTermsReturn.FailCodes {
+				fmt.Fprintf(w, "%d\t%d\n", claimTermsParams.Terms[failCode.Idx], failCode.Code)
+			}
+			return w.Flush()
+		}
+		return nil
+	},
+}
+
+var errNotNeedExtend = fmt.Errorf("not need extend")
+
+func checkClaim(ctx context.Context,
+	fapi lapi.FullNode,
+	head *types.TipSet,
+	provider address.Address,
+	fromID abi.ActorID,
+	termMax abi.ChainEpoch,
+	claim verifregtypes9.Claim,
+	cutoff abi.ChainEpoch,
+) error {
+	if claim.Client != fromID {
+		return fmt.Errorf("client %d not match form actor id %d", claim.Client, fromID)
+	}
+
+	if claim.TermMax >= termMax {
+		return fmt.Errorf("new term max(%d) smaller than old term max(%d)", termMax, claim.TermMax)
+	}
+	expiration := claim.TermStart + claim.TermMax - head.Height()
+	if expiration <= 0 {
+		// already expiration
+		return fmt.Errorf("claim already expiration")
+	}
+	// if cutoff is negative number, skip check
+	if cutoff >= 0 {
+		if expiration > cutoff {
+			return errNotNeedExtend
+		}
+	}
+	sectorExpiration, err := fapi.StateSectorExpiration(ctx, provider, claim.Sector, types.EmptyTSK)
+	if err != nil {
+		return fmt.Errorf("got sector %d expiration failed: %v", claim.Sector, err)
+	} else if sectorExpiration.OnTime <= head.Height() ||
+		(sectorExpiration.Early != 0 && sectorExpiration.Early <= head.Height()) {
+		return fmt.Errorf("sector already expiration")
+	}
+
+	return nil
+}
+
+func addressToActorID(addr address.Address) (abi.ActorID, error) {
+	if addr.Protocol() != address.ID {
+		return 0, fmt.Errorf("%s not id address", addr)
+	}
+	id, err := strconv.ParseUint(addr.String()[2:], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return abi.ActorID(id), nil
 }
