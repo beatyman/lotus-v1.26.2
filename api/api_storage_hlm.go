@@ -40,6 +40,7 @@ type HlmMinerSector interface {
 
 	HlmSectorGetStartID(ctx context.Context) (uint64, error)
 	HlmSectorSetStartID(ctx context.Context, baseID uint64) error
+	HlmSectorByWorker(ctx context.Context, sectorId, lastMonth, currentMonth string) ([]database.StatWorkerSealTime, error)
 }
 
 type HlmMinerStorage interface {

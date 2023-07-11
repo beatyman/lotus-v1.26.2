@@ -228,6 +228,22 @@ WHERE
 	and error='success'
 GROUP BY stage;
 `
+	sectorByWorkerSql = `
+SELECT
+	*
+FROM
+%s
+WHERE
+	sid = ? 
+union all 
+SELECT
+	*
+FROM
+%s
+WHERE
+	sid = ? 
+;
+`
 )
 
 type StatWorkerSealTime struct {
@@ -255,6 +271,26 @@ func StatWorkerSealTimeFn(workerID string, startTime, endTime time.Time) (StatWo
 	rows, err := db.Query(destSql, workerID, startTime, endTime)
 	if err != nil {
 		return nil, errors.As(err, endTime)
+	}
+	defer database.Close(rows)
+
+	result := StatWorkerSealTimes{}
+	for rows.Next() {
+		stat := StatWorkerSealTime{}
+		if err := rows.Scan(&stat.Stage, &stat.Total, &stat.Avg, &stat.Min, &stat.Max); err != nil {
+			return nil, errors.As(err)
+		}
+		result = append(result, stat)
+	}
+	return result, nil
+}
+
+func GetSectorByWorker(sectorID, lastMonth, currentMonth string) ([]StatWorkerSealTime, error) {
+	destSql := fmt.Sprintf(sectorByWorkerSql, lastMonth, currentMonth)
+	db := GetDB()
+	rows, err := db.Query(destSql, sectorID)
+	if err != nil {
+		return nil, errors.As(err, sectorID)
 	}
 	defer database.Close(rows)
 
