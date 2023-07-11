@@ -311,7 +311,7 @@ func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, exis
 			log.Warnw("closing pieceData in AddPiece", "error", err)
 		}
 	}()
-	isSectorCc:=!sector.SectorFile.IsMarketSector
+	isSectorCc := !sector.SectorFile.IsMarketSector
 	// uprade SectorRef
 	var err error
 	sector, err = database.FillSectorFile(sector, sb.RepoPath())
@@ -1210,6 +1210,9 @@ func (sb *Sealer) SealCommit1(ctx context.Context, sector storiface.SectorRef, t
 
 func (sb *Sealer) SealCommit2(ctx context.Context, sector storiface.SectorRef, phase1Out storiface.Commit1Out) (storiface.Proof, error) {
 	AssertGPU(ctx)
+	if useSupra, ok := os.LookupEnv("X_USE_SupraSeal"); ok && strings.ToLower(useSupra) != "false" {
+		return ExecCommit2WithSupra(ctx, sector, phase1Out)
+	}
 	return ffi.SealCommitPhase2(phase1Out, sector.ID.Number, sector.ID.Miner)
 }
 
