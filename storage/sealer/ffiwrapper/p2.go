@@ -47,14 +47,14 @@ func readUnixConn(conn net.Conn) ([]byte, error) {
 	return result, nil
 }
 
-func ExecPrecommit2(ctx context.Context, sealer *Sealer, task WorkerTask) (storiface.SectorCids, error) {
+func ExecPrecommit2Wrap(ctx context.Context, sealer *Sealer, task WorkerTask) (storiface.SectorCids, error) {
 	if useSupra, ok := os.LookupEnv("X_USE_SupraSeal"); ok && strings.ToLower(useSupra) != "false" {
 		return execPrecommit2WithSupra(ctx, sealer, task)
 	}
-	return execPrecommit2(ctx, sealer.RepoPath(), task)
+	return ExecPrecommit2(ctx, sealer.RepoPath(), task)
 }
 
-func execPrecommit2(ctx context.Context, repo string, task WorkerTask) (storiface.SectorCids, error) {
+func ExecPrecommit2(ctx context.Context, repo string, task WorkerTask) (storiface.SectorCids, error) {
 	defer func() {
 		if e := recover(); e != nil {
 			log.Errorf("ExecPrecommit2 panic: %v\n%v", e, string(debug.Stack()))
