@@ -294,27 +294,36 @@ var getHlmSectorByWorker = &cli.Command{
 		fmt.Println("sid ====", sid)
 
 		ctx := lcli.ReqContext(cctx)
-
-		sectorInfo, err := mApi.HlmSectorGetState(ctx, sid)
-		fmt.Println(sectorInfo)
-		//
-
-		//查询扇区表
 		//查询workerlist
 		workers, err := mApi.WorkerStatusAll(ctx)
 		if err != nil {
 			return err
 		}
 
-		fmt.Println("worker : ", workers)
+		sectorInfo, err := mApi.HlmSectorGetState(ctx, sid)
+		workerIp := ""
+		for _, val := range workers {
+			if val.ID == sectorInfo.WorkerId {
+				workerIp = val.IP
+			}
+		}
+		fmt.Println("sector state: ", sectorInfo.State, "  workerIP: ", workerIp)
+		//
 
 		//查询密封表
 		now := time.Now()
 		lastMonth := now.AddDate(0, -1, -now.Day()+1).Format("200601")
 		currentMonth := now.Format("200601")
 		sectorSeal, err := mApi.HlmSectorByWorker(ctx, sid, lastMonth, currentMonth)
-
-		fmt.Println("sectorSeal:", sectorSeal)
+		for _, val := range sectorSeal {
+			ip := ""
+			for _, worker := range workers {
+				if val.WorkerID == worker.ID {
+					ip = worker.IP
+				}
+			}
+			fmt.Println("state: : ", val.Stage, " workerIP: ", ip)
+		}
 
 		return nil
 	},
