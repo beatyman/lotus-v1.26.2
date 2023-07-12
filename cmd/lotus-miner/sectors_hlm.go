@@ -274,3 +274,57 @@ var getHlmSectorStartCmd = &cli.Command{
 		return nil
 	},
 }
+
+var getHlmSectorByWorker = &cli.Command{
+	Name:  "get-sector-worker",
+	Usage: "get the sector by worker",
+	Flags: []cli.Flag{},
+	Action: func(cctx *cli.Context) error {
+		mApi, closer, err := lcli.GetStorageMinerAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+		sid := cctx.Args().First()
+
+		if len(sid) == 0 {
+			return errors.New("sid is null")
+		}
+
+		fmt.Println("sid ====", sid)
+
+		ctx := lcli.ReqContext(cctx)
+		//查询workerlist
+		workers, err := mApi.WorkerStatusAll(ctx)
+		if err != nil {
+			return err
+		}
+
+		sectorInfo, err := mApi.HlmSectorGetState(ctx, sid)
+		workerIp := ""
+		for _, val := range workers {
+			if val.ID == sectorInfo.WorkerId {
+				workerIp = val.IP
+			}
+		}
+		fmt.Println("sector state: ", sectorInfo.State, "  workerIP: ", workerIp)
+		//
+
+		//查询密封表
+		now := time.Now()
+		lastMonth := now.AddDate(0, -1, -now.Day()+1).Format("200601")
+		currentMonth := now.Format("200601")
+		sectorSeal, err := mApi.HlmSectorByWorker(ctx, sid, lastMonth, currentMonth)
+		for _, val := range sectorSeal {
+			ip := ""
+			for _, worker := range workers {
+				if val.WorkerID == worker.ID {
+					ip = worker.IP
+				}
+			}
+			fmt.Println("state: : ", val.Stage, " workerIP: ", ip)
+		}
+
+		return nil
+	},
+}
