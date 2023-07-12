@@ -42,14 +42,14 @@ type HlmMinerSectorStruct struct {
 		StopPledgeSector    func(context.Context) error                 `perm:"admin"`
 		RebuildPledgeSector func(context.Context, string, uint64) error `perm:"admin"`
 
-		HlmSectorGetState   func(ctx context.Context, sid string) (*database.SectorInfo, error)                                        `perm:"read"`
-		HlmSectorSetState   func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)                    `perm:"admin"`
-		HlmSectorListAll    func(context.Context) ([]SectorInfo, error)                                                                `perm:"read"`
-		HlmSectorFile       func(ctx context.Context, sid string) (*storiface.SectorFile, error)                                       `perm:"read"`
-		HlmSectorCheck      func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)                        `perm:"read"`
-		HlmSectorGetStartID func(ctx context.Context) (uint64, error)                                                                  `perm:"read"`
-		HlmSectorSetStartID func(ctx context.Context, baseID uint64) error                                                             `perm:"admin"`
-		HlmSectorByWorker   func(ctx context.Context, sectorId, lastMonth, currentMonth string) ([]database.StatWorkerSealTime, error) `perm:"admin"`
+		HlmSectorGetState   func(ctx context.Context, sid string) (*database.SectorInfo, error)                                `perm:"read"`
+		HlmSectorSetState   func(ctx context.Context, sid, memo string, state int, force, reset bool) (bool, error)            `perm:"admin"`
+		HlmSectorListAll    func(context.Context) ([]SectorInfo, error)                                                        `perm:"read"`
+		HlmSectorFile       func(ctx context.Context, sid string) (*storiface.SectorFile, error)                               `perm:"read"`
+		HlmSectorCheck      func(ctx context.Context, sid string, timeout time.Duration) (time.Duration, error)                `perm:"read"`
+		HlmSectorGetStartID func(ctx context.Context) (uint64, error)                                                          `perm:"read"`
+		HlmSectorSetStartID func(ctx context.Context, baseID uint64) error                                                     `perm:"admin"`
+		HlmSectorByWorker   func(ctx context.Context, sectorId, lastMonth, currentMonth string) ([]database.StatisSeal, error) `perm:"admin"`
 	}
 }
 
@@ -159,7 +159,7 @@ func (c *HlmMinerSectorStruct) HlmSectorGetStartID(ctx context.Context) (uint64,
 func (c *HlmMinerSectorStruct) HlmSectorSetStartID(ctx context.Context, baseID uint64) error {
 	return c.Internal.HlmSectorSetStartID(ctx, baseID)
 }
-func (c *HlmMinerSectorStruct) HlmSectorByWorker(ctx context.Context, sectorId, lastMonth, currentMonth string) ([]database.StatWorkerSealTime, error) {
+func (c *HlmMinerSectorStruct) HlmSectorByWorker(ctx context.Context, sectorId, lastMonth, currentMonth string) ([]database.StatisSeal, error) {
 	return c.Internal.HlmSectorByWorker(ctx, sectorId, lastMonth, currentMonth)
 }
 

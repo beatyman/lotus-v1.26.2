@@ -230,14 +230,14 @@ GROUP BY stage;
 `
 	sectorByWorkerSql = `
 SELECT
-	*
+	task_id,sid,stage,worker_id,begin_time,end_time,used,error
 FROM
 %s
 WHERE
 	sid = ? 
 union all 
 SELECT
-	*
+	task_id,sid,stage,worker_id,begin_time,end_time,used,error
 FROM
 %s
 WHERE
@@ -285,19 +285,19 @@ func StatWorkerSealTimeFn(workerID string, startTime, endTime time.Time) (StatWo
 	return result, nil
 }
 
-func GetSectorByWorker(sectorID, lastMonth, currentMonth string) ([]StatWorkerSealTime, error) {
-	destSql := fmt.Sprintf(sectorByWorkerSql, lastMonth, currentMonth)
+func GetSectorByWorker(sectorID, lastMonth, currentMonth string) ([]StatisSeal, error) {
+	destSql := fmt.Sprintf(sectorByWorkerSql, tb_statis_seal_headname+"_"+lastMonth, tb_statis_seal_headname+"_"+currentMonth)
 	db := GetDB()
-	rows, err := db.Query(destSql, sectorID)
+	rows, err := db.Query(destSql, sectorID, sectorID)
 	if err != nil {
 		return nil, errors.As(err, sectorID)
 	}
 	defer database.Close(rows)
 
-	result := StatWorkerSealTimes{}
+	result := make([]StatisSeal, 0, 0)
 	for rows.Next() {
-		stat := StatWorkerSealTime{}
-		if err := rows.Scan(&stat.Stage, &stat.Total, &stat.Avg, &stat.Min, &stat.Max); err != nil {
+		stat := StatisSeal{}
+		if err := rows.Scan(&stat.TaskID, &stat.Sid, &stat.Stage, &stat.WorkerID, &stat.BeginTime, &stat.EndTime, &stat.Used, &stat.Error); err != nil {
 			return nil, errors.As(err)
 		}
 		result = append(result, stat)

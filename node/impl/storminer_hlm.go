@@ -168,7 +168,7 @@ func (sm *StorageMinerAPI) HlmSectorCheck(ctx context.Context, sid string, timeo
 	return all[0].Used, nil
 }
 
-func (sm *StorageMinerAPI) HlmSectorByWorker(ctx context.Context, sectorId, lastMonth, currentMonth string) ([]database.StatWorkerSealTime, error) {
+func (sm *StorageMinerAPI) HlmSectorByWorker(ctx context.Context, sectorId, lastMonth, currentMonth string) ([]database.StatisSeal, error) {
 	return database.GetSectorByWorker(sectorId, lastMonth, currentMonth)
 }
 
