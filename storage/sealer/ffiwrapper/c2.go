@@ -25,10 +25,6 @@ func ExecCommit2WithSupra(ctx context.Context, sector storiface.SectorRef, phase
 	}
 	c2outPath := filepath.Join(tmpDir, "c2.out")
 
-	ssize, err := sector.ProofType.SectorSize()
-	if err != nil {
-		return nil, err
-	}
 	proverID, err := toProverID(sector.ID.Miner)
 	if err != nil {
 		return nil, err
@@ -37,9 +33,7 @@ func ExecCommit2WithSupra(ctx context.Context, sector storiface.SectorRef, phase
 	program := "./supra-c2"
 	cmd := exec.CommandContext(ctx, program,
 		"--sector-id", sector.ID.Number.String(),
-		"--sector-size", ssize.ShortString(),
-		"--prover-id", hex.EncodeToString(proverID),
-		"--proof-type", fmt.Sprintf("%v", int64(sector.ProofType)),
+		"--prover-id", proverID,
 		"--input-file", c1outPath,
 		"--output-file", c2outPath,
 	)
@@ -52,10 +46,17 @@ func ExecCommit2WithSupra(ctx context.Context, sector storiface.SectorRef, phase
 	return os.ReadFile(c2outPath)
 }
 
-func toProverID(minerID abi.ActorID) ([]byte, error) {
+func toProverID(minerID abi.ActorID) (string, error) {
 	maddr, err := address.NewIDAddress(uint64(minerID))
 	if err != nil {
-		return nil, errors.New("failed to convert ActorID to prover id")
+		return "", errors.New("failed to convert ActorID to prover id")
 	}
-	return maddr.Payload(), nil
+	data := [32]byte{}
+	for i, b := range maddr.Payload() {
+		if i >= 32 {
+			break
+		}
+		data[i] = b
+	}
+	return hex.EncodeToString(data[:]), nil
 }
