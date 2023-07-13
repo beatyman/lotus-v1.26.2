@@ -160,6 +160,8 @@ loopUnixConn:
 }
 
 func execPrecommit2WithSupra(ctx context.Context, sealer *Sealer, task WorkerTask) (storiface.SectorCids, error) {
+	log.Infow("execPrecommit2WithSupra Start", "sector", task.SectorName())
+	defer log.Infow("execPrecommit2WithSupra Finish", "sector", task.SectorName())
 	defer func() {
 		if e := recover(); e != nil {
 			log.Errorf("ExecPrecommit2WithSupra panic: %v\n%v", e, string(debug.Stack()))
@@ -181,6 +183,16 @@ func execPrecommit2WithSupra(ctx context.Context, sealer *Sealer, task WorkerTas
 		"-i", cachePath,
 		"-o", cachePath,
 	)
+	if os.Getenv("LOTUS_WORKER_P2_CPU_LIST") != "" {
+		cpuList := os.Getenv("LOTUS_WORKER_P2_CPU_LIST")
+		log.Infof("Lock P2 cpu list: %v ", cpuList)
+		cmd = exec.CommandContext(ctx, "taskset", "-c", cpuList, program,
+			"-d", sealedPath,
+			"-i", cachePath,
+			"-o", cachePath,
+		)
+	}
+	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

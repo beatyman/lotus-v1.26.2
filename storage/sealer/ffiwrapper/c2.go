@@ -15,6 +15,9 @@ import (
 )
 
 func ExecCommit2WithSupra(ctx context.Context, sector storiface.SectorRef, phase1Out storiface.Commit1Out) (storiface.Proof, error) {
+	log.Infow("ExecCommit2WithSupra Start", "sector", storiface.SectorName(sector.ID))
+	defer log.Infow("ExecCommit2WithSupra Finish", "sector", storiface.SectorName(sector.ID))
+
 	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("s-%v-%v", sector.ID.Miner.String(), sector.ID.Number.String()))
 	if err != nil {
 		return nil, err
@@ -37,6 +40,7 @@ func ExecCommit2WithSupra(ctx context.Context, sector storiface.SectorRef, phase
 		"--input-file", c1outPath,
 		"--output-file", c2outPath,
 	)
+	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
