@@ -7,12 +7,14 @@ import (
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/lotus/buried/utils"
 	"github.com/google/uuid"
+	"github.com/gwaylib/hardware/bindgpu"
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
 	"huangdong2012/filecoin-monitor/trace/spans"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -98,7 +100,7 @@ func acceptJobs(ctx context.Context,
 
 	// check gpu
 	if workerCfg.ParallelPrecommit2 > 0 || workerCfg.ParallelCommit > 0 || workerCfg.Commit2Srv || workerCfg.WdPoStSrv {
-		ffiwrapper.AssertGPU(ctx)
+		bindgpu.AssertGPU(ctx)
 	}
 
 	// check params
@@ -354,7 +356,8 @@ reAllocate:
 			}
 			// fetch done
 		default:
-			if task.Type == ffiwrapper.WorkerPledge || task.Type == ffiwrapper.WorkerPreCommit1 {
+			//hb_fix || task.Type == ffiwrapper.WorkerPreCommit1
+			if task.Type == ffiwrapper.WorkerPledge  {
 				// get the market unsealed data, and copy to local
 				if err := w.fetchUnseal(ctx, sealer, task); err != nil {
 					return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
@@ -408,10 +411,10 @@ reAllocate:
 		ID:        task.SectorID,
 		ProofType: task.ProofType,
 		SectorFile: storiface.SectorFile{
-			SectorId:     storiface.SectorName(task.SectorID),
-			SealedRepo:   sealer.RepoPath(),
-			UnsealedRepo: sealer.RepoPath(),
-			IsMarketSector: task.SectorStorage.UnsealedStorage.ID!=0,
+			SectorId:       storiface.SectorName(task.SectorID),
+			SealedRepo:     sealer.RepoPath(),
+			UnsealedRepo:   sealer.RepoPath(),
+			IsMarketSector: task.SectorStorage.UnsealedStorage.ID != 0,
 		},
 		StoreUnseal: task.StoreUnseal,
 	}
@@ -436,19 +439,15 @@ reAllocate:
 			task.PieceData.ReaderKind = shared.PIECE_DATA_KIND_FILE
 			task.PieceData.LocalPath = tmpFile
 		}
-		if len(task.ExtSizes)!=0{
-			if res.Pieces, err = sealer.PledgeSector(ctx, sector, task.ExistingPieceSizes,  task.ExtSizes...); err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
-		}else {
-			if res.Piece, err = sealer.AddPiece(ctx, sector, task.ExistingPieceSizes, task.PieceSize, task.PieceData); err != nil {
-				return errRes(errors.As(err, w.workerCfg), &res)
-			}
+		rsp, err := sealer.ExecAddPiece(ctx, task)
+		res.Piece = rsp
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 		if oriReaderKind == shared.PIECE_DATA_KIND_SERVER {
 			// push unsealed, so the market addpiece can make a index for continue
 		retry:
-			log.Info("==================sector.StoreUnseal====================",sector.StoreUnseal)
+			log.Info("==================sector.StoreUnseal====================", sector.StoreUnseal)
 			if sector.StoreUnseal {
 				if err := w.pushUnsealed(ctx, sealer, task); err != nil {
 					log.Warn(errors.As(err))
@@ -461,21 +460,39 @@ reAllocate:
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)
 
 	case ffiwrapper.WorkerPreCommit1:
+		if _, err := os.Stat(filepath.Join(sealer.RepoPath(), "unsealed", task.SectorName())); err != nil {
+			if !os.IsNotExist(err) {
+				return errRes(errors.As(err, task), &res)
+			}
+			// create the garbage unsealed data
+			pieces, err := sealer.PledgeSector(ctx, sector, task.ExistingPieceSizes,  task.ExtSizes...)
+			if err != nil {
+				return errRes(errors.As(err, task), &res)
+			}
+			// TODO: checksum the pieces?
+			if len(pieces) != len(task.Pieces) {
+				log.Error(errors.New("piece length not match").As(task, pieces))
+			} else {
+				for i, p := range task.Pieces {
+					if pieces[i].PieceCID.String() != p.PieceCID.String() {
+						log.Error(errors.New("piece data not match").As(task, pieces[i], i))
+					}
+				}
+			}
+			task.Pieces = pieces
+		}
+
 	retryConfirmStaging:
 		if err := w.ConfirmStaging(ctx, sealer, task.SectorName()); err != nil {
 			log.Warn(errors.As(err))
 			time.Sleep(10e9)
 			goto retryConfirmStaging
 		}
-		pieceInfo := task.Pieces
-		rspco, err := sealer.SealPreCommit1(ctx, sector, task.SealTicket, pieceInfo)
-
-		// rspco, err := ffiwrapper.ExecPrecommit1(ctx, sealer.RepoPath(), task)
+		rspco, err := sealer.ExecPreCommit1(ctx, task)
 		res.PreCommit1Out = rspco
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit2 == 0)
 		utils.DeleteC1Out(sector)
@@ -495,7 +512,7 @@ reAllocate:
 			}
 		} else {
 			//out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
-			out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
+			out, err := sealer.ExecPreCommit2(ctx, task)
 			res.PreCommit2Out = out
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
@@ -512,7 +529,7 @@ reAllocate:
 			for strings.EqualFold(commR, errCommR) && redoTimes < 2 {
 				redoTimes++
 				log.Infof("WARN###: Redo P2 : times %v ", redoTimes)
-				out, err := ffiwrapper.ExecPrecommit2(ctx, sealer.RepoPath(), task)
+				out, err := sealer.ExecPreCommit2(ctx, task)
 				res.PreCommit2Out = out
 				if err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)

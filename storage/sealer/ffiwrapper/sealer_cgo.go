@@ -13,6 +13,7 @@ import (
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
+	"github.com/gwaylib/hardware/bindgpu"
 	"io"
 	"io/ioutil"
 	"math/bits"
@@ -1119,7 +1120,8 @@ func (sb *Sealer) sealPreCommit1(ctx context.Context, sector storiface.SectorRef
 var PC2CheckRounds = 3
 
 func (sb *Sealer) sealPreCommit2(ctx context.Context, sector storiface.SectorRef, phase1Out storiface.PreCommit1Out) (storiface.SectorCids, error) {
-	AssertGPU(ctx)
+	bindgpu.AssertGPU(ctx)
+	BindGPU(ctx)
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTSealed|storiface.FTCache, 0, storiface.PathSealing)
 	if err != nil {
 		return storiface.SectorCids{}, xerrors.Errorf("acquiring sector paths: %w", err)
@@ -1209,7 +1211,8 @@ func (sb *Sealer) SealCommit1(ctx context.Context, sector storiface.SectorRef, t
 }
 
 func (sb *Sealer) SealCommit2(ctx context.Context, sector storiface.SectorRef, phase1Out storiface.Commit1Out) (storiface.Proof, error) {
-	AssertGPU(ctx)
+	bindgpu.AssertGPU(ctx)
+	BindGPU(ctx)
 	return ffi.SealCommitPhase2(phase1Out, sector.ID.Number, sector.ID.Miner)
 }
 

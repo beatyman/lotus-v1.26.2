@@ -7,7 +7,6 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"go.opencensus.io/trace/propagation"
 	"math"
-	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -102,6 +101,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 	//todo fix_hb
 	atomic.AddInt32(&_pledgeWait, 1)
 	if !sb.remoteCfg.SealSector {
+		atomic.AddInt32(&_pledgeWait, -1)
 		reader, err := pieceData.ToPaddedReader()
 		if err != nil {
 			return abi.PieceInfo{}, errors.As(err)
@@ -154,34 +154,28 @@ func (sb *Sealer) PledgeSector(ctx context.Context, sector storiface.SectorRef, 
 
 	log.Infof("DEBUG:PledgeSector in(remote:%t),%+v, snap(%v)", sb.remoteCfg.SealSector, sector.ID, snap)
 	defer log.Infof("DEBUG:PledgeSector out,%+v, snap(%v)", sector.ID, snap)
+
+
 	if len(sizes) == 0 {
-		log.Infof("No sizes for pledge %+v", sector.ID)
+		log.Info("No sizes for pledge")
 		return nil, nil
 	}
 
-	atomic.AddInt32(&_pledgeWait, 1)
-	if !sb.remoteCfg.SealSector {
-		return sb.pledgeSector(ctx, sector, existingPieceSizes, sizes...)
-	}
+	log.Infof("Pledge %+v, contains %+v, sizes %+v",
+		storiface.SectorName(sector.ID), existingPieceSizes, sizes)
 
-	call := workerCall{
-		// no need worker id
-		task: WorkerTask{
-			Snap:               snap,
-			Type:               WorkerPledge,
-			ProofType:          sector.ProofType,
-			SectorID:           sector.ID,
-			ExistingPieceSizes: existingPieceSizes,
-			ExtSizes:           sizes,
-			StoreUnseal:        sector.StoreUnseal,
-		},
-		ret: make(chan SealRes),
-	}
+	out := make([]abi.PieceInfo, len(sizes))
+	for i, size := range sizes {
+		ppi, err := sb.AddPiece(ctx, sector, existingPieceSizes, size, shared.NewNullPieceData(size))
+		if err != nil {
+			return nil, xerrors.Errorf("add piece: %w", err)
+		}
 
-	select { // prefer remote
-	case _pledgeTasks <- call:
-		return sb.pledgeRemote(call)
+		existingPieceSizes = append(existingPieceSizes, size)
+
+		out[i] = ppi
 	}
+	return out, nil
 }
 func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storiface.PreCommit1Out, error) {
 	select {
@@ -200,12 +194,13 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storiface.SectorRef
 	defer log.Infof("DEBUG:SealPreCommit1 out,%+v", sector.ID)
 
 	// if the FIL_PROOFS_MULTICORE_SDR_PRODUCERS is not set, set it by auto.
+	/*
 	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
 		if err := autoPrecommit1Env(ctx); err != nil {
 			return storiface.PreCommit1Out{}, errors.As(err)
 		}
 	}
-
+	*/
 	atomic.AddInt32(&_precommit1Wait, 1)
 	if !sb.remoteCfg.SealSector {
 		atomic.AddInt32(&_precommit1Wait, -1)
@@ -391,12 +386,13 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storiface.SectorRef, o
 		return errors.New("the sector is unsealing").As(sectorName(sector.ID))
 	}
 	defer sb.unsealing.Delete(unsealKey)
-
+	/*
 	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
 		if err := autoPrecommit1Env(ctx); err != nil {
 			return errors.As(err)
 		}
 	}
+	 */
 
 	atomic.AddInt32(&_unsealWait, 1)
 	if !sb.remoteCfg.SealSector {
