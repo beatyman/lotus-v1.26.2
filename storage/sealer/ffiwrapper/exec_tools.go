@@ -8,6 +8,8 @@ import (
 	"crypto/x509"
 	"io"
 	"net"
+	"os"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/gwaylib/errors"
@@ -15,6 +17,8 @@ import (
 
 var (
 	_exec_code = uuid.New().String()
+	_process     sync.Map
+	_processRW   sync.RWMutex          //上线和下线的操作需要锁住
 )
 
 func readUnixConn(conn net.Conn) ([]byte, error) {
@@ -112,4 +116,29 @@ func AESDecrypt(src []byte, passwd string) (dst []byte, err error) {
 		}
 	}
 	return data[:dlen-last], nil
+}
+
+func StoreTaskPid(key string,pid int)  {
+	_processRW.RLock()
+	defer _processRW.RUnlock()
+	_process.Store(key,pid)
+}
+func FreeTaskPid(key string)  {
+	_processRW.RLock()
+	defer _processRW.RUnlock()
+	obj, ok := _process.Load(key)
+	if !ok {
+		return
+	}
+	_process.Delete(key)
+	pid, ok := obj.(int)
+	if !ok {
+		return
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return
+	}
+	// Kill the process
+	proc.Kill()
 }

@@ -32,13 +32,13 @@ type ExecP1Resp struct {
 	Err  string
 }
 
-func bindP1Process(ctx context.Context, cpuKeys []*bindcpu.CpuAllocateKey, cpuVal *bindcpu.CpuAllocateVal) error {
+func (sb *Sealer)bindP1Process(ctx context.Context, cpuKeys []*bindcpu.CpuAllocateKey, cpuVal *bindcpu.CpuAllocateVal,task WorkerTask) error {
 	orderCpu := []string{}
 	for _, cpu := range cpuVal.Cpus {
 		orderCpu = append(orderCpu, strconv.Itoa(cpu))
 	}
 	orderCpuStr := strings.Join(orderCpu, ",")
-	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p1-%d", cpuVal.Cpus[0]))
+	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p1-%s", orderCpuStr))
 
 	cmd := exec.CommandContext(ctx, os.Args[0],
 		"precommit1",
@@ -66,7 +66,8 @@ func bindP1Process(ctx context.Context, cpuKeys []*bindcpu.CpuAllocateKey, cpuVa
 		cmd.Process.Kill()
 		return errors.As(err)
 	}
-
+	StoreTaskPid(task.SectorName(),cmd.Process.Pid)
+	defer FreeTaskPid(task.SectorName())
 	// transfer precommit1 parameters
 	var d net.Dialer
 	d.LocalAddr = nil // if you have a local addr, add it here
@@ -113,7 +114,7 @@ func (sb *Sealer) ExecPreCommit1(ctx context.Context, task WorkerTask) (storifac
 	log.Infof("task: %+v,try bind cpu: %+v",task.SectorID,cpuVal.Cpus)
 	// bind process
 	if cpuVal.Conn == nil {
-		if err := bindP1Process(ctx, cpuKeys, cpuVal); err != nil {
+		if err := sb.bindP1Process(ctx, cpuKeys, cpuVal,task); err != nil {
 			//bindcpu.CloseCpuConn(cpuKeys)
 			return nil, errors.As(err)
 		}

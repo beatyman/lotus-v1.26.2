@@ -33,7 +33,7 @@ type ExecPrecommit2Resp struct {
 	Err  string
 }
 
-func bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindgpu.GpuInfo, cpuVal *bindcpu.CpuAllocateVal) error {
+func (sb *Sealer)bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindgpu.GpuInfo, cpuVal *bindcpu.CpuAllocateVal, task WorkerTask) error {
 
 	l3CpuNum := len(cpuVal.Cpus)
 	gpuKey := gInfo.Pci.PciBusID
@@ -41,8 +41,13 @@ func bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindg
 		uid := strings.TrimPrefix(gInfo.UUID, "GPU-")
 		gpuKey = fmt.Sprintf("%s@%s", uid, gpuKey)
 	}
-	log.Infof("try bind CPU: %+v ,GPU: %+v",cpuVal.Cpus,gpuKey)
-	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p2-%s-%d", gInfo.UniqueID(), ak.Thread))
+	orderCpu := []string{}
+	for _, cpu := range cpuVal.Cpus {
+		orderCpu = append(orderCpu, strconv.Itoa(cpu))
+	}
+	orderCpuStr := strings.Join(orderCpu, ",")
+	log.Infof("try bind CPU: %+v ,GPU: %+v",orderCpuStr,gpuKey)
+	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p2-%s-%s", gInfo.UniqueID(),orderCpuStr))
 	cmd := exec.CommandContext(ctx, os.Args[0],
 		"precommit2",
 		"--addr", unixAddr,
@@ -82,6 +87,8 @@ func bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindg
 		cmd.Process.Kill()
 		return errors.As(err)
 	}
+	StoreTaskPid(task.SectorName(),cmd.Process.Pid)
+	defer FreeTaskPid(task.SectorName())
 	log.Infof("DEBUG: bind precommit2, process:%d, gpu:%+v,cpus:%+v", cmd.Process.Pid, cmd.Env, cpuVal.Cpus)
 
 	// transfer precommit1 parameters
@@ -150,7 +157,7 @@ func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storifac
 	// bind gpu
 	conn := gpuInfo.GetConn(gpuKey.Thread)
 	if conn == nil {
-		if err := bindP2Process(ctx, gpuKey, gpuInfo,cpuVal); err != nil {
+		if err := sb.bindP2Process(ctx, gpuKey, gpuInfo,cpuVal,task); err != nil {
 			gpuInfo.Close(gpuKey.Thread)
 			return storiface.SectorCids{}, errors.As(err)
 		}

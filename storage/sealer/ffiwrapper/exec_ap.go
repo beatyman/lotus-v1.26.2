@@ -34,24 +34,14 @@ type ExecAddPieceResp struct {
 	Err  string
 }
 
-var (
-	_addPieceUnixConn net.Conn
-	_addPieceLock     = sync.Mutex{}
-)
-
-func closeAddPieceProcess() {
-	if _addPieceUnixConn != nil {
-		_addPieceUnixConn.Close()
-	}
-	_addPieceUnixConn = nil
-}
-
-func bindAddPieceProcess(ctx context.Context) error {
-	aKeys, aVal,err := AllocateCpuForAP(ctx)
-	defer bindcpu.ReturnCpus(aKeys)
+func (sb *Sealer)bindAddPieceProcess(ctx context.Context, aKeys []*bindcpu.CpuAllocateKey, aVal *bindcpu.CpuAllocateVal, task WorkerTask) error {
 	cpus := aVal.Cpus
-
-	unixAddr := filepath.Join(os.TempDir(), ".addpiece")
+	orderCpu := []string{}
+	for _, cpu := range aVal.Cpus {
+		orderCpu = append(orderCpu, strconv.Itoa(cpu))
+	}
+	orderCpuStr := strings.Join(orderCpu, ",")
+	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".addpiece-%s", orderCpuStr))
 	cmd := exec.CommandContext(ctx, os.Args[0],
 		"addpiece",
 		"--addr", unixAddr,
@@ -70,7 +60,8 @@ func bindAddPieceProcess(ctx context.Context) error {
 		cmd.Process.Kill()
 		return errors.As(err)
 	}
-
+	StoreTaskPid(task.SectorName(),cmd.Process.Pid)
+	defer FreeTaskPid(task.SectorName())
 	// transfer precommit1 parameters
 	var d net.Dialer
 	d.LocalAddr = nil // if you have a local addr, add it here
@@ -87,7 +78,7 @@ loopUnixConn:
 		cmd.Process.Kill()
 		return errors.As(err, raddr.String())
 	}
-	_addPieceUnixConn = conn
+	aVal.Conn = conn
 
 	// will block the data
 	go func() {
@@ -107,14 +98,16 @@ func (sb *Sealer) ExecAddPiece(ctx context.Context, task WorkerTask) (abi.PieceI
 	if err != nil {
 		return abi.PieceInfo{}, errors.As(err)
 	}
+	aKeys, aVal,err := AllocateCpuForAP(ctx)
+	if err != nil {
+		return abi.PieceInfo{}, errors.As(err)
+	}
+	defer bindcpu.ReturnCpus(aKeys)
 
-	_addPieceLock.Lock()
-	defer _addPieceLock.Unlock()
 
 	// bind process
-	if _addPieceUnixConn == nil {
-		if err := bindAddPieceProcess(ctx); err != nil {
-			closeAddPieceProcess()
+	if aVal.Conn ==nil {
+		if err := sb.bindAddPieceProcess(ctx,aKeys, aVal,task); err != nil {
 			return abi.PieceInfo{}, errors.As(err)
 		}
 	}
@@ -122,18 +115,16 @@ func (sb *Sealer) ExecAddPiece(ctx context.Context, task WorkerTask) (abi.PieceI
 	// write args
 	encryptArg, err := AESEncrypt(args, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
 	if err != nil {
-		closeAddPieceProcess()
 		return abi.PieceInfo{}, errors.As(err, string(args))
 	}
-	if _, err := _addPieceUnixConn.Write(encryptArg); err != nil {
-		closeAddPieceProcess()
+	conn := aVal.Conn
+	if _, err := conn.Write(encryptArg); err != nil {
 		return abi.PieceInfo{}, errors.As(err, string(args))
 	}
 
 	// wait resp
-	out, err := readUnixConn(_addPieceUnixConn)
+	out, err := readUnixConn(conn)
 	if err != nil {
-		closeAddPieceProcess()
 		return abi.PieceInfo{}, errors.As(err, string(args))
 	}
 	decodeOut, err := AESDecrypt(out, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
