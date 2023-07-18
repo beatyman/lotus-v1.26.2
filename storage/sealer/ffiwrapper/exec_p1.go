@@ -67,7 +67,6 @@ func (sb *Sealer)bindP1Process(ctx context.Context, cpuKeys []*bindcpu.CpuAlloca
 		return errors.As(err)
 	}
 	StoreTaskPid(task.SectorName(),cmd.Process.Pid)
-	defer FreeTaskPid(task.SectorName())
 	// transfer precommit1 parameters
 	var d net.Dialer
 	d.LocalAddr = nil // if you have a local addr, add it here
@@ -119,7 +118,7 @@ func (sb *Sealer) ExecPreCommit1(ctx context.Context, task WorkerTask) (storifac
 			return nil, errors.As(err)
 		}
 	}
-
+	defer FreeTaskPid(task.SectorName())
 	// write args
 	encryptArg, err := AESEncrypt(args, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
 	if err != nil {

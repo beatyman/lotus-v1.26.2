@@ -88,7 +88,7 @@ func (sb *Sealer)bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, 
 		return errors.As(err)
 	}
 	StoreTaskPid(task.SectorName(),cmd.Process.Pid)
-	defer FreeTaskPid(task.SectorName())
+
 	log.Infof("DEBUG: bind precommit2, process:%d, gpu:%+v,cpus:%+v", cmd.Process.Pid, cmd.Env, cpuVal.Cpus)
 
 	// transfer precommit1 parameters
@@ -162,6 +162,7 @@ func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storifac
 			return storiface.SectorCids{}, errors.As(err)
 		}
 	}
+	defer FreeTaskPid(task.SectorName())
 	conn = gpuInfo.GetConn(gpuKey.Thread)
 
 	// write args
