@@ -53,8 +53,7 @@ func AllocateCpuForP2(ctx context.Context) ([]*bindcpu.CpuAllocateKey, *bindcpu.
 		}
 		cpucore=num
 	}
-
-	keys, val, err := bindcpu.AllocateFixedCpu(ctx, cpucore, false)
+	keys, val, err := bindcpu.AllocateFixedCpu(ctx, cpucore, true)
 	if err != nil {
 		return nil, nil,err
 	}

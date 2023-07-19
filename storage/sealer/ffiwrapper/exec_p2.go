@@ -33,8 +33,7 @@ type ExecPrecommit2Resp struct {
 	Err  string
 }
 
-func (sb *Sealer)bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindgpu.GpuInfo, cpuVal *bindcpu.CpuAllocateVal, task WorkerTask) error {
-
+func (sb *Sealer) bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindgpu.GpuInfo, cpuVal *bindcpu.CpuAllocateVal, task WorkerTask) error {
 	l3CpuNum := len(cpuVal.Cpus)
 	gpuKey := gInfo.Pci.PciBusID
 	if strings.Index(gInfo.UUID, "GPU-") > -1 {
@@ -46,8 +45,8 @@ func (sb *Sealer)bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, 
 		orderCpu = append(orderCpu, strconv.Itoa(cpu))
 	}
 	orderCpuStr := strings.Join(orderCpu, ",")
-	log.Infof("try bind CPU: %+v ,GPU: %+v",orderCpuStr,gpuKey)
-	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p2-%s-%s", gInfo.UniqueID(),orderCpuStr))
+	log.Infof("try bind CPU: %+v ,GPU: %+v", orderCpuStr, gpuKey)
+	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p2-%s-%s", gInfo.UniqueID(), orderCpuStr))
 	cmd := exec.CommandContext(ctx, os.Args[0],
 		"precommit2",
 		"--addr", unixAddr,
@@ -81,13 +80,13 @@ func (sb *Sealer)bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, 
 	}
 	var cpus []string
 	for _, cpuIndex := range cpuVal.Cpus {
-		cpus=append(cpus,strconv.Itoa(cpuIndex))
+		cpus = append(cpus, strconv.Itoa(cpuIndex))
 	}
 	if err := bindcpu.BindCpuStr(cmd.Process.Pid, cpus); err != nil {
 		cmd.Process.Kill()
 		return errors.As(err)
 	}
-	StoreTaskPid(task.SectorName(),cmd.Process.Pid)
+	StoreTaskPid(task.SectorName(), cmd.Process.Pid)
 
 	log.Infof("DEBUG: bind precommit2, process:%d, gpu:%+v,cpus:%+v", cmd.Process.Pid, cmd.Env, cpuVal.Cpus)
 
@@ -124,24 +123,27 @@ func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storifac
 	gpuKey, gpuInfo := bindgpu.SyncAllocateGPU(ctx)
 	defer bindgpu.ReturnGPU(gpuKey)
 
-	cpuKeys,cpuVal,err:=AllocateCpuForP2(ctx)
+	cpuKeys, cpuVal, err := AllocateCpuForP2(ctx)
 	if err != nil {
 		return storiface.SectorCids{}, errors.As(err)
 	}
 	defer bindcpu.ReturnCpus(cpuKeys)
 
+	if useSupra, ok := os.LookupEnv("X_USE_SupraSeal"); ok && strings.ToLower(useSupra) != "false" {
+		return execPrecommit2WithSupra(ctx, gpuKey, gpuInfo, cpuVal, sb, task)
+	}
 	if gpuInfo.UniqueID() == "nogpu" {
 		sref := storiface.SectorRef{
 			ID:        task.SectorID,
 			ProofType: task.ProofType,
 			SectorFile: storiface.SectorFile{
-				SectorId:     storiface.SectorName(task.SectorID),
-				SealedRepo:   sb.RepoPath(),
-				UnsealedRepo: sb.RepoPath(),
-				IsMarketSector: task.SectorStorage.UnsealedStorage.ID!=0,
+				SectorId:       storiface.SectorName(task.SectorID),
+				SealedRepo:     sb.RepoPath(),
+				UnsealedRepo:   sb.RepoPath(),
+				IsMarketSector: task.SectorStorage.UnsealedStorage.ID != 0,
 			},
-			StoreUnseal: task.StoreUnseal,
-			SectorRepairStatus:task.SectorRepairStatus,
+			StoreUnseal:        task.StoreUnseal,
+			SectorRepairStatus: task.SectorRepairStatus,
 		}
 		return sb.sealPreCommit2(ctx, sref, task.PreCommit1Out)
 	}
@@ -157,7 +159,7 @@ func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storifac
 	// bind gpu
 	conn := gpuInfo.GetConn(gpuKey.Thread)
 	if conn == nil {
-		if err := sb.bindP2Process(ctx, gpuKey, gpuInfo,cpuVal,task); err != nil {
+		if err := sb.bindP2Process(ctx, gpuKey, gpuInfo, cpuVal, task); err != nil {
 			gpuInfo.Close(gpuKey.Thread)
 			return storiface.SectorCids{}, errors.As(err)
 		}
@@ -269,7 +271,7 @@ var P2Cmd = &cli.Command{
 			workerRepo := req.Repo
 			task := req.Task
 
-			log.Infof("p2 process req in:%s, %s, %+v", unixAddr.String(), workerRepo, 	task.SectorID)
+			log.Infof("p2 process req in:%s, %s, %+v", unixAddr.String(), workerRepo, task.SectorID)
 			workerSealer, err := New(RemoteCfg{}, &basicfs.Provider{
 				Root: workerRepo,
 			})
@@ -281,13 +283,13 @@ var P2Cmd = &cli.Command{
 				ID:        task.SectorID,
 				ProofType: task.ProofType,
 				SectorFile: storiface.SectorFile{
-					SectorId:     storiface.SectorName(task.SectorID),
-					SealedRepo:   workerRepo,
-					UnsealedRepo: workerRepo,
-					IsMarketSector: task.SectorStorage.UnsealedStorage.ID!=0,
+					SectorId:       storiface.SectorName(task.SectorID),
+					SealedRepo:     workerRepo,
+					UnsealedRepo:   workerRepo,
+					IsMarketSector: task.SectorStorage.UnsealedStorage.ID != 0,
 				},
-				StoreUnseal: task.StoreUnseal,
-				SectorRepairStatus:task.SectorRepairStatus,
+				StoreUnseal:        task.StoreUnseal,
+				SectorRepairStatus: task.SectorRepairStatus,
 			}
 			out, err := workerSealer.SealPreCommit2(ctx, sref, task.PreCommit1Out)
 			if err != nil {

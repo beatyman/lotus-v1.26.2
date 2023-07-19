@@ -464,7 +464,7 @@ reAllocate:
 				return errRes(errors.As(err, task), &res)
 			}
 			// create the garbage unsealed data
-			pieces, err := sealer.PledgeSector(ctx, sector, task.ExistingPieceSizes,  task.ExtSizes...)
+			pieces, err := sealer.PledgeSector(ctx, sector, task.ExistingPieceSizes, task.ExtSizes...)
 			if err != nil {
 				return errRes(errors.As(err, task), &res)
 			}
@@ -511,7 +511,7 @@ reAllocate:
 			}
 		} else {
 			//out, err := sealer.SealPreCommit2(ctx, sector, task.PreCommit1Out)
-			out, err := ffiwrapper.ExecPrecommit2Wrap(ctx, sealer, task)
+			out, err := sealer.ExecPreCommit2(ctx, task)
 			res.PreCommit2Out = out
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
@@ -528,7 +528,7 @@ reAllocate:
 			for strings.EqualFold(commR, errCommR) && redoTimes < 2 {
 				redoTimes++
 				log.Infof("WARN###: Redo P2 : times %v ", redoTimes)
-				out, err := ffiwrapper.ExecPrecommit2Wrap(ctx, sealer, task)
+				out, err := sealer.ExecPreCommit2(ctx, task)
 				res.PreCommit2Out = out
 				if err != nil {
 					return errRes(errors.As(err, w.workerCfg), &res)
