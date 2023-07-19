@@ -161,7 +161,7 @@ require (
 	golang.org/x/exp v0.0.0-20230129154200-a960b3787bd2
 	golang.org/x/net v0.7.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.5.0
+	golang.org/x/sys v0.7.0
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9
 	golang.org/x/tools v0.3.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
@@ -173,7 +173,6 @@ require (
 	github.com/GeertJohan/go.incremental v1.0.0 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
-	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/akavel/rsrc v0.8.0 // indirect
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect
 	github.com/armon/go-metrics v0.3.9 // indirect
@@ -327,12 +326,13 @@ require (
 	github.com/rivo/uniseg v0.1.0 // indirect
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/cobra v1.6.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/tklauser/go-sysconf v0.3.11 // indirect
+	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
@@ -347,6 +347,7 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
+	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	github.com/zondax/hid v0.9.1 // indirect
 	github.com/zondax/ledger-go v0.12.1 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
@@ -391,14 +392,16 @@ require (
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/google/gops v0.3.27
 	github.com/gwaylib/database v0.0.0-20230615030805-63012daf0f5d
-	github.com/gwaylib/errors v0.0.0-20211126090330-1931a9c4fe20
+	github.com/gwaylib/errors v0.0.0-20230225020640-41299698202b
+	github.com/gwaylib/hardware/bindcpu v0.0.0-20230413010537-5e7a17ecd7eb
+	github.com/gwaylib/hardware/bindgpu v0.0.0-00010101000000-000000000000
 	github.com/gwaylib/log v0.0.0-20220419074212-f1aa63899ff1
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
 	github.com/ipfs/go-block-format v0.1.1
 	github.com/ipfs/go-ipfs-files v0.3.0
 	github.com/ipfs/go-log v1.0.5
 	github.com/lib/pq v1.3.0
-	github.com/shirou/gopsutil v2.18.12+incompatible
+	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/ufilesdk-dev/us3-qiniu-go-sdk v0.2.0
 	go.etcd.io/etcd/client/v3 v3.5.7
 	go.etcd.io/etcd/etcdctl/v3 v3.5.7
@@ -418,3 +421,7 @@ replace go.opencensus.io => github.com/jupiter-dao/opencensus-go v0.0.0-20230418
 replace github.com/uber/jaeger-client-go => github.com/uber/jaeger-client-go v2.25.0+incompatible
 
 replace github.com/filecoin-project/go-fil-markets => github.com/jupiter-dao/go-fil-markets v1.27.0-rc1.0.20230618025711-a2059094b5f7
+
+replace github.com/gwaylib/hardware/bindcpu => github.com/jupiter-dao/hardware/bindcpu v0.0.0-20230717093548-085100b8ffdc
+
+replace github.com/gwaylib/hardware/bindgpu => github.com/jupiter-dao/hardware/bindgpu v0.0.0-20230717093548-085100b8ffdc

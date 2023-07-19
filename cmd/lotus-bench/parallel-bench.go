@@ -510,7 +510,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 				panic(err)
 			}
 		} else {
-			pc1o, err = ffiwrapper.ExecPrecommit1(ctx, task.Repo, ffiwrapper.WorkerTask{
+			pc1o, err = sb.ExecPreCommit1(ctx, ffiwrapper.WorkerTask{
 				Type:      ffiwrapper.WorkerTaskType(task.Type),
 				ProofType: sid.ProofType,
 				SectorID:  sid.ID,
@@ -520,7 +520,6 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 				//Pieces:     ffiwrapper.EncodePieceInfo(task.Pieces),
 				Pieces: task.Pieces,
 			})
-
 		}
 		resultLk.Lock()
 		p1Result = append(p1Result, ParallelBenchResult{
@@ -549,7 +548,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 				panic(err)
 			}
 		} else {
-			cids, err = ffiwrapper.ExecPrecommit2(ctx, task.Repo, ffiwrapper.WorkerTask{
+			cids, err = sb.ExecPreCommit2(ctx, ffiwrapper.WorkerTask{
 				Type:      ffiwrapper.WorkerTaskType(task.Type),
 				ProofType: sid.ProofType,
 				SectorID:  sid.ID,

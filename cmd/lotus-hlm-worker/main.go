@@ -108,6 +108,7 @@ func main() {
 	local := []*cli.Command{
 		runCmd,
 		rebuildCmd,
+		ffiwrapper.AddPieceCmd,
 		ffiwrapper.P1Cmd,
 		ffiwrapper.P2Cmd,
 	}

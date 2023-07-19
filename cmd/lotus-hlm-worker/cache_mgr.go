@@ -49,6 +49,7 @@ func (w *worker) removeRepoSector(ctx context.Context, repo, sid string) error {
 	if err := w.diskPool.Delete(sid); err != nil {
 		log.Error(errors.As(err))
 	}
+	ffiwrapper.FreeTaskPid(sid)
 	return nil
 }
 
