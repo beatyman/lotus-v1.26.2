@@ -77,7 +77,7 @@ func execPrecommit2WithSupra(ctx context.Context, ak *bindgpu.GpuAllocateKey, gI
 	if err != nil {
 		return storiface.SectorCids{}, err
 	}
-	commR, err := commcid.DataCommitmentV1ToCID(commRBytes)
+	commR, err := commcid.ReplicaCommitmentV1ToCID(commRBytes)
 	if err != nil {
 		return storiface.SectorCids{}, err
 	}
