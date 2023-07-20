@@ -1015,7 +1015,7 @@ github.com/ipld/go-ipld-selector-text-lite v0.0.1 h1:lNqFsQpBHc3p5xHob2KvEg/iM5d
 github.com/ipld/go-ipld-selector-text-lite v0.0.1/go.mod h1:U2CQmFb+uWzfIEF3I1arrDa5rwtj00PrpiwwCO+k1RM=
 github.com/ipni/index-provider v0.11.0 h1:q2PdK6JpYB9bzlntfkRYNBjhg4Qtko5+iXRonO88TAg=
 github.com/ipni/index-provider v0.11.0/go.mod h1:gB/wN4Mdz4MzikQubjyRRV97iS5BkD4FKB0U/bF/dY4=
-github.com/ipni/storetheindex v0.5.10 h1:34cPsNGSKJJJRBF5eQJOuAuKkpRh6YhHxnMKKhxIacE=
+github.com/ipni/storetheindex v0.5.10 h1:r97jIZsXPuwQvePJQuStu2a/kn+Zn8X4MAdA0rU2Pu4=
 github.com/ipni/storetheindex v0.5.10/go.mod h1:SJKFCnSx4X/4ekQuZvq8pVU/7tmxkEv632Qmgu3m2bQ=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52 h1:QG4CGBqCeuBo6aZlGAamSkxWdgWfZGeE49eUOWJPA4c=
 github.com/ipsn/go-secp256k1 v0.0.0-20180726113642-9d62b9f0bc52/go.mod h1:fdg+/X9Gg4AsAIzWpEHwnqd+QY3b7lajxyjE1m4hkq4=
@@ -1076,10 +1076,10 @@ github.com/jupiter-dao/go-fil-markets v1.27.0-rc1.0.20230618025711-a2059094b5f7 
 github.com/jupiter-dao/go-fil-markets v1.27.0-rc1.0.20230618025711-a2059094b5f7/go.mod h1:NBzgWqtt9foLU+9BMXAs+4uBAQvLfJTUu/dtUaQVKag=
 github.com/jupiter-dao/go-jsonrpc v0.1.1-0.20230413113057-87d07838d99b h1:zNLyIhbaBwpbsv8QBAF+4jg0EbaW6auh+Lc8fF6CSk4=
 github.com/jupiter-dao/go-jsonrpc v0.1.1-0.20230413113057-87d07838d99b/go.mod h1:jBSvPTl8V1N7gSTuCR4bis8wnQnIjHbRPpROol6iQKM=
-github.com/jupiter-dao/hardware/bindcpu v0.0.0-20230717093548-085100b8ffdc h1:2nNy+1QNbODkjSkB6J3pWQM28Kl+yoIfG2L4hkx6uwQ=
-github.com/jupiter-dao/hardware/bindcpu v0.0.0-20230717093548-085100b8ffdc/go.mod h1:PAbZeE71mDoomCK9yd4/W1UhCnNyimL0b2IA/wTazqE=
-github.com/jupiter-dao/hardware/bindgpu v0.0.0-20230717093548-085100b8ffdc h1:rxE3PoU6K+nEUHvNxzlXNu1Jb2RcKgYDVhLXjNPPwH4=
-github.com/jupiter-dao/hardware/bindgpu v0.0.0-20230717093548-085100b8ffdc/go.mod h1:yyrnkpKSVRYXwJwQA3bfuAXfMJ5PjXrVq2lsjzRAQfc=
+github.com/jupiter-dao/hardware/bindcpu v0.0.0-20230720004243-fae3e7b9dd2c h1:KO7MSqjtKfF+TsOIgHFDl0wN17RHhb8uNDyhrSHIhwA=
+github.com/jupiter-dao/hardware/bindcpu v0.0.0-20230720004243-fae3e7b9dd2c/go.mod h1:PAbZeE71mDoomCK9yd4/W1UhCnNyimL0b2IA/wTazqE=
+github.com/jupiter-dao/hardware/bindgpu v0.0.0-20230720004243-fae3e7b9dd2c h1:vLEOmM/xxrNO3epxxQLSucJK2SsSqZ88YUiSpHy/HAI=
+github.com/jupiter-dao/hardware/bindgpu v0.0.0-20230720004243-fae3e7b9dd2c/go.mod h1:yyrnkpKSVRYXwJwQA3bfuAXfMJ5PjXrVq2lsjzRAQfc=
 github.com/jupiter-dao/opencensus-go v0.0.0-20230418095303-226cd2477b0a h1:L/OhxwcULyE7KdZUrpwLwyggtEf8QobEOvS+RPFwpq0=
 github.com/jupiter-dao/opencensus-go v0.0.0-20230418095303-226cd2477b0a/go.mod h1:vNK8G9p7aAivkbmorf4v+7Hgx+Zs0yY+0fOtgBfjQKo=
 github.com/kami-zh/go-capturer v0.0.0-20171211120116-e492ea43421d/go.mod h1:P2viExyCEfeWGU259JnaQ34Inuec4R38JCyBx2edgD0=
