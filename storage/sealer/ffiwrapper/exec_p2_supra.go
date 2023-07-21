@@ -50,7 +50,7 @@ func execPrecommit2WithSupra(ctx context.Context, ak *bindgpu.GpuAllocateKey, gI
 		"-o", cachePath,
 	)
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=1"))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=0"))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
