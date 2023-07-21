@@ -422,6 +422,6 @@ replace github.com/uber/jaeger-client-go => github.com/uber/jaeger-client-go v2.
 
 replace github.com/filecoin-project/go-fil-markets => github.com/jupiter-dao/go-fil-markets v1.27.0-rc1.0.20230618025711-a2059094b5f7
 
-replace github.com/gwaylib/hardware/bindcpu => github.com/jupiter-dao/hardware/bindcpu v0.0.0-20230720004243-fae3e7b9dd2c
+replace github.com/gwaylib/hardware/bindcpu => github.com/jupiter-dao/hardware/bindcpu v0.0.0-20230721030252-fef0c9667d45
 
-replace github.com/gwaylib/hardware/bindgpu => github.com/jupiter-dao/hardware/bindgpu v0.0.0-20230720004243-fae3e7b9dd2c
+replace github.com/gwaylib/hardware/bindgpu => github.com/jupiter-dao/hardware/bindgpu v0.0.0-20230721030252-fef0c9667d45
