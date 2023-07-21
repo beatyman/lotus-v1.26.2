@@ -127,11 +127,10 @@ func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storifac
 	if err != nil {
 		return storiface.SectorCids{}, errors.As(err)
 	}
-	defer bindcpu.ReturnCpus(cpuKeys)
-
 	if useSupra, ok := os.LookupEnv("X_USE_SupraSeal"); ok && strings.ToLower(useSupra) != "false" {
-		return execPrecommit2WithSupra(ctx, gpuKey, gpuInfo, cpuVal, sb, task)
+		return execPrecommit2WithSupra(ctx, gpuKey, gpuInfo, cpuKeys,cpuVal, sb, task)
 	}
+	defer bindcpu.ReturnCpus(cpuKeys)
 	if gpuInfo.UniqueID() == "nogpu" {
 		sref := storiface.SectorRef{
 			ID:        task.SectorID,

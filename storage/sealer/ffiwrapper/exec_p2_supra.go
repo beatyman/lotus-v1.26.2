@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-func execPrecommit2WithSupra(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindgpu.GpuInfo, cpuVal *bindcpu.CpuAllocateVal, sealer *Sealer, task WorkerTask) (storiface.SectorCids, error) {
+func execPrecommit2WithSupra(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindgpu.GpuInfo,cpuKeys []*bindcpu.CpuAllocateKey, cpuVal *bindcpu.CpuAllocateVal, sealer *Sealer, task WorkerTask) (storiface.SectorCids, error) {
 	log.Infow("execPrecommit2WithSupra Start", "sector", task.SectorName())
 	defer log.Infow("execPrecommit2WithSupra Finish", "sector", task.SectorName())
 	defer func() {
@@ -29,8 +29,13 @@ func execPrecommit2WithSupra(ctx context.Context, ak *bindgpu.GpuAllocateKey, gI
 		gpuKey = fmt.Sprintf("%s@%s", uid, gpuKey)
 	}
 	var cpus []string
-	for _, cpuIndex := range cpuVal.Cpus {
-		cpus = append(cpus, strconv.Itoa(cpuIndex))
+	if list, ok := os.LookupEnv("FT_SupraSeal_P2_CPU_LIST"); ok && list !="" {
+		bindcpu.ReturnCpus(cpuKeys)
+		cpus=strings.Split(strings.TrimSpace(list),",")
+	}else {
+		for _, cpuIndex := range cpuVal.Cpus {
+			cpus = append(cpus, strconv.Itoa(cpuIndex))
+		}
 	}
 	orderCpuStr := strings.Join(cpus, ",")
 	log.Infof("try bind CPU: %+v ,GPU: %+v", orderCpuStr, gpuKey)
@@ -50,7 +55,12 @@ func execPrecommit2WithSupra(ctx context.Context, ak *bindgpu.GpuAllocateKey, gI
 		"-o", cachePath,
 	)
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=0"))
+	if len(os.Getenv("NVIDIA_VISIBLE_DEVICES")) == 0 {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("NVIDIA_VISIBLE_DEVICES=%d", ak.Index))
+	}
+	if len(os.Getenv("CUDA_VISIBLE_DEVICES")) == 0 {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=%d", ak.Index))
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
