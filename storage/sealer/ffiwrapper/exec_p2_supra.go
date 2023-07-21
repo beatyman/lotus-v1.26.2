@@ -48,11 +48,13 @@ func execPrecommit2WithSupra(ctx context.Context, ak *bindgpu.GpuAllocateKey, gI
 	commDPath := filepath.Join(cachePath, "comm_d")
 	commRPath := filepath.Join(cachePath, "comm_r")
 	outPath := filepath.Join(cachePath, "sealed-file")
+	cfgPath := filepath.Join(os.Getenv("PRJ_ROOT"), "etc", "supra_seal.cfg")
 	program := fmt.Sprintf("./supra-p2-%v", ssize.ShortString())
 	cmd := exec.CommandContext(ctx, program,
 		"-d", sealedPath,
 		"-i", cachePath,
 		"-o", cachePath,
+		"-c", cfgPath,
 	)
 	cmd.Env = os.Environ()
 	if len(os.Getenv("NVIDIA_VISIBLE_DEVICES")) == 0 {
