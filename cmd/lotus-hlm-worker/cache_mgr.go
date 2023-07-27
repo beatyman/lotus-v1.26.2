@@ -14,12 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/filecoin-project/lotus/buried/utils"
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"github.com/gwaylib/errors"
 )
+
+var PushRepoPath = "/data/lotus-push/tmp"
 
 // remove cache of the sector
 func (w *worker) RemoveRepoSector(ctx context.Context, repo, sid string) error {
@@ -169,16 +170,16 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(ss.MountDir, sid)
-		if err := database.MountPostWorker(
-			ctx,
-			ss.MountType,
-			ss.MountSignalUri,
-			mountDir,
-			ss.MountOpt,
-		); err != nil {
-			return errors.As(err, "======MountPostWorker fault", mountDir)
-		}
+		mountDir := filepath.Join(PushRepoPath, sid)
+		//if err := database.MountPostWorker(
+		//	ctx,
+		//	ss.MountType,
+		//	ss.MountSignalUri,
+		//	mountDir,
+		//	ss.MountOpt,
+		//); err != nil {
+		//	return errors.As(err, "======MountPostWorker fault", mountDir)
+		//}
 		// send the sealed
 		sealedFromPath := workerSB.SectorPath("sealed", sid)
 		sealedToPath := filepath.Join(mountDir, "sealed")
@@ -205,8 +206,8 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 		//成功之后删除软连接
-		log.Info("push seal remove Link ====", mountDir)
-		os.RemoveAll(mountDir)
+		//log.Info("push seal remove Link ====", mountDir)
+		//os.RemoveAll(mountDir)
 
 	default:
 		mountUri := ss.MountTransfUri
@@ -294,16 +295,16 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(ss.MountDir, sid)
-		if err := database.MountPostWorker(
-			ctx,
-			ss.MountType,
-			ss.MountSignalUri,
-			mountDir,
-			ss.MountOpt,
-		); err != nil {
-			return errors.As(err, "======MountPostWorker fault", mountDir)
-		}
+		mountDir := filepath.Join(PushRepoPath, sid)
+		//if err := database.MountPostWorker(
+		//	ctx,
+		//	ss.MountType,
+		//	ss.MountSignalUri,
+		//	mountDir,
+		//	ss.MountOpt,
+		//); err != nil {
+		//	return errors.As(err, "======MountPostWorker fault", mountDir)
+		//}
 		// send the sealed
 		unsealedFromPath := workerSB.SectorPath("unsealed", sid)
 		unsealedToPath := filepath.Join(mountDir, "unsealed")
@@ -314,8 +315,8 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 			return errors.As(err)
 		}
 		//成功之后删除软连接
-		log.Info("push unseal remove Link ====", mountDir)
-		os.RemoveAll(mountDir)
+		//log.Info("push unseal remove Link ====", mountDir)
+		//os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -393,30 +394,30 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(ss.MountDir, sid)
-		if err := database.MountPostWorker(
-			ctx,
-			ss.MountType,
-			ss.MountSignalUri,
-			mountDir,
-			ss.MountOpt,
-		); err != nil {
-			return errors.As(err, "======MountPostWorker fault", mountDir)
-		}
+		mountDir := filepath.Join(PushRepoPath, sid)
+		//if err := database.MountPostWorker(
+		//	ctx,
+		//	ss.MountType,
+		//	ss.MountSignalUri,
+		//	mountDir,
+		//	ss.MountOpt,
+		//); err != nil {
+		//	return errors.As(err, "======MountPostWorker fault", mountDir)
+		//}
 		// send the sealed
 		unsealedToPath := workerSB.SectorPath("unsealed", sid)
 		unsealedFromPath := filepath.Join(mountDir, "unsealed", sid)
-		if _,err:=os.Stat(unsealedFromPath);err!=nil {
-			log.Warn("%+v",err.Error())
-			os.RemoveAll(mountDir)
+		if _, err := os.Stat(unsealedFromPath); err != nil {
+			log.Warn("%+v", err.Error())
+			//os.RemoveAll(mountDir)
 			return nil
 		}
 		if err := w.rsync(ctx, unsealedFromPath, unsealedToPath); err != nil {
 			return errors.As(err)
 		}
 		//成功之后删除软连接
-		log.Info("fetchUnseal remove Link ====", mountDir)
-		os.RemoveAll(mountDir)
+		//log.Info("fetchUnseal remove Link ====", mountDir)
+		//os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -496,16 +497,16 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(ss.MountDir, sid+"-"+utils.RandLow(5))
-		if err := database.MountPostWorker(
-			ctx,
-			ss.MountType,
-			ss.MountSignalUri,
-			mountDir,
-			ss.MountOpt,
-		); err != nil {
-			return errors.As(err, "======MountPostWorker fault", mountDir)
-		}
+		mountDir := filepath.Join(PushRepoPath, sid)
+		//if err := database.MountPostWorker(
+		//	ctx,
+		//	ss.MountType,
+		//	ss.MountSignalUri,
+		//	mountDir,
+		//	ss.MountOpt,
+		//); err != nil {
+		//	return errors.As(err, "======MountPostWorker fault", mountDir)
+		//}
 		// send the sealed
 		sealedToPath := workerSB.SectorPath("sealed", sid)
 		sealedFromPath := filepath.Join(mountDir, "sealed", sid)
@@ -522,8 +523,8 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		}
 		log.Info("sealedToPath = ", sealedToPath, " ====== cacheToPath", cacheToPath)
 		//成功之后删除软连接
-		log.Info("fetchSeal remove Link ====", mountDir)
-		os.RemoveAll(mountDir)
+		//log.Info("fetchSeal remove Link ====", mountDir)
+		//os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -753,16 +754,16 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(ss.MountDir, sid+"-"+utils.RandLow(5))
-		if err := database.MountPostWorker(
-			ctx,
-			ss.MountType,
-			ss.MountSignalUri,
-			mountDir,
-			ss.MountOpt,
-		); err != nil {
-			return errors.As(err, "======MountPostWorker fault", mountDir)
-		}
+		mountDir := filepath.Join(PushRepoPath, sid)
+		//if err := database.MountPostWorker(
+		//	ctx,
+		//	ss.MountType,
+		//	ss.MountSignalUri,
+		//	mountDir,
+		//	ss.MountOpt,
+		//); err != nil {
+		//	return errors.As(err, "======MountPostWorker fault", mountDir)
+		//}
 		// send the sealed
 		sealedFromPath := workerSB.SectorPath("update", sid)
 		sealedToPath := filepath.Join(mountDir, "update")
@@ -789,8 +790,8 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 		//成功之后删除软连接
-		log.Info("pushUpdate remove Link ====", mountDir)
-		os.RemoveAll(mountDir)
+		//log.Info("pushUpdate remove Link ====", mountDir)
+		//os.RemoveAll(mountDir)
 	default:
 		mountUri := ss.MountTransfUri
 		mountDir := filepath.Join(w.sealedRepo, sid)
@@ -905,7 +906,7 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if err != nil {
 			return tmpFile, errors.As(err)
 		}
-		if err := os.MkdirAll(filepath.Dir(tmpFile), 0755);err != nil {
+		if err := os.MkdirAll(filepath.Dir(tmpFile), 0755); err != nil {
 			return tmpFile, errors.As(err)
 		}
 		if err := BHFetch(server.FileRemote, string(fileId), tmpFile, true); err != nil {
