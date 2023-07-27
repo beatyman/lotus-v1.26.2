@@ -170,7 +170,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(PushRepoPath, sid)
+		mountDir := filepath.Join(PushRepoPath)
 		//if err := database.MountPostWorker(
 		//	ctx,
 		//	ss.MountType,
@@ -295,7 +295,7 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(PushRepoPath, sid)
+		mountDir := filepath.Join(PushRepoPath)
 		//if err := database.MountPostWorker(
 		//	ctx,
 		//	ss.MountType,
@@ -394,7 +394,7 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(PushRepoPath, sid)
+		mountDir := filepath.Join(PushRepoPath)
 		//if err := database.MountPostWorker(
 		//	ctx,
 		//	ss.MountType,
@@ -497,7 +497,7 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(PushRepoPath, sid)
+		mountDir := filepath.Join(PushRepoPath)
 		//if err := database.MountPostWorker(
 		//	ctx,
 		//	ss.MountType,
@@ -754,7 +754,7 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		mountDir := filepath.Join(PushRepoPath, sid)
+		mountDir := filepath.Join(PushRepoPath)
 		//if err := database.MountPostWorker(
 		//	ctx,
 		//	ss.MountType,
