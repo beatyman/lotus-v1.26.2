@@ -461,12 +461,12 @@ func UploadSectorProvingState(sid string, snap int) (err error) {
 }
 
 func UploadSectorMonitorState(sid, wid, msg string, state, snap int) error {
-	if info, err := GetSectorInfo(sid); err != nil {
+/*	if info, err := GetSectorInfo(sid); err != nil {
 		return err
 	} else if info != nil && (info.State < state || state == 0) { //第一次下发任务的时候 才上报span(避免同一个任务上报多次)
 		wInfo, _ := GetWorkerInfo(wid)
 		ssm.OnSectorStateChange(info, wInfo, wid, msg, state, snap)
-	}
+	}*/
 	return nil
 }
 
