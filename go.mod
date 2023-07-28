@@ -402,6 +402,7 @@ require (
 	github.com/ipfs/go-log v1.0.5
 	github.com/lib/pq v1.3.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
+	github.com/ufilesdk-dev/ufile-gosdk v1.0.4
 	github.com/ufilesdk-dev/us3-qiniu-go-sdk v0.2.0
 	go.etcd.io/etcd/client/v3 v3.5.7
 	go.etcd.io/etcd/etcdctl/v3 v3.5.7
