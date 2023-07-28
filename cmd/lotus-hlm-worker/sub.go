@@ -443,7 +443,7 @@ reAllocate:
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-		if oriReaderKind == shared.PIECE_DATA_KIND_SERVER {
+		if sector.IsMarketSector {
 			// push unsealed, so the market addpiece can make a index for continue
 		retry:
 			log.Info("==================sector.StoreUnseal====================", sector.StoreUnseal)
