@@ -1153,6 +1153,7 @@ func (sb *Sealer) sealPreCommit2(ctx context.Context, sector storiface.SectorRef
 		}
 
 		for i := 0; i < PC2CheckRounds; i++ {
+			log.Infof("path: %+v,sealedCID: %+v,unsealedCID: %+v,sector:%+v,ssize:%+v",paths,sealedCID,unsealedCID,sector,ssize)
 			var sd [32]byte
 			_, _ = rand.Read(sd[:])
 
