@@ -126,7 +126,7 @@ func DefaultStorageMiner() *StorageMiner {
 		Common: defCommon(),
 		MinerEnv: MinerEnv{
 			SN:         "",    // sn for ft-worker limit
-			SectorHead: "s-f", // s-f for new mainnet; s-t for old mainnet
+			SectorHead: "s-t", // s-f for new mainnet; s-t for old mainnet
 		},
 		WorkerAPI: WorkerAddrConfig{
 			ListenAddress: "/ip4/127.0.0.1/tcp/2347/http",
