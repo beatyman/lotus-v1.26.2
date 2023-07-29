@@ -26,6 +26,10 @@ func (sb *Sealer) MakeLink(task *WorkerTask) error {
 	if up != "" {
 		return nil
 	}
+	up=os.Getenv("UFILE_CONFIG")
+	if up != "" {
+		return nil
+	}
 	sectorName := sectorName(task.SectorID)
 
 	// get path
