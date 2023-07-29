@@ -1213,7 +1213,7 @@ func (sb *Sealer) SealCommit1(ctx context.Context, sector storiface.SectorRef, t
 
 func (sb *Sealer) SealCommit2(ctx context.Context, sector storiface.SectorRef, phase1Out storiface.Commit1Out) (storiface.Proof, error) {
 	bindgpu.AssertGPU(ctx)
-	BindGPU(ctx)
+	//BindGPU(ctx)
 	if useSupra, ok := os.LookupEnv("X_USE_SupraSeal"); ok && strings.ToLower(useSupra) != "false" {
 		return ExecCommit2WithSupra(ctx, sector, phase1Out)
 	}
