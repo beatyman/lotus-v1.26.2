@@ -128,7 +128,7 @@ func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storifac
 		return storiface.SectorCids{}, errors.As(err)
 	}
 	if useSupra, ok := os.LookupEnv("X_USE_SupraSeal"); ok && strings.ToLower(useSupra) != "false" {
-		return execPrecommit2WithSupra(ctx, gpuKey, gpuInfo, cpuKeys,cpuVal, sb, task)
+		return execPrecommit2WithSupra(ctx, gpuKey, gpuInfo, cpuKeys, cpuVal, sb, task)
 	}
 	defer bindcpu.ReturnCpus(cpuKeys)
 	if gpuInfo.UniqueID() == "nogpu" {
@@ -156,31 +156,25 @@ func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storifac
 	}
 
 	// bind gpu
-	conn := gpuInfo.GetConn(gpuKey.Thread)
-	if conn == nil {
-		if err := sb.bindP2Process(ctx, gpuKey, gpuInfo, cpuVal, task); err != nil {
-			gpuInfo.Close(gpuKey.Thread)
-			return storiface.SectorCids{}, errors.As(err)
-		}
+	defer gpuInfo.Close(gpuKey.Thread)
+	if err := sb.bindP2Process(ctx, gpuKey, gpuInfo, cpuVal, task); err != nil {
+		return storiface.SectorCids{}, errors.As(err)
 	}
 	defer FreeTaskPid(task.SectorName())
-	conn = gpuInfo.GetConn(gpuKey.Thread)
+	conn := gpuInfo.GetConn(gpuKey.Thread)
 
 	// write args
 	encryptArg, err := AESEncrypt(args, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
 	if err != nil {
-		gpuInfo.Close(gpuKey.Thread)
 		return storiface.SectorCids{}, errors.As(err, string(args))
 	}
 	if _, err := conn.Write(encryptArg); err != nil {
-		gpuInfo.Close(gpuKey.Thread)
 		return storiface.SectorCids{}, errors.As(err, string(args))
 	}
 
 	// wait resp
 	out, err := readUnixConn(conn)
 	if err != nil {
-		gpuInfo.Close(gpuKey.Thread)
 		return storiface.SectorCids{}, errors.As(err, string(args))
 	}
 	decodeOut, err := AESDecrypt(out, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
