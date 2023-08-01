@@ -34,7 +34,7 @@ type ExecAddPieceResp struct {
 	Err  string
 }
 
-func (sb *Sealer)bindAddPieceProcess(ctx context.Context, aKeys []*bindcpu.CpuAllocateKey, aVal *bindcpu.CpuAllocateVal, task WorkerTask) error {
+func (sb *Sealer) bindAddPieceProcess(ctx context.Context, aKeys []*bindcpu.CpuAllocateKey, aVal *bindcpu.CpuAllocateVal, task WorkerTask) error {
 	cpus := aVal.Cpus
 	orderCpu := []string{}
 	for _, cpu := range aVal.Cpus {
@@ -55,12 +55,12 @@ func (sb *Sealer)bindAddPieceProcess(ctx context.Context, aKeys []*bindcpu.CpuAl
 	if err := cmd.Start(); err != nil {
 		return errors.As(err)
 	}
-	log.Infof("task: %+v,try bind cpu: %+v",cmd.Process.Pid,cpus)
+	log.Infof("task: %+v,try bind cpu: %+v", cmd.Process.Pid, cpus)
 	if err := bindcpu.BindCpu(cmd.Process.Pid, cpus); err != nil {
 		cmd.Process.Kill()
 		return errors.As(err)
 	}
-	StoreTaskPid(task.SectorName(),cmd.Process.Pid)
+	StoreTaskPid(task.SectorName(), cmd.Process.Pid)
 	// transfer precommit1 parameters
 	var d net.Dialer
 	d.LocalAddr = nil // if you have a local addr, add it here
@@ -97,18 +97,15 @@ func (sb *Sealer) ExecAddPiece(ctx context.Context, task WorkerTask) (abi.PieceI
 	if err != nil {
 		return abi.PieceInfo{}, errors.As(err)
 	}
-	aKeys, aVal,err := AllocateCpuForAP(ctx)
+	aKeys, aVal, err := AllocateCpuForAP(ctx)
 	if err != nil {
 		return abi.PieceInfo{}, errors.As(err)
 	}
 	defer bindcpu.ReturnCpus(aKeys)
 
-
 	// bind process
-	if aVal.Conn ==nil {
-		if err := sb.bindAddPieceProcess(ctx,aKeys, aVal,task); err != nil {
-			return abi.PieceInfo{}, errors.As(err)
-		}
+	if err := sb.bindAddPieceProcess(ctx, aKeys, aVal, task); err != nil {
+		return abi.PieceInfo{}, errors.As(err)
 	}
 	defer FreeTaskPid(task.SectorName())
 	// write args
@@ -255,10 +252,10 @@ var AddPieceCmd = &cli.Command{
 				ID:        task.SectorID,
 				ProofType: task.ProofType,
 				SectorFile: storiface.SectorFile{
-					SectorId:     storiface.SectorName(task.SectorID),
-					SealedRepo:   workerRepo,
-					UnsealedRepo: workerRepo,
-					IsMarketSector: task.SectorStorage.UnsealedStorage.ID!=0,
+					SectorId:       storiface.SectorName(task.SectorID),
+					SealedRepo:     workerRepo,
+					UnsealedRepo:   workerRepo,
+					IsMarketSector: task.SectorStorage.UnsealedStorage.ID != 0,
 				},
 				StoreUnseal: task.StoreUnseal,
 			}
