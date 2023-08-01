@@ -33,18 +33,23 @@ type ExecPrecommit2Resp struct {
 	Err  string
 }
 
-func (sb *Sealer) bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindgpu.GpuInfo, cpuVal *bindcpu.CpuAllocateVal, task WorkerTask) error {
+func (sb *Sealer) bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindgpu.GpuInfo, cpuKeys []*bindcpu.CpuAllocateKey, cpuVal *bindcpu.CpuAllocateVal, task WorkerTask) error {
 	l3CpuNum := len(cpuVal.Cpus)
 	gpuKey := gInfo.Pci.PciBusID
 	if strings.Index(gInfo.UUID, "GPU-") > -1 {
 		uid := strings.TrimPrefix(gInfo.UUID, "GPU-")
 		gpuKey = fmt.Sprintf("%s@%s", uid, gpuKey)
 	}
-	orderCpu := []string{}
-	for _, cpu := range cpuVal.Cpus {
-		orderCpu = append(orderCpu, strconv.Itoa(cpu))
+	var cpus []string
+	if list, ok := os.LookupEnv("FT_SupraSeal_P2_CPU_LIST"); ok && list != "" {
+		bindcpu.ReturnCpus(cpuKeys)
+		cpus = strings.Split(strings.TrimSpace(list), ",")
+	} else {
+		for _, cpuIndex := range cpuVal.Cpus {
+			cpus = append(cpus, strconv.Itoa(cpuIndex))
+		}
 	}
-	orderCpuStr := strings.Join(orderCpu, ",")
+	orderCpuStr := strings.Join(cpus, ",")
 	log.Infof("try bind CPU: %+v ,GPU: %+v", orderCpuStr, gpuKey)
 	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p2-%s-%s", gInfo.UniqueID(), orderCpuStr))
 	cmd := exec.CommandContext(ctx, os.Args[0],
@@ -77,10 +82,6 @@ func (sb *Sealer) bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey,
 
 	if err := cmd.Start(); err != nil {
 		return errors.As(err)
-	}
-	var cpus []string
-	for _, cpuIndex := range cpuVal.Cpus {
-		cpus = append(cpus, strconv.Itoa(cpuIndex))
 	}
 	if err := bindcpu.BindCpuStr(cmd.Process.Pid, cpus); err != nil {
 		cmd.Process.Kill()
@@ -157,7 +158,7 @@ func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storifac
 
 	// bind gpu
 	defer gpuInfo.Close(gpuKey.Thread)
-	if err := sb.bindP2Process(ctx, gpuKey, gpuInfo, cpuVal, task); err != nil {
+	if err := sb.bindP2Process(ctx, gpuKey, gpuInfo, cpuKeys, cpuVal, task); err != nil {
 		return storiface.SectorCids{}, errors.As(err)
 	}
 	defer FreeTaskPid(task.SectorName())
