@@ -356,13 +356,14 @@ reAllocate:
 			}
 			// fetch done
 		default:
-			if task.Type == ffiwrapper.WorkerPledge || task.Type == ffiwrapper.WorkerPreCommit1 {
-				// get the market unsealed data, and copy to local
-				if err := w.fetchUnseal(ctx, sealer, task); err != nil {
-					return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
+			/*
+				if task.Type == ffiwrapper.WorkerPledge || task.Type == ffiwrapper.WorkerPreCommit1 {
+					// get the market unsealed data, and copy to local
+					if err := w.fetchUnseal(ctx, sealer, task); err != nil {
+						return errRes(errors.As(err, w.workerCfg, len(task.ExtSizes)), &res)
+					}
 				}
-			}
-
+			*/
 			// checking is the cache in a different storage server, do fetch when it is.
 			if len(task.WorkerID) > 0 && task.WorkerID != w.workerCfg.ID && task.Type > ffiwrapper.WorkerPledge && task.Type < ffiwrapper.WorkerCommit {
 				// fetch the precommit cache data
