@@ -261,6 +261,7 @@ var runCmd = &cli.Command{
 			return xerrors.Errorf("getting miner api: %w", err)
 		}
 		defer ReleaseNodeApi(true)
+		defer ffiwrapper.FreeAllTaskPid()
 
 		log.Infof("getting ainfo for StorageMiner")
 		ainfo, err := lcli.GetHlmMinerSchedulerAPIInfo(cctx)

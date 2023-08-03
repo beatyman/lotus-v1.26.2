@@ -142,3 +142,25 @@ func FreeTaskPid(key string)  {
 	// Kill the process
 	proc.Kill()
 }
+func FreeAllTaskPid() {
+	_processRW.RLock()
+	defer _processRW.RUnlock()
+	_process.Range(func(key interface{}, value interface{}) bool {
+		obj, ok := _process.Load(key)
+		if !ok {
+			return false
+		}
+		_process.Delete(key)
+		pid, ok := obj.(int)
+		if !ok {
+			return false
+		}
+		proc, err := os.FindProcess(pid)
+		if err != nil {
+			return false
+		}
+		proc.Kill()
+		_process.Delete(key)
+		return true
+	})
+}
