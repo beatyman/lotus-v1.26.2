@@ -582,7 +582,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	_remotes.Range(func(key, val interface{}) bool {
 		_r := val.(*remote)
 		//过滤当前断线的worker
-		if _r.isOfflineState() {
+		if _r.disable||_r.isOfflineState() {
 			return true
 		}
 		//过滤类型不匹配的worker(如p1)
