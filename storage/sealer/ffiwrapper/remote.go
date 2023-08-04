@@ -101,7 +101,6 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 	//todo fix_hb
 	atomic.AddInt32(&_pledgeWait, 1)
 	if !sb.remoteCfg.SealSector {
-		atomic.AddInt32(&_pledgeWait, -1)
 		reader, err := pieceData.ToPaddedReader()
 		if err != nil {
 			return abi.PieceInfo{}, errors.As(err)
