@@ -885,6 +885,7 @@ func (m *Manager) ReleaseUnsealed(ctx context.Context, sector storiface.SectorRe
 }
 
 func (m *Manager) ReleaseSectorKey(ctx context.Context, sector storiface.SectorRef) error {
+	return nil
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -896,6 +897,7 @@ func (m *Manager) ReleaseSectorKey(ctx context.Context, sector storiface.SectorR
 }
 
 func (m *Manager) ReleaseReplicaUpgrade(ctx context.Context, sector storiface.SectorRef) error {
+	return nil
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
