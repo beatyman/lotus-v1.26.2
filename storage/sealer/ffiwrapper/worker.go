@@ -1073,7 +1073,10 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		r.dictBusyRW.RLock()
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
-		if ok || !r.LimitParallel(WorkerPledge, false) {
+		r.lock.Lock()
+	    _,busy:=r.busyOnTasks[wc.task.SectorName()]
+	    r.lock.Unlock()
+		if busy || ok || !r.LimitParallel(WorkerPledge, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
@@ -1258,7 +1261,8 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		r.dictBusyRW.RLock()
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
-		if ok || !r.LimitParallel(WorkerUnseal, false) {
+		_,busy:=r.busyOnTasks[wc.task.SectorName()]
+		if busy || ok || !r.LimitParallel(WorkerUnseal, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
