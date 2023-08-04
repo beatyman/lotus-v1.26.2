@@ -855,6 +855,7 @@ func (m *Manager) FinalizeReplicaUpdate(ctx context.Context, sector storiface.Se
 }
 
 func (m *Manager) ReleaseUnsealed(ctx context.Context, sector storiface.SectorRef, keepUnsealed []storiface.Range) error {
+	return nil
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
