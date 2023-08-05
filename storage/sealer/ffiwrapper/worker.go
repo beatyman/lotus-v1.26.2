@@ -1261,8 +1261,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		r.dictBusyRW.RLock()
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
-		_,busy:=r.busyOnTasks[wc.task.SectorName()]
-		if busy || ok || !r.LimitParallel(WorkerUnseal, false) {
+		if ok || !r.LimitParallel(WorkerUnseal, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 		} else {
