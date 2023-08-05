@@ -1039,8 +1039,8 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 
 	checkPledge := func() {
 		// search checking is the remote busying
-		if r.fakeFullTask() || r.disable {
-			//log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
+		if  r.disable {
+			log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
 			return
 		}
 
