@@ -1040,7 +1040,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	checkPledge := func() {
 		// search checking is the remote busying
 		if r.disable {
-			log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable, "busyOnTasks==>", r.busyOnTasks)
+			log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
 			return
 		}
 
@@ -1080,9 +1080,9 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		if busy || ok || !r.LimitParallel(WorkerPledge, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
-			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap, "busyOnTasks==>", r.busyOnTasks)
+			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 		} else {
-			log.Infow("pledge task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap, "busyOnTasks==>", r.busyOnTasks)
+			log.Infow("pledge task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 			wc.task.WorkerID = ""
 			sb.returnTaskWithoutCounter(*wc)
 			time.Sleep(time.Second * 3)
