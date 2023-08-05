@@ -582,7 +582,7 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 	_remotes.Range(func(key, val interface{}) bool {
 		_r := val.(*remote)
 		//过滤当前断线的worker
-		if _r.disable||_r.isOfflineState() {
+		if _r.disable || _r.isOfflineState() {
 			return true
 		}
 		//过滤类型不匹配的worker(如p1)
@@ -1039,8 +1039,8 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 
 	checkPledge := func() {
 		// search checking is the remote busying
-		if  r.disable {
-			log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
+		if r.disable {
+			log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable, "busyOnTasks==>", r.busyOnTasks)
 			return
 		}
 
@@ -1074,14 +1074,15 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
 		r.lock.Lock()
-	    _,busy:=r.busyOnTasks[wc.task.SectorName()]
-	    r.lock.Unlock()
+		_, busy := r.busyOnTasks[wc.task.SectorName()]
+		r.lock.Unlock()
+		log.Infow("busy", busy, "ok", ok, "limit", !r.LimitParallel(WorkerPledge, false))
 		if busy || ok || !r.LimitParallel(WorkerPledge, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
-			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap, "busyOnTasks==>", r.busyOnTasks)
 		} else {
-			log.Infow("pledge task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+			log.Infow("pledge task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap, "busyOnTasks==>", r.busyOnTasks)
 			wc.task.WorkerID = ""
 			sb.returnTaskWithoutCounter(*wc)
 			time.Sleep(time.Second * 3)
