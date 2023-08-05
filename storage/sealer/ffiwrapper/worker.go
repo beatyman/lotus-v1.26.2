@@ -1076,7 +1076,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		r.lock.Lock()
 		_, busy := r.busyOnTasks[wc.task.SectorName()]
 		r.lock.Unlock()
-		log.Infow("busy", busy, "ok", ok, "limit", !r.LimitParallel(WorkerPledge, false))
+		log.Infow("pledge task judge...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "busy", busy, "ok", ok, "limit", !r.LimitParallel(WorkerPledge, false))
 		if busy || ok || !r.LimitParallel(WorkerPledge, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
