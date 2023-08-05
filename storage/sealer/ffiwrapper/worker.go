@@ -1038,11 +1038,6 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	}
 
 	checkPledge := func() {
-		// search checking is the remote busying
-		if r.disable {
-			log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
-			return
-		}
 
 		var (
 			wc *workerCall
@@ -1077,6 +1072,11 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		_, busy := r.busyOnTasks[wc.task.SectorName()]
 		r.lock.Unlock()
 		log.Infow("pledge task judge...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "busy", busy, "ok", ok, "limit", !r.LimitParallel(WorkerPledge, false))
+		// search checking is the remote busying
+		if r.disable && (!busy || !ok) {
+			log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
+			return
+		}
 		if busy || ok || !r.LimitParallel(WorkerPledge, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
