@@ -378,15 +378,8 @@ func (r *remote) fakeFullTask() bool {
 func (r *remote) Idle() int {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
-	// TODO: consider the queue?
 	num := 0
-	//a_json,_:=json.Marshal(r.busyOnTasks)
-	//log.Info("========a_json=======",string(a_json))
 	for _, val := range r.busyOnTasks {
-		//	if r.cfg.ID != val.WorkerID {
-		//		continue
-		//	}
-		//	log.Info("========type=======",val.Type)
 		switch val.Type {
 		case WorkerPledge:
 			num++
@@ -396,22 +389,14 @@ func (r *remote) Idle() int {
 			num++
 		case WorkerPreCommit1Done:
 			num++
-		case WorkerPreCommit2:
-			num++
-		case WorkerPreCommit2Done:
-			num++
-		case WorkerUnseal:
-			num++
-		case WorkerUnsealDone:
-			num++
 		}
 	}
-	if r.cfg.MaxTaskNum-num < 0 {
+	residueNum := r.cfg.ParallelPrecommit1+r.cfg.ParallelPrecommit2 - num
+	if residueNum < 0 {
 		return 0
 	}
-	return r.cfg.MaxTaskNum - num
+	return residueNum
 }
-
 // for control the memory
 func (r *remote) LimitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	if r.isOfflineState() {
