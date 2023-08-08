@@ -97,17 +97,20 @@ var runCmd = &cli.Command{
 		stats.Record(ctx, metrics.LotusInfo.M(1))
 
 		if err := checkV1ApiSupport(ctx, cctx); err != nil {
+			log.Errorf("check checkV1ApiSupport err: %+v",err.Error())
 			return err
 		}
 
 		nodeApi, ncloser, err := lcli.GetFullNodeAPIV1(cctx)
 		if err != nil {
+			log.Errorf(" GetFullNodeAPIV1 err: %+v",err.Error())
 			return xerrors.Errorf("getting full node api: %w", err)
 		}
 		defer ncloser()
 
 		v, err := nodeApi.Version(ctx)
 		if err != nil {
+			log.Errorf(" GetFullNodeAPIV1 err: %+v",err.Error())
 			return err
 		}
 
@@ -137,6 +140,7 @@ var runCmd = &cli.Command{
 
 		ok, err := r.Exists()
 		if err != nil {
+			log.Errorf(" minerRepoPath err: %+v",err.Error())
 			return err
 		}
 		if !ok {
@@ -145,10 +149,12 @@ var runCmd = &cli.Command{
 
 		lr, err := r.Lock(repo.StorageMiner)
 		if err != nil {
+			log.Errorf(" minerRepoPath err: %+v",err.Error())
 			return err
 		}
 		c, err := lr.Config()
 		if err != nil {
+			log.Errorf(" minerRepoPath err: %+v",err.Error())
 			return err
 		}
 		cfg, ok := c.(*config.StorageMiner)
@@ -160,12 +166,14 @@ var runCmd = &cli.Command{
 
 		err = lr.Close()
 		if err != nil {
+			log.Errorf(" minerRepoPath err: %+v",err.Error())
 			return err
 		}
 
 		if cfg.Subsystems.EnableMining {
 			// init hlm resouce, by zhoushuyue
 			if err := r.IsLocked(); err != nil {
+				log.Errorf(" minerRepoPath err: %+v",err.Error())
 				return err
 			}
 			// init storage database
@@ -180,15 +188,18 @@ var runCmd = &cli.Command{
 
 			log.Info("Mount all storage")
 			if err := database.ChangeSealedStorageAuth(ctx); err != nil {
+				log.Errorf(" ChangeSealedStorageAuth err: %+v",err.Error())
 				return errors.As(err)
 			}
 			// mount nfs storage node
 			if err := database.MountAllStorage(false); err != nil {
+				log.Errorf(" MountAllStorage err: %+v",err.Error())
 				return errors.As(err)
 			}
 			log.Info("Clean storage worker")
 			// clean storage cur_work cause by no worker on starting.
 			if err := database.ClearStorageWork(); err != nil {
+				log.Errorf(" ClearStorageWork err: %+v",err.Error())
 				return errors.As(err)
 			}
 			log.Info("Check done")
@@ -216,10 +227,12 @@ var runCmd = &cli.Command{
 			node.Override(new(v1api.RawFullNodeAPI), nodeApi),
 		)
 		if err != nil {
+			log.Errorf(" creating new StorageMiner err: %+v",err.Error())
 			return xerrors.Errorf("creating node: %w", err)
 		}
 		endpoint, err := r.APIEndpoint()
 		if err != nil {
+			log.Errorf(" creating new APIEndpoint err: %+v",err.Error())
 			return xerrors.Errorf("getting API endpoint: %w", err)
 		}
 		if bootstrapLibP2P {
@@ -228,15 +241,18 @@ var runCmd = &cli.Command{
 			// implement by zhoushuyue
 			ok, err = proxy.LotusProxyNetConnect(minerapi.NetConnect)
 			if err != nil {
+				log.Errorf(" LotusProxyNetConnect err: %+v",err.Error())
 				return errors.As(err)
 			}
 			if !ok {
 				remoteAddrs, err := nodeApi.NetAddrsListen(ctx)
 				if err != nil {
+					log.Errorf(" nodeApi.NetAddrsListen err: %+v",err.Error())
 					return xerrors.Errorf("getting full node libp2p address: %w", err)
 				}
 
 				if err := minerapi.NetConnect(ctx, remoteAddrs); err != nil {
+					log.Errorf(" minerapi.NetConnect err: %+v",err.Error())
 					return xerrors.Errorf("connecting to full node (libp2p): %w", err)
 				}
 			}
@@ -247,11 +263,13 @@ var runCmd = &cli.Command{
 		// Instantiate the miner node handler.
 		handler, err := node.MinerHandler(minerapi, true)
 		if err != nil {
+			log.Errorf(" node.MinerHandler err: %+v",err.Error())
 			return xerrors.Errorf("failed to instantiate rpc handler: %w", err)
 		}
 		// Serve the RPC.
 		rpcStopper, err := node.ServeRPC(handler, "lotus-miner", minerRepoPath, endpoint)
 		if err != nil {
+			log.Errorf(" node.ServeRPC err: %+v",err.Error())
 			return fmt.Errorf("failed to start json-rpc endpoint: %s", err)
 		}
 
@@ -259,6 +277,7 @@ var runCmd = &cli.Command{
 			// open this rpc for worker.
 			scSrv, err := listenSchedulerApi(cctx, r, minerapi.(*impl.StorageMinerAPI))
 			if err != nil {
+				log.Errorf(" listenSchedulerApi err: %+v",err.Error())
 				return errors.As(err)
 			}
 			go func() {

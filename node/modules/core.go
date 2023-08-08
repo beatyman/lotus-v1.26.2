@@ -145,13 +145,18 @@ type JwtPayload struct {
 }
 
 func WorkerAPISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.WorkerAPIAlg, error) {
+	log.Info("check WorkerAPISecret")
+	defer log.Info("check WorkerAPISecret finished")
 	key, err := keystore.Get(JWTSecretWorkerName)
-
+	if err!=nil{
+		log.Warnf("check WorkerAPISecret err: %+v",err.Error())
+	}
 	if errors.Is(err, types.ErrKeyInfoNotFound) {
 		log.Warn("Generating new worker API secret")
 
 		sk, err := io.ReadAll(io.LimitReader(rand.Reader, 32))
 		if err != nil {
+			log.Warnf("check WorkerAPISecret err: %+v",err.Error())
 			return nil, err
 		}
 
@@ -161,6 +166,7 @@ func WorkerAPISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.Worke
 		}
 
 		if err := keystore.Put(JWTSecretWorkerName, key); err != nil {
+			log.Warnf("check WorkerAPISecret err: %+v",err.Error())
 			return nil, xerrors.Errorf("writing API secret: %w", err)
 		}
 
@@ -171,26 +177,32 @@ func WorkerAPISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.Worke
 
 		cliToken, err := jwt.Sign(&p, jwt.NewHS256(key.PrivateKey))
 		if err != nil {
+			log.Warnf("check WorkerAPISecret err: %+v",err.Error())
 			return nil, err
 		}
 
 		if err := os.WriteFile(filepath.Join(lr.Path(), "worker_token"), cliToken, 0600); err != nil {
+			log.Warnf("check WorkerAPISecret err: %+v",err.Error())
 			return nil, err
 		}
 	} else if err != nil {
+		log.Warnf("check WorkerAPISecret err: %+v",err.Error())
 		return nil, xerrors.Errorf("could not get JWT Token: %w", err)
 	}
 	//hb
 	if _, err := os.Stat(filepath.Join(lr.Path(), "worker_token")); errors.Is(err, fs.ErrNotExist) {
+		log.Warnf("check WorkerAPISecret err: %+v",err.Error())
 		// TODO: make this configurable
 		p := JwtPayload{
 			Allow: api.AllPermissions,
 		}
 		cliToken, err := jwt.Sign(&p, jwt.NewHS256(key.PrivateKey))
 		if err != nil {
+			log.Warnf("check WorkerAPISecret err: %+v",err.Error())
 			return nil, err
 		}
 		if err := os.WriteFile(filepath.Join(lr.Path(), "worker_token"), cliToken, 0600); err != nil {
+			log.Warnf("check WorkerAPISecret err: %+v",err.Error())
 			return nil, err
 		}
 	}
@@ -198,13 +210,18 @@ func WorkerAPISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.Worke
 }
 
 func APISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.APIAlg, error) {
+	log.Info("check APISecret")
+	defer log.Info("check APISecret finished")
 	key, err := keystore.Get(JWTSecretName)
-
+	if err!=nil{
+		log.Warnf("check APISecret err: %+v",err.Error())
+	}
 	if errors.Is(err, types.ErrKeyInfoNotFound) {
 		log.Warn("Generating new API secret")
 
 		sk, err := io.ReadAll(io.LimitReader(rand.Reader, 32))
 		if err != nil {
+			log.Warnf("check APISecret err: %+v",err.Error())
 			return nil, err
 		}
 
@@ -214,6 +231,7 @@ func APISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.APIAlg, err
 		}
 
 		if err := keystore.Put(JWTSecretName, key); err != nil {
+			log.Warnf("check APISecret err: %+v",err.Error())
 			return nil, xerrors.Errorf("writing API secret: %w", err)
 		}
 
@@ -224,25 +242,31 @@ func APISecret(keystore types.KeyStore, lr repo.LockedRepo) (*dtypes.APIAlg, err
 
 		cliToken, err := jwt.Sign(&p, jwt.NewHS256(key.PrivateKey))
 		if err != nil {
+			log.Warnf("check APISecret err: %+v",err.Error())
 			return nil, err
 		}
 
 		if err := lr.SetAPIToken(cliToken); err != nil {
+			log.Warnf("check APISecret err: %+v",err.Error())
 			return nil, err
 		}
 	} else if err != nil {
+		log.Warnf("check APISecret err: %+v",err.Error())
 		return nil, xerrors.Errorf("could not get JWT Token: %w", err)
 	}
 	if _, err := os.Stat(filepath.Join(lr.Path(), "token")); errors.Is(err, fs.ErrNotExist) {
+		log.Warnf("check APISecret err: %+v",err.Error())
 		// TODO: make this configurable
 		p := JwtPayload{
 			Allow: api.AllPermissions,
 		}
 		cliToken, err := jwt.Sign(&p, jwt.NewHS256(key.PrivateKey))
 		if err != nil {
+			log.Warnf("check APISecret err: %+v",err.Error())
 			return nil, err
 		}
 		if err := lr.SetAPIToken(cliToken); err != nil {
+			log.Warnf("check APISecret err: %+v",err.Error())
 			return nil, err
 		}
 	}
