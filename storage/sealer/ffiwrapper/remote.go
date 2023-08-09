@@ -620,10 +620,13 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 
 	//1.优先从缓存获取
 	if wid, prf, ok := c2cache.get(sid); ok {
-		return &Commit2Worker{
-			WorkerId: wid,
-			Proof:    prf,
-		}, nil
+		r, ok := _remotes.Load(wid)
+		if ok && !r.(*remote).disable&& !r.(*remote).isOfflineState(){
+			return &Commit2Worker{
+				WorkerId: wid,
+				Proof:    prf,
+			}, nil
+		}
 	}
 	//2.其次选择worker
 	if r, ok := sb.selectGPUService(ctx, sid, task); ok {
