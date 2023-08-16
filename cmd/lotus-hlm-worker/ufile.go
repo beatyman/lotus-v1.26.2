@@ -17,6 +17,14 @@ const (
 
 // upload file from filesystem to us3 oss cluster
 func uploadToUfile(ctx context.Context, FilePath, KeyName string) error {
+	if strings.Contains(FilePath, "comm_d") ||
+		strings.Contains(FilePath, "comm_r") ||
+		strings.Contains(FilePath, "p1.out") ||
+		strings.Contains(FilePath, "c1.out") ||
+		strings.Contains(FilePath, "c2.out") {
+		log.Infof("ignore local file:%s", FilePath)
+		return nil
+	}
 	log.Infof("uploadToUfile start filepath :%+v,keyname: %+v", FilePath, KeyName)
 	defer log.Infof("uploadToUfile finish filepath :%+v,keyname: %+v", FilePath, KeyName)
 	configPath := strings.TrimSpace(os.Getenv("UFILE_CONFIG"))
