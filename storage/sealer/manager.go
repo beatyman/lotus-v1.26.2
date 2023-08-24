@@ -774,9 +774,6 @@ func (m *Manager) FinalizeSector(ctx context.Context, sector storiface.SectorRef
 
 	return nil
 }
-func (m *Manager) ProveReplicaUpdate(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storiface.ReplicaUpdateProof, error) {
-	return m.hlmWorker.ProveReplicaUpdate(ctx, sector, sectorKey, newSealed, newUnsealed)
-}
 
 func (m *Manager) FinalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef) error {
 	return m.hlmWorker.FinalizeReplicaUpdate(ctx, sector)

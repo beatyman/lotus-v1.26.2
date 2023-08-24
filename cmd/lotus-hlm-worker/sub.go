@@ -278,6 +278,11 @@ func (w *worker) processTask(ctx context.Context, task ffiwrapper.WorkerTask) ff
 	case ffiwrapper.WorkerCommit:
 	case ffiwrapper.WorkerFinalize:
 	case ffiwrapper.WorkerUnseal:
+	case ffiwrapper.WorkerReplicaUpdate:
+	case ffiwrapper.WorkerProveReplicaUpdate1:
+	case ffiwrapper.WorkerProveReplicaUpdate2:
+	case ffiwrapper.WorkerGenerateSectorKeyFromData:
+	case ffiwrapper.WorkerFinalizeReplicaUpdate:
 	case ffiwrapper.WorkerWindowPoSt:
 		proofs, err := w.rpcServer.GenerateWindowPoSt(ctx,
 			task.SectorID.Miner,
@@ -351,6 +356,11 @@ reAllocate:
 			if err := w.fetchUnseal(ctx, sealer, task); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
+			if err := w.fetchSealed(ctx, sealer, task); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			// fetch done
+		case ffiwrapper.WorkerReplicaUpdate:
 			if err := w.fetchSealed(ctx, sealer, task); err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
@@ -536,78 +546,51 @@ reAllocate:
 			}
 		}
 	case ffiwrapper.WorkerCommit:
-		if task.Snap {
-			vanillaProofs, err := sealer.ProveReplicaUpdate1(ctx, sector, task.SectorKey, task.NewSealed, task.NewUnsealed)
+		pieceInfo := task.Pieces
+		cids := &task.Cids
+		//判断C1输出文件是否存在，如果存在，则跳过C1
+		pathTxt := sector.CachePath() + "/c1.out"
+		isExist, err := ffiwrapper.PathExists(pathTxt)
+		if err != nil {
+			log.Error("Read C1  PathExists Err :", err)
+		}
+		var c1Out []byte
+		if isExist {
+			c1Out, err = ioutil.ReadFile(pathTxt)
+			if err != nil {
+				log.Error("Read c1.out Err ", err)
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
+			log.Info(sector.CachePath() + " ==========c1 retry")
+		} else {
+			c1Out, err = sealer.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
 			if err != nil {
 				return errRes(errors.As(err, w.workerCfg), &res)
 			}
-			// if local gpu no set, using remotes .
-			if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
-				for {
-					res.ProveReplicaUpdateOut, err = CallProveReplicaUpdate2Service(ctx, sector, task, vanillaProofs)
-					if err != nil {
-						log.Warn(errors.As(err))
-						time.Sleep(10e9)
-						continue
-					}
-					break
-				}
-			}
-			// call gpu service failed, using local instead.
-			if len(res.ProveReplicaUpdateOut) == 0 {
-				out, err := sealer.ProveReplicaUpdate2(ctx, sector, task.SectorKey, task.NewSealed, task.NewUnsealed, vanillaProofs)
-				res.ProveReplicaUpdateOut = out
-				if err != nil {
-					return errRes(errors.As(err, w.workerCfg), &res)
-				}
-			}
-		} else {
-			pieceInfo := task.Pieces
-			cids := &task.Cids
-			//判断C1输出文件是否存在，如果存在，则跳过C1
-			pathTxt := sector.CachePath() + "/c1.out"
-			isExist, err := ffiwrapper.PathExists(pathTxt)
+			err = ffiwrapper.WriteSectorCC(pathTxt, c1Out)
 			if err != nil {
-				log.Error("Read C1  PathExists Err :", err)
+				log.Error("=============================WriteSector C1 ===err: ", err)
 			}
-			var c1Out []byte
-			if isExist {
-				c1Out, err = ioutil.ReadFile(pathTxt)
+		}
+		w.removeDataLayer(ctx, sector.CachePath(), false)
+		localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerCommitDone)
+		// if local gpu no set, using remotes .
+		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
+			for {
+				res.Commit2Out, err = CallCommit2Service(ctx, task, c1Out)
 				if err != nil {
-					log.Error("Read c1.out Err ", err)
-					return errRes(errors.As(err, w.workerCfg), &res)
+					log.Warn(errors.As(err))
+					time.Sleep(10e9)
+					continue
 				}
-				log.Info(sector.CachePath() + " ==========c1 retry")
-			} else {
-				c1Out, err = sealer.SealCommit1(ctx, sector, task.SealTicket, task.SealSeed, pieceInfo, *cids)
-				if err != nil {
-					return errRes(errors.As(err, w.workerCfg), &res)
-				}
-				err = ffiwrapper.WriteSectorCC(pathTxt, c1Out)
-				if err != nil {
-					log.Error("=============================WriteSector C1 ===err: ", err)
-				}
+				break
 			}
-			w.removeDataLayer(ctx, sector.CachePath(), false)
-			localSectors.WriteMap(task.SectorName(), ffiwrapper.WorkerCommitDone)
-			// if local gpu no set, using remotes .
-			if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
-				for {
-					res.Commit2Out, err = CallCommit2Service(ctx, task, c1Out)
-					if err != nil {
-						log.Warn(errors.As(err))
-						time.Sleep(10e9)
-						continue
-					}
-					break
-				}
-			}
-			// call gpu service failed, using local instead.
-			if len(res.Commit2Out) == 0 {
-				res.Commit2Out, err = sealer.SealCommit2(ctx, sector, c1Out)
-				if err != nil {
-					return errRes(errors.As(err, w.workerCfg), &res)
-				}
+		}
+		// call gpu service failed, using local instead.
+		if len(res.Commit2Out) == 0 {
+			res.Commit2Out, err = sealer.SealCommit2(ctx, sector, c1Out)
+			if err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
 			}
 		}
 	// SPEC: cancel deal with worker finalize, because it will post failed when commit2 is online and finalize is interrupt.
@@ -664,6 +647,60 @@ reAllocate:
 		}
 		if err := w.RemoveRepoSector(ctx, sealer.RepoPath(), task.SectorName()); err != nil {
 			log.Warn(errors.As(err))
+		}
+	case ffiwrapper.WorkerReplicaUpdate:
+		ruOut, err := sealer.ReplicaUpdate(ctx, sector, task.Pieces)
+		res.ReplicaUpdateOut = ruOut
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg, sector), &res)
+		}
+	case ffiwrapper.WorkerProveReplicaUpdate1:
+		ru1Out, err := sealer.ProveReplicaUpdate1(ctx, sector, task.SectorKey, task.NewSealed, task.NewUnsealed)
+		res.ReplicaVanillaProofs = ru1Out
+		if err != nil {
+			return errRes(errors.As(err, w.workerCfg, sector), &res)
+		}
+	case ffiwrapper.WorkerProveReplicaUpdate2:
+		// if local gpu no set, using remotes .
+		if w.workerCfg.ParallelCommit == 0 && !w.workerCfg.Commit2Srv {
+			for {
+				ru2Out, err := CallProveReplicaUpdate2Service(ctx, sector, task, task.VanillaProofs)
+				res.ReplicaUpdateProof = ru2Out
+				if err != nil {
+					log.Warn(errors.As(err))
+					time.Sleep(10e9)
+					continue
+				}
+				break
+			}
+		}
+		// call gpu service failed, using local instead.
+		if len(res.ReplicaUpdateProof) == 0 {
+			ru2Out, err := sealer.ProveReplicaUpdate2(ctx, sector, task.SectorKey, task.NewSealed, task.NewUnsealed, task.VanillaProofs)
+			res.ReplicaUpdateProof = ru2Out
+			if err != nil {
+				return errRes(errors.As(err, w.workerCfg, sector), &res)
+			}
+		}
+	case ffiwrapper.WorkerGenerateSectorKeyFromData:
+		if err := sealer.GenerateSectorKeyFromData(ctx, sector, task.Commd); err != nil {
+			return errRes(errors.As(err, w.workerCfg, sector), &res)
+		}
+	case ffiwrapper.WorkerFinalizeReplicaUpdate:
+		updateFile := sealer.SectorPath("update", task.SectorName())
+		_, err := os.Stat(updateFile)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return errRes(errors.As(err, updateFile), &res)
+			}
+			// no file to finalize, just return done.
+		} else {
+			if err := sealer.FinalizeReplicaUpdate(ctx, sector); err != nil {
+				return errRes(errors.As(err, w.workerCfg, sector), &res)
+			}
+			if err := w.pushUpdateCache(ctx, sealer, task, false); err != nil {
+				return errRes(errors.As(err, w.workerCfg), &res)
+			}
 		}
 	}
 

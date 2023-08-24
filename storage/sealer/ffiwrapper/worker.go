@@ -410,14 +410,18 @@ func (sb *Sealer) initWorker(oriCtx context.Context, cfg WorkerCfg) (rmt *remote
 
 	ctx, cancel := context.WithCancel(context.Background()) //注意：此处不能用oriCtx作为父parent 因为worker实现了断线重连
 	rmt = &remote{
-		ctx:            oriCtx, //这个上下文必须要是jsonrpc的上下文 用于捕获连接是否断开
-		cfg:            cfg,
-		pledgeChan:     make(chan workerCall, len(_tmpPledgeTasks[cfg.ID])+10),
-		precommit1Chan: make(chan workerCall, 10),
-		precommit2Chan: make(chan workerCall, 10),
-		commitChan:     make(chan workerCall, 10),
-		finalizeChan:   make(chan workerCall, 10),
-		unsealChan:     make(chan workerCall, 10),
+		ctx:                 oriCtx, //这个上下文必须要是jsonrpc的上下文 用于捕获连接是否断开
+		cfg:                 cfg,
+		pledgeChan:          make(chan workerCall, len(_tmpPledgeTasks[cfg.ID])+10),
+		precommit1Chan:      make(chan workerCall, 10),
+		precommit2Chan:      make(chan workerCall, 10),
+		commitChan:          make(chan workerCall, 10),
+		finalizeChan:        make(chan workerCall, 10),
+		unsealChan:          make(chan workerCall, 10),
+		replicaUpdateChan:   make(chan workerCall, 10),
+		pReplicaUpdate1Chan: make(chan workerCall, 10),
+		pReplicaUpdate2Chan: make(chan workerCall, 10),
+		fReplicaUpdateChan:  make(chan workerCall, 10),
 
 		sealTasks:   make(chan WorkerTask),
 		busyOnTasks: map[string]WorkerTask{},
@@ -940,6 +944,18 @@ func (sb *Sealer) toRemoteChan(task workerCall, r *remote) {
 	case WorkerUnseal:
 		atomic.AddInt32(&_unsealWait, 1)
 		r.unsealChan <- task
+	case WorkerReplicaUpdate:
+		atomic.AddInt32(&_replicaUpdateWait, 1)
+		r.replicaUpdateChan <- task
+	case WorkerProveReplicaUpdate1:
+		atomic.AddInt32(&_proveReplicaUpdate1Wait, 1)
+		r.pReplicaUpdate1Chan <- task
+	case WorkerProveReplicaUpdate2:
+		atomic.AddInt32(&_proveReplicaUpdate2Wait, 1)
+		r.pReplicaUpdate2Chan <- task
+	case WorkerFinalizeReplicaUpdate:
+		atomic.AddInt32(&_finalizeReplicaUpdateWait, 1)
+		r.fReplicaUpdateChan <- task
 	default:
 		sb.returnTask(task)
 	}
@@ -967,6 +983,18 @@ func (sb *Sealer) returnTask(task workerCall) {
 	case WorkerUnseal:
 		atomic.AddInt32(&_unsealWait, 1)
 		ret = _unsealTasks
+	case WorkerReplicaUpdate:
+		atomic.AddInt32(&_replicaUpdateWait, 1)
+		ret = _replicaUpdateTasks
+	case WorkerProveReplicaUpdate1:
+		atomic.AddInt32(&_proveReplicaUpdate1Wait, 1)
+		ret = _proveReplicaUpdate1Tasks
+	case WorkerProveReplicaUpdate2:
+		atomic.AddInt32(&_proveReplicaUpdate2Wait, 1)
+		ret = _proveReplicaUpdate2Tasks
+	case WorkerFinalizeReplicaUpdate:
+		atomic.AddInt32(&_finalizeReplicaUpdateWait, 1)
+		ret = _finalizeReplicaUpdateTasks
 	default:
 		log.Error("unknown task type", task.task.Type)
 	}
@@ -997,6 +1025,14 @@ func (sb *Sealer) returnTaskWithoutCounter(task workerCall) {
 		ret = _finalizeTasks
 	case WorkerUnseal:
 		ret = _unsealTasks
+	case WorkerReplicaUpdate:
+		ret = _replicaUpdateTasks
+	case WorkerProveReplicaUpdate1:
+		ret = _proveReplicaUpdate1Tasks
+	case WorkerProveReplicaUpdate2:
+		ret = _proveReplicaUpdate2Tasks
+	case WorkerFinalizeReplicaUpdate:
+		ret = _finalizeReplicaUpdateTasks
 	default:
 		log.Error("unknown task type", task.task.Type)
 	}
@@ -1020,6 +1056,12 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	commitTasks := _commitTasks
 	finalizeTasks := _finalizeTasks
 	unsealTasks := _unsealTasks
+
+	replicaUpdateTasks := _replicaUpdateTasks
+	pReplicaUpdate1Tasks := _proveReplicaUpdate1Tasks
+	pReplicaUpdate2Tasks := _proveReplicaUpdate2Tasks
+	fReplicaUpdateTasks := _finalizeReplicaUpdateTasks
+
 	if cfg.ParallelPledge == 0 {
 		pledgeTasks = nil
 		r.pledgeChan = nil
@@ -1270,13 +1312,160 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			time.Sleep(time.Second * 3)
 		}
 	}
+	checkReplicaUpdate := func() {
+		var (
+			wc *workerCall
+			fn func()
+		)
+		select {
+		case task := <-r.replicaUpdateChan:
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_replicaUpdateWait, -1)
+			}
+		case task := <-replicaUpdateTasks:
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_replicaUpdateWait, -1)
+			}
+		default:
+			// nothing in chan
+		}
+		if wc == nil || fn == nil {
+			return
+		}
+		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		log.Infow("RU task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerReplicaUpdate, false) {
+			fn()
+			sb.doSealTask(ctx, r, *wc)
+			log.Infow("RU task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+		} else {
+			log.Infow("RU task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
+		}
+	}
+	checkPReplicaUpdate1 := func() {
+		var (
+			wc *workerCall
+			fn func()
+		)
+		select {
+		case task := <-r.pReplicaUpdate1Chan:
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_proveReplicaUpdate1Wait, -1)
+			}
+		case task := <-pReplicaUpdate1Tasks:
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_proveReplicaUpdate1Wait, -1)
+			}
+		default:
+			// nothing in chan
+		}
+		if wc == nil || fn == nil {
+			return
+		}
+		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		log.Infow("PR1 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerProveReplicaUpdate1, false) {
+			fn()
+			sb.doSealTask(ctx, r, *wc)
+			log.Infow("PR1 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+		} else {
+			log.Infow("PR1 task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
+		}
+	}
+	checkPReplicaUpdate2 := func() {
+		var (
+			wc *workerCall
+			fn func()
+		)
+		select {
+		case task := <-r.pReplicaUpdate2Chan:
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_proveReplicaUpdate2Wait, -1)
+			}
+		case task := <-pReplicaUpdate2Tasks:
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_proveReplicaUpdate2Wait, -1)
+			}
+		default:
+			// nothing in chan
+		}
+		if wc == nil || fn == nil {
+			return
+		}
+		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		log.Infow("PR2 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerProveReplicaUpdate2, false) {
+			fn()
+			sb.doSealTask(ctx, r, *wc)
+			log.Infow("PR2 task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+		} else {
+			log.Infow("PR2 task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
+		}
+	}
+	checkFReplicaUpdate := func() {
+		var (
+			wc *workerCall
+			fn func()
+		)
+		select {
+		case task := <-r.fReplicaUpdateChan:
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_finalizeReplicaUpdateWait, -1)
+			}
+		case task := <-fReplicaUpdateTasks:
+			wc = &task
+			fn = func() {
+				atomic.AddInt32(&_finalizeReplicaUpdateWait, -1)
+			}
+		default:
+			// nothing in chan
+		}
+		if wc == nil || fn == nil {
+			return
+		}
+		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		log.Infow("FRU task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+		r.dictBusyRW.RLock()
+		_, ok := r.dictBusy[wc.task.SectorName()]
+		r.dictBusyRW.RUnlock()
+		if ok || !r.LimitParallel(WorkerFinalizeReplicaUpdate, false) {
+			fn()
+			sb.doSealTask(ctx, r, *wc)
+			log.Infow("FRU task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+		} else {
+			log.Infow("FRU task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+			sb.returnTaskWithoutCounter(*wc)
+			time.Sleep(time.Second * 3)
+		}
+	}
 	checkFunc := []func(){
 		checkUnseal, checkCommit, checkPreCommit2, checkPreCommit1, checkPledge,
+		checkPReplicaUpdate2, checkPReplicaUpdate1, checkReplicaUpdate,
 	}
 
 	for {
-		// log.Info("Remote Worker Daemon")
-		// priority: commit, precommit, addpiece
 		select {
 		case <-ctx.Done():
 			log.Info("DEBUG: remoteWorker ctx done")
@@ -1292,6 +1481,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			}
 
 			checkFinalize()
+			checkFReplicaUpdate()
 			for _, check := range checkFunc {
 				if !r.isOfflineState() {
 					check()
@@ -1407,7 +1597,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		sectorId := res.SectorID()
 		if res.GoErr != nil || len(res.Err) > 0 {
 			// ignore error and do retry until cancel task by manully.
-		} else if task.task.Type == WorkerFinalize || task.task.Type == WorkerUnseal {
+		} else if task.task.Type == WorkerFinalize || task.task.Type == WorkerUnseal || task.task.Type == WorkerFinalizeReplicaUpdate {
 			// make a link to storage
 			if err := sb.MakeLink(&task.task); err != nil {
 				res = sb.errTask(task, errors.As(err))

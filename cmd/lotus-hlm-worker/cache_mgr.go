@@ -71,6 +71,12 @@ func (w *worker) GcRepoSectors(ctx context.Context) error {
 		if err := w.gcRepo(ctx, repo, "fstmp"); err != nil {
 			return errors.As(err)
 		}
+		if err := w.gcRepo(ctx, repo, "update"); err != nil {
+			return errors.As(err)
+		}
+		if err := w.gcRepo(ctx, repo, "update-cache"); err != nil {
+			return errors.As(err)
+		}
 		//delete(w.sealers, repo)
 	}
 	return nil

@@ -1282,7 +1282,7 @@ func (sb *Sealer) replicaUpdate(ctx context.Context, sector storiface.SectorRef,
 	return storiface.ReplicaUpdateOut{NewSealed: sealed, NewUnsealed: unsealed}, nil
 }
 
-func (sb *Sealer) ProveReplicaUpdate1(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storiface.ReplicaVanillaProofs, error) {
+func (sb *Sealer) proveReplicaUpdate1(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storiface.ReplicaVanillaProofs, error) {
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTSealed|storiface.FTCache|storiface.FTUpdate|storiface.FTUpdateCache, storiface.FTNone, storiface.PathSealing)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to acquire sector paths: %w", err)
@@ -1298,7 +1298,7 @@ func (sb *Sealer) ProveReplicaUpdate1(ctx context.Context, sector storiface.Sect
 	return vanillaProofs, nil
 }
 
-func (sb *Sealer) ProveReplicaUpdate2(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs storiface.ReplicaVanillaProofs) (storiface.ReplicaUpdateProof, error) {
+func (sb *Sealer) proveReplicaUpdate2(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs storiface.ReplicaVanillaProofs) (storiface.ReplicaUpdateProof, error) {
 	updateProofType := abi.SealProofInfos[sector.ProofType].UpdateProof
 	return ffi.SectorUpdate.GenerateUpdateProofWithVanilla(updateProofType, sectorKey, newSealed, newUnsealed, vanillaProofs)
 }

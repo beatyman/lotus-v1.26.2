@@ -144,12 +144,9 @@ func (l *hlmWorker) ProveReplicaUpdate2(ctx context.Context, sector storiface.Se
 	return l.sb.ProveReplicaUpdate2(ctx, sector, sectorKey, newSealed, newUnsealed, vanillaProofs)
 }
 
-func (m *hlmWorker) ProveReplicaUpdate(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid) (storiface.ReplicaUpdateProof, error) {
-	return m.sb.ProveReplicaUpdate(ctx, sector, sectorKey, newSealed, newUnsealed)
-}
 
-func (m *hlmWorker) FinalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef) error {
-	return m.sb.FinalizeReplicaUpdate(ctx, sector)
+func (l *hlmWorker) FinalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef) error {
+	return l.sb.FinalizeReplicaUpdate(ctx, sector)
 }
 
 //snap end

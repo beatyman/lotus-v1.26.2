@@ -61,6 +61,17 @@ const (
 	WorkerUnseal                        = 60
 	WorkerUnsealDone                    = 61
 
+	WorkerReplicaUpdate                 = 70
+	WorkerReplicaUpdateDone             = 71
+	WorkerProveReplicaUpdate1           = 72
+	WorkerProveReplicaUpdate1Done       = 73
+	WorkerProveReplicaUpdate2           = 74
+	WorkerProveReplicaUpdate2Done       = 75
+	WorkerGenerateSectorKeyFromData     = 76
+	WorkerGenerateSectorKeyFromDataDone = 77
+	WorkerFinalizeReplicaUpdate         = 78
+	WorkerFinalizeReplicaUpdateDone     = 79
+
 	WorkerTransfer = 101
 
 	WorkerWindowPoSt  = 1000
@@ -204,6 +215,9 @@ type WorkerTask struct {
 	NewSealed   cid.Cid
 	NewUnsealed cid.Cid
 
+	// ProveReplicaUpdate2
+	VanillaProofs storiface.ReplicaVanillaProofs
+
 	// winning PoSt
 	SectorInfo []storiface.ProofSectorInfo
 	// using for wdpost, winpost, unseal
@@ -311,6 +325,11 @@ type remote struct {
 	commitChan     chan workerCall
 	finalizeChan   chan workerCall
 	unsealChan     chan workerCall
+	//snap
+	replicaUpdateChan   chan workerCall
+	pReplicaUpdate1Chan chan workerCall
+	pReplicaUpdate2Chan chan workerCall
+	fReplicaUpdateChan  chan workerCall
 
 	sealTasks   chan WorkerTask
 	busyOnTasks map[string]WorkerTask // length equals WorkerCfg.MaxCacheNum, key is sector id.
@@ -391,12 +410,13 @@ func (r *remote) Idle() int {
 			num++
 		}
 	}
-	residueNum := r.cfg.ParallelPrecommit1+r.cfg.ParallelPrecommit2 - num
+	residueNum := r.cfg.ParallelPrecommit1 + r.cfg.ParallelPrecommit2 - num
 	if residueNum < 0 {
 		return 0
 	}
 	return residueNum
 }
+
 // for control the memory
 func (r *remote) LimitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	if r.isOfflineState() {
@@ -407,16 +427,18 @@ func (r *remote) LimitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	defer r.lock.Unlock()
 	return r.limitParallel(typ, isSrvCalled)
 }
-
 func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
+
 	// no limit list
 	switch typ {
-	case WorkerFinalize:
+	case WorkerFinalize, WorkerFinalizeReplicaUpdate:
 		return false
 	}
+
 	busyAddPieceNum := 0
 	busyPrecommit1Num := 0
 	busyUnsealNum := 0
+	busyReplicaUpdateNum := 0
 	busyPrecommit2Num := 0
 	busyCommitNum := 0
 	busyWinningPoSt := 0
@@ -437,9 +459,11 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 			busyPrecommit1Num++
 		case WorkerUnseal:
 			busyUnsealNum++
-		case WorkerPreCommit2:
+		case WorkerReplicaUpdate:
+			busyReplicaUpdateNum++
+		case WorkerPreCommit2, WorkerProveReplicaUpdate1:
 			busyPrecommit2Num++
-		case WorkerCommit:
+		case WorkerCommit, WorkerProveReplicaUpdate2:
 			busyCommitNum++
 		case WorkerWinningPoSt:
 			busyWinningPoSt++
@@ -451,7 +475,8 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 		// mutex to any other task.
 		return sumWorkingTask > 0
 	}
-	busyP1GroupNum := busyAddPieceNum + busyPrecommit1Num + busyUnsealNum
+
+	busyP1GroupNum := busyAddPieceNum + busyPrecommit1Num + busyUnsealNum + busyReplicaUpdateNum
 	switch typ {
 	// mutex cpu for addpiece and precommit1
 	case WorkerPledge:
@@ -460,12 +485,12 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 			return true
 		}
 		return busyAddPieceNum >= r.cfg.ParallelPledge || calculatedWorkingTask >= r.cfg.MaxTaskNum || busyP1GroupNum >= r.cfg.ParallelPrecommit1
-	case WorkerPreCommit1, WorkerUnseal:
+	case WorkerPreCommit1, WorkerReplicaUpdate:
 		return busyP1GroupNum >= r.cfg.ParallelPrecommit1
 	// mutex gpu for precommit2, commit2.
-	case WorkerPreCommit2:
+	case WorkerPreCommit2, WorkerProveReplicaUpdate1:
 		return busyPrecommit2Num >= r.cfg.ParallelPrecommit2 || (r.cfg.Commit2Srv && busyCommitNum > 0)
-	case WorkerCommit:
+	case WorkerCommit, WorkerProveReplicaUpdate2:
 		// ulimit to call commit2 service.
 		if r.cfg.ParallelCommit == 0 {
 			return false
@@ -601,8 +626,9 @@ type SealRes struct {
 	PreCommit2Out storiface.SectorCids
 	Commit2Out    storiface.Proof
 	//snap
-	ReplicaUpdateOut      storiface.ReplicaUpdateOut
-	ProveReplicaUpdateOut storiface.ReplicaUpdateProof
+	ReplicaUpdateOut     storiface.ReplicaUpdateOut
+	ReplicaVanillaProofs storiface.ReplicaVanillaProofs
+	ReplicaUpdateProof   storiface.ReplicaUpdateProof
 
 	WinningPoStProofOut []proof.PoStProof
 

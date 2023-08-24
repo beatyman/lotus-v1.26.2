@@ -34,6 +34,14 @@ var (
 	_finalizeTasks   = make(chan workerCall)
 	_unsealTasks     = make(chan workerCall)
 
+	//snap
+	_releaseUnsealTasks             = make(chan workerCall)
+	_replicaUpdateTasks             = make(chan workerCall)
+	_proveReplicaUpdate1Tasks       = make(chan workerCall)
+	_proveReplicaUpdate2Tasks       = make(chan workerCall)
+	_generateSectorKeyFromDataTasks = make(chan workerCall)
+	_finalizeReplicaUpdateTasks     = make(chan workerCall)
+
 	_tmpPledgeTasks   = make(map[string][]workerCall)
 	_tmpPledgeTasksRW = &sync.RWMutex{}
 
@@ -52,6 +60,14 @@ var (
 	_commitWait     int32
 	_finalizeWait   int32
 	_unsealWait     int32
+
+	//snap
+	_releaseUnsealWait             int32
+	_replicaUpdateWait             int32
+	_proveReplicaUpdate1Wait       int32
+	_proveReplicaUpdate2Wait       int32
+	_generateSectorKeyFromDataWait int32
+	_finalizeReplicaUpdateWait     int32
 
 	sourceId = int64(1000000000) // the sealed sector need less than this value
 	sourceLk = sync.Mutex{}
