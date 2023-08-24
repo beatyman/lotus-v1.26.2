@@ -356,7 +356,7 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 			return errors.As(err)
 		}
 	case database.MOUNT_TYPE_CUSTOM:
-		unsealedFromPath := filepath.Join( "unsealed", sid)
+		unsealedFromPath := filepath.Join("unsealed", sid)
 		unsealedToPath := workerSB.SectorPath("unsealed", sid)
 		if err := w.downloadFromUfile(ctx, unsealedFromPath, unsealedToPath); err != nil {
 			return errors.As(err)
@@ -848,7 +848,7 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		// fetch the staging file
 		//fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
 		// fetch do a quick checksum
-		fromPath := filepath.Join(mountDir, task.PieceData.ServerFullUri)
+		fromPath := filepath.Join(mountDir, task.PieceData.ServerFileName)
 		log.Infof("from : %+v => to : %+v", fromPath, tmpFile)
 		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
 			if !errors.ErrNoData.Equal(err) {
