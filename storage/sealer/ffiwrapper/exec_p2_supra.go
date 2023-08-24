@@ -117,7 +117,7 @@ func execPrecommit2WithSupra(ctx context.Context, ak *bindgpu.GpuAllocateKey, gI
 		}
 
 		for i := 0; i < PC2CheckRounds; i++ {
-			log.Infof("path: %+v,sealedCID: %+v,unsealedCID: %+v,sector:%+v,ssize:%+v",paths,sealedCID,unsealedCID,sector,ssize)
+			log.Infof("path: %+v,sealedCID: %+v,unsealedCID: %+v,sector:%+v,ssize:%+v",sealer.RepoPath(),commR,commD,task.SectorName(),ssize)
 			var sd [32]byte
 			_, _ = rand.Read(sd[:])
 
