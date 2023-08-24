@@ -2,11 +2,17 @@ package ffiwrapper
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	ffi "github.com/filecoin-project/filecoin-ffi"
 	commcid "github.com/filecoin-project/go-fil-commcid"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/hardware/bindcpu"
 	"github.com/gwaylib/hardware/bindgpu"
+	"golang.org/x/xerrors"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,6 +99,47 @@ func execPrecommit2WithSupra(ctx context.Context, ak *bindgpu.GpuAllocateKey, gI
 	commR, err := commcid.ReplicaCommitmentV1ToCID(commRBytes)
 	if err != nil {
 		return storiface.SectorCids{}, err
+	}
+	//添加一个P2做完的check
+	p1odec := map[string]interface{}{}
+
+	if err := json.Unmarshal(task.PreCommit1Out, &p1odec); err != nil {
+		return storiface.SectorCids{}, xerrors.Errorf("unmarshaling pc1 output: %w", err)
+	}
+
+	var ticket abi.SealRandomness
+	ti, found := p1odec["_lotus_SealRandomness"]
+
+	if found {
+		ticket, err = base64.StdEncoding.DecodeString(ti.(string))
+		if err != nil {
+			return storiface.SectorCids{}, xerrors.Errorf("decoding ticket: %w", err)
+		}
+
+		for i := 0; i < PC2CheckRounds; i++ {
+			log.Infof("path: %+v,sealedCID: %+v,unsealedCID: %+v,sector:%+v,ssize:%+v",paths,sealedCID,unsealedCID,sector,ssize)
+			var sd [32]byte
+			_, _ = rand.Read(sd[:])
+
+			_, err := ffi.SealCommitPhase1(
+				task.ProofType,
+				commR,
+				commD,
+				cachePath,
+				sealedPath,
+				task.SectorID.Number,
+				task.SectorID.Miner,
+				ticket,
+				sd[:],
+				[]abi.PieceInfo{{Size: abi.PaddedPieceSize(ssize), PieceCID: commD}},
+			)
+			if err != nil {
+				log.Warn("checking PreCommit failed: ", err)
+				log.Warnf("num:%d tkt:%v seed:%v sealedCID:%v, unsealedCID:%v", task.SectorID.Number, ticket, sd[:], commR, commD)
+
+				return storiface.SectorCids{}, xerrors.Errorf("checking PreCommit failed: %w", err)
+			}
+		}
 	}
 	if err = exec.CommandContext(ctx, "mv", "-f", outPath, sealedPath).Run(); err != nil {
 		return storiface.SectorCids{}, err

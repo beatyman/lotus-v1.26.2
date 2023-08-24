@@ -409,63 +409,59 @@ func (r *remote) LimitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 }
 
 func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
-
 	// no limit list
 	switch typ {
 	case WorkerFinalize:
-		// TODO: return r.cfg.Commit2Srv || r.cfg.WdPoStSrv || r.cfg.WnPoStSrv
 		return false
 	}
-
-	busyPledgeNum := 0
+	busyAddPieceNum := 0
 	busyPrecommit1Num := 0
+	busyUnsealNum := 0
 	busyPrecommit2Num := 0
 	busyCommitNum := 0
-	busyUnsealNum := 0
 	busyWinningPoSt := 0
 	busyWindowPoSt := 0
 	sumWorkingTask := 0
-	realWorking := 0
+	calculatedWorkingTask := 0
 	for _, val := range r.busyOnTasks {
-		if val.Type%10 == 0 {
+		if val.Type%2 == 0 {
 			sumWorkingTask++
 		}
-		if val.Type <= WorkerPreCommit2 {
-			realWorking++
+		if val.Type < WorkerFinalize {
+			calculatedWorkingTask++
 		}
 		switch val.Type {
 		case WorkerPledge:
-			busyPledgeNum++
+			busyAddPieceNum++
 		case WorkerPreCommit1:
 			busyPrecommit1Num++
+		case WorkerUnseal:
+			busyUnsealNum++
 		case WorkerPreCommit2:
 			busyPrecommit2Num++
 		case WorkerCommit:
 			busyCommitNum++
-		case WorkerUnseal:
-			busyUnsealNum++
 		case WorkerWinningPoSt:
 			busyWinningPoSt++
 		case WorkerWindowPoSt:
 			busyWindowPoSt++
 		}
 	}
-	//log.Infof("workerIP: %v; real<=21: %v/%v ; AddPiece: %v/%v ; P1: %v/%v ; P2: %v/%v ;Commit: %v/%v", r.cfg.IP, realWorking, r.cfg.MaxTaskNum, busyPledgeNum, r.cfg.ParallelPledge, busyPrecommit1Num, r.cfg.ParallelPrecommit1, busyPrecommit2Num, r.cfg.ParallelPrecommit2, busyCommitNum, r.cfg.ParallelCommit)
 	if isSrvCalled {
 		// mutex to any other task.
 		return sumWorkingTask > 0
 	}
-
+	busyP1GroupNum := busyAddPieceNum + busyPrecommit1Num + busyUnsealNum
 	switch typ {
 	// mutex cpu for addpiece and precommit1
 	case WorkerPledge:
-		if realWorking >= r.cfg.MaxTaskNum {
+		// in full working
+		if calculatedWorkingTask >= r.cfg.MaxTaskNum {
 			return true
 		}
-		return busyPledgeNum >= r.cfg.ParallelPledge || realWorking >= r.cfg.MaxTaskNum || busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1
-	case WorkerPreCommit1, WorkerUnseal: // unseal is shared with the parallel-precommit1
-		return busyPrecommit1Num+busyUnsealNum >= r.cfg.ParallelPrecommit1
-
+		return busyAddPieceNum >= r.cfg.ParallelPledge || calculatedWorkingTask >= r.cfg.MaxTaskNum || busyP1GroupNum >= r.cfg.ParallelPrecommit1
+	case WorkerPreCommit1, WorkerUnseal:
+		return busyP1GroupNum >= r.cfg.ParallelPrecommit1
 	// mutex gpu for precommit2, commit2.
 	case WorkerPreCommit2:
 		return busyPrecommit2Num >= r.cfg.ParallelPrecommit2 || (r.cfg.Commit2Srv && busyCommitNum > 0)
@@ -479,7 +475,6 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 	// default is false to pass the logic.
 	return false
 }
-
 func (r *remote) UpdateTask(sid string, state int) bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
