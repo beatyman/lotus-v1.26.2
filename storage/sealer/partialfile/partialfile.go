@@ -312,7 +312,14 @@ func OpenUnsealedPartialFileV2(maxPieceSize abi.PaddedPieceSize, sector storifac
 			}
 			f = f2
 		}
-	case database.MOUNT_TYPE_CUSTOM:
+	case database.MOUNT_TYPE_FCFS:
+		//手动自己mount
+		osfile, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint
+		if err != nil {
+			return nil, xerrors.Errorf("openning partial file '%s': %w", path, err)
+		}
+		f = osfile
+	case database.MOUNT_TYPE_UFILE:
 		//手动自己mount
 		osfile, err := os.OpenFile(path, os.O_RDWR, 0644) // nolint
 		if err != nil {

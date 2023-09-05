@@ -129,8 +129,10 @@ func Mount(ctx context.Context, mountType, mountUri, mountPoint, mountOpts strin
 	switch mountType {
 	case MOUNT_TYPE_OSS:
 		return nil
-	case MOUNT_TYPE_CUSTOM:
+	case MOUNT_TYPE_FCFS:
 		// close for customer protocal
+		return nil
+	case MOUNT_TYPE_UFILE:
 		return nil
 	case MOUNT_TYPE_PB:
 		return nil
@@ -234,7 +236,9 @@ func MountPostWorker(ctx context.Context, mountType, mountUri, mountPoint, mount
 		return nil
 	case MOUNT_TYPE_OSS:
 		return nil
-	case MOUNT_TYPE_CUSTOM:
+	case MOUNT_TYPE_UFILE:
+		return nil
+	case MOUNT_TYPE_FCFS:
 		// close for customer protocal
 		//判断服务是否启动
 		serviceStart, err := CheckProRunning("kodo-fcfs")

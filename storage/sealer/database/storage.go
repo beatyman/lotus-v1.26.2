@@ -33,6 +33,8 @@ const (
 	MOUNT_TYPE_CEPH   = "ceph"
 	MOUNT_TYPE_OSS    = "oss"
 	MOUNT_TYPE_PB     = "pb-storage"    // the auth save with params url and will set to env
+	MOUNT_TYPE_FCFS   = "fcfs"  //七牛文件存储
+	MOUNT_TYPE_UFILE  = "ufile" //US3文件存储,miner端使用挂载模式,worker端使用对象存储SDK上传下载
 )
 
 type StorageMountPoint struct {

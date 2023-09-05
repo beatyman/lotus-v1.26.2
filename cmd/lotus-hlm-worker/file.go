@@ -3,17 +3,17 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
+	"crypto/md5"
 	"fmt"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gwaylib/errors"
@@ -25,34 +25,113 @@ const (
 	append_file_continue  = 1
 	append_file_completed = 2
 )
-
-func checksumFile(aFile, bFile *os.File) (int, error) {
-	if _, err := aFile.Seek(0, 0); err != nil {
-		return append_file_new, errors.As(err, aFile.Name())
+const (
+	_HASH_KIND_NONE  = 0 // no hash
+	_HASH_KIND_QUICK = 1 // quick hash
+	_HASH_KIND_DEEP  = 2 // deep hash
+)
+func checksumFile(aPath, bPath string, hashKind int) error {
+	aFile, err := os.Open(aPath)
+	if err != nil {
+		return errors.As(err, aPath)
 	}
-	if _, err := bFile.Seek(0, 0); err != nil {
-		return append_file_new, errors.As(err, bFile.Name())
+	defer aFile.Close()
+	aStat, err := aFile.Stat()
+	if err != nil {
+		return errors.As(err, aPath)
+	}
+	aSize := aStat.Size()
+
+	bFile, err := os.Open(bPath)
+	if err != nil {
+		if os.IsNotExist(err) && aSize == 0 {
+			return nil
+		}
+		return errors.As(err, bPath)
+	}
+	defer bFile.Close()
+	bStat, err := bFile.Stat()
+	if err != nil {
+		return errors.As(err, bPath)
+	}
+	bSize := bStat.Size()
+	if bSize == 0 {
+		if aSize == 0 {
+			return nil
+		}
+		return errors.As(os.ErrNotExist, bPath)
 	}
 
-	// checksum all data
-	ah := sha1.New()
-	if _, err := io.Copy(ah, aFile); err != nil {
-		return append_file_new, errors.As(err, aFile.Name())
-	}
-	aSum := ah.Sum(nil)
-
-	bh := sha1.New()
-	if _, err := io.Copy(bh, bFile); err != nil {
-		return append_file_new, errors.As(err, bFile.Name())
-	}
-	bSum := bh.Sum(nil)
-
-	if !bytes.Equal(aSum, bSum) {
-		return append_file_new, nil
+	if aSize != bSize {
+		return errors.New("size not match").As(aPath, aStat.Size(), bPath, bStat.Size())
 	}
 
-	return append_file_completed, nil
+	switch hashKind {
+	case _HASH_KIND_QUICK:
+		aBuf := make([]byte, 4*1024) // 4k
+		bBuf := make([]byte, 4*1024) // 4k
+		if aStat.Size() < 4*1024 {
+			if _, err := aFile.ReadAt(aBuf[:aSize], 0); err != nil {
+				return errors.As(err, aPath)
+			}
+			if _, err := bFile.ReadAt(bBuf[:bSize], 0); err != nil {
+				return errors.As(err, bPath)
+			}
+		} else {
+			// section 1
+			if _, err := aFile.ReadAt(aBuf[:1024], 0); err != nil {
+				return errors.As(err, aPath)
+			}
+			if _, err := bFile.ReadAt(bBuf[:1024], 0); err != nil {
+				return errors.As(err, bPath)
+			}
+			// section 2
+			if _, err := aFile.ReadAt(aBuf[1024:3*1024], aSize/2-1024); err != nil {
+				return errors.As(err, aPath)
+			}
+			if _, err := bFile.ReadAt(bBuf[1024:3*1024], bSize/2-1024); err != nil {
+				return errors.As(err, bPath)
+			}
+			// section 3
+			if _, err := aFile.ReadAt(aBuf[3*1024:4*1024], aSize-1024); err != nil {
+				return errors.As(err, aPath)
+			}
+			if _, err := bFile.ReadAt(bBuf[3*1024:4*1024], bSize-1024); err != nil {
+				return errors.As(err, bPath)
+			}
+		}
+		if bytes.Compare(aBuf, bBuf) != 0 {
+			return errors.New("4k checksum not match").As(aPath, bPath)
+		}
+	case _HASH_KIND_DEEP:
+		// checksum all data
+		if _, err := aFile.Seek(0, 0); err != nil {
+			return errors.As(err, aPath)
+		}
+		if _, err := bFile.Seek(0, 0); err != nil {
+			return errors.As(err, bPath)
+		}
+
+		ah := md5.New()
+		if _, err := io.Copy(ah, aFile); err != nil {
+			return errors.As(err, aFile.Name())
+		}
+		aSum := ah.Sum(nil)
+
+		bh := md5.New()
+		if _, err := io.Copy(bh, bFile); err != nil {
+			return errors.As(err, bFile.Name())
+		}
+		bSum := bh.Sum(nil)
+
+		if !bytes.Equal(aSum, bSum) {
+			return errors.New("md5sum not match").As(fmt.Sprintf("%x,%x", aSum, bSum))
+		}
+
+	}
+	return nil
 }
+
 func canAppendFile(aFile, bFile *os.File, aStat, bStat os.FileInfo) (int, error) {
 	checksumSize := int64(32 * 1024)
 	// for small size, just do rewrite.
@@ -129,126 +208,42 @@ func copyFile(ctx context.Context, from, to string) error {
 	if err := os.MkdirAll(filepath.Dir(to), 0755); err != nil {
 		return errors.As(err, to)
 	}
-	fromFile, err := os.Open(from)
-	if err != nil {
-		return errors.As(err, from)
-	}
-	defer fromFile.Close()
-	fromStat, err := fromFile.Stat()
+	fromStat, err := os.Stat(from)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return errors.ErrNoData.As(to)
 		}
 		return errors.As(err, to)
 	}
-
-	// TODO: make chtime
-	toFile, err := os.OpenFile(to, os.O_RDWR|os.O_CREATE, fromStat.Mode())
-	if err != nil {
-		return errors.As(err, to, uint64(fromStat.Mode()))
+	if fromStat.Size() == 0 {
+		log.Infof("ignore no size file:%s", from)
+		return nil
 	}
-	defer toFile.Close()
-	toStat, err := toFile.Stat()
-	if err != nil {
-		return errors.As(err, to)
+	if _, err := os.Stat(filepath.Dir(to)); err != nil {
+		if err := os.MkdirAll(filepath.Dir(to), 0755); err != nil {
+			log.Errorf("mkdir err :%s", to)
+			return errors.As(err, to)
+		}
 	}
-
-	// checking continue
-	stats, err := canAppendFile(fromFile, toFile, fromStat, toStat)
-	if err != nil {
+	if strings.Contains(from, "comm_d") ||
+		strings.Contains(from, "comm_r") ||
+		strings.Contains(from, "p1.out") ||
+		strings.Contains(from, "c1.out") ||
+		strings.Contains(from, "c2.out") {
+		log.Infof("ignore local file:%s", from)
+		return nil
+	}
+	// use the system command because some storage is more suitable
+	cmd := exec.CommandContext(ctx, "/usr/bin/env", "cp", "-vf", from, to)
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stderr
+	if err := cmd.Run(); err != nil {
 		return errors.As(err)
 	}
-	switch stats {
-	case append_file_completed:
-		// has done
-		fmt.Printf("%s ======= completed\n", to)
-		return nil
-
-	case append_file_continue:
-		appendPos := int64(toStat.Size() - 1)
-		if appendPos < 0 {
-			appendPos = 0
-			fmt.Printf("%s ====== new \n", to)
-		} else {
-			fmt.Printf("%s ====== continue: %d\n", to, appendPos)
-		}
-		if _, err := fromFile.Seek(appendPos, 0); err != nil {
-			return errors.As(err)
-		}
-		if _, err := toFile.Seek(appendPos, 0); err != nil {
-			return errors.As(err)
-		}
-	default:
-		fmt.Printf("%s ====== new \n", to)
-		// TODO: allow truncate, current need to delete the files by manully.
-		if err := toFile.Truncate(0); err != nil {
-			return errors.As(err)
-		}
-		if _, err := toFile.Seek(0, 0); err != nil {
-			return errors.As(err)
-		}
-		if _, err := fromFile.Seek(0, 0); err != nil {
-			return errors.As(err)
-		}
+	if err := checksumFile(from, to, _HASH_KIND_QUICK); err != nil {
+		return errors.As(err)
 	}
-
-	errBuff := make(chan error, 1)
-	interrupt := false
-	iLock := sync.Mutex{}
-	go func() {
-		buf := make([]byte, 32*1024)
-		for {
-			iLock.Lock()
-			if interrupt {
-				iLock.Unlock()
-				return
-			}
-			iLock.Unlock()
-
-			nr, er := fromFile.Read(buf)
-			if nr > 0 {
-				nw, ew := toFile.Write(buf[0:nr])
-				if ew != nil {
-					errBuff <- errors.As(ew)
-					return
-				}
-				if nr != nw {
-					errBuff <- errors.As(io.ErrShortWrite)
-					return
-				}
-			}
-			if er != nil {
-				errBuff <- errors.As(er)
-				return
-			}
-		}
-	}()
-	select {
-	case err := <-errBuff:
-		if !errors.Equal(err, io.EOF) {
-			return errors.As(err)
-		}
-		stats, err := checksumFile(fromFile, toFile)
-		if err != nil {
-			return errors.As(err)
-		}
-		if stats == append_file_completed {
-			return nil
-		}
-		// TODO: allow truncate, current need to delete the files by manully.
-		//if err := toFile.Truncate(0); err != nil {
-		//	return errors.As(err, toFile)
-		//}
-		//if _, err := toFile.Seek(0, 0); err != nil {
-		//	return errors.As(err, toFile)
-		//}
-		return errors.New("finalize has completed, but checksum failed.").As(stats, from, to, fromStat.Size(), toStat.Size())
-	case <-ctx.Done():
-		iLock.Lock()
-		interrupt = true
-		iLock.Unlock()
-		return ctx.Err()
-	}
+	return nil
 }
 
 type Transferer struct {
