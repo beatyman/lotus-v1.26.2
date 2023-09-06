@@ -30,6 +30,7 @@ type ExecAddPieceReq struct {
 }
 
 type ExecAddPieceResp struct {
+	Pieces   []abi.PieceInfo
 	Data abi.PieceInfo
 	Err  string
 }
@@ -89,52 +90,52 @@ loopUnixConn:
 	return nil
 }
 
-func (sb *Sealer) ExecAddPiece(ctx context.Context, task WorkerTask) (abi.PieceInfo, error) {
+func (sb *Sealer) ExecAddPiece(ctx context.Context, task WorkerTask) (ExecAddPieceResp, error) {
 	args, err := json.Marshal(&ExecAddPieceReq{
 		Repo: sb.RepoPath(),
 		Task: task,
 	})
 	if err != nil {
-		return abi.PieceInfo{}, errors.As(err)
+		return ExecAddPieceResp{}, errors.As(err)
 	}
 	aKeys, aVal, err := AllocateCpuForAP(ctx)
 	if err != nil {
-		return abi.PieceInfo{}, errors.As(err)
+		return ExecAddPieceResp{}, errors.As(err)
 	}
 	defer bindcpu.ReturnCpus(aKeys)
 
 	// bind process
 	if err := sb.bindAddPieceProcess(ctx, aKeys, aVal, task); err != nil {
-		return abi.PieceInfo{}, errors.As(err)
+		return ExecAddPieceResp{}, errors.As(err)
 	}
 	defer FreeTaskPid(task.SectorName())
 	// write args
 	encryptArg, err := AESEncrypt(args, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
 	if err != nil {
-		return abi.PieceInfo{}, errors.As(err, string(args))
+		return ExecAddPieceResp{}, errors.As(err, string(args))
 	}
 	conn := aVal.Conn
 	if _, err := conn.Write(encryptArg); err != nil {
-		return abi.PieceInfo{}, errors.As(err, string(args))
+		return ExecAddPieceResp{}, errors.As(err, string(args))
 	}
 
 	// wait resp
 	out, err := readUnixConn(conn)
 	if err != nil {
-		return abi.PieceInfo{}, errors.As(err, string(args))
+		return ExecAddPieceResp{}, errors.As(err, string(args))
 	}
 	decodeOut, err := AESDecrypt(out, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
 	if err != nil {
-		return abi.PieceInfo{}, errors.As(err, string(args))
+		return ExecAddPieceResp{}, errors.As(err, string(args))
 	}
 	resp := ExecAddPieceResp{}
 	if err := json.Unmarshal(decodeOut, &resp); err != nil {
-		return abi.PieceInfo{}, errors.As(err, string(args), string(out))
+		return ExecAddPieceResp{}, errors.As(err, string(args), string(out))
 	}
 	if len(resp.Err) > 0 {
-		return abi.PieceInfo{}, errors.Parse(resp.Err)
+		return ExecAddPieceResp{}, errors.Parse(resp.Err)
 	}
-	return resp.Data, nil
+	return resp, nil
 }
 
 var AddPieceCmd = &cli.Command{
@@ -259,12 +260,25 @@ var AddPieceCmd = &cli.Command{
 				},
 				StoreUnseal: task.StoreUnseal,
 			}
-			out, err := workerSealer.AddPiece(ctx, sref, task.ExistingPieceSizes, task.PieceSize, task.PieceData)
-			if err != nil {
-				resp.Err = errors.As(err, task.PieceData).Error()
-				return
+			if len(task.ExtSizes)>0{
+				pieces, err:= workerSealer.PledgeSector(ctx,
+					sref,
+					task.ExistingPieceSizes,
+					task.ExtSizes...,
+				)
+				if err != nil {
+					resp.Err = errors.As(err, task.PieceData).Error()
+					return
+				}
+				resp.Pieces=pieces
+			}else {
+				out, err := workerSealer.AddPiece(ctx, sref, task.ExistingPieceSizes, task.PieceSize, task.PieceData)
+				if err != nil {
+					resp.Err = errors.As(err, task.PieceData).Error()
+					return
+				}
+				resp.Data = out
 			}
-			resp.Data = out
 			return
 		}
 

@@ -163,35 +163,36 @@ func (sb *Sealer) pledgeRemote(call workerCall) ([]abi.PieceInfo, error) {
 }
 
 func (sb *Sealer) PledgeSector(ctx context.Context, sector storiface.SectorRef, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
-	snap := false
-	if v := ctx.Value("SNAP"); v != nil {
-		snap = v.(bool)
-	}
-
-	log.Infof("DEBUG:PledgeSector in(remote:%t),%+v, snap(%v)", sb.remoteCfg.SealSector, sector.ID, snap)
-	defer log.Infof("DEBUG:PledgeSector out,%+v, snap(%v)", sector.ID, snap)
-
-
+	log.Infof("DEBUG:PledgeSector in(remote:%t),%+v", sb.remoteCfg.SealSector, sector.ID)
+	defer log.Infof("DEBUG:PledgeSector out,%+v", sector.ID)
 	if len(sizes) == 0 {
-		log.Info("No sizes for pledge")
+		log.Infof("No sizes for pledge %+v", sector.ID)
 		return nil, nil
 	}
 
-	log.Infof("Pledge %+v, contains %+v, sizes %+v",
-		storiface.SectorName(sector.ID), existingPieceSizes, sizes)
-
-	out := make([]abi.PieceInfo, len(sizes))
-	for i, size := range sizes {
-		ppi, err := sb.AddPiece(ctx, sector, existingPieceSizes, size, shared.NewNullPieceData(size))
-		if err != nil {
-			return nil, xerrors.Errorf("add piece: %w", err)
-		}
-
-		existingPieceSizes = append(existingPieceSizes, size)
-
-		out[i] = ppi
+	atomic.AddInt32(&_pledgeWait, 1)
+	if !sb.remoteCfg.SealSector {
+		return sb.pledgeSector(ctx, sector, existingPieceSizes, sizes...)
 	}
-	return out, nil
+
+	call := workerCall{
+		// no need worker id
+		task: WorkerTask{
+			Type:               WorkerPledge,
+			ProofType:          sector.ProofType,
+			SectorID:           sector.ID,
+			ExistingPieceSizes: existingPieceSizes,
+			ExtSizes:           sizes,
+		},
+		ret: make(chan SealRes),
+	}
+
+	select { // prefer remote
+	case _pledgeTasks <- call:
+		return sb.pledgeRemote(call)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 func (sb *Sealer) sealPreCommit1Remote(call workerCall) (storiface.PreCommit1Out, error) {
 	select {

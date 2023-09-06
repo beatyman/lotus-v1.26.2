@@ -450,19 +450,23 @@ reAllocate:
 			task.PieceData.LocalPath = tmpFile
 		}
 		rsp, err := sealer.ExecAddPiece(ctx, task)
-		res.Piece = rsp
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-		if sector.IsMarketSector {
-			// push unsealed, so the market addpiece can make a index for continue
-		retry:
-			log.Info("==================sector.StoreUnseal====================", sector.StoreUnseal)
-			if err := w.pushUnsealed(ctx, sealer, task); err != nil {
-				log.Warn(errors.As(err))
-				time.Sleep(10e9)
-				goto retry
+		if len(task.ExtSizes) > 0 {
+			res.Pieces = rsp.Pieces
+			if sector.IsMarketSector {
+				// push unsealed, so the market addpiece can make a index for continue
+			retry:
+				log.Info("==================sector.StoreUnseal====================", sector.StoreUnseal)
+				if err := w.pushUnsealed(ctx, sealer, task); err != nil {
+					log.Warn(errors.As(err))
+					time.Sleep(10e9)
+					goto retry
+				}
 			}
+		}else {
+			res.Piece = rsp.Data
 		}
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)

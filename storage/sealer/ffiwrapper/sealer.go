@@ -47,7 +47,7 @@ func (sb *Sealer) pledgeSector(ctx context.Context, sectorID storiface.SectorRef
 
 	out := make([]abi.PieceInfo, len(sizes))
 	for i, size := range sizes {
-		ppi, err := sb.AddPiece(ctx, sectorID, existingPieceSizes, size,  shared.NewNullPieceData(size))
+		ppi, err := sb.AddPiece(ctx, sectorID, existingPieceSizes, size, shared.NewNullPieceData(size))
 		if err != nil {
 			return nil, xerrors.Errorf("add piece: %w", err)
 		}
