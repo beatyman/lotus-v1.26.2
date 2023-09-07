@@ -152,7 +152,7 @@ func (w *worker) downloadFromUfile(ctx context.Context, fromPath, toPath string)
 		log.Errorf("ufsdk.NewFileRequest : err: %+v", err.Error())
 		return err
 	}
-	list, err := req.PrefixFileList("Prefix", "", 1000)
+	list, err := req.PrefixFileList(fromPath, "", 1000)
 	if err != nil {
 		log.Errorf("req.PrefixFileList : err: %+v", err.Error())
 		return err

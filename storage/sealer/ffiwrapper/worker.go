@@ -1523,6 +1523,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 	case WorkerPledge:
 		// not the task owner
 		if len(task.task.WorkerID) > 0 && task.task.WorkerID != r.cfg.ID {
+			log.Warnf("not the task owner return task: %v, %v", r.cfg.ID, task.task.Key())
 			go sb.toRemoteOwner(task)
 			return
 		}
@@ -1536,6 +1537,7 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 	default:
 		// not the task owner
 		if len(task.task.WorkerID) > 0 && task.task.WorkerID != r.cfg.ID {
+			log.Warnf("not the task owner return task: %v, %v", r.cfg.ID, task.task.Key())
 			go sb.toRemoteOwner(task)
 			return
 		}
