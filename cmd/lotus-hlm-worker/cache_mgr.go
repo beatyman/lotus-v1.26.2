@@ -930,18 +930,7 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		return tmpFile, errors.As(err)
 	}
 	switch ss.MountType {
-	case database.MOUNT_TYPE_FCFS:
-		// fetch the unsealed file
-		mountDir := filepath.Join(w.sealedRepo, fmt.Sprintf("%d", ss.ID))
-		fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
-		// fetch do a quick checksum
-		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
-			if !errors.ErrNoData.Equal(err) {
-				return tmpFile, errors.As(err)
-			}
-			// no data to fetch.
-		}
-	case database.MOUNT_TYPE_UFILE:
+	case database.MOUNT_TYPE_CUSTOM:
 		// fetch the unsealed file
 		mountDir := filepath.Join(w.sealedRepo, fmt.Sprintf("%d", ss.ID))
 		fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
@@ -1003,7 +992,7 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		// fetch the staging file
 		//fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
 		// fetch do a quick checksum
-		fromPath := filepath.Join(mountDir, task.PieceData.ServerFileName)
+		fromPath := filepath.Join(mountDir, task.PieceData.ServerFullUri)
 		log.Infof("from : %+v => to : %+v", fromPath, tmpFile)
 		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
 			if !errors.ErrNoData.Equal(err) {
