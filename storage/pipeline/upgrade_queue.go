@@ -2,6 +2,9 @@ package sealing
 
 import (
 	"context"
+	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/lotus/storage/sealer/database"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 
 	"golang.org/x/xerrors"
 
@@ -49,7 +52,15 @@ func (m *Sealing) MarkForUpgrade(ctx context.Context, id abi.SectorNumber) error
 		return xerrors.Errorf("pointless to upgrade sector %d, expiration %d is less than a min deal duration away from current epoch."+
 			"Upgrade expiration before marking for upgrade", id, onChainInfo.Expiration)
 	}
-
+	mid, err := address.IDFromAddress(m.maddr)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err:=database.ResetSectorWorkerID(storiface.SectorName(abi.SectorID{Miner:  abi.ActorID(mid), Number: id}));err!=nil{
+			log.Error(err)
+		}
+	}()
 	return m.sectors.Send(uint64(id), SectorMarkForUpdate{})
 }
 

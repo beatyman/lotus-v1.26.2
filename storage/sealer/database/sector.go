@@ -637,3 +637,22 @@ func SetSectorUnSealedStorage(sid string, storage uint64) error {
 	sectorFileCacheLk.Unlock()
 	return nil
 }
+
+func ResetSectorWorkerID(sid string) error {
+	mdb := GetDB()
+	if _, err := mdb.Exec(`
+UPDATE
+	sector_info
+SET
+	worker_id="",
+	state_time=?,
+	state_msg=?,
+	state_times=state_times+1
+WHERE
+	id=?
+	
+`,  time.Now(), "snap", sid); err != nil {
+		return errors.As(err)
+	}
+	return nil
+}
