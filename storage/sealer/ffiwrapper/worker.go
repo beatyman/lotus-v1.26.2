@@ -1483,7 +1483,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			checkFinalize()
 			checkFReplicaUpdate()
 			for _, check := range checkFunc {
-				if !r.isOfflineState() {
+				if !r.isOfflineState() && !r.disable{
 					check()
 				}
 			}
