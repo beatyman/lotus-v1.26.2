@@ -1524,20 +1524,22 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 		// not the task owner
 		if len(task.task.WorkerID) > 0 && task.task.WorkerID != r.cfg.ID {
 			log.Warnf("not the task owner return task: %v, %v", r.cfg.ID, task.task.Key())
-			tryReset := false
 			worker, _ := database.GetWorkerInfo(ss.SectorInfo.WorkerId)
 			if worker != nil && worker.Disable {
 				sInfo, _ := database.GetSectorInfo(ss.SectorInfo.ID)
 				if sInfo != nil && sInfo.State == database.SECTOR_STATE_DONE {
-					tryReset = true
+					if err := database.UpdateSectorState(
+						ss.SectorInfo.ID, "",
+						fmt.Sprintf("done:%d", task.task.Type), database.SECTOR_STATE_DONE, database.GetSectorSnapValue(task.task.Snap)); err != nil {
+						log.Warnf("try reset workerid task (snap) err %v: %v, %v", r.cfg.ID, task.task.Key(),err.Error())
+						return
+					}else {
+						log.Warnf("try reset workerid task (snap) %v: %v", r.cfg.ID, task.task.Key())
+					}
 				}
 			}
-			if !tryReset {
-				go sb.toRemoteOwner(task)
-				return
-			} else {
-				log.Warnf("try schedule task (snap): %v, %v", r.cfg.ID, task.task.Key())
-			}
+			go sb.toRemoteOwner(task)
+			return
 		}
 
 		if r.fakeFullTask() && !r.busyOn(task.task.SectorName()) {
