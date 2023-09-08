@@ -160,8 +160,17 @@ func (w *worker) downloadFromUfile(ctx context.Context, fromPath, toPath string)
 	log.Infof("PrefixFileList: %+v", list)
 	needDownloads := make([]string, 0)
 	for _, key := range list.DataSet {
-		needDownloads = append(needDownloads, key.FileName)
+		if strings.Contains(key.FileName, "sealed") {
+			needDownloads = append(needDownloads, key.FileName)
+			break
+		}
+		if strings.Contains(key.FileName,"cache") {
+			if strings.Contains(key.FileName,fromPath+"/"){
+				needDownloads = append(needDownloads, key.FileName)
+			}
+		}
 	}
+	log.Infof("needDownloads: %+v", needDownloads)
 	if len(needDownloads) > 0 {
 		log.Infof("download %+v  to  %+v ", needDownloads, toPath)
 		tCtx, cancel := context.WithTimeout(ctx, time.Hour)
