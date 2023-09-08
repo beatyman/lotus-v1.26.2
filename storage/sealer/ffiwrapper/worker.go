@@ -1476,7 +1476,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		default:
 			// sleep for controlling the loop
 			time.Sleep(5 * time.Second)
-			if r.isOfflineState() || atomic.LoadInt32(&sb.pauseSeal) != 0 {
+			if r.disable || r.isOfflineState() || atomic.LoadInt32(&sb.pauseSeal) != 0 {
 				continue
 			}
 
