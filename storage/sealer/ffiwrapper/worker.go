@@ -1117,7 +1117,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		// search checking is the remote busying
 		if r.disable && (!busy || !ok) {
 			log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
-			return
+			//return
 		}
 		if busy || ok || !r.LimitParallel(WorkerPledge, false) {
 			fn()
