@@ -72,7 +72,7 @@ func ServeRPC(h http.Handler, id, repo string, addr multiaddr.Multiaddr) (StopFu
 		return nil, errors.As(err)
 	}
 	go func() {
-		err = srv.ServeTLS(manet.NetListener(lst), certPath, keyPath)
+		err = srv.Serve(manet.NetListener(lst))
 		if err != http.ErrServerClosed {
 			rpclog.Warnf("rpc server failed: %s", err)
 		}

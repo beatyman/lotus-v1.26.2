@@ -341,7 +341,7 @@ func startLotusProxy(addr string, a api.FullNode) (string, func() error, error) 
 	port := arr[1]
 	go func() {
 		defer ln.Close()
-		if err := srv.ServeTLS(ln, certPath, keyPath); err != nil {
+		if err := srv.Serve(ln); err != nil {
 			log.Warn(errors.As(err))
 		}
 	}()

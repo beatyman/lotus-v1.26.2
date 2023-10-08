@@ -134,6 +134,6 @@ func main() {
 	}
 	// One can use generate_cert.go in crypto/tls to generate cert.pem and key.pem.
 	log.Printf("About to listen on %s", *addrFlag)
-	err := http.ListenAndServeTLS(*addrFlag, "lotus_crt.pem", "lotus_key.pem", nil)
+	err := http.ListenAndServe(*addrFlag,  nil)
 	log.Fatal(err)
 }

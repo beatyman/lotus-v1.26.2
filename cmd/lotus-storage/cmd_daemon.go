@@ -63,7 +63,7 @@ var daemonCmd = &cli.Command{
 			return errors.As(err)
 		}
 		log.Infof("auth-api:%s", _authApiFlag)
-		return http.ListenAndServeTLS(_authApiFlag, crtPath, keyPath, _handler)
+		return http.ListenAndServe(_authApiFlag, _handler)
 
 	},
 }
