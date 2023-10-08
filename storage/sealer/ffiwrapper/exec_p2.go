@@ -5,22 +5,20 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
+	"github.com/gwaylib/errors"
+	"github.com/urfave/cli/v2"
 	"io"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
-	"github.com/filecoin-project/lotus/storage/sealer/storiface"
-	"github.com/gwaylib/errors"
-	"github.com/gwaylib/hardware/bindcpu"
-	"github.com/gwaylib/hardware/bindgpu"
-	"github.com/urfave/cli/v2"
 )
 
 type ExecPrecommit2Req struct {
@@ -33,64 +31,65 @@ type ExecPrecommit2Resp struct {
 	Err  string
 }
 
-func (sb *Sealer) bindP2Process(ctx context.Context, ak *bindgpu.GpuAllocateKey, gInfo *bindgpu.GpuInfo, cpuKeys []*bindcpu.CpuAllocateKey, cpuVal *bindcpu.CpuAllocateVal, task WorkerTask) error {
-	l3CpuNum := len(cpuVal.Cpus)
-	gpuKey := gInfo.Pci.PciBusID
-	if strings.Index(gInfo.UUID, "GPU-") > -1 {
-		uid := strings.TrimPrefix(gInfo.UUID, "GPU-")
-		gpuKey = fmt.Sprintf("%s@%s", uid, gpuKey)
+func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storiface.SectorCids, error) {
+	taskConfig, err := GetGlobalResourceManager().AllocateResource(P2Task)
+	if err != nil {
+		return storiface.SectorCids{}, errors.As(err)
 	}
-	var cpus []string
-	if list, ok := os.LookupEnv("FT_SupraSeal_P2_CPU_LIST"); ok && list != "" {
-		bindcpu.ReturnCpus(cpuKeys)
-		cpus = strings.Split(strings.TrimSpace(list), ",")
+	defer GetGlobalResourceManager().ReleaseResource(taskConfig)
+	log.Infof("try bind CPU: %+v ,GPU: %+v", taskConfig.CPUSet, taskConfig.GPU)
+	if useSupra, ok := os.LookupEnv("X_USE_SupraSeal"); ok && strings.ToLower(useSupra) != "false" {
+		return execPrecommit2WithSupra(ctx, taskConfig, sb, task)
 	} else {
-		for _, cpuIndex := range cpuVal.Cpus {
-			cpus = append(cpus, strconv.Itoa(cpuIndex))
-		}
+		return execPrecommit2WithLotus(ctx, taskConfig, sb, task)
 	}
-	orderCpuStr := strings.Join(cpus, ",")
-	log.Infof("try bind CPU: %+v ,GPU: %+v", orderCpuStr, gpuKey)
-	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p2-%s-%s", gInfo.UniqueID(), orderCpuStr))
+}
+func execPrecommit2WithLotus(ctx context.Context, taskConfig ResourceUnit, sb *Sealer, task WorkerTask) (storiface.SectorCids, error) {
+	log.Infow("execPrecommit2WithLotus Start", "sector", task.SectorName())
+	defer log.Infow("execPrecommit2WithLotus Finish", "sector", task.SectorName())
+	defer func() {
+		if e := recover(); e != nil {
+			log.Errorf("execPrecommit2WithLotus panic: %v\n%v", e, string(debug.Stack()))
+		}
+	}()
+	orderCpu := strings.Split(taskConfig.CPUSet, ",")
+	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p2-%s-%s-%s", task.Key(), taskConfig.GPU, taskConfig.CPUSet))
 	cmd := exec.CommandContext(ctx, os.Args[0],
 		"precommit2",
 		"--addr", unixAddr,
 	)
+	gpus := strings.Split(taskConfig.GPU, ",")
+	if len(gpus) < 1 {
+		return storiface.SectorCids{}, errors.New("You need to configure the P2 GPU in the configuration file")
+	}
+	//zdz P2 可以多卡吗？
+	gpuIndex, err := strconv.Atoi(gpus[0])
+	if err != nil {
+		return storiface.SectorCids{}, errors.As(err, fmt.Sprintf("wrong config %+v", gpus))
+	}
 	// set the env
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("NEPTUNE_DEFAULT_GPU=%s", gpuKey))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("NEPTUNE_DEFAULT_GPU=%s", getHlmGPUInfo(ctx, gpuIndex)))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("LOTUS_EXEC_CODE=%s", _exec_code))
-	cmd.Env = append(cmd.Env, fmt.Sprintf("NEPTUNE_DEFAULT_GPU_IDX=%d", ak.Index))
-	cmd.Env = append(cmd.Env, fmt.Sprintf("NEPTUNE_DEFAULT_GPU=%s", gInfo.UniqueID()))
-	if l3CpuNum < 2 {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FILECOIN_P2_CPU_NUM=%d", 2))
-	} else {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FILECOIN_P2_CPU_NUM=%d", l3CpuNum))
-	}
 	if len(os.Getenv("NVIDIA_VISIBLE_DEVICES")) == 0 {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("NVIDIA_VISIBLE_DEVICES=%d", ak.Index))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("NVIDIA_VISIBLE_DEVICES=%s", taskConfig.GPU))
 	}
 	if len(os.Getenv("CUDA_VISIBLE_DEVICES")) == 0 {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=%d", ak.Index))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=%s", taskConfig.GPU))
 	}
-
-	// output the stderr log
-	//cmd.Stderr = &P2Stderr{}
-	//cmd.Stdout = &P2Stdout{}
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 
 	if err := cmd.Start(); err != nil {
-		return errors.As(err)
+		return storiface.SectorCids{}, errors.As(err)
 	}
-	if err := bindcpu.BindCpuStr(cmd.Process.Pid, cpus); err != nil {
+	if err := BindCpuStr(cmd.Process.Pid, orderCpu); err != nil {
 		cmd.Process.Kill()
-		return errors.As(err)
+		return storiface.SectorCids{}, errors.As(err)
 	}
 	StoreTaskPid(task.SectorName(), cmd.Process.Pid)
-
-	log.Infof("DEBUG: bind precommit2, process:%d, gpu:%+v,cpus:%+v", cmd.Process.Pid, cmd.Env, cpuVal.Cpus)
-
+	defer FreeTaskPid(task.SectorName())
+	log.Infof("DEBUG: bind precommit2:%+v, process:%d, gpu:%+v,cpus:%+v,env: %+v", task.Key(), cmd.Process.Pid, taskConfig.GPU, taskConfig.CPUSet, cmd.Env)
 	// transfer precommit1 parameters
 	var d net.Dialer
 	d.LocalAddr = nil // if you have a local addr, add it here
@@ -105,48 +104,14 @@ loopUnixConn:
 			goto loopUnixConn
 		}
 		cmd.Process.Kill()
-		return errors.As(err, raddr.String())
+		return storiface.SectorCids{}, errors.As(err)
 	}
-	gInfo.SetConn(ak.Thread, conn)
-
 	// will block the data
 	go func() {
 		if err := cmd.Wait(); err != nil {
 			log.Debug(errors.As(err))
 		}
 	}()
-	return nil
-}
-
-func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storiface.SectorCids, error) {
-	bindgpu.AssertGPU(ctx)
-
-	gpuKey, gpuInfo := bindgpu.SyncAllocateGPU(ctx)
-	defer bindgpu.ReturnGPU(gpuKey)
-
-	cpuKeys, cpuVal, err := AllocateCpuForP2(ctx)
-	if err != nil {
-		return storiface.SectorCids{}, errors.As(err)
-	}
-	if useSupra, ok := os.LookupEnv("X_USE_SupraSeal"); ok && strings.ToLower(useSupra) != "false" {
-		return execPrecommit2WithSupra(ctx, gpuKey, gpuInfo, cpuKeys, cpuVal, sb, task)
-	}
-	defer bindcpu.ReturnCpus(cpuKeys)
-	if gpuInfo.UniqueID() == "nogpu" {
-		sref := storiface.SectorRef{
-			ID:        task.SectorID,
-			ProofType: task.ProofType,
-			SectorFile: storiface.SectorFile{
-				SectorId:       storiface.SectorName(task.SectorID),
-				SealedRepo:     sb.RepoPath(),
-				UnsealedRepo:   sb.RepoPath(),
-				IsMarketSector: task.SectorStorage.UnsealedStorage.ID != 0,
-			},
-			StoreUnseal:        task.StoreUnseal,
-			SectorRepairStatus: task.SectorRepairStatus,
-		}
-		return sb.sealPreCommit2(ctx, sref, task.PreCommit1Out)
-	}
 
 	args, err := json.Marshal(&ExecPrecommit2Req{
 		Repo: sb.RepoPath(),
@@ -155,14 +120,6 @@ func (sb *Sealer) ExecPreCommit2(ctx context.Context, task WorkerTask) (storifac
 	if err != nil {
 		return storiface.SectorCids{}, errors.As(err)
 	}
-
-	// bind gpu
-	defer gpuInfo.Close(gpuKey.Thread)
-	if err := sb.bindP2Process(ctx, gpuKey, gpuInfo, cpuKeys, cpuVal, task); err != nil {
-		return storiface.SectorCids{}, errors.As(err)
-	}
-	defer FreeTaskPid(task.SectorName())
-	conn := gpuInfo.GetConn(gpuKey.Thread)
 
 	// write args
 	encryptArg, err := AESEncrypt(args, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))

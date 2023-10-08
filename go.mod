@@ -393,8 +393,6 @@ require (
 	github.com/google/gops v0.3.27
 	github.com/gwaylib/database v0.0.0-20230615030805-63012daf0f5d
 	github.com/gwaylib/errors v0.0.0-20230225020640-41299698202b
-	github.com/gwaylib/hardware/bindcpu v0.0.0-20230413010537-5e7a17ecd7eb
-	github.com/gwaylib/hardware/bindgpu v0.0.0-00010101000000-000000000000
 	github.com/gwaylib/log v0.0.0-20220419074212-f1aa63899ff1
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
 	github.com/ipfs/go-block-format v0.1.1
@@ -422,7 +420,3 @@ replace go.opencensus.io => github.com/jupiter-dao/opencensus-go v0.0.0-20230418
 replace github.com/uber/jaeger-client-go => github.com/uber/jaeger-client-go v2.25.0+incompatible
 
 replace github.com/filecoin-project/go-fil-markets => github.com/jupiter-dao/go-fil-markets v1.27.0-rc1.0.20230618025711-a2059094b5f7
-
-replace github.com/gwaylib/hardware/bindcpu => github.com/jupiter-dao/hardware/bindcpu v0.0.0-20230731101815-15ec4e6691c5
-
-replace github.com/gwaylib/hardware/bindgpu => github.com/jupiter-dao/hardware/bindgpu v0.0.0-20230731101815-15ec4e6691c5

@@ -1,0 +1,46 @@
+AP:
+  - cpuset: "1,2,3"
+    env:
+      - "ENV_VAR=AP_TASK_ENV"
+    concurrent: 2
+    supra: false
+    bin: "/path/to/ap_task"
+
+P1:
+  - cpuset: "4,5"
+    env:
+      - "ENV_VAR=P1_TASK_ENV"
+    concurrent: 1
+    supra: true
+    bin: "/path/to/p1_task"
+  - cpuset: "6-8"
+    env:
+      - "ENV_VAR=P1_TASK_ENV"
+    concurrent: 2
+    supra: true
+    bin: "/path/to/p1_task"
+
+P2:
+  - cpuset: "9,10"
+    gpu: "1,2"
+    env:
+      - "ENV_VAR=P2_TASK_ENV"
+    concurrent: 1
+    supra: false
+    bin: "/path/to/p2_task"
+  - cpuset: "11-15"
+    gpu: "3-5"
+    env:
+      - "ENV_VAR=P2_TASK_ENV"
+    concurrent: 2
+    supra: false
+    bin: "/path/to/p2_task"
+
+C2:
+  - cpuset: "16-18"
+    gpu: "6-7"
+    env:
+      - "ENV_VAR=C2_TASK_ENV"
+    concurrent: 4
+    supra: true
+    bin: "/path/to/c2_task"

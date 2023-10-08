@@ -262,7 +262,8 @@ var runCmd = &cli.Command{
 		}
 		defer ReleaseNodeApi(true)
 		defer ffiwrapper.FreeAllTaskPid()
-
+		//初始化task资源配置
+		ffiwrapper.InitResource()
 		log.Infof("getting ainfo for StorageMiner")
 		ainfo, err := lcli.GetHlmMinerSchedulerAPIInfo(cctx)
 		if err != nil {

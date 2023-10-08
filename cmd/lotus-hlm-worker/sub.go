@@ -7,7 +7,6 @@ import (
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/lotus/buried/utils"
 	"github.com/google/uuid"
-	"github.com/gwaylib/hardware/bindgpu"
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
 	"huangdong2012/filecoin-monitor/trace/spans"
@@ -100,7 +99,7 @@ func acceptJobs(ctx context.Context,
 
 	// check gpu
 	if workerCfg.ParallelPrecommit2 > 0 || workerCfg.ParallelCommit > 0 || workerCfg.Commit2Srv || workerCfg.WdPoStSrv {
-		bindgpu.AssertGPU(ctx)
+		ffiwrapper.AssertGPU(ctx)
 	}
 
 	// check params
@@ -453,20 +452,16 @@ reAllocate:
 		if err != nil {
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
-		if len(task.ExtSizes) > 0 {
-			res.Pieces = rsp.Pieces
-			if sector.IsMarketSector {
-				// push unsealed, so the market addpiece can make a index for continue
-			retry:
-				log.Info("==================sector.StoreUnseal====================", sector.StoreUnseal)
-				if err := w.pushUnsealed(ctx, sealer, task); err != nil {
-					log.Warn(errors.As(err))
-					time.Sleep(10e9)
-					goto retry
-				}
+		res.Piece = rsp
+		if sector.IsMarketSector {
+			// push unsealed, so the market addpiece can make a index for continue
+		retry:
+			log.Info("==================sector.StoreUnseal====================", sector.StoreUnseal)
+			if err := w.pushUnsealed(ctx, sealer, task); err != nil {
+				log.Warn(errors.As(err))
+				time.Sleep(10e9)
+				goto retry
 			}
-		}else {
-			res.Piece = rsp.Data
 		}
 		// checking is the next step interrupted
 		unlockWorker = (w.workerCfg.ParallelPrecommit1 == 0)

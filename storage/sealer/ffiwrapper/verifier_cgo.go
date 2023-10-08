@@ -5,8 +5,6 @@ package ffiwrapper
 
 import (
 	"context"
-	"github.com/gwaylib/hardware/bindgpu"
-
 	"go.opencensus.io/trace"
 	"golang.org/x/xerrors"
 
@@ -18,8 +16,6 @@ import (
 )
 
 func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, error) {
-	bindgpu.AssertGPU(ctx)
-	BindGPU(ctx)
 	randomness[31] &= 0x3f
 	if len(sectorInfo) == 0 {
 		return nil, xerrors.Errorf("must provide sectors for winning post")
@@ -42,8 +38,6 @@ func (sb *Sealer) generateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 }
 
 func (sb *Sealer) generateWindowPoSt(ctx context.Context, minerID abi.ActorID, postProofType abi.RegisteredPoStProof, sectorInfo []storiface.ProofSectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
-	bindgpu.AssertGPU(ctx)
-	BindGPU(ctx)
 	randomness[31] &= 0x3f
 	privsectors, skipped, done, err := sb.pubExtendedSectorToPriv(ctx, minerID, sectorInfo, nil, postProofType)
 	if err != nil {

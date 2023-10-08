@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/hardware/bindcpu"
 	"github.com/urfave/cli/v2"
 )
 
@@ -30,19 +28,33 @@ type ExecAddPieceReq struct {
 }
 
 type ExecAddPieceResp struct {
-	Pieces   []abi.PieceInfo
 	Data abi.PieceInfo
 	Err  string
 }
 
-func (sb *Sealer) bindAddPieceProcess(ctx context.Context, aKeys []*bindcpu.CpuAllocateKey, aVal *bindcpu.CpuAllocateVal, task WorkerTask) error {
-	cpus := aVal.Cpus
-	orderCpu := []string{}
-	for _, cpu := range aVal.Cpus {
-		orderCpu = append(orderCpu, strconv.Itoa(cpu))
+func (sb *Sealer) ExecAddPiece(ctx context.Context, task WorkerTask) (abi.PieceInfo, error) {
+	log.Infow("ExecAddPiece Start", "sector", task.SectorName())
+	defer log.Infow("ExecAddPiece Finish", "sector", task.SectorName())
+	defer func() {
+		if e := recover(); e != nil {
+			log.Errorf("ExecAddPiece panic: %v\n%v", e, string(debug.Stack()))
+		}
+	}()
+	args, err := json.Marshal(&ExecAddPieceReq{
+		Repo: sb.RepoPath(),
+		Task: task,
+	})
+	if err != nil {
+		return abi.PieceInfo{}, errors.As(err)
 	}
-	orderCpuStr := strings.Join(orderCpu, ",")
-	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".addpiece-%s", orderCpuStr))
+
+	taskConfig, err := GetGlobalResourceManager().AllocateResource(APTask)
+	if err != nil {
+		return abi.PieceInfo{}, errors.As(err)
+	}
+	defer GetGlobalResourceManager().ReleaseResource(taskConfig)
+
+	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".addpiece-%s-%s", task.Key(), taskConfig.CPUSet))
 	cmd := exec.CommandContext(ctx, os.Args[0],
 		"addpiece",
 		"--addr", unixAddr,
@@ -54,14 +66,18 @@ func (sb *Sealer) bindAddPieceProcess(ctx context.Context, aKeys []*bindcpu.CpuA
 	cmd.Stdout = os.Stdout
 
 	if err := cmd.Start(); err != nil {
-		return errors.As(err)
+		return abi.PieceInfo{}, errors.As(err)
 	}
-	log.Infof("task: %+v,try bind cpu: %+v", cmd.Process.Pid, cpus)
-	if err := bindcpu.BindCpu(cmd.Process.Pid, cpus); err != nil {
+
+	if err := BindCpuStr(cmd.Process.Pid, strings.Split(taskConfig.CPUSet, ",")); err != nil {
 		cmd.Process.Kill()
-		return errors.As(err)
+		return abi.PieceInfo{}, errors.As(err)
 	}
 	StoreTaskPid(task.SectorName(), cmd.Process.Pid)
+	defer FreeTaskPid(task.SectorName())
+
+	log.Infof("DEBUG: bind addpiece: %+v, process:%d, cpus:%+v", task.Key(), cmd.Process.Pid, taskConfig.CPUSet)
+
 	// transfer precommit1 parameters
 	var d net.Dialer
 	d.LocalAddr = nil // if you have a local addr, add it here
@@ -76,66 +92,40 @@ loopUnixConn:
 			goto loopUnixConn
 		}
 		cmd.Process.Kill()
-		return errors.As(err, raddr.String())
+		return abi.PieceInfo{}, errors.As(err)
 	}
-	aVal.Conn = conn
-
 	// will block the data
 	go func() {
 		if err := cmd.Wait(); err != nil {
 			log.Debug(errors.As(err))
 		}
 	}()
-	log.Infof("DEBUG: bind addpiece, process:%d, cpus:%+v", cmd.Process.Pid, cpus)
-	return nil
-}
-
-func (sb *Sealer) ExecAddPiece(ctx context.Context, task WorkerTask) (ExecAddPieceResp, error) {
-	args, err := json.Marshal(&ExecAddPieceReq{
-		Repo: sb.RepoPath(),
-		Task: task,
-	})
-	if err != nil {
-		return ExecAddPieceResp{}, errors.As(err)
-	}
-	aKeys, aVal, err := AllocateCpuForAP(ctx)
-	if err != nil {
-		return ExecAddPieceResp{}, errors.As(err)
-	}
-	defer bindcpu.ReturnCpus(aKeys)
-
-	// bind process
-	if err := sb.bindAddPieceProcess(ctx, aKeys, aVal, task); err != nil {
-		return ExecAddPieceResp{}, errors.As(err)
-	}
-	defer FreeTaskPid(task.SectorName())
 	// write args
 	encryptArg, err := AESEncrypt(args, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
 	if err != nil {
-		return ExecAddPieceResp{}, errors.As(err, string(args))
+		return abi.PieceInfo{}, errors.As(err, string(args))
 	}
-	conn := aVal.Conn
 	if _, err := conn.Write(encryptArg); err != nil {
-		return ExecAddPieceResp{}, errors.As(err, string(args))
+		return abi.PieceInfo{}, errors.As(err, string(args))
 	}
 
 	// wait resp
 	out, err := readUnixConn(conn)
 	if err != nil {
-		return ExecAddPieceResp{}, errors.As(err, string(args))
+		return abi.PieceInfo{}, errors.As(err, string(args))
 	}
 	decodeOut, err := AESDecrypt(out, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
 	if err != nil {
-		return ExecAddPieceResp{}, errors.As(err, string(args))
+		return abi.PieceInfo{}, errors.As(err, string(args))
 	}
 	resp := ExecAddPieceResp{}
 	if err := json.Unmarshal(decodeOut, &resp); err != nil {
-		return ExecAddPieceResp{}, errors.As(err, string(args), string(out))
+		return abi.PieceInfo{}, errors.As(err, string(args), string(out))
 	}
 	if len(resp.Err) > 0 {
-		return ExecAddPieceResp{}, errors.Parse(resp.Err)
+		return abi.PieceInfo{}, errors.Parse(resp.Err)
 	}
-	return resp, nil
+	return resp.Data, nil
 }
 
 var AddPieceCmd = &cli.Command{
@@ -146,40 +136,10 @@ var AddPieceCmd = &cli.Command{
 		&cli.StringFlag{
 			Name: "addr", // listen address
 		},
-		&cli.BoolFlag{
-			Name:  "cpu-bind",
-			Usage: "--cpu-bind [l3index]",
-		},
-		&cli.BoolFlag{
-			Name:  "cpu-num",
-			Usage: "--cpu-num [l3index]",
-		},
 	},
 	Action: func(cctx *cli.Context) error {
 		//	ctx := cctx.Context
 		ctx := context.Background()
-		if cctx.Bool("cpu-bind") {
-			index, _ := strconv.Atoi(cctx.Args().First())
-			l3Cpus, err := bindcpu.UseL3CPU(ctx, index)
-			if err != nil {
-				return errors.As(err)
-			}
-			fmt.Println(strings.Join(l3Cpus, ","))
-			return nil
-		}
-		if cctx.Bool("cpu-num") {
-			index, _ := strconv.Atoi(cctx.Args().First())
-			l3Cpus, err := bindcpu.UseL3CPU(ctx, index)
-			if err != nil {
-				return errors.As(err)
-			}
-			if err != nil {
-				return errors.As(err)
-			}
-			fmt.Println(len(l3Cpus))
-			return nil
-		}
-
 		localCode := os.Getenv("LOTUS_EXEC_CODE")
 		if len(localCode) == 0 {
 			return nil
@@ -260,25 +220,12 @@ var AddPieceCmd = &cli.Command{
 				},
 				StoreUnseal: task.StoreUnseal,
 			}
-			if len(task.ExtSizes)>0{
-				pieces, err:= workerSealer.PledgeSector(ctx,
-					sref,
-					task.ExistingPieceSizes,
-					task.ExtSizes...,
-				)
-				if err != nil {
-					resp.Err = errors.As(err, task.PieceData).Error()
-					return
-				}
-				resp.Pieces=pieces
-			}else {
-				out, err := workerSealer.AddPiece(ctx, sref, task.ExistingPieceSizes, task.PieceSize, task.PieceData)
-				if err != nil {
-					resp.Err = errors.As(err, task.PieceData).Error()
-					return
-				}
-				resp.Data = out
+			out, err := workerSealer.AddPiece(ctx, sref, task.ExistingPieceSizes, task.PieceSize, task.PieceData)
+			if err != nil {
+				resp.Err = errors.As(err, task.PieceData).Error()
+				return
 			}
+			resp.Data = out
 			return
 		}
 

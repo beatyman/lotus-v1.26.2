@@ -10,7 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +18,6 @@ import (
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper/basicfs"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/gwaylib/errors"
-	"github.com/gwaylib/hardware/bindcpu"
 	"github.com/urfave/cli/v2"
 )
 
@@ -32,23 +31,38 @@ type ExecP1Resp struct {
 	Err  string
 }
 
-func (sb *Sealer)bindP1Process(ctx context.Context, cpuKeys []*bindcpu.CpuAllocateKey, cpuVal *bindcpu.CpuAllocateVal,task WorkerTask) error {
-	orderCpu := []string{}
-	for _, cpu := range cpuVal.Cpus {
-		orderCpu = append(orderCpu, strconv.Itoa(cpu))
+func (sb *Sealer) ExecPreCommit1(ctx context.Context, task WorkerTask) (storiface.PreCommit1Out, error) {
+	log.Infow("ExecPreCommit1 Start", "sector", task.SectorName())
+	defer log.Infow("ExecPreCommit1 Finish", "sector", task.SectorName())
+	defer func() {
+		if e := recover(); e != nil {
+			log.Errorf("ExecPreCommit1 panic: %v\n%v", e, string(debug.Stack()))
+		}
+	}()
+	args, err := json.Marshal(&ExecP1Req{
+		Repo: sb.RepoPath(),
+		Task: task,
+	})
+	if err != nil {
+		return nil, errors.As(err)
 	}
-	orderCpuStr := strings.Join(orderCpu, ",")
-	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p1-%s", orderCpuStr))
+	taskConfig, err := GetGlobalResourceManager().AllocateResource(P1Task)
+	if err != nil {
+		return nil, errors.As(err)
+	}
+	defer GetGlobalResourceManager().ReleaseResource(taskConfig)
+
+	orderCpu := strings.Split(taskConfig.CPUSet, ",")
+	unixAddr := filepath.Join(os.TempDir(), fmt.Sprintf(".p1-%s-%s", task.Key(), taskConfig.CPUSet))
 
 	cmd := exec.CommandContext(ctx, os.Args[0],
 		"precommit1",
 		"--addr", unixAddr,
 	)
-
 	// set the env
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, fmt.Sprintf("LOTUS_EXEC_CODE=%s", _exec_code))
-	cmd.Env = append(cmd.Env, fmt.Sprintf("FILECOIN_P1_CORES=%s", orderCpuStr))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("FILECOIN_P1_CORES=%s", taskConfig.CPUSet))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("FILECOIN_P1_CORES_LEN=%d", len(orderCpu)))
 	if len(orderCpu) < 2 {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=0"))
@@ -60,13 +74,14 @@ func (sb *Sealer)bindP1Process(ctx context.Context, cpuKeys []*bindcpu.CpuAlloca
 	cmd.Stdout = os.Stdout
 
 	if err := cmd.Start(); err != nil {
-		return errors.As(err)
+		return nil, errors.As(err)
 	}
-	if err := bindcpu.BindCpu(cmd.Process.Pid, cpuVal.Cpus); err != nil {
+	if err := BindCpuStr(cmd.Process.Pid, orderCpu); err != nil {
 		cmd.Process.Kill()
-		return errors.As(err)
+		return nil, errors.As(err)
 	}
-	StoreTaskPid(task.SectorName(),cmd.Process.Pid)
+	StoreTaskPid(task.SectorName(), cmd.Process.Pid)
+	defer FreeTaskPid(task.SectorName())
 	// transfer precommit1 parameters
 	var d net.Dialer
 	d.LocalAddr = nil // if you have a local addr, add it here
@@ -81,10 +96,8 @@ loopUnixConn:
 			goto loopUnixConn
 		}
 		cmd.Process.Kill()
-		return errors.As(err, raddr.String())
+		return nil, errors.As(err)
 	}
-	cpuVal.Conn = conn
-	//bindcpu.BindCpuConn(cpuKeys, cpuVal)
 
 	// will block the data
 	go func() {
@@ -92,49 +105,20 @@ loopUnixConn:
 			log.Debug(errors.As(err))
 		}
 	}()
-	log.Infof("DEBUG: bind precommit1, process:%d, cpus:%s", cmd.Process.Pid, orderCpuStr)
-	return nil
-}
+	log.Infof("DEBUG: bind precommit1: %+v, process:%d, cpus:%s", task.Key(), cmd.Process.Pid, taskConfig.CPUSet)
 
-func (sb *Sealer) ExecPreCommit1(ctx context.Context, task WorkerTask) (storiface.PreCommit1Out, error) {
-	args, err := json.Marshal(&ExecP1Req{
-		Repo: sb.RepoPath(),
-		Task: task,
-	})
-	if err != nil {
-		return nil, errors.As(err)
-	}
-
-	cpuKeys, cpuVal,err := AllocateCpuForP1(ctx)
-	if err != nil {
-		return nil, errors.As(err)
-	}
-	defer bindcpu.ReturnCpus(cpuKeys)
-	log.Infof("task: %+v,try bind cpu: %+v",task.SectorID,cpuVal.Cpus)
-	// bind process
-	if cpuVal.Conn == nil {
-		if err := sb.bindP1Process(ctx, cpuKeys, cpuVal,task); err != nil {
-			//bindcpu.CloseCpuConn(cpuKeys)
-			return nil, errors.As(err)
-		}
-	}
-	defer FreeTaskPid(task.SectorName())
 	// write args
 	encryptArg, err := AESEncrypt(args, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
 	if err != nil {
-		//bindcpu.CloseCpuConn(cpuKeys)
 		return nil, errors.As(err, string(args))
 	}
-	conn := cpuVal.Conn
 	if _, err := conn.Write(encryptArg); err != nil {
-		//bindcpu.CloseCpuConn(cpuKeys)
 		return nil, errors.As(err, string(args))
 	}
 
 	// wait resp
 	out, err := readUnixConn(conn)
 	if err != nil {
-		//bindcpu.CloseCpuConn(cpuKeys)
 		return nil, errors.As(err, string(args))
 	}
 	decodeOut, err := AESDecrypt(out, fmt.Sprintf("%x", md5.Sum([]byte(_exec_code))))
@@ -236,10 +220,10 @@ var P1Cmd = &cli.Command{
 				ID:        task.SectorID,
 				ProofType: task.ProofType,
 				SectorFile: storiface.SectorFile{
-					SectorId:     storiface.SectorName(task.SectorID),
-					SealedRepo:   workerRepo,
-					UnsealedRepo: workerRepo,
-					IsMarketSector: task.SectorStorage.UnsealedStorage.ID!=0,
+					SectorId:       storiface.SectorName(task.SectorID),
+					SealedRepo:     workerRepo,
+					UnsealedRepo:   workerRepo,
+					IsMarketSector: task.SectorStorage.UnsealedStorage.ID != 0,
 				},
 				StoreUnseal: task.StoreUnseal,
 			}
