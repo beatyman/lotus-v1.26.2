@@ -134,6 +134,7 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 		Commit2Srv:         cctx.Bool("commit2-srv"),
 		WdPoStSrv:          cctx.Bool("wdpost-srv"),
 		WnPoStSrv:          cctx.Bool("wnpost-srv"),
+		ParallelFinalize:   2,
 	}
 	//判断文件是否存在，如果存在则使用文件里面的任务数，如果不存在，则使用第一次配置的。
 	log.Info("=========================WORKER_WATCH_FILE====================", WORKER_WATCH_FILE)
@@ -173,6 +174,10 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 		workerCfg.Commit2Srv = t.Commit2Srv
 		workerCfg.WdPoStSrv = t.WdPoStSrv
 		workerCfg.WnPoStSrv = t.WnPoStSrv
+		workerCfg.ParallelFinalize = t.ParallelFinalize
+		if workerCfg.ParallelFinalize < 2 {
+			workerCfg.ParallelFinalize = 2
+		}
 		t.SvcUri = workerCfg.SvcUri
 		t.IP = netIp
 		t.ID = workerCfg.ID
@@ -189,6 +194,10 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 		t.ID = workerCfg.ID
 		t.IP = workerCfg.IP
 		t.SvcUri = workerCfg.SvcUri
+		t.ParallelFinalize = workerCfg.ParallelFinalize
+		if t.ParallelFinalize < 2 {
+			t.ParallelFinalize = 2
+		}
 		t.AutoInstall = false
 		var str bytes.Buffer
 		_ = json.Indent(&str, []byte(ENVIRONMENT_VARIABLE), "", "    ")

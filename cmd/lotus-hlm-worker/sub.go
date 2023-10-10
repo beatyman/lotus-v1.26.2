@@ -48,6 +48,9 @@ type worker struct {
 	pushMu           sync.Mutex
 	sealedMounted    map[string]string
 	sealedMountedCfg string
+
+	finalizeCount int64
+	finalizeCond  *sync.Cond
 }
 
 func acceptJobs(ctx context.Context,
@@ -89,6 +92,8 @@ func acceptJobs(ctx context.Context,
 
 		sealedMounted:    map[string]string{},
 		sealedMountedCfg: mountedCfg,
+		finalizeCond:     sync.NewCond(&sync.Mutex{}),
+		finalizeCount:    0,
 	}
 
 	to := "/var/tmp/filecoin-proof-parameters"
@@ -596,6 +601,8 @@ reAllocate:
 	// SPEC: maybe it should failed on commit2 but can not failed on transfering the finalize data on windowpost.
 	// TODO: when testing stable finalize retrying and reopen it.
 	case ffiwrapper.WorkerFinalize:
+		w.TryLockFinalize()
+		defer w.TryReleaseFinalize()
 		if task.Snap {
 			updateFile := sealer.SectorPath("update", task.SectorName())
 			_, err := os.Stat(string(updateFile))

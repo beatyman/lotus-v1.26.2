@@ -50,6 +50,7 @@ type WorkerConf struct {
 	WnPoStSrv           bool   `yaml:"WnPoStSrv,flow"`
 	EnvironmentVariable string `yaml:"EnvironmentVariable,flow"`
 	AutoInstall         bool   `yaml:"AutoInstall,flow"`
+	ParallelFinalize    int `yaml:"ParallelFinalize,flow"`
 }
 
 type WorkerInfo struct {
