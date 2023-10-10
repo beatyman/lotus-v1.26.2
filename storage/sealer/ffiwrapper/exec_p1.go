@@ -67,7 +67,7 @@ func (sb *Sealer) ExecPreCommit1(ctx context.Context, task WorkerTask) (storifac
 	if len(orderCpu) < 2 {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=0"))
 	} else {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=%d", len(orderCpu)-1))
+		//cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_MULTICORE_SDR_PRODUCERS=%d", len(orderCpu)-1))
 		cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=1"))
 	}
 	cmd.Stderr = os.Stderr
