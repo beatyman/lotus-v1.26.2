@@ -988,11 +988,11 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		); err != nil {
 			return tmpFile, errors.As(err)
 		}
-
+		serverFileName:=strings.TrimLeft(strings.TrimLeft(task.PieceData.ServerFullUri,filepath.Join(ss.MountDir, fmt.Sprintf("%d", ss.ID))),"/")
 		// fetch the staging file
 		//fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
 		// fetch do a quick checksum
-		fromPath := filepath.Join(mountDir, task.PieceData.ServerFileName)
+		fromPath := filepath.Join(mountDir, serverFileName)
 		log.Infof("from : %+v => to : %+v", fromPath, tmpFile)
 		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
 			if !errors.ErrNoData.Equal(err) {
