@@ -458,7 +458,7 @@ reAllocate:
 			return errRes(errors.As(err, w.workerCfg), &res)
 		}
 		res.Piece = rsp
-		if sector.IsMarketSector {
+		if sector.IsMarketSector && task.StoreUnseal {
 			// push unsealed, so the market addpiece can make a index for continue
 		retry:
 			log.Info("==================sector.StoreUnseal====================", sector.StoreUnseal)
