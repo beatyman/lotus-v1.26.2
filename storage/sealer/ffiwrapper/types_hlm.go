@@ -477,13 +477,15 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 		// mutex to any other task.
 		return sumWorkingTask > 0
 	}
-
+	if calculatedWorkingTask >= r.cfg.MaxTaskNum {
+		return true
+	}
 	busyP1GroupNum :=  busyPrecommit1Num +  busyReplicaUpdateNum
 	switch typ {
 	// mutex cpu for addpiece and precommit1
 	case WorkerPledge:
 		// in full working
-		return busyAddPieceNum >= r.cfg.ParallelPledge || calculatedWorkingTask >= r.cfg.MaxTaskNum
+		return busyAddPieceNum >= r.cfg.ParallelPledge
 	case WorkerPreCommit1, WorkerReplicaUpdate:
 		return busyP1GroupNum >= r.cfg.ParallelPrecommit1
 	// mutex gpu for precommit2, commit2.
