@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
@@ -33,13 +32,6 @@ func ExecCommit2WithSupra(ctx context.Context, sector storiface.SectorRef, phase
 	if err != nil {
 		return nil, err
 	}
-	taskConfig, err := GetGlobalResourceManager().AllocateResource(C2Task)
-	if err != nil {
-		return nil, err
-	}
-	defer GetGlobalResourceManager().ReleaseResource(taskConfig)
-
-	orderCpu := strings.Split(taskConfig.CPUSet, ",")
 
 	program := "./supra-c2"
 	cmd := exec.CommandContext(ctx, program,
@@ -49,24 +41,12 @@ func ExecCommit2WithSupra(ctx context.Context, sector storiface.SectorRef, phase
 		"--output-file", c2outPath,
 	)
 	cmd.Env = os.Environ()
-	if len(os.Getenv("NVIDIA_VISIBLE_DEVICES")) == 0 {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("NVIDIA_VISIBLE_DEVICES=%s", taskConfig.GPU))
-	}
-	if len(os.Getenv("CUDA_VISIBLE_DEVICES")) == 0 {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=%s", taskConfig.GPU))
-	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
-	if err := BindCpuStr(cmd.Process.Pid, orderCpu); err != nil {
-		cmd.Process.Kill()
-		return nil, err
-	}
-	if err := cmd.Wait(); err != nil {
-		return nil, err
-	}
+
 	return os.ReadFile(c2outPath)
 }
 
