@@ -139,6 +139,11 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 	if err != nil {
 		return errors.As(err)
 	}
+	defer func() {
+		if err := api.RetryCommitStorageNode(ctx, sid, database.STORAGE_KIND_SEALED); err != nil {
+			log.Error(err.Error())
+		}
+	}()
 	log.Info("====================pushSealed===================", w.sealedRepo)
 	switch ss.MountType {
 	case database.MOUNT_TYPE_HLM:
@@ -261,9 +266,6 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		}
 	}
 
-	if err := api.RetryCommitStorageNode(ctx, sid, database.STORAGE_KIND_SEALED); err != nil {
-		return errors.As(err)
-	}
 	return nil
 }
 func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, task ffiwrapper.WorkerTask) error {
