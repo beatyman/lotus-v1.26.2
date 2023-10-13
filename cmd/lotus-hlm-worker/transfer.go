@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/api.v7/kodo"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"io"
@@ -285,4 +287,179 @@ func GetDownloadFilesKeys(ctx context.Context, key string) ([]string, error) {
 		marker = out
 	}
 	return result, nil
+}
+
+
+type Transferer struct {
+	travel func(path string) (os.FileInfo, []string, error)
+	copy   func(ctx context.Context, from, to string) error
+}
+
+func NewTransferer(t func(path string) (os.FileInfo, []string, error), h func(ctx context.Context, from, to string) error) *Transferer {
+	tran := &Transferer{
+		travel: t,
+		copy:   h,
+	}
+	return tran
+}
+
+func CopyFile(ctx context.Context, from, to string, t ...*Transferer) error {
+	copyfunc := &Transferer{copy: copyFile, travel: travelFile}
+	if len(t) != 0 {
+		copyfunc = t[0]
+	}
+	_, source, err := copyfunc.travel(from)
+	if err != nil {
+		return errors.As(err)
+	}
+
+	for _, src := range source {
+		toFile := strings.Replace(src, from, to, 1)
+		tCtx, cancel := context.WithTimeout(ctx, time.Hour)
+		log.Infof("src: %+v ,toFile : %+v", src, toFile)
+		if err := copyfunc.copy(tCtx, src, toFile); err != nil {
+			cancel()
+			log.Warn(errors.As(err))
+
+			// try again
+			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
+			if err := copyfunc.copy(tCtx, src, toFile); err != nil {
+				cancel()
+				return errors.As(err)
+			}
+		}
+		cancel()
+	}
+	return nil
+}
+
+// upload file from filesystem to us3 oss cluster
+func uploadToOSS(ctx context.Context, from, to string) error {
+	up := os.Getenv("US3")
+	if up == "" {
+		log.Info("please set US3 environment variable first!")
+		return errors.New("connot find US3 environment variable")
+	}
+	conf2, err := operation.Load(up)
+	if err != nil {
+		log.Error("load config error", err)
+		return errors.As(err)
+	}
+	uploader := operation.NewUploaderV2()
+	log.Infof("start upload :  %s to %s ", from, to)
+	timeStart := time.Now()
+	err = uploader.Upload(from, to)
+	if err != nil {
+		return errors.As(err)
+	}
+	timeEnd := time.Now()
+	log.Infof("file  upload  %s to %s ,start :%+v, end: %+v, last:%+v ", from, to, timeStart, timeEnd, timeEnd.Sub(timeStart))
+	etagLocal, err := ComputeEtagLocal(from)
+	if err != nil {
+		return errors.As(err)
+	}
+	log.Infof("etagLocal: %+v", etagLocal)
+	etagRemote, err := GetEtagFromServer2(ctx, to[1:])
+	if err != nil {
+		return errors.As(err)
+	}
+	if !strings.EqualFold(etagLocal, etagRemote) {
+		return errors.New(fmt.Sprintf("file %+v etag not match: local: %+v ,remote: %+v", from, etagLocal, etagRemote))
+	}
+	log.Infof("finish upload :  %s to %s ,err: %+v  ", from, to, err)
+	if conf2.Delete {
+		if err == nil {
+			os.Remove(from)
+		}
+	}
+	return err
+}
+
+// download file from local to US3 oss cluste
+func downloadFromOSS(ctx context.Context, from, to string) error {
+	log.Infof("from = %+v, to = %+v,", from, to)
+	up := os.Getenv("US3")
+	if up == "" {
+		fmt.Println("please set US3 environment variable first!")
+		return errors.New("connot find US3 environment variable")
+	}
+	conf2, err := operation.Load(up)
+	if err != nil {
+		log.Error("load config error", err)
+		return errors.As(err)
+	}
+	downloader := operation.NewDownloader(conf2)
+	_, err = downloader.DownloadFile(from, to)
+	if err != nil {
+		fmt.Printf("downloadFileFromUS3 failed download file from %s to %s err %v\n", from, to, err)
+	}
+
+	return err
+}
+
+func lastTreePaths(cacheDir string) []string {
+	var ret []string
+	paths, err := ioutil.ReadDir(cacheDir)
+	fmt.Println(err)
+	if err != nil {
+		return []string{}
+	}
+	fmt.Println(paths)
+	for _, v := range paths {
+		if !v.IsDir() {
+			if strings.Contains(v.Name(), "tree-r-last") ||
+				v.Name() == "p_aux" || v.Name() == "t_aux" {
+				ret = append(ret, path.Join(cacheDir, v.Name()))
+			}
+		}
+	}
+	return ret
+}
+
+func submitQ(paths storiface.SectorPaths, sector abi.SectorID) error {
+	fmt.Printf("submit path %#v sector %#v\n", paths, sector)
+	cache := paths.Cache
+	seal := paths.Sealed
+
+	pathList := lastTreePaths(cache)
+	pathList = append(pathList, seal, paths.Unsealed)
+	var reqs []*req
+	for _, path := range pathList {
+		fmt.Println("path ", path)
+		reqs = append(reqs, newReq(path))
+	}
+	return submitPaths(reqs)
+}
+
+func submitPaths(paths []*req) error {
+	up := os.Getenv("US3")
+	if up == "" {
+		return nil
+	}
+	uploader := operation.NewUploaderV2()
+	for _, v := range paths {
+		fmt.Println(*v)
+		err := uploader.Upload(v.Path, v.Path)
+		log.Infof("US3 : submit path=%v err=%v\n", v.Path, err)
+		if err != nil {
+			return err
+		}
+
+		if !strings.Contains(v.Path, ".genesis-sectors") {
+			//上传完成后自动清理文件逻辑
+			//os.Remove(v.Path)
+		}
+
+	}
+	return nil
+}
+
+type req struct {
+	Path string `json:"path"`
+}
+
+func newReq(s string) *req {
+	return &req{
+		Path: s,
+	}
 }

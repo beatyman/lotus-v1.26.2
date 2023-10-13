@@ -5,15 +5,13 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"github.com/gwaylib/errors"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
-
-	"github.com/gwaylib/errors"
 )
 
 const (
@@ -86,6 +84,10 @@ func canAppendFile(aFile, bFile *os.File, aStat, bStat os.FileInfo) (int, error)
 	return append_file_completed, nil
 }
 
+func travelFileEmpty(path string) (os.FileInfo, []string, error) {
+	return nil, []string{path}, nil
+}
+
 func travelFile(path string) (os.FileInfo, []string, error) {
 	fStat, err := os.Lstat(path)
 	if err != nil {
@@ -115,6 +117,14 @@ func travelFile(path string) (os.FileInfo, []string, error) {
 }
 
 func copyFile(ctx context.Context, from, to string) error {
+	if strings.Contains(from, "comm_d") ||
+		strings.Contains(from, "comm_r") ||
+		strings.Contains(from, "p1.out") ||
+		strings.Contains(from, "c1.out") ||
+		strings.Contains(from, "c2.out") {
+		log.Infof("ignore local file:%s", from)
+		return nil
+	}
 	if from == to {
 		return errors.New("Same file").As(from, to)
 	}
@@ -241,28 +251,4 @@ func copyFile(ctx context.Context, from, to string) error {
 		iLock.Unlock()
 		return ctx.Err()
 	}
-}
-
-func CopyFile(ctx context.Context, from, to string) error {
-	_, source, err := travelFile(from)
-	if err != nil {
-		return errors.As(err)
-	}
-	for _, src := range source {
-		toFile := strings.Replace(src, from, to, 1)
-		tCtx, cancel := context.WithTimeout(ctx, time.Hour)
-		if err := copyFile(tCtx, src, toFile); err != nil {
-			cancel()
-			log.Warn(errors.As(err))
-
-			// try again
-			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
-			if err := copyFile(tCtx, src, toFile); err != nil {
-				cancel()
-				return errors.As(err)
-			}
-		}
-		cancel()
-	}
-	return nil
 }
