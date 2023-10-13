@@ -478,7 +478,7 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 		return sumWorkingTask > 0
 	}
 
-	busyP1GroupNum := busyAddPieceNum + busyPrecommit1Num + busyUnsealNum + busyReplicaUpdateNum
+	busyP1GroupNum :=  busyPrecommit1Num +  busyReplicaUpdateNum
 	switch typ {
 	// mutex cpu for addpiece and precommit1
 	case WorkerPledge:
