@@ -504,7 +504,9 @@ func GetHlmMinerSchedulerAPI(ctx *cli.Context) (api.HlmMinerSchedulerAPI, jsonrp
 	if err != nil {
 		return nil, nil, err
 	}
+	log.Infof("addr : %+v",addr)
 	headers := apiInfo.AuthHeader()
+	log.Infof("headers : %+v",headers)
 	return client.NewHlmMinerSchedulerRPC(ctx.Context, addr, headers)
 }
 
