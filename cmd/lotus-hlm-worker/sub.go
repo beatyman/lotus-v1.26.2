@@ -234,6 +234,8 @@ loop:
 }
 
 func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res ffiwrapper.SealRes) {
+	log.Infow("workerDone Start", "sector", task.SectorName())
+	defer log.Infow("workerDone Finish", "sector", task.SectorName())
 	api, err := GetNodeApi()
 	if err != nil {
 		log.Warn(errors.As(err))
