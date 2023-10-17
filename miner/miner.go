@@ -5,11 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
-	"github.com/filecoin-project/lotus/monitor"
-	"huangdong2012/filecoin-monitor/model"
-	"huangdong2012/filecoin-monitor/trace/spans"
 	"os"
 	"sync"
 	"time"
@@ -74,7 +70,6 @@ func NewMiner(api v1api.FullNode, epp gen.WinningPoStProver, addr address.Addres
 	}
 
 	//此处和storage.miner的new方法都会执行monitor.Init(once保证了monitor只会初始化一次)
-	monitor.Init(model.PackageKind_Miner, addr.String())
 	return &Miner{
 		api:     api,
 		epp:     epp,
@@ -324,15 +319,11 @@ func (m *Miner) mine(ctx context.Context) {
 		}
 
 		//log.Infof("Trying mineOne")
-		var span *spans.MineSpan
 		block := make(chan interface{}, 1)
 		mineCtx, mineCtxCancel := context.WithCancel(ctx)
-		mineCtx, span = spans.NewMineSpan(mineCtx)
 		go func() {
-			span.Starting("")
-			took, b, err := m.mineOne(mineCtx, &oldbase, &lastBase, nextRound, span)
+			took, b, err := m.mineOne(mineCtx, &oldbase, &lastBase, nextRound)
 			if err != nil {
-				span.Finish(err)
 				if err := database.AddWinErr(nextRound); err != nil {
 					log.Warn(errors.As(err))
 				}
@@ -363,7 +354,6 @@ func (m *Miner) mine(ctx context.Context) {
 			err := errors.New("mining block failed by timeout, does the wallet undecode or compute timeout?")
 			mineCtxCancel()
 			log.Error(err)
-			span.Finish(err)
 			continue
 		}
 		//lastBase = *base
@@ -401,8 +391,9 @@ func (m *Miner) mine(ctx context.Context) {
 			}
 
 			if os.Getenv("LOTUS_MINER_NO_SLASHFILTER") != "_yes_i_know_i_can_and_probably_will_lose_all_my_fil_and_power_" {
-				witness, fault, err := m.sf.MinedBlock(ctx, b.Header, base.TipSet.Height()+base.NullRounds)
+				witness, fault, err := m.sf.MinedBlock(ctx, b.Header,lastBase.TipSet.Height()+lastBase.NullRounds)
 				if err != nil {
+					m.sf.CleanCache(ctx, b.Header, lastBase.TipSet.Height()+lastBase.NullRounds)
 					log.Errorf("<!!> SLASH FILTER ERRORED: %s", err)
 					// Continue here, because it's _probably_ wiser to not submit this block
 					continue
@@ -432,16 +423,7 @@ func (m *Miner) mine(ctx context.Context) {
 				// submit success, break
 				break
 			}
-			if err != nil {
-				span.SetBlockCount(0)
-				span.Finish(err)
-			} else {
-				span.SetBlockCount(1)
-				span.Finish(nil)
-			}
 		} else {
-			span.SetBlockCount(0)
-			span.Finish(nil)
 			// Wait until the next epoch, plus the propagation delay, so a new tipset
 			// has enough time to form.
 			//
@@ -520,12 +502,11 @@ func (m *Miner) GetBestMiningCandidate(ctx context.Context) (*MiningBase, error)
 // This method does the following:
 //
 //  1.
-func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTime time.Time, span *spans.MineSpan) (dur time.Duration, minedBlock *types.BlockMsg, err error) {
+func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTime time.Time) (dur time.Duration, minedBlock *types.BlockMsg, err error) {
 	log.Debugw("attempting to mine a block", "tipset", types.LogCids(base.TipSet.Cids()))
 	tStart := build.Clock.Now()
 
 	round := base.TipSet.Height() + base.NullRounds + 1
-	span.SetRound(int64(round))
 
 	// always write out a log
 	var winner *types.ElectionProof
@@ -554,11 +535,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		}
 
 		isLate := uint64(tStart.Unix()) > (base.TipSet.MinTimestamp() + uint64(base.NullRounds*builtin.EpochDurationSeconds) + build.PropagationDelaySecs)
-		span.SetLate(isLate)
-		span.SetNullRound(int64(base.NullRounds))
-		span.SetLookbackEpoch(int64(policy.ChainFinality))
-		span.SetBaseEpoch(int64(base.TipSet.Height()))
-		span.SetBaseDeltaSeconds(float64(uint64(tStart.Unix()) - base.TipSet.MinTimestamp()))
 
 		logStruct := []interface{}{
 			"tookMilliseconds", (build.Clock.Now().UnixNano() - tStart.UnixNano()) / 1_000_000,
@@ -584,10 +560,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 			log.Infow("completed mineOne", logStruct...)
 		}
 	}()
-
-	mbiStart := time.Now()
 	mbi, err = m.api.MinerGetBaseInfo(ctx, m.address, round, base.TipSet.Key())
-	span.SetBaseInfoDuration(time.Now().Sub(mbiStart).Milliseconds())
 	if err != nil {
 		err = xerrors.Errorf("failed to get mining base info: %w", err)
 		return 0, nil, err
@@ -596,11 +569,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	// log mineOne statis
 	expNum := 0
 	if mbi != nil {
-		span.SetBaseInfoNil(false)
-		span.SetTotalPower(mbi.NetworkPower.String())
-		span.SetMinerPower(mbi.MinerPower.String())
-		span.SetEligible(mbi.EligibleForMining)
-
 		qpercI := types.BigDiv(types.BigMul(mbi.MinerPower, types.NewInt(1000000)), mbi.NetworkPower)
 		expWinChance := float64(types.BigMul(qpercI, types.NewInt(build.BlocksPerEpoch)).Int64()) / 1000000
 		if expWinChance > 1 {
@@ -612,7 +580,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		log.Warn(errors.As(err))
 	}
 	if mbi == nil {
-		span.SetBaseInfoNil(true)
 		return 0, nil, nil
 	}
 
@@ -639,9 +606,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	if len(bvals) > 0 {
 		rbase = bvals[len(bvals)-1]
 	}
-
-	span.SetBeaconEpoch(int64(rbase.Round))
-	span.SetBeacon(hex.EncodeToString(rbase.Data))
 	ticket, err := m.computeTicket(ctx, &rbase, base, mbi)
 	if err != nil {
 		err = xerrors.Errorf("scratching ticket failed: %w", err)
@@ -655,10 +619,7 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 	}
 
 	if winner == nil {
-		span.SetWinCount(0)
 		return 0, nil, nil
-	} else {
-		span.SetWinCount(int(winner.WinCount))
 	}
 
 	tTicket := build.Clock.Now()
@@ -698,7 +659,6 @@ func (m *Miner) mineOne(ctx context.Context, oldbase, base *MiningBase, submitTi
 		err = xerrors.Errorf("failed to select messages for block: %w", err)
 		return 0, nil, err
 	}
-	span.SetMsgCount(len(msgs))
 	tPending := build.Clock.Now()
 
 	// TODO: winning post proof

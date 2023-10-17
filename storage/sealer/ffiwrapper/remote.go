@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
-	"go.opencensus.io/trace/propagation"
 	"math"
 	"path/filepath"
 	"sync"
@@ -226,7 +225,6 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storiface.SectorRef
 
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerPreCommit1,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -267,7 +265,6 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storiface.SectorRef
 
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerPreCommit2,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -310,7 +307,6 @@ func (sb *Sealer) SealCommit(ctx context.Context, sector storiface.SectorRef, ti
 
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerCommit,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -360,7 +356,6 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storiface.SectorRef
 
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerFinalize,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -419,7 +414,6 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storiface.SectorRef, o
 
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerUnseal,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -461,7 +455,6 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 	remotes := []*req{}
 	for i := 0; i < sb.remoteCfg.WinningPoSt; i++ {
 		task := WorkerTask{
-			TraceContext: propagation.Inject(ctx), //传递trace-id
 			Type:         WorkerWinningPoSt,
 			ProofType:    sectorInfo[0].ProofType,
 			SectorID:     abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
@@ -546,7 +539,6 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, p
 selectWorker:
 	for i := 0; i < sb.remoteCfg.WindowPoSt; i++ {
 		task := WorkerTask{
-			TraceContext:  propagation.Inject(ctx), //传播trace-id
 			Type:          WorkerWindowPoSt,
 			ProofType:     sectorInfo[0].ProofType,
 			SectorID:      abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()

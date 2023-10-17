@@ -2,7 +2,6 @@ package consensus
 
 import (
 	"context"
-	"huangdong2012/filecoin-monitor/trace/spans"
 	"sync/atomic"
 	"time"
 
@@ -245,17 +244,6 @@ func (t *TipSetExecutor) ApplyBlocks(ctx context.Context,
 			}
 			processedMsgs[m.Cid()] = struct{}{}
 		}
-		ctx, span := spans.NewAwardSpan(ctx)
-		span.SetSystemActorAddr(builtin.SystemActorAddr.String())
-		span.SetMinerID(b.Miner.String())
-		span.SetEpoch(int64(epoch))
-		span.SetCID(pstate.String())
-		span.SetMsgCount(len(append(b.BlsMessages, b.SecpkMessages...)))
-		span.SetBaseFee(baseFee.Uint64())
-		span.SetPenalty(penalty.Uint64())
-		span.SetReward(gasReward.Uint64())
-		span.SetWinCount(b.WinCount)
-		span.Starting("")
 		params := &reward.AwardBlockRewardParams{
 			Miner:     b.Miner,
 			Penalty:   penalty,
@@ -264,10 +252,8 @@ func (t *TipSetExecutor) ApplyBlocks(ctx context.Context,
 		}
 		rErr := t.reward(ctx, vmi, em, epoch, ts, params)
 		if rErr != nil {
-			span.Finish(rErr)
 			return cid.Undef, cid.Undef, xerrors.Errorf("error applying reward: %w", rErr)
 		}
-		span.Finish(nil)
 	}
 
 	vmMsg := partDone()

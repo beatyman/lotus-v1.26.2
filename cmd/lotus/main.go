@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/filecoin-project/lotus/monitor"
-	"huangdong2012/filecoin-monitor/model"
 	"os"
 
 	"github.com/fatih/color"
@@ -38,13 +36,10 @@ func main() {
 	if AdvanceBlockCmd != nil {
 		local = append(local, AdvanceBlockCmd)
 	}
-	monitor.Init(model.PackageKind_Lotus, "")
-
-	monitor.Init(model.PackageKind_Lotus, "")
 	jaeger := tracing.SetupJaegerTracing("lotus")
 	defer func() {
 		if jaeger != nil {
-			jaeger.Flush()
+			_ = jaeger.ForceFlush(context.Background())
 		}
 	}()
 
@@ -52,7 +47,9 @@ func main() {
 		cmd := cmd
 		originBefore := cmd.Before
 		cmd.Before = func(cctx *cli.Context) error {
-			trace.UnregisterExporter(jaeger)
+			if jaeger != nil {
+				_ = jaeger.Shutdown(cctx.Context)
+			}
 			jaeger = tracing.SetupJaegerTracing("lotus/" + cmd.Name)
 
 			if cctx.IsSet("color") {

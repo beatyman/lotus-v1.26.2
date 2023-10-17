@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/filecoin-project/lotus/monitor"
 	"io"
 	"os"
 	"path"
@@ -371,8 +370,6 @@ var DaemonCmd = &cli.Command{
 			return xerrors.Errorf("getting api endpoint: %w", err)
 		}
 
-		//start mpool stat monitor
-		monitor.StartMPoolMonitor(api)
 
 		//
 		// Instantiate JSON-RPC endpoint.

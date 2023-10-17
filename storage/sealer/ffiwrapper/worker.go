@@ -621,10 +621,6 @@ func (sb *Sealer) selectGPUService(ctx context.Context, sid string, task WorkerT
 		r.lock.Lock()
 		r.busyOnTasks[sid] = task // make busy
 		r.lock.Unlock()
-
-		if err := database.UploadSectorMonitorState(sid, r.cfg.ID, "c2 running", database.WorkerCommitRun, database.GetSectorSnapValue(task.Snap)); err != nil {
-			log.Error("UpdateSectorState Err, sectorId:%d, error:%v:", task.SectorID, err)
-		}
 	}
 	log.Infof("task(%v) select gpu finish: %v", task.SectorID, msg)
 
@@ -1607,9 +1603,6 @@ func (sb *Sealer) doSealTask(ctx context.Context, r *remote, task workerCall) {
 				sectorId, r.cfg.ID,
 				fmt.Sprintf("done:%d", task.task.Type), database.SECTOR_STATE_DONE, database.GetSectorSnapValue(task.task.Snap)); err != nil {
 				res = sb.errTask(task, errors.As(err))
-			}
-			if err := database.UploadSectorProvingState(ss.SectorInfo.ID, database.GetSectorSnapValue(task.task.Snap)); err != nil {
-				log.Errorw("upload sector proving state error", "sid", ss.SectorInfo.ID, "err", err)
 			}
 			r.freeTask(sectorId)
 		} else if ss.SectorInfo.State < database.SECTOR_STATE_MOVE {

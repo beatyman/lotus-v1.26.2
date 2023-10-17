@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/filecoin-project/lotus/storage/sealer/database"
-	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
 
 	"github.com/gorilla/mux"
 	"github.com/gwaylib/errors"
@@ -40,7 +39,7 @@ func (d *DefaultPartialFileHandler) HasAllocated(pf *partialfile.PartialFile, of
 	return pf.HasAllocated(offset, size)
 }
 
-func (d *DefaultPartialFileHandler) Reader(pf *partialfile.PartialFile, offset storiface.PaddedByteIndex, size abi.PaddedPieceSize) (fsutil.PartialFile, error) {
+func (d *DefaultPartialFileHandler) Reader(pf *partialfile.PartialFile, offset storiface.PaddedByteIndex, size abi.PaddedPieceSize) (io.Reader, error) {
 	return pf.Reader(offset, size)
 }
 

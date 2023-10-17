@@ -450,25 +450,6 @@ func GetSectorSnapValue(snap bool) int {
 	return 0
 }
 
-func UploadSectorProvingState(sid string, snap int) (err error) {
-	defer func() {
-		err = UploadSectorMonitorState(sid, "", "proving", SectorProvingDone, snap)
-	}()
-	if err = UploadSectorMonitorState(sid, "", "proving", SectorProving, snap); err != nil {
-		return err
-	}
-	return err
-}
-
-func UploadSectorMonitorState(sid, wid, msg string, state, snap int) error {
-/*	if info, err := GetSectorInfo(sid); err != nil {
-		return err
-	} else if info != nil && (info.State < state || state == 0) { //第一次下发任务的时候 才上报span(避免同一个任务上报多次)
-		wInfo, _ := GetWorkerInfo(wid)
-		ssm.OnSectorStateChange(info, wInfo, wid, msg, state, snap)
-	}*/
-	return nil
-}
 
 func UpdateSectorAbortSnapState(sid string) error {
 	mdb := GetDB()
@@ -488,9 +469,6 @@ WHERE
 }
 
 func UpdateSectorState(sid, wid, msg string, state, snap int) error {
-	if err := UploadSectorMonitorState(sid, wid, msg, state, snap); err != nil {
-		return err
-	}
 
 	mdb := GetDB()
 	if _, err := mdb.Exec(`

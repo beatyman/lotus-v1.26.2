@@ -3,13 +3,14 @@ package sealer
 import (
 	"bufio"
 	"context"
+	"github.com/filecoin-project/dagstore/mount"
 	stores "github.com/filecoin-project/lotus/storage/paths"
+	"github.com/filecoin-project/lotus/storage/sealer/fr32"
+	pool "github.com/libp2p/go-buffer-pool"
 	"io"
 	"os"
 	"runtime"
-
-	"github.com/filecoin-project/dagstore/mount"
-	"github.com/filecoin-project/lotus/storage/sealer/fr32"
+	"sync"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
@@ -252,27 +253,35 @@ func (l *hlmWorker) ReadPieceStorageInfo(ctx context.Context, sector storiface.S
 	return *info, nil
 }
 
-func (l *hlmWorker) readPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
+func (l *hlmWorker) readPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, pieceSize abi.UnpaddedPieceSize, ticket abi.SealRandomness, pc cid.Cid) (mount.Reader, bool, error) {
 	// try read the exist unsealed.
 	ctx, cancel := context.WithCancel(ctx)
-	rg, done, err := l.sb.PieceReader(ctx, sector, abi.PaddedPieceSize(pieceOffset.Padded()), size.Padded())
+	rg, done, err := l.sb.PieceReader(ctx, sector, abi.PaddedPieceSize(pieceOffset.Padded()), pieceSize.Padded())
 	if err != nil {
 		cancel()
 		return nil, false, errors.As(err)
 	} else if done {
 		cancel()
-		buf := make([]byte, fr32.BufSize(size.Padded()))
 		pr, err := (&pieceReader{
-			ctx: ctx,
-			getReader: func(ctx context.Context, startOffset uint64) (io.ReadCloser, error) {
-				startOffsetAligned := storiface.UnpaddedByteIndex(startOffset / 127 * 127) // floor to multiple of 127
+			getReader: func(startOffset, readSize uint64) (io.ReadCloser, error) {
+				// The request is for unpadded bytes, at any offset.
+				// storage.Reader readers give us fr32-padded bytes, so we need to
+				// do the unpadding here.
 
-				r, err := rg(startOffsetAligned.Padded())
+				startOffsetAligned := storiface.UnpaddedFloor(startOffset)
+				startOffsetDiff := int(startOffset - uint64(startOffsetAligned))
+
+				endOffset := startOffset + readSize
+				endOffsetAligned := storiface.UnpaddedCeil(endOffset)
+
+				r, err := rg(startOffsetAligned.Padded(), endOffsetAligned.Padded())
 				if err != nil {
 					return nil, xerrors.Errorf("getting reader at +%d: %w", startOffsetAligned, err)
 				}
 
-				upr, err := fr32.NewUnpadReaderBuf(r, size.Padded(), buf)
+				buf := pool.Get(fr32.BufSize(pieceSize.Padded()))
+
+				upr, err := fr32.NewUnpadReaderBuf(r, pieceSize.Padded(), buf)
 				if err != nil {
 					r.Close() // nolint
 					return nil, xerrors.Errorf("creating unpadded reader: %w", err)
@@ -280,28 +289,34 @@ func (l *hlmWorker) readPiece(ctx context.Context, sector storiface.SectorRef, p
 
 				bir := bufio.NewReaderSize(upr, 127)
 				if startOffset > uint64(startOffsetAligned) {
-					if _, err := bir.Discard(int(startOffset - uint64(startOffsetAligned))); err != nil {
+					if _, err := bir.Discard(startOffsetDiff); err != nil {
 						r.Close() // nolint
 						return nil, xerrors.Errorf("discarding bytes for startOffset: %w", err)
 					}
 				}
+
+				var closeOnce sync.Once
+
 				return struct {
 					io.Reader
 					io.Closer
 				}{
 					Reader: bir,
 					Closer: funcCloser(func() error {
+						closeOnce.Do(func() {
+							pool.Put(buf)
+						})
 						return r.Close()
 					}),
 				}, nil
 			},
-			len:      size,
+			len:      pieceSize,
 			onClose:  cancel,
-			pieceCid: unsealed,
-		}).init()
+			pieceCid: pc,
+		}).init(ctx)
 		if err != nil || pr == nil { // pr == nil to make sure we don't return typed nil
 			cancel()
-			return nil, true, err
+			return nil, false,err
 		}
 		cancel()
 		return pr, true, nil

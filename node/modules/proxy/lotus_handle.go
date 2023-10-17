@@ -45,20 +45,32 @@ type LotusImpl struct {
 	token  string
 }
 
+func (s *LotusImpl) StateGetRandomnessDigestFromTickets(ctx context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (abi.Randomness, error) {
+	return bestNodeApi().StateGetRandomnessDigestFromTickets(ctx, p1, p2)
+}
+
+func (s *LotusImpl) StateGetRandomnessDigestFromBeacon(ctx context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (abi.Randomness, error) {
+	return bestNodeApi().StateGetRandomnessDigestFromBeacon(ctx, p1, p2)
+}
+
+func (s *LotusImpl) EthSyncing(ctx context.Context) (ethtypes.EthSyncingResult, error) {
+	return bestNodeApi().EthSyncing(ctx)
+}
+
 func (s *LotusImpl) ChainExportRangeInternal(ctx context.Context, p0, p1 types.TipSetKey, p2 api.ChainExportConfig) error {
-	return bestNodeApi().ChainExportRangeInternal(ctx,p0,p1,p2)
+	return bestNodeApi().ChainExportRangeInternal(ctx, p0, p1, p2)
 }
 
 func (s *LotusImpl) ChainHotGC(ctx context.Context, p0 api.HotGCOpts) error {
-	return bestNodeApi().ChainHotGC(ctx,p0)
+	return bestNodeApi().ChainHotGC(ctx, p0)
 }
 
 func (s *LotusImpl) EthGetTransactionByHashLimited(ctx context.Context, p0 *ethtypes.EthHash, p1 abi.ChainEpoch) (*ethtypes.EthTx, error) {
-	return bestNodeApi().EthGetTransactionByHashLimited(ctx,p0,p1)
+	return bestNodeApi().EthGetTransactionByHashLimited(ctx, p0, p1)
 }
 
 func (s *LotusImpl) EthGetTransactionReceiptLimited(ctx context.Context, p0 ethtypes.EthHash, p1 abi.ChainEpoch) (*api.EthTxReceipt, error) {
-	return bestNodeApi().EthGetTransactionReceiptLimited(ctx,p0,p1)
+	return bestNodeApi().EthGetTransactionReceiptLimited(ctx, p0, p1)
 }
 
 func (s *LotusImpl) StartTime(ctx context.Context) (time.Time, error) {
@@ -74,23 +86,23 @@ func (s *LotusImpl) RaftLeader(ctx context.Context) (peer.ID, error) {
 }
 
 func (s *LotusImpl) StateGetAllocationForPendingDeal(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*verifreg.Allocation, error) {
-	return bestNodeApi().StateGetAllocationForPendingDeal(p0, p1,p2)
+	return bestNodeApi().StateGetAllocationForPendingDeal(p0, p1, p2)
 }
 
 func (s *LotusImpl) StateGetAllocation(p0 context.Context, p1 address.Address, p2 verifreg.AllocationId, p3 types.TipSetKey) (*verifreg.Allocation, error) {
-	return bestNodeApi().StateGetAllocation(p0, p1,p2,p3)
+	return bestNodeApi().StateGetAllocation(p0, p1, p2, p3)
 }
 
 func (s *LotusImpl) StateGetAllocations(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifreg.AllocationId]verifreg.Allocation, error) {
-	return bestNodeApi().StateGetAllocations(p0, p1,p2)
+	return bestNodeApi().StateGetAllocations(p0, p1, p2)
 }
 
 func (s *LotusImpl) StateGetClaim(p0 context.Context, p1 address.Address, p2 verifreg.ClaimId, p3 types.TipSetKey) (*verifreg.Claim, error) {
-	return bestNodeApi().StateGetClaim(p0, p1,p2,p3)
+	return bestNodeApi().StateGetClaim(p0, p1, p2, p3)
 }
 
 func (s *LotusImpl) StateGetClaims(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifreg.ClaimId]verifreg.Claim, error) {
-	return bestNodeApi().StateGetClaims(p0, p1,p2)
+	return bestNodeApi().StateGetClaims(p0, p1, p2)
 }
 
 func NewLotusProxy(token string) api.FullNode {
@@ -104,14 +116,14 @@ type jwtPayload struct {
 	Allow []auth.Permission
 }
 
-func (s *LotusImpl ) FilecoinAddressToEthAddress(ctx context.Context, p1 address.Address) (ethtypes.EthAddress, error)  {
-	return bestNodeApi().FilecoinAddressToEthAddress(ctx,p1)
+func (s *LotusImpl) FilecoinAddressToEthAddress(ctx context.Context, p1 address.Address) (ethtypes.EthAddress, error) {
+	return bestNodeApi().FilecoinAddressToEthAddress(ctx, p1)
 }
-func (s *LotusImpl) EthAddressToFilecoinAddress(ctx context.Context, p1 ethtypes.EthAddress) (address.Address, error){
-	return bestNodeApi().EthAddressToFilecoinAddress(ctx,p1)
+func (s *LotusImpl) EthAddressToFilecoinAddress(ctx context.Context, p1 ethtypes.EthAddress) (address.Address, error) {
+	return bestNodeApi().EthAddressToFilecoinAddress(ctx, p1)
 }
-func (s *LotusImpl) ChainGetEvents(ctx context.Context, p1 cid.Cid) ([]types.Event, error){
-	return bestNodeApi().ChainGetEvents(ctx,p1)
+func (s *LotusImpl) ChainGetEvents(ctx context.Context, p1 cid.Cid) ([]types.Event, error) {
+	return bestNodeApi().ChainGetEvents(ctx, p1)
 }
 func (s *LotusImpl) EthAccounts(ctx context.Context) ([]ethtypes.EthAddress, error) {
 	return bestNodeApi().EthAccounts(ctx)
@@ -122,59 +134,59 @@ func (s *LotusImpl) EthBlockNumber(ctx context.Context) (ethtypes.EthUint64, err
 }
 
 func (s *LotusImpl) EthGetBlockTransactionCountByNumber(ctx context.Context, p1 ethtypes.EthUint64) (ethtypes.EthUint64, error) {
-	return bestNodeApi().EthGetBlockTransactionCountByNumber(ctx,p1)
+	return bestNodeApi().EthGetBlockTransactionCountByNumber(ctx, p1)
 }
 
 func (s *LotusImpl) EthGetBlockTransactionCountByHash(ctx context.Context, p1 ethtypes.EthHash) (ethtypes.EthUint64, error) {
-	return bestNodeApi().EthGetBlockTransactionCountByHash(ctx,p1)
+	return bestNodeApi().EthGetBlockTransactionCountByHash(ctx, p1)
 }
 
 func (s *LotusImpl) EthGetBlockByHash(ctx context.Context, p1 ethtypes.EthHash, p2 bool) (ethtypes.EthBlock, error) {
-	return bestNodeApi().EthGetBlockByHash(ctx,p1,p2)
+	return bestNodeApi().EthGetBlockByHash(ctx, p1, p2)
 }
 
 func (s *LotusImpl) EthGetBlockByNumber(ctx context.Context, p1 string, p2 bool) (ethtypes.EthBlock, error) {
-	return bestNodeApi().EthGetBlockByNumber(ctx,p1,p2)
+	return bestNodeApi().EthGetBlockByNumber(ctx, p1, p2)
 }
 
 func (s *LotusImpl) EthGetTransactionByHash(ctx context.Context, p1 *ethtypes.EthHash) (*ethtypes.EthTx, error) {
-	return bestNodeApi().EthGetTransactionByHash(ctx,p1)
+	return bestNodeApi().EthGetTransactionByHash(ctx, p1)
 }
 
-func (s *LotusImpl) EthGetTransactionHashByCid(ctx context.Context, p1 cid.Cid) (*ethtypes.EthHash, error)      {
-	return bestNodeApi().EthGetTransactionHashByCid(ctx,p1)
+func (s *LotusImpl) EthGetTransactionHashByCid(ctx context.Context, p1 cid.Cid) (*ethtypes.EthHash, error) {
+	return bestNodeApi().EthGetTransactionHashByCid(ctx, p1)
 }
 
-func (s *LotusImpl) EthGetMessageCidByTransactionHash(ctx context.Context, p1 *ethtypes.EthHash) (*cid.Cid, error)       {
-	return bestNodeApi().EthGetMessageCidByTransactionHash(ctx,p1)
+func (s *LotusImpl) EthGetMessageCidByTransactionHash(ctx context.Context, p1 *ethtypes.EthHash) (*cid.Cid, error) {
+	return bestNodeApi().EthGetMessageCidByTransactionHash(ctx, p1)
 }
 
-func (s *LotusImpl) EthGetTransactionCount(ctx context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthUint64, error) {
-	return bestNodeApi().EthGetTransactionCount(ctx,p1,p2)
+func (s *LotusImpl) EthGetTransactionCount(ctx context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthUint64, error) {
+	return bestNodeApi().EthGetTransactionCount(ctx, p1, p2)
 }
 
 func (s *LotusImpl) EthGetTransactionReceipt(ctx context.Context, p1 ethtypes.EthHash) (*api.EthTxReceipt, error) {
-	return bestNodeApi().EthGetTransactionReceipt(ctx,p1)
+	return bestNodeApi().EthGetTransactionReceipt(ctx, p1)
 }
 
 func (s *LotusImpl) EthGetTransactionByBlockHashAndIndex(ctx context.Context, p1 ethtypes.EthHash, p2 ethtypes.EthUint64) (ethtypes.EthTx, error) {
-	return bestNodeApi().EthGetTransactionByBlockHashAndIndex(ctx,p1,p2)
+	return bestNodeApi().EthGetTransactionByBlockHashAndIndex(ctx, p1, p2)
 }
 
 func (s *LotusImpl) EthGetTransactionByBlockNumberAndIndex(ctx context.Context, p1 ethtypes.EthUint64, p2 ethtypes.EthUint64) (ethtypes.EthTx, error) {
-	return bestNodeApi().EthGetTransactionByBlockNumberAndIndex(ctx,p1,p2)
+	return bestNodeApi().EthGetTransactionByBlockNumberAndIndex(ctx, p1, p2)
 }
 
-func (s *LotusImpl) EthGetCode(ctx context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBytes, error) {
-	return bestNodeApi().EthGetCode(ctx,p1,p2)
+func (s *LotusImpl) EthGetCode(ctx context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
+	return bestNodeApi().EthGetCode(ctx, p1, p2)
 }
 
-func (s *LotusImpl) EthGetStorageAt(ctx context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 string) (ethtypes.EthBytes, error) {
-	return bestNodeApi().EthGetStorageAt(ctx,p1,p2,p3)
+func (s *LotusImpl) EthGetStorageAt(ctx context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
+	return bestNodeApi().EthGetStorageAt(ctx, p1, p2, p3)
 }
 
-func (s *LotusImpl) EthGetBalance(ctx context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBigInt, error) {
-	return bestNodeApi().EthGetBalance(ctx,p1,p2)
+func (s *LotusImpl) EthGetBalance(ctx context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBigInt, error) {
+	return bestNodeApi().EthGetBalance(ctx, p1, p2)
 }
 
 func (s *LotusImpl) EthChainId(ctx context.Context) (ethtypes.EthUint64, error) {
@@ -197,8 +209,8 @@ func (s *LotusImpl) EthGasPrice(ctx context.Context) (ethtypes.EthBigInt, error)
 	return bestNodeApi().EthGasPrice(ctx)
 }
 
-func (s *LotusImpl) 	EthFeeHistory(ctx context.Context, p1 jsonrpc.RawParams) (ethtypes.EthFeeHistory, error)    {
-	return bestNodeApi().EthFeeHistory(ctx,p1)
+func (s *LotusImpl) EthFeeHistory(ctx context.Context, p1 jsonrpc.RawParams) (ethtypes.EthFeeHistory, error) {
+	return bestNodeApi().EthFeeHistory(ctx, p1)
 }
 
 func (s *LotusImpl) EthMaxPriorityFeePerGas(ctx context.Context) (ethtypes.EthBigInt, error) {
@@ -206,31 +218,31 @@ func (s *LotusImpl) EthMaxPriorityFeePerGas(ctx context.Context) (ethtypes.EthBi
 }
 
 func (s *LotusImpl) EthEstimateGas(ctx context.Context, p1 ethtypes.EthCall) (ethtypes.EthUint64, error) {
-	return bestNodeApi().EthEstimateGas(ctx,p1)
+	return bestNodeApi().EthEstimateGas(ctx, p1)
 }
 
-func (s *LotusImpl) EthCall(ctx context.Context, p1 ethtypes.EthCall, p2 string) (ethtypes.EthBytes, error) {
-	return bestNodeApi().EthCall(ctx,p1,p2)
+func (s *LotusImpl) EthCall(ctx context.Context, p1 ethtypes.EthCall, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
+	return bestNodeApi().EthCall(ctx, p1, p2)
 }
 
 func (s *LotusImpl) EthSendRawTransaction(ctx context.Context, p1 ethtypes.EthBytes) (ethtypes.EthHash, error) {
-	return bestNodeApi().EthSendRawTransaction(ctx,p1)
+	return bestNodeApi().EthSendRawTransaction(ctx, p1)
 }
 
 func (s *LotusImpl) EthGetLogs(ctx context.Context, p1 *ethtypes.EthFilterSpec) (*ethtypes.EthFilterResult, error) {
-	return bestNodeApi().EthGetLogs(ctx,p1)
+	return bestNodeApi().EthGetLogs(ctx, p1)
 }
 
 func (s *LotusImpl) EthGetFilterChanges(ctx context.Context, p1 ethtypes.EthFilterID) (*ethtypes.EthFilterResult, error) {
-	return bestNodeApi().EthGetFilterChanges(ctx,p1)
+	return bestNodeApi().EthGetFilterChanges(ctx, p1)
 }
 
 func (s *LotusImpl) EthGetFilterLogs(ctx context.Context, p1 ethtypes.EthFilterID) (*ethtypes.EthFilterResult, error) {
-	return bestNodeApi().EthGetFilterLogs(ctx,p1)
+	return bestNodeApi().EthGetFilterLogs(ctx, p1)
 }
 
 func (s *LotusImpl) EthNewFilter(ctx context.Context, p1 *ethtypes.EthFilterSpec) (ethtypes.EthFilterID, error) {
-	return bestNodeApi().EthNewFilter(ctx,p1)
+	return bestNodeApi().EthNewFilter(ctx, p1)
 }
 
 func (s *LotusImpl) EthNewBlockFilter(ctx context.Context) (ethtypes.EthFilterID, error) {
@@ -242,21 +254,21 @@ func (s *LotusImpl) EthNewPendingTransactionFilter(ctx context.Context) (ethtype
 }
 
 func (s *LotusImpl) EthUninstallFilter(ctx context.Context, p1 ethtypes.EthFilterID) (bool, error) {
-	return bestNodeApi().EthUninstallFilter(ctx,p1)
+	return bestNodeApi().EthUninstallFilter(ctx, p1)
 }
 
 func (s *LotusImpl) EthSubscribe(ctx context.Context, p1 jsonrpc.RawParams) (ethtypes.EthSubscriptionID, error) {
-	return bestNodeApi().EthSubscribe(ctx,p1)
+	return bestNodeApi().EthSubscribe(ctx, p1)
 }
 
 func (s *LotusImpl) EthUnsubscribe(ctx context.Context, p1 ethtypes.EthSubscriptionID) (bool, error) {
-	return bestNodeApi().EthUnsubscribe(ctx,p1)
+	return bestNodeApi().EthUnsubscribe(ctx, p1)
 }
 
 func (s *LotusImpl) Web3ClientVersion(ctx context.Context) (string, error) {
 	return bestNodeApi().Web3ClientVersion(ctx)
 }
-func (s *LotusImpl)NetPing (ctx context.Context, p1 peer.ID) (time.Duration, error){
+func (s *LotusImpl) NetPing(ctx context.Context, p1 peer.ID) (time.Duration, error) {
 	return bestNodeApi().NetPing(ctx, p1)
 }
 func (s *LotusImpl) NetProtectAdd(ctx context.Context, acl []peer.ID) error {
@@ -521,8 +533,8 @@ func (s *LotusImpl) ChainHead(p0 context.Context) (*types.TipSet, error) {
 	return bestNodeApi().ChainHead(p0)
 }
 
-func (s *LotusImpl)ChainPutObj(p0 context.Context, p1 blocks.Block) error {
-	return bestNodeApi().ChainPutObj(p0,p1)
+func (s *LotusImpl) ChainPutObj(p0 context.Context, p1 blocks.Block) error {
+	return bestNodeApi().ChainPutObj(p0, p1)
 }
 func (s *LotusImpl) ChainReadObj(p0 context.Context, p1 cid.Cid) ([]byte, error) {
 	return bestNodeApi().ChainReadObj(p0, p1)
@@ -1045,7 +1057,7 @@ func (s *LotusImpl) StateSectorPartition(p0 context.Context, p1 address.Address,
 	return bestNodeApi().StateSectorPartition(p0, p1, p2, p3)
 }
 
-func (s *LotusImpl)StateSectorPreCommitInfo(p0 context.Context, p1 address.Address,p2 abi.SectorNumber,p3 types.TipSetKey) (*miner.SectorPreCommitOnChainInfo, error) {
+func (s *LotusImpl) StateSectorPreCommitInfo(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorPreCommitOnChainInfo, error) {
 	return bestNodeApi().StateSectorPreCommitInfo(p0, p1, p2, p3)
 }
 func (s *LotusImpl) StateMinerAllocated(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*bitfield.BitField, error) {
@@ -1172,16 +1184,16 @@ func (s *LotusImpl) ChainGetMessagesInTipset(p0 context.Context, p1 types.TipSet
 }
 
 // StateGetNetworkParams return current network params
-func (s *LotusImpl)StateGetNetworkParams(p0 context.Context) (*api.NetworkParams, error){
+func (s *LotusImpl) StateGetNetworkParams(p0 context.Context) (*api.NetworkParams, error) {
 	return bestNodeApi().StateGetNetworkParams(p0)
 }
 
 // StateLookupRobustAddress returns the public key address of the given ID address for non-account addresses (multisig, miners etc)
-func (s *LotusImpl)StateLookupRobustAddress(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) {
-	return bestNodeApi().StateLookupRobustAddress(p0,p1,p2)
+func (s *LotusImpl) StateLookupRobustAddress(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (address.Address, error) {
+	return bestNodeApi().StateLookupRobustAddress(p0, p1, p2)
 }
-func (s *LotusImpl) StateComputeDataCID(p0 context.Context, p1 address.Address, p2 abi.RegisteredSealProof, p3 []abi.DealID, p4 types.TipSetKey) (cid.Cid, error)  {
-	return bestNodeApi().StateComputeDataCID(p0,p1,p2,p3,p4)
+func (s *LotusImpl) StateComputeDataCID(p0 context.Context, p1 address.Address, p2 abi.RegisteredSealProof, p3 []abi.DealID, p4 types.TipSetKey) (cid.Cid, error) {
+	return bestNodeApi().StateComputeDataCID(p0, p1, p2, p3, p4)
 }
 func (s *LotusImpl) ChainPrune(ctx context.Context, p1 api.PruneOpts) error {
 	return bestNodeApi().ChainPrune(ctx, p1)

@@ -651,7 +651,7 @@ func (r *Remote) Reader(ctx context.Context, s storiface.SectorRef, offset, size
 					// got closed in the meantime, reopen
 
 					var err error
-					pf, err = r.pfHandler.OpenPartialFile(abi.PaddedPieceSize(ssize), path)
+					pf, err = r.pfHandler.OpenPartialFile(abi.PaddedPieceSize(ssize), s)
 					if err != nil {
 						return nil, nil, xerrors.Errorf("reopening partial file: %w", err)
 					}

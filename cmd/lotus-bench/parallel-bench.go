@@ -465,7 +465,7 @@ func runTask(ctx context.Context, sb *ffiwrapper.Sealer, task *ParallelBenchTask
 
 	sid := storiface.SectorRef{
 		ID:        task.SectorID,
-		ProofType: spt(sectorSize),
+		ProofType: spt(sectorSize,false),
 	}
 	switch task.Type {
 	case TASK_KIND_ADDPIECE:

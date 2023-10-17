@@ -3,13 +3,13 @@ package sealer
 import (
 	"bufio"
 	"context"
+	"golang.org/x/xerrors"
 	"io"
 	"sync"
 
-	pool "github.com/libp2p/go-buffer-pool"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/partialfile"
-	"github.com/gwaylib/errors"
+	pool "github.com/libp2p/go-buffer-pool"
 	"os"
 
 	"github.com/filecoin-project/dagstore/mount"
@@ -66,23 +66,23 @@ func (p *pieceProvider) IsUnsealed(ctx context.Context, sector storiface.SectorR
 	info, err := p.uns.ReadPieceStorageInfo(ctx, sector)
 	if err != nil {
 		log.Error(err)
-		return false,err
+		return false, err
 	} else {
 		log.Infof("%+v", info)
 	}
 
 	ssize, err := sector.ProofType.SectorSize()
 	if err != nil {
-		return false,err
+		return false, err
 	}
 	maxPieceSize := abi.PaddedPieceSize(ssize)
 	log.Info("Start OpenUnsealedPartialFileV2")
 	_, err = partialfile.OpenUnsealedPartialFileV2(maxPieceSize, sector, info)
 	if err != nil {
 		log.Error(err)
-		return false,err
+		return false, err
 	}
-	return true,nil
+	return true, nil
 	ctxLock, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -248,7 +248,7 @@ func (p *pieceProvider) ReadPiece(ctx context.Context, sector storiface.SectorRe
 
 	return r, uns, nil
 }
-func (p *pieceProvider) PieceReader(ctx context.Context, sector storiface.SectorRef, offset, size abi.PaddedPieceSize) (func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error), bool, error) {
+func (p *pieceProvider) PieceReader(ctx context.Context, sector storiface.SectorRef, offset, size abi.PaddedPieceSize) (func(startOffsetAligned, endOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error), error) {
 	log.Infof("DEBUG:PieceReader in, sector:%+v", sector)
 	defer log.Infof("DEBUG:PieceReader out, sector:%+v", sector)
 	// uprade SectorRef
@@ -256,14 +256,14 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storiface.Sector
 	info, err := p.uns.ReadPieceStorageInfo(ctx, sector)
 	if err != nil {
 		log.Error(err)
-		return nil, false, err
+		return nil, err
 	} else {
 		log.Infof("%+v", info)
 	}
 
 	ssize, err := sector.ProofType.SectorSize()
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	maxPieceSize := abi.PaddedPieceSize(ssize)
 	log.Info("Start OpenUnsealedPartialFileV2")
@@ -275,12 +275,12 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storiface.Sector
 			if err != nil {
 				log.Error(err)
 				if xerrors.Is(err, os.ErrNotExist) {
-					return nil, false, nil
+					return nil, nil
 				}
-				return nil, false, xerrors.Errorf("opening partial file: %w", err)
+				return nil, xerrors.Errorf("opening partial file: %w", err)
 			}
 		} else {
-			return nil, false, xerrors.Errorf("opening partial file: %w", err)
+			return nil, xerrors.Errorf("opening partial file: %w", err)
 		}
 		log.Info("Over OpenUnsealedPartialFileV2")
 	} else {
@@ -288,9 +288,9 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storiface.Sector
 		if err != nil {
 			log.Error(err)
 			if xerrors.Is(err, os.ErrNotExist) {
-				return nil, false, nil
+				return nil, nil
 			}
-			return nil, false, xerrors.Errorf("opening partial file: %w", err)
+			return nil, xerrors.Errorf("opening partial file: %w", err)
 		}
 	}
 
@@ -298,90 +298,99 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storiface.Sector
 	if err != nil {
 		log.Error(err)
 		_ = pf.Close()
-		return nil, false, err
+		return nil, err
 	}
 	if !ok {
 		log.Info("!ok: =============== ")
 		_ = pf.Close()
-		return nil, false, nil
+		return nil, nil
 	}
-	return func(startOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
-		r, err := pf.Reader(storiface.PaddedByteIndex(offset)+startOffsetAligned, size-abi.PaddedPieceSize(startOffsetAligned))
+	return func(startOffsetAligned, endOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
+		r, err := pf.Reader(storiface.PaddedByteIndex(offset)+startOffsetAligned, abi.PaddedPieceSize(endOffsetAligned-startOffsetAligned))
 		if err != nil {
-			log.Error(err)
-			_ = pf.Close()
 			return nil, err
 		}
+
 		return struct {
 			io.Reader
 			io.Closer
 		}{
 			Reader: r,
 			Closer: funcCloser(func() error {
-				log.Info("close ====================================")
-				// if we already have a reader cached, close this one
-				//_ = pf.Close()
+				_ = pf.Close()
 				return nil
 			}),
 		}, nil
-	}, true, nil
+	}, nil
 }
-func (p *pieceProvider) readPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, ticket abi.SealRandomness, unsealed cid.Cid) (mount.Reader, bool, error) {
+func (p *pieceProvider) readPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, pieceSize abi.UnpaddedPieceSize, ticket abi.SealRandomness, pc cid.Cid) (mount.Reader, bool, error) {
 	// try read the exist unsealed.
 	ctx, cancel := context.WithCancel(ctx)
-	rg, done, err := p.PieceReader(ctx, sector, abi.PaddedPieceSize(pieceOffset.Padded()), size.Padded())
+	readerGetter, err := p.PieceReader(ctx, sector, abi.PaddedPieceSize(pieceOffset.Padded()), pieceSize.Padded())
 	if err != nil {
-		log.Error(err)
 		cancel()
-		return nil, false, errors.As(err)
-	} else if done {
-		log.Infof("done: ================== %+v", done)
-		cancel()
-		buf := make([]byte, fr32.BufSize(size.Padded()))
-		pr, err := (&pieceReader{
-			ctx: ctx,
-			getReader: func(ctx context.Context, startOffset uint64) (io.ReadCloser, error) {
-				startOffsetAligned := storiface.UnpaddedByteIndex(startOffset / 127 * 127) // floor to multiple of 127
-
-				r, err := rg(startOffsetAligned.Padded())
-				if err != nil {
-					return nil, xerrors.Errorf("getting reader at +%d: %w", startOffsetAligned, err)
-				}
-
-				upr, err := fr32.NewUnpadReaderBuf(r, size.Padded(), buf)
-				if err != nil {
-					r.Close() // nolint
-					return nil, xerrors.Errorf("creating unpadded reader: %w", err)
-				}
-
-				bir := bufio.NewReaderSize(upr, 127)
-				if startOffset > uint64(startOffsetAligned) {
-					if _, err := bir.Discard(int(startOffset - uint64(startOffsetAligned))); err != nil {
-						r.Close() // nolint
-						return nil, xerrors.Errorf("discarding bytes for startOffset: %w", err)
-					}
-				}
-				return struct {
-					io.Reader
-					io.Closer
-				}{
-					Reader: bir,
-					Closer: funcCloser(func() error {
-						return r.Close()
-					}),
-				}, nil
-			},
-			len:      size,
-			onClose:  cancel,
-			pieceCid: unsealed,
-		}).init()
-		if err != nil || pr == nil { // pr == nil to make sure we don't return typed nil
-			cancel()
-			return nil, true, err
-		}
-		cancel()
-		return pr, true, nil
+		log.Debugf("did not get storage reader;sector=%+v, err:%s", sector.ID, err)
+		return nil, false, err
 	}
-	cancel()
-	return nil, false, errors.New("readPiece not done")
+	if readerGetter == nil {
+		cancel()
+		return nil, false, nil
+	}
+	pr, err := (&pieceReader{
+		getReader: func(startOffset, readSize uint64) (io.ReadCloser, error) {
+			// The request is for unpadded bytes, at any offset.
+			// storage.Reader readers give us fr32-padded bytes, so we need to
+			// do the unpadding here.
+
+			startOffsetAligned := storiface.UnpaddedFloor(startOffset)
+			startOffsetDiff := int(startOffset - uint64(startOffsetAligned))
+
+			endOffset := startOffset + readSize
+			endOffsetAligned := storiface.UnpaddedCeil(endOffset)
+
+			r, err := readerGetter(startOffsetAligned.Padded(), endOffsetAligned.Padded())
+			if err != nil {
+				return nil, xerrors.Errorf("getting reader at +%d: %w", startOffsetAligned, err)
+			}
+
+			buf := pool.Get(fr32.BufSize(pieceSize.Padded()))
+
+			upr, err := fr32.NewUnpadReaderBuf(r, pieceSize.Padded(), buf)
+			if err != nil {
+				r.Close() // nolint
+				return nil, xerrors.Errorf("creating unpadded reader: %w", err)
+			}
+
+			bir := bufio.NewReaderSize(upr, 127)
+			if startOffset > uint64(startOffsetAligned) {
+				if _, err := bir.Discard(startOffsetDiff); err != nil {
+					r.Close() // nolint
+					return nil, xerrors.Errorf("discarding bytes for startOffset: %w", err)
+				}
+			}
+
+			var closeOnce sync.Once
+
+			return struct {
+				io.Reader
+				io.Closer
+			}{
+				Reader: bir,
+				Closer: funcCloser(func() error {
+					closeOnce.Do(func() {
+						pool.Put(buf)
+					})
+					return r.Close()
+				}),
+			}, nil
+		},
+		len:      pieceSize,
+		onClose:  cancel,
+		pieceCid: pc,
+	}).init(ctx)
+	if err != nil || pr == nil { // pr == nil to make sure we don't return typed nil
+		cancel()
+		return nil, false, err
+	}
+	return pr, true, err
 }

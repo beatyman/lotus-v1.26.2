@@ -4,12 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/filecoin-project/lotus/buried"
 	"github.com/filecoin-project/lotus/buried/utils"
 	worker2 "github.com/filecoin-project/lotus/buried/worker"
-	"github.com/filecoin-project/lotus/lib/tracing"
-	"github.com/filecoin-project/lotus/monitor"
-	"huangdong2012/filecoin-monitor/model"
 	"net"
 	"net/http"
 	"os"
@@ -388,25 +384,7 @@ var runCmd = &cli.Command{
 		go func() {
 			worker2.InitWatch(ctx, workerId, nodeApi)
 		}()
-		//添加监控
-		kind := model.PackageKind_Worker
-		if workerCfg.WdPoStSrv {
-			kind = model.PackageKind_WorkerWdPost
-		} else if workerCfg.WnPoStSrv {
-			kind = model.PackageKind_WorkerWnPost
-		}
-		monitor.Init(kind, minerNo)
-		jaeger := tracing.SetupJaegerTracing("worker")
-		defer func() {
-			if jaeger != nil {
-				jaeger.Flush()
-			}
-		}()
 
-		timer := cctx.Int64("timer")
-		go func() {
-			buried.RunCollectWorkerInfo(cctx, timer, workerCfg, minerNo)
-		}()
 
 		if err := database.LockMount(minerRepo); err != nil {
 			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())

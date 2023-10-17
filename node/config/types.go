@@ -406,6 +406,7 @@ type SealingConfig struct {
 	// Don't send collateral with messages even if there is no available balance in the miner actor
 	DisableCollateralFallback bool
 
+	BatchPreCommits         bool
 	// maximum precommit batch size - batches will be sent immediately above this size
 	MaxPreCommitBatch int
 	MinPreCommitBatch int

@@ -5,7 +5,6 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"github.com/ipfs/go-cid"
-	"go.opencensus.io/trace/propagation"
 	"golang.org/x/xerrors"
 	"sync/atomic"
 )
@@ -33,7 +32,6 @@ func (sb *Sealer) FinalizeReplicaUpdate(ctx context.Context, sector storiface.Se
 	}
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext: propagation.Inject(ctx), //传播trace-id
 			Type:         WorkerFinalizeReplicaUpdate,
 			ProofType:    sector.ProofType,
 			SectorID:     sector.ID,
@@ -75,7 +73,6 @@ func (sb *Sealer) ReplicaUpdate(ctx context.Context, sector storiface.SectorRef,
 	}
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext:       propagation.Inject(ctx), //传播trace-id
 			Snap:               true,
 			Type:               WorkerReplicaUpdate,
 			ProofType:          sector.ProofType,
@@ -117,7 +114,6 @@ func (sb *Sealer) ProveReplicaUpdate1(ctx context.Context, sector storiface.Sect
 	}
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext:       propagation.Inject(ctx), //传播trace-id
 			Snap:               true,
 			Type:               WorkerProveReplicaUpdate1,
 			ProofType:          sector.ProofType,
@@ -162,7 +158,6 @@ func (sb *Sealer) ProveReplicaUpdate2(ctx context.Context, sector storiface.Sect
 	}
 	call := workerCall{
 		task: WorkerTask{
-			TraceContext:       propagation.Inject(ctx), //传播trace-id
 			Snap:               true,
 			Type:               WorkerProveReplicaUpdate2,
 			ProofType:          sector.ProofType,
