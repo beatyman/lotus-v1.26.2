@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	blocks "github.com/ipfs/go-libipfs/blocks"
 	"github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -28,7 +28,6 @@ import (
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/builtin/v8/paych"
-	"github.com/filecoin-project/go-state-types/builtin/v9/miner"
 	verifregtypes "github.com/filecoin-project/go-state-types/builtin/v9/verifreg"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/dline"
@@ -37,7 +36,7 @@ import (
 
 	apitypes "github.com/filecoin-project/lotus/api/types"
 	builtinactors "github.com/filecoin-project/lotus/chain/actors/builtin"
-	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 	"github.com/filecoin-project/lotus/journal/alerting"
@@ -265,7 +264,7 @@ type FullNodeMethods struct {
 
 	EthBlockNumber func(p0 context.Context) (ethtypes.EthUint64, error) `perm:"read"`
 
-	EthCall func(p0 context.Context, p1 ethtypes.EthCall, p2 string) (ethtypes.EthBytes, error) `perm:"read"`
+	EthCall func(p0 context.Context, p1 ethtypes.EthCall, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) `perm:"read"`
 
 	EthChainId func(p0 context.Context) (ethtypes.EthUint64, error) `perm:"read"`
 
@@ -275,7 +274,7 @@ type FullNodeMethods struct {
 
 	EthGasPrice func(p0 context.Context) (ethtypes.EthBigInt, error) `perm:"read"`
 
-	EthGetBalance func(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBigInt, error) `perm:"read"`
+	EthGetBalance func(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBigInt, error) `perm:"read"`
 
 	EthGetBlockByHash func(p0 context.Context, p1 ethtypes.EthHash, p2 bool) (ethtypes.EthBlock, error) `perm:"read"`
 
@@ -285,17 +284,17 @@ type FullNodeMethods struct {
 
 	EthGetBlockTransactionCountByNumber func(p0 context.Context, p1 ethtypes.EthUint64) (ethtypes.EthUint64, error) `perm:"read"`
 
-	EthGetCode func(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBytes, error) `perm:"read"`
+	EthGetCode func(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) `perm:"read"`
 
-	EthGetFilterChanges func(p0 context.Context, p1 ethtypes.EthFilterID) (*ethtypes.EthFilterResult, error) `perm:"write"`
+	EthGetFilterChanges func(p0 context.Context, p1 ethtypes.EthFilterID) (*ethtypes.EthFilterResult, error) `perm:"read"`
 
-	EthGetFilterLogs func(p0 context.Context, p1 ethtypes.EthFilterID) (*ethtypes.EthFilterResult, error) `perm:"write"`
+	EthGetFilterLogs func(p0 context.Context, p1 ethtypes.EthFilterID) (*ethtypes.EthFilterResult, error) `perm:"read"`
 
 	EthGetLogs func(p0 context.Context, p1 *ethtypes.EthFilterSpec) (*ethtypes.EthFilterResult, error) `perm:"read"`
 
 	EthGetMessageCidByTransactionHash func(p0 context.Context, p1 *ethtypes.EthHash) (*cid.Cid, error) `perm:"read"`
 
-	EthGetStorageAt func(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 string) (ethtypes.EthBytes, error) `perm:"read"`
+	EthGetStorageAt func(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) `perm:"read"`
 
 	EthGetTransactionByBlockHashAndIndex func(p0 context.Context, p1 ethtypes.EthHash, p2 ethtypes.EthUint64) (ethtypes.EthTx, error) `perm:"read"`
 
@@ -305,7 +304,7 @@ type FullNodeMethods struct {
 
 	EthGetTransactionByHashLimited func(p0 context.Context, p1 *ethtypes.EthHash, p2 abi.ChainEpoch) (*ethtypes.EthTx, error) `perm:"read"`
 
-	EthGetTransactionCount func(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthUint64, error) `perm:"read"`
+	EthGetTransactionCount func(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthUint64, error) `perm:"read"`
 
 	EthGetTransactionHashByCid func(p0 context.Context, p1 cid.Cid) (*ethtypes.EthHash, error) `perm:"read"`
 
@@ -315,21 +314,23 @@ type FullNodeMethods struct {
 
 	EthMaxPriorityFeePerGas func(p0 context.Context) (ethtypes.EthBigInt, error) `perm:"read"`
 
-	EthNewBlockFilter func(p0 context.Context) (ethtypes.EthFilterID, error) `perm:"write"`
+	EthNewBlockFilter func(p0 context.Context) (ethtypes.EthFilterID, error) `perm:"read"`
 
-	EthNewFilter func(p0 context.Context, p1 *ethtypes.EthFilterSpec) (ethtypes.EthFilterID, error) `perm:"write"`
+	EthNewFilter func(p0 context.Context, p1 *ethtypes.EthFilterSpec) (ethtypes.EthFilterID, error) `perm:"read"`
 
-	EthNewPendingTransactionFilter func(p0 context.Context) (ethtypes.EthFilterID, error) `perm:"write"`
+	EthNewPendingTransactionFilter func(p0 context.Context) (ethtypes.EthFilterID, error) `perm:"read"`
 
 	EthProtocolVersion func(p0 context.Context) (ethtypes.EthUint64, error) `perm:"read"`
 
 	EthSendRawTransaction func(p0 context.Context, p1 ethtypes.EthBytes) (ethtypes.EthHash, error) `perm:"read"`
 
-	EthSubscribe func(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthSubscriptionID, error) `perm:"write"`
+	EthSubscribe func(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthSubscriptionID, error) `perm:"read"`
 
-	EthUninstallFilter func(p0 context.Context, p1 ethtypes.EthFilterID) (bool, error) `perm:"write"`
+	EthSyncing func(p0 context.Context) (ethtypes.EthSyncingResult, error) `perm:"read"`
 
-	EthUnsubscribe func(p0 context.Context, p1 ethtypes.EthSubscriptionID) (bool, error) `perm:"write"`
+	EthUninstallFilter func(p0 context.Context, p1 ethtypes.EthFilterID) (bool, error) `perm:"read"`
+
+	EthUnsubscribe func(p0 context.Context, p1 ethtypes.EthSubscriptionID) (bool, error) `perm:"read"`
 
 	FilecoinAddressToEthAddress func(p0 context.Context, p1 address.Address) (ethtypes.EthAddress, error) `perm:"read"`
 
@@ -505,6 +506,10 @@ type FullNodeMethods struct {
 
 	StateGetNetworkParams func(p0 context.Context) (*NetworkParams, error) `perm:"read"`
 
+	StateGetRandomnessDigestFromBeacon func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (abi.Randomness, error) `perm:"read"`
+
+	StateGetRandomnessDigestFromTickets func(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (abi.Randomness, error) `perm:"read"`
+
 	StateGetRandomnessFromBeacon func(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) `perm:"read"`
 
 	StateGetRandomnessFromTickets func(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) `perm:"read"`
@@ -567,11 +572,11 @@ type FullNodeMethods struct {
 
 	StateSearchMsg func(p0 context.Context, p1 types.TipSetKey, p2 cid.Cid, p3 abi.ChainEpoch, p4 bool) (*MsgLookup, error) `perm:"read"`
 
-	StateSectorExpiration func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorExpiration, error) `perm:"read"`
+	StateSectorExpiration func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorExpiration, error) `perm:"read"`
 
 	StateSectorGetInfo func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorOnChainInfo, error) `perm:"read"`
 
-	StateSectorPartition func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorLocation, error) `perm:"read"`
+	StateSectorPartition func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorLocation, error) `perm:"read"`
 
 	StateSectorPreCommitInfo func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorPreCommitOnChainInfo, error) `perm:"read"`
 
@@ -643,6 +648,8 @@ type GatewayStruct struct {
 }
 
 type GatewayMethods struct {
+	ChainGetBlock func(p0 context.Context, p1 cid.Cid) (*types.BlockHeader, error) ``
+
 	ChainGetBlockMessages func(p0 context.Context, p1 cid.Cid) (*BlockMessages, error) ``
 
 	ChainGetGenesis func(p0 context.Context) (*types.TipSet, error) ``
@@ -677,7 +684,7 @@ type GatewayMethods struct {
 
 	EthBlockNumber func(p0 context.Context) (ethtypes.EthUint64, error) ``
 
-	EthCall func(p0 context.Context, p1 ethtypes.EthCall, p2 string) (ethtypes.EthBytes, error) ``
+	EthCall func(p0 context.Context, p1 ethtypes.EthCall, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) ``
 
 	EthChainId func(p0 context.Context) (ethtypes.EthUint64, error) ``
 
@@ -687,7 +694,7 @@ type GatewayMethods struct {
 
 	EthGasPrice func(p0 context.Context) (ethtypes.EthBigInt, error) ``
 
-	EthGetBalance func(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBigInt, error) ``
+	EthGetBalance func(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBigInt, error) ``
 
 	EthGetBlockByHash func(p0 context.Context, p1 ethtypes.EthHash, p2 bool) (ethtypes.EthBlock, error) ``
 
@@ -697,7 +704,7 @@ type GatewayMethods struct {
 
 	EthGetBlockTransactionCountByNumber func(p0 context.Context, p1 ethtypes.EthUint64) (ethtypes.EthUint64, error) ``
 
-	EthGetCode func(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBytes, error) ``
+	EthGetCode func(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) ``
 
 	EthGetFilterChanges func(p0 context.Context, p1 ethtypes.EthFilterID) (*ethtypes.EthFilterResult, error) ``
 
@@ -707,13 +714,13 @@ type GatewayMethods struct {
 
 	EthGetMessageCidByTransactionHash func(p0 context.Context, p1 *ethtypes.EthHash) (*cid.Cid, error) ``
 
-	EthGetStorageAt func(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 string) (ethtypes.EthBytes, error) ``
+	EthGetStorageAt func(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) ``
 
 	EthGetTransactionByHash func(p0 context.Context, p1 *ethtypes.EthHash) (*ethtypes.EthTx, error) ``
 
 	EthGetTransactionByHashLimited func(p0 context.Context, p1 *ethtypes.EthHash, p2 abi.ChainEpoch) (*ethtypes.EthTx, error) ``
 
-	EthGetTransactionCount func(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthUint64, error) ``
+	EthGetTransactionCount func(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthUint64, error) ``
 
 	EthGetTransactionHashByCid func(p0 context.Context, p1 cid.Cid) (*ethtypes.EthHash, error) ``
 
@@ -735,13 +742,21 @@ type GatewayMethods struct {
 
 	EthSubscribe func(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthSubscriptionID, error) ``
 
+	EthSyncing func(p0 context.Context) (ethtypes.EthSyncingResult, error) ``
+
 	EthUninstallFilter func(p0 context.Context, p1 ethtypes.EthFilterID) (bool, error) ``
 
 	EthUnsubscribe func(p0 context.Context, p1 ethtypes.EthSubscriptionID) (bool, error) ``
 
+	GasEstimateGasPremium func(p0 context.Context, p1 uint64, p2 address.Address, p3 int64, p4 types.TipSetKey) (types.BigInt, error) ``
+
 	GasEstimateMessageGas func(p0 context.Context, p1 *types.Message, p2 *MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) ``
 
+	MinerGetBaseInfo func(p0 context.Context, p1 address.Address, p2 abi.ChainEpoch, p3 types.TipSetKey) (*MiningBaseInfo, error) ``
+
 	MpoolGetNonce func(p0 context.Context, p1 address.Address) (uint64, error) ``
+
+	MpoolPending func(p0 context.Context, p1 types.TipSetKey) ([]*types.SignedMessage, error) ``
 
 	MpoolPush func(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) ``
 
@@ -781,11 +796,15 @@ type GatewayMethods struct {
 
 	StateMinerProvingDeadline func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*dline.Info, error) ``
 
+	StateMinerSectorCount func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerSectors, error) ``
+
 	StateNetworkName func(p0 context.Context) (dtypes.NetworkName, error) ``
 
 	StateNetworkVersion func(p0 context.Context, p1 types.TipSetKey) (apitypes.NetworkVersion, error) ``
 
 	StateReadState func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*ActorState, error) ``
+
+	StateReplay func(p0 context.Context, p1 types.TipSetKey, p2 cid.Cid) (*InvocResult, error) ``
 
 	StateSearchMsg func(p0 context.Context, p1 types.TipSetKey, p2 cid.Cid, p3 abi.ChainEpoch, p4 bool) (*MsgLookup, error) ``
 
@@ -1096,6 +1115,8 @@ type StorageMinerMethods struct {
 	SectorTerminateFlush func(p0 context.Context) (*cid.Cid, error) `perm:"admin"`
 
 	SectorTerminatePending func(p0 context.Context) ([]abi.SectorID, error) `perm:"admin"`
+
+	SectorUnseal func(p0 context.Context, p1 abi.SectorNumber) error `perm:"admin"`
 
 	SectorsList func(p0 context.Context) ([]abi.SectorNumber, error) `perm:"read"`
 
@@ -2160,14 +2181,14 @@ func (s *FullNodeStub) EthBlockNumber(p0 context.Context) (ethtypes.EthUint64, e
 	return *new(ethtypes.EthUint64), ErrNotSupported
 }
 
-func (s *FullNodeStruct) EthCall(p0 context.Context, p1 ethtypes.EthCall, p2 string) (ethtypes.EthBytes, error) {
+func (s *FullNodeStruct) EthCall(p0 context.Context, p1 ethtypes.EthCall, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	if s.Internal.EthCall == nil {
 		return *new(ethtypes.EthBytes), ErrNotSupported
 	}
 	return s.Internal.EthCall(p0, p1, p2)
 }
 
-func (s *FullNodeStub) EthCall(p0 context.Context, p1 ethtypes.EthCall, p2 string) (ethtypes.EthBytes, error) {
+func (s *FullNodeStub) EthCall(p0 context.Context, p1 ethtypes.EthCall, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	return *new(ethtypes.EthBytes), ErrNotSupported
 }
 
@@ -2215,14 +2236,14 @@ func (s *FullNodeStub) EthGasPrice(p0 context.Context) (ethtypes.EthBigInt, erro
 	return *new(ethtypes.EthBigInt), ErrNotSupported
 }
 
-func (s *FullNodeStruct) EthGetBalance(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBigInt, error) {
+func (s *FullNodeStruct) EthGetBalance(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBigInt, error) {
 	if s.Internal.EthGetBalance == nil {
 		return *new(ethtypes.EthBigInt), ErrNotSupported
 	}
 	return s.Internal.EthGetBalance(p0, p1, p2)
 }
 
-func (s *FullNodeStub) EthGetBalance(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBigInt, error) {
+func (s *FullNodeStub) EthGetBalance(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBigInt, error) {
 	return *new(ethtypes.EthBigInt), ErrNotSupported
 }
 
@@ -2270,14 +2291,14 @@ func (s *FullNodeStub) EthGetBlockTransactionCountByNumber(p0 context.Context, p
 	return *new(ethtypes.EthUint64), ErrNotSupported
 }
 
-func (s *FullNodeStruct) EthGetCode(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBytes, error) {
+func (s *FullNodeStruct) EthGetCode(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	if s.Internal.EthGetCode == nil {
 		return *new(ethtypes.EthBytes), ErrNotSupported
 	}
 	return s.Internal.EthGetCode(p0, p1, p2)
 }
 
-func (s *FullNodeStub) EthGetCode(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBytes, error) {
+func (s *FullNodeStub) EthGetCode(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	return *new(ethtypes.EthBytes), ErrNotSupported
 }
 
@@ -2325,14 +2346,14 @@ func (s *FullNodeStub) EthGetMessageCidByTransactionHash(p0 context.Context, p1 
 	return nil, ErrNotSupported
 }
 
-func (s *FullNodeStruct) EthGetStorageAt(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 string) (ethtypes.EthBytes, error) {
+func (s *FullNodeStruct) EthGetStorageAt(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	if s.Internal.EthGetStorageAt == nil {
 		return *new(ethtypes.EthBytes), ErrNotSupported
 	}
 	return s.Internal.EthGetStorageAt(p0, p1, p2, p3)
 }
 
-func (s *FullNodeStub) EthGetStorageAt(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 string) (ethtypes.EthBytes, error) {
+func (s *FullNodeStub) EthGetStorageAt(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	return *new(ethtypes.EthBytes), ErrNotSupported
 }
 
@@ -2380,14 +2401,14 @@ func (s *FullNodeStub) EthGetTransactionByHashLimited(p0 context.Context, p1 *et
 	return nil, ErrNotSupported
 }
 
-func (s *FullNodeStruct) EthGetTransactionCount(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthUint64, error) {
+func (s *FullNodeStruct) EthGetTransactionCount(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthUint64, error) {
 	if s.Internal.EthGetTransactionCount == nil {
 		return *new(ethtypes.EthUint64), ErrNotSupported
 	}
 	return s.Internal.EthGetTransactionCount(p0, p1, p2)
 }
 
-func (s *FullNodeStub) EthGetTransactionCount(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthUint64, error) {
+func (s *FullNodeStub) EthGetTransactionCount(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthUint64, error) {
 	return *new(ethtypes.EthUint64), ErrNotSupported
 }
 
@@ -2499,6 +2520,17 @@ func (s *FullNodeStruct) EthSubscribe(p0 context.Context, p1 jsonrpc.RawParams) 
 
 func (s *FullNodeStub) EthSubscribe(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthSubscriptionID, error) {
 	return *new(ethtypes.EthSubscriptionID), ErrNotSupported
+}
+
+func (s *FullNodeStruct) EthSyncing(p0 context.Context) (ethtypes.EthSyncingResult, error) {
+	if s.Internal.EthSyncing == nil {
+		return *new(ethtypes.EthSyncingResult), ErrNotSupported
+	}
+	return s.Internal.EthSyncing(p0)
+}
+
+func (s *FullNodeStub) EthSyncing(p0 context.Context) (ethtypes.EthSyncingResult, error) {
+	return *new(ethtypes.EthSyncingResult), ErrNotSupported
 }
 
 func (s *FullNodeStruct) EthUninstallFilter(p0 context.Context, p1 ethtypes.EthFilterID) (bool, error) {
@@ -3480,6 +3512,28 @@ func (s *FullNodeStub) StateGetNetworkParams(p0 context.Context) (*NetworkParams
 	return nil, ErrNotSupported
 }
 
+func (s *FullNodeStruct) StateGetRandomnessDigestFromBeacon(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (abi.Randomness, error) {
+	if s.Internal.StateGetRandomnessDigestFromBeacon == nil {
+		return *new(abi.Randomness), ErrNotSupported
+	}
+	return s.Internal.StateGetRandomnessDigestFromBeacon(p0, p1, p2)
+}
+
+func (s *FullNodeStub) StateGetRandomnessDigestFromBeacon(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (abi.Randomness, error) {
+	return *new(abi.Randomness), ErrNotSupported
+}
+
+func (s *FullNodeStruct) StateGetRandomnessDigestFromTickets(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (abi.Randomness, error) {
+	if s.Internal.StateGetRandomnessDigestFromTickets == nil {
+		return *new(abi.Randomness), ErrNotSupported
+	}
+	return s.Internal.StateGetRandomnessDigestFromTickets(p0, p1, p2)
+}
+
+func (s *FullNodeStub) StateGetRandomnessDigestFromTickets(p0 context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (abi.Randomness, error) {
+	return *new(abi.Randomness), ErrNotSupported
+}
+
 func (s *FullNodeStruct) StateGetRandomnessFromBeacon(p0 context.Context, p1 crypto.DomainSeparationTag, p2 abi.ChainEpoch, p3 []byte, p4 types.TipSetKey) (abi.Randomness, error) {
 	if s.Internal.StateGetRandomnessFromBeacon == nil {
 		return *new(abi.Randomness), ErrNotSupported
@@ -3821,14 +3875,14 @@ func (s *FullNodeStub) StateSearchMsg(p0 context.Context, p1 types.TipSetKey, p2
 	return nil, ErrNotSupported
 }
 
-func (s *FullNodeStruct) StateSectorExpiration(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorExpiration, error) {
+func (s *FullNodeStruct) StateSectorExpiration(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorExpiration, error) {
 	if s.Internal.StateSectorExpiration == nil {
 		return nil, ErrNotSupported
 	}
 	return s.Internal.StateSectorExpiration(p0, p1, p2, p3)
 }
 
-func (s *FullNodeStub) StateSectorExpiration(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorExpiration, error) {
+func (s *FullNodeStub) StateSectorExpiration(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorExpiration, error) {
 	return nil, ErrNotSupported
 }
 
@@ -3843,14 +3897,14 @@ func (s *FullNodeStub) StateSectorGetInfo(p0 context.Context, p1 address.Address
 	return nil, ErrNotSupported
 }
 
-func (s *FullNodeStruct) StateSectorPartition(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorLocation, error) {
+func (s *FullNodeStruct) StateSectorPartition(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorLocation, error) {
 	if s.Internal.StateSectorPartition == nil {
 		return nil, ErrNotSupported
 	}
 	return s.Internal.StateSectorPartition(p0, p1, p2, p3)
 }
 
-func (s *FullNodeStub) StateSectorPartition(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*lminer.SectorLocation, error) {
+func (s *FullNodeStub) StateSectorPartition(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (*miner.SectorLocation, error) {
 	return nil, ErrNotSupported
 }
 
@@ -4173,6 +4227,17 @@ func (s *FullNodeStub) Web3ClientVersion(p0 context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
+func (s *GatewayStruct) ChainGetBlock(p0 context.Context, p1 cid.Cid) (*types.BlockHeader, error) {
+	if s.Internal.ChainGetBlock == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.ChainGetBlock(p0, p1)
+}
+
+func (s *GatewayStub) ChainGetBlock(p0 context.Context, p1 cid.Cid) (*types.BlockHeader, error) {
+	return nil, ErrNotSupported
+}
+
 func (s *GatewayStruct) ChainGetBlockMessages(p0 context.Context, p1 cid.Cid) (*BlockMessages, error) {
 	if s.Internal.ChainGetBlockMessages == nil {
 		return nil, ErrNotSupported
@@ -4360,14 +4425,14 @@ func (s *GatewayStub) EthBlockNumber(p0 context.Context) (ethtypes.EthUint64, er
 	return *new(ethtypes.EthUint64), ErrNotSupported
 }
 
-func (s *GatewayStruct) EthCall(p0 context.Context, p1 ethtypes.EthCall, p2 string) (ethtypes.EthBytes, error) {
+func (s *GatewayStruct) EthCall(p0 context.Context, p1 ethtypes.EthCall, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	if s.Internal.EthCall == nil {
 		return *new(ethtypes.EthBytes), ErrNotSupported
 	}
 	return s.Internal.EthCall(p0, p1, p2)
 }
 
-func (s *GatewayStub) EthCall(p0 context.Context, p1 ethtypes.EthCall, p2 string) (ethtypes.EthBytes, error) {
+func (s *GatewayStub) EthCall(p0 context.Context, p1 ethtypes.EthCall, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	return *new(ethtypes.EthBytes), ErrNotSupported
 }
 
@@ -4415,14 +4480,14 @@ func (s *GatewayStub) EthGasPrice(p0 context.Context) (ethtypes.EthBigInt, error
 	return *new(ethtypes.EthBigInt), ErrNotSupported
 }
 
-func (s *GatewayStruct) EthGetBalance(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBigInt, error) {
+func (s *GatewayStruct) EthGetBalance(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBigInt, error) {
 	if s.Internal.EthGetBalance == nil {
 		return *new(ethtypes.EthBigInt), ErrNotSupported
 	}
 	return s.Internal.EthGetBalance(p0, p1, p2)
 }
 
-func (s *GatewayStub) EthGetBalance(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBigInt, error) {
+func (s *GatewayStub) EthGetBalance(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBigInt, error) {
 	return *new(ethtypes.EthBigInt), ErrNotSupported
 }
 
@@ -4470,14 +4535,14 @@ func (s *GatewayStub) EthGetBlockTransactionCountByNumber(p0 context.Context, p1
 	return *new(ethtypes.EthUint64), ErrNotSupported
 }
 
-func (s *GatewayStruct) EthGetCode(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBytes, error) {
+func (s *GatewayStruct) EthGetCode(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	if s.Internal.EthGetCode == nil {
 		return *new(ethtypes.EthBytes), ErrNotSupported
 	}
 	return s.Internal.EthGetCode(p0, p1, p2)
 }
 
-func (s *GatewayStub) EthGetCode(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthBytes, error) {
+func (s *GatewayStub) EthGetCode(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	return *new(ethtypes.EthBytes), ErrNotSupported
 }
 
@@ -4525,14 +4590,14 @@ func (s *GatewayStub) EthGetMessageCidByTransactionHash(p0 context.Context, p1 *
 	return nil, ErrNotSupported
 }
 
-func (s *GatewayStruct) EthGetStorageAt(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 string) (ethtypes.EthBytes, error) {
+func (s *GatewayStruct) EthGetStorageAt(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	if s.Internal.EthGetStorageAt == nil {
 		return *new(ethtypes.EthBytes), ErrNotSupported
 	}
 	return s.Internal.EthGetStorageAt(p0, p1, p2, p3)
 }
 
-func (s *GatewayStub) EthGetStorageAt(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 string) (ethtypes.EthBytes, error) {
+func (s *GatewayStub) EthGetStorageAt(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBytes, p3 ethtypes.EthBlockNumberOrHash) (ethtypes.EthBytes, error) {
 	return *new(ethtypes.EthBytes), ErrNotSupported
 }
 
@@ -4558,14 +4623,14 @@ func (s *GatewayStub) EthGetTransactionByHashLimited(p0 context.Context, p1 *eth
 	return nil, ErrNotSupported
 }
 
-func (s *GatewayStruct) EthGetTransactionCount(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthUint64, error) {
+func (s *GatewayStruct) EthGetTransactionCount(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthUint64, error) {
 	if s.Internal.EthGetTransactionCount == nil {
 		return *new(ethtypes.EthUint64), ErrNotSupported
 	}
 	return s.Internal.EthGetTransactionCount(p0, p1, p2)
 }
 
-func (s *GatewayStub) EthGetTransactionCount(p0 context.Context, p1 ethtypes.EthAddress, p2 string) (ethtypes.EthUint64, error) {
+func (s *GatewayStub) EthGetTransactionCount(p0 context.Context, p1 ethtypes.EthAddress, p2 ethtypes.EthBlockNumberOrHash) (ethtypes.EthUint64, error) {
 	return *new(ethtypes.EthUint64), ErrNotSupported
 }
 
@@ -4679,6 +4744,17 @@ func (s *GatewayStub) EthSubscribe(p0 context.Context, p1 jsonrpc.RawParams) (et
 	return *new(ethtypes.EthSubscriptionID), ErrNotSupported
 }
 
+func (s *GatewayStruct) EthSyncing(p0 context.Context) (ethtypes.EthSyncingResult, error) {
+	if s.Internal.EthSyncing == nil {
+		return *new(ethtypes.EthSyncingResult), ErrNotSupported
+	}
+	return s.Internal.EthSyncing(p0)
+}
+
+func (s *GatewayStub) EthSyncing(p0 context.Context) (ethtypes.EthSyncingResult, error) {
+	return *new(ethtypes.EthSyncingResult), ErrNotSupported
+}
+
 func (s *GatewayStruct) EthUninstallFilter(p0 context.Context, p1 ethtypes.EthFilterID) (bool, error) {
 	if s.Internal.EthUninstallFilter == nil {
 		return false, ErrNotSupported
@@ -4701,6 +4777,17 @@ func (s *GatewayStub) EthUnsubscribe(p0 context.Context, p1 ethtypes.EthSubscrip
 	return false, ErrNotSupported
 }
 
+func (s *GatewayStruct) GasEstimateGasPremium(p0 context.Context, p1 uint64, p2 address.Address, p3 int64, p4 types.TipSetKey) (types.BigInt, error) {
+	if s.Internal.GasEstimateGasPremium == nil {
+		return *new(types.BigInt), ErrNotSupported
+	}
+	return s.Internal.GasEstimateGasPremium(p0, p1, p2, p3, p4)
+}
+
+func (s *GatewayStub) GasEstimateGasPremium(p0 context.Context, p1 uint64, p2 address.Address, p3 int64, p4 types.TipSetKey) (types.BigInt, error) {
+	return *new(types.BigInt), ErrNotSupported
+}
+
 func (s *GatewayStruct) GasEstimateMessageGas(p0 context.Context, p1 *types.Message, p2 *MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) {
 	if s.Internal.GasEstimateMessageGas == nil {
 		return nil, ErrNotSupported
@@ -4709,6 +4796,17 @@ func (s *GatewayStruct) GasEstimateMessageGas(p0 context.Context, p1 *types.Mess
 }
 
 func (s *GatewayStub) GasEstimateMessageGas(p0 context.Context, p1 *types.Message, p2 *MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) {
+	return nil, ErrNotSupported
+}
+
+func (s *GatewayStruct) MinerGetBaseInfo(p0 context.Context, p1 address.Address, p2 abi.ChainEpoch, p3 types.TipSetKey) (*MiningBaseInfo, error) {
+	if s.Internal.MinerGetBaseInfo == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.MinerGetBaseInfo(p0, p1, p2, p3)
+}
+
+func (s *GatewayStub) MinerGetBaseInfo(p0 context.Context, p1 address.Address, p2 abi.ChainEpoch, p3 types.TipSetKey) (*MiningBaseInfo, error) {
 	return nil, ErrNotSupported
 }
 
@@ -4721,6 +4819,17 @@ func (s *GatewayStruct) MpoolGetNonce(p0 context.Context, p1 address.Address) (u
 
 func (s *GatewayStub) MpoolGetNonce(p0 context.Context, p1 address.Address) (uint64, error) {
 	return 0, ErrNotSupported
+}
+
+func (s *GatewayStruct) MpoolPending(p0 context.Context, p1 types.TipSetKey) ([]*types.SignedMessage, error) {
+	if s.Internal.MpoolPending == nil {
+		return *new([]*types.SignedMessage), ErrNotSupported
+	}
+	return s.Internal.MpoolPending(p0, p1)
+}
+
+func (s *GatewayStub) MpoolPending(p0 context.Context, p1 types.TipSetKey) ([]*types.SignedMessage, error) {
+	return *new([]*types.SignedMessage), ErrNotSupported
 }
 
 func (s *GatewayStruct) MpoolPush(p0 context.Context, p1 *types.SignedMessage) (cid.Cid, error) {
@@ -4932,6 +5041,17 @@ func (s *GatewayStub) StateMinerProvingDeadline(p0 context.Context, p1 address.A
 	return nil, ErrNotSupported
 }
 
+func (s *GatewayStruct) StateMinerSectorCount(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerSectors, error) {
+	if s.Internal.StateMinerSectorCount == nil {
+		return *new(MinerSectors), ErrNotSupported
+	}
+	return s.Internal.StateMinerSectorCount(p0, p1, p2)
+}
+
+func (s *GatewayStub) StateMinerSectorCount(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerSectors, error) {
+	return *new(MinerSectors), ErrNotSupported
+}
+
 func (s *GatewayStruct) StateNetworkName(p0 context.Context) (dtypes.NetworkName, error) {
 	if s.Internal.StateNetworkName == nil {
 		return *new(dtypes.NetworkName), ErrNotSupported
@@ -4962,6 +5082,17 @@ func (s *GatewayStruct) StateReadState(p0 context.Context, p1 address.Address, p
 }
 
 func (s *GatewayStub) StateReadState(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*ActorState, error) {
+	return nil, ErrNotSupported
+}
+
+func (s *GatewayStruct) StateReplay(p0 context.Context, p1 types.TipSetKey, p2 cid.Cid) (*InvocResult, error) {
+	if s.Internal.StateReplay == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.StateReplay(p0, p1, p2)
+}
+
+func (s *GatewayStub) StateReplay(p0 context.Context, p1 types.TipSetKey, p2 cid.Cid) (*InvocResult, error) {
 	return nil, ErrNotSupported
 }
 
@@ -6470,6 +6601,17 @@ func (s *StorageMinerStruct) SectorTerminatePending(p0 context.Context) ([]abi.S
 
 func (s *StorageMinerStub) SectorTerminatePending(p0 context.Context) ([]abi.SectorID, error) {
 	return *new([]abi.SectorID), ErrNotSupported
+}
+
+func (s *StorageMinerStruct) SectorUnseal(p0 context.Context, p1 abi.SectorNumber) error {
+	if s.Internal.SectorUnseal == nil {
+		return ErrNotSupported
+	}
+	return s.Internal.SectorUnseal(p0, p1)
+}
+
+func (s *StorageMinerStub) SectorUnseal(p0 context.Context, p1 abi.SectorNumber) error {
+	return ErrNotSupported
 }
 
 func (s *StorageMinerStruct) SectorsList(p0 context.Context) ([]abi.SectorNumber, error) {

@@ -2,6 +2,7 @@ package paths
 
 import (
 	"context"
+	"io"
 
 	"github.com/filecoin-project/go-state-types/abi"
 

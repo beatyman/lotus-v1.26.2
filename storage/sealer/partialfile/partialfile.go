@@ -16,6 +16,7 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 
+	"github.com/filecoin-project/lotus/lib/readerutil"
 	hlmclient "github.com/filecoin-project/lotus/cmd/lotus-storage/client"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
@@ -494,6 +495,9 @@ func (pf *PartialFile) Free(offset storiface.PaddedByteIndex, size abi.PaddedPie
 	return nil
 }
 
+// Reader forks off a new reader from the underlying file, and returns a reader
+// starting at the given offset and reading the given size. Safe for concurrent
+// use.
 func (pf *PartialFile) Reader(offset storiface.PaddedByteIndex, size abi.PaddedPieceSize) (fsutil.PartialFile, error) {
 	if _, err := pf.file.Seek(int64(offset), io.SeekStart); err != nil {
 		return nil, xerrors.Errorf("seek piece start: %w", err)
@@ -520,7 +524,7 @@ func (pf *PartialFile) Reader(offset storiface.PaddedByteIndex, size abi.PaddedP
 		}
 	}
 
-	return pf.file, nil
+	return io.LimitReader(readerutil.NewReadSeekerFromReaderAt(pf.file, int64(offset)), int64(size)), nil
 }
 
 func (pf *PartialFile) Allocated() (rlepluslazy.RunIterator, error) {

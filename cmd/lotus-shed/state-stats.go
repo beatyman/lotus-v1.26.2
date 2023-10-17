@@ -10,11 +10,11 @@ import (
 
 	"github.com/docker/go-units"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/ipfs/go-blockservice"
+	"github.com/ipfs/boxo/blockservice"
+	offline "github.com/ipfs/boxo/exchange/offline"
+	"github.com/ipfs/boxo/ipld/merkledag"
 	"github.com/ipfs/go-cid"
-	offline "github.com/ipfs/go-ipfs-exchange-offline"
 	format "github.com/ipfs/go-ipld-format"
-	"github.com/ipfs/go-merkledag"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -26,6 +26,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/consensus"
 	"github.com/filecoin-project/lotus/chain/consensus/filcns"
+	"github.com/filecoin-project/lotus/chain/index"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -308,7 +309,7 @@ to reduce the number of decode operations performed by caching the decoded objec
 		}
 
 		tsExec := consensus.NewTipSetExecutor(filcns.RewardFunc)
-		sm, err := stmgr.NewStateManager(cs, tsExec, vm.Syscalls(ffiwrapper.ProofVerifier), filcns.DefaultUpgradeSchedule(), nil, mds)
+		sm, err := stmgr.NewStateManager(cs, tsExec, vm.Syscalls(ffiwrapper.ProofVerifier), filcns.DefaultUpgradeSchedule(), nil, mds, index.DummyMsgIndex)
 		if err != nil {
 			return err
 		}

@@ -13,15 +13,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ipfs/go-blockservice"
+	"github.com/ipfs/boxo/blockservice"
+	bstore "github.com/ipfs/boxo/blockstore"
+	offline "github.com/ipfs/boxo/exchange/offline"
+	"github.com/ipfs/boxo/files"
+	"github.com/ipfs/boxo/ipld/merkledag"
+	unixfile "github.com/ipfs/boxo/ipld/unixfs/file"
 	"github.com/ipfs/go-cid"
-	bstore "github.com/ipfs/go-ipfs-blockstore"
-	offline "github.com/ipfs/go-ipfs-exchange-offline"
 	format "github.com/ipfs/go-ipld-format"
-	"github.com/ipfs/go-libipfs/files"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/ipfs/go-merkledag"
-	unixfile "github.com/ipfs/go-unixfs/file"
 	"github.com/ipld/go-car"
 	"github.com/ipld/go-car/util"
 	carv2 "github.com/ipld/go-car/v2"
@@ -197,7 +197,7 @@ func (a *API) dealStarter(ctx context.Context, params *api.StartDealParams, isSt
 		return nil, xerrors.Errorf("failed to get network version: %w", err)
 	}
 
-	st, err := miner.PreferredSealProofTypeFromWindowPoStType(networkVersion, mi.WindowPoStProofType)
+	st, err := miner.PreferredSealProofTypeFromWindowPoStType(networkVersion, mi.WindowPoStProofType, false)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get seal proof type: %w", err)
 	}

@@ -13,11 +13,11 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+	block "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	dstore "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
 	cbor "github.com/ipfs/go-ipld-cbor"
-	block "github.com/ipfs/go-libipfs/blocks"
 	logging "github.com/ipfs/go-log/v2"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/trace"
@@ -379,7 +379,7 @@ func (cs *ChainStore) SetGenesis(ctx context.Context, b *types.BlockHeader) erro
 }
 
 func (cs *ChainStore) PutTipSet(ctx context.Context, ts *types.TipSet) error {
-	if err := cs.PersistTipset(ctx, ts); err != nil {
+	if err := cs.PersistTipsets(ctx, []*types.TipSet{ts}); err != nil {
 		return xerrors.Errorf("failed to persist tipset: %w", err)
 	}
 
@@ -426,6 +426,11 @@ func (cs *ChainStore) MaybeTakeHeavierTipSet(ctx context.Context, ts *types.TipS
 	}
 
 	defer cs.heaviestLk.Unlock()
+
+	if ts.Equals(cs.heaviest) {
+		return nil
+	}
+
 	w, err := cs.weight(ctx, cs.StateBlockstore(), ts)
 	if err != nil {
 		return err
@@ -640,34 +645,27 @@ func (cs *ChainStore) reorgWorker(ctx context.Context, initialNotifees []ReorgNo
 func (cs *ChainStore) takeHeaviestTipSet(ctx context.Context, ts *types.TipSet) error {
 	_, span := trace.StartSpan(ctx, "takeHeaviestTipSet")
 	defer span.End()
-
-	if cs.heaviest != nil { // buf
-		if len(cs.reorgCh) > 0 {
-			log.Warnf("Reorg channel running behind, %d reorgs buffered", len(cs.reorgCh))
-		}
-		cs.reorgCh <- reorg{
-			old: cs.heaviest,
-			new: ts,
-		}
-	} else {
-		log.Warnf("no heaviest tipset found, using %s", ts.Cids())
-	}
-
 	span.AddAttributes(trace.BoolAttribute("newHead", true))
 
-	heaviestMiners := []string{}
-	for _, blk := range ts.Blocks() {
-		heaviestMiners = append(heaviestMiners,
-			fmt.Sprintf("(%s,p:%d,t:%d)", blk.Miner, blk.ParentWeight, blk.Timestamp),
-		)
-	}
-
-	log.Infof("New heaviest tipset(height=%d)! %s, %+v", ts.Height(), ts.Cids(), heaviestMiners)
+	log.Infof("New heaviest tipset! %s (height=%d)", ts.Cids(), ts.Height())
+	prevHeaviest := cs.heaviest
 	cs.heaviest = ts
 
 	if err := cs.writeHead(ctx, ts); err != nil {
 		log.Errorf("failed to write chain head: %s", err)
 		return err
+	}
+
+	if prevHeaviest != nil { // buf
+		if len(cs.reorgCh) > 0 {
+			log.Warnf("Reorg channel running behind, %d reorgs buffered", len(cs.reorgCh))
+		}
+		cs.reorgCh <- reorg{
+			old: prevHeaviest,
+			new: ts,
+		}
+	} else {
+		log.Warnf("no previous heaviest tipset found, using %s", ts.Cids())
 	}
 
 	return nil
@@ -983,18 +981,25 @@ func (cs *ChainStore) AddToTipSetTracker(ctx context.Context, b *types.BlockHead
 	return nil
 }
 
-func (cs *ChainStore) PersistTipset(ctx context.Context, ts *types.TipSet) error {
-	if err := cs.persistBlockHeaders(ctx, ts.Blocks()...); err != nil {
+func (cs *ChainStore) PersistTipsets(ctx context.Context, tipsets []*types.TipSet) error {
+	toPersist := make([]*types.BlockHeader, 0, len(tipsets)*int(build.BlocksPerEpoch))
+	tsBlks := make([]block.Block, 0, len(tipsets))
+	for _, ts := range tipsets {
+		toPersist = append(toPersist, ts.Blocks()...)
+		tsBlk, err := ts.Key().ToStorageBlock()
+		if err != nil {
+			return xerrors.Errorf("failed to get tipset key block: %w", err)
+		}
+
+		tsBlks = append(tsBlks, tsBlk)
+	}
+
+	if err := cs.persistBlockHeaders(ctx, toPersist...); err != nil {
 		return xerrors.Errorf("failed to persist block headers: %w", err)
 	}
 
-	tsBlk, err := ts.Key().ToStorageBlock()
-	if err != nil {
-		return xerrors.Errorf("failed to get tipset key block: %w", err)
-	}
-
-	if err = cs.chainLocalBlockstore.Put(ctx, tsBlk); err != nil {
-		return xerrors.Errorf("failed to put tipset key block: %w", err)
+	if err := cs.chainLocalBlockstore.PutMany(ctx, tsBlks); err != nil {
+		return xerrors.Errorf("failed to put tipset key blocks: %w", err)
 	}
 
 	return nil
@@ -1168,6 +1173,10 @@ func (cs *ChainStore) TryFillTipSet(ctx context.Context, ts *types.TipSet) (*Ful
 // selects the tipset before the null round if true, and the tipset following
 // the null round if false.
 func (cs *ChainStore) GetTipsetByHeight(ctx context.Context, h abi.ChainEpoch, ts *types.TipSet, prev bool) (*types.TipSet, error) {
+	if h < 0 {
+		return nil, xerrors.Errorf("height %d is negative", h)
+	}
+
 	if ts == nil {
 		ts = cs.GetHeaviestTipSet()
 	}

@@ -3,8 +3,8 @@ package gateway
 import (
 	"context"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	blocks "github.com/ipfs/go-libipfs/blocks"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
@@ -22,6 +22,63 @@ import (
 	"github.com/filecoin-project/lotus/lib/sigs"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 )
+
+func (gw *Node) MpoolPending(ctx context.Context, tsk types.TipSetKey) ([]*types.SignedMessage, error) {
+	if err := gw.limit(ctx, stateRateLimitTokens); err != nil {
+		return nil, err
+	}
+	if err := gw.checkTipsetKey(ctx, tsk); err != nil {
+		return nil, err
+	}
+	return gw.target.MpoolPending(ctx, tsk)
+}
+
+func (gw *Node) ChainGetBlock(ctx context.Context, c cid.Cid) (*types.BlockHeader, error) {
+	if err := gw.limit(ctx, chainRateLimitTokens); err != nil {
+		return nil, err
+	}
+	return gw.target.ChainGetBlock(ctx, c)
+}
+
+func (gw *Node) MinerGetBaseInfo(ctx context.Context, addr address.Address, h abi.ChainEpoch, tsk types.TipSetKey) (*api.MiningBaseInfo, error) {
+	if err := gw.limit(ctx, stateRateLimitTokens); err != nil {
+		return nil, err
+	}
+	if err := gw.checkTipsetKey(ctx, tsk); err != nil {
+		return nil, err
+	}
+	return gw.target.MinerGetBaseInfo(ctx, addr, h, tsk)
+}
+
+func (gw *Node) StateReplay(ctx context.Context, tsk types.TipSetKey, c cid.Cid) (*api.InvocResult, error) {
+	if err := gw.limit(ctx, chainRateLimitTokens); err != nil {
+		return nil, err
+	}
+	if err := gw.checkTipsetKey(ctx, tsk); err != nil {
+		return nil, err
+	}
+	return gw.target.StateReplay(ctx, tsk, c)
+}
+
+func (gw *Node) GasEstimateGasPremium(ctx context.Context, nblocksincl uint64, sender address.Address, gaslimit int64, tsk types.TipSetKey) (types.BigInt, error) {
+	if err := gw.limit(ctx, chainRateLimitTokens); err != nil {
+		return types.BigInt{}, err
+	}
+	if err := gw.checkTipsetKey(ctx, tsk); err != nil {
+		return types.BigInt{}, err
+	}
+	return gw.target.GasEstimateGasPremium(ctx, nblocksincl, sender, gaslimit, tsk)
+}
+
+func (gw *Node) StateMinerSectorCount(ctx context.Context, m address.Address, tsk types.TipSetKey) (api.MinerSectors, error) {
+	if err := gw.limit(ctx, chainRateLimitTokens); err != nil {
+		return api.MinerSectors{}, err
+	}
+	if err := gw.checkTipsetKey(ctx, tsk); err != nil {
+		return api.MinerSectors{}, err
+	}
+	return gw.target.StateMinerSectorCount(ctx, m, tsk)
+}
 
 func (gw *Node) Discover(ctx context.Context) (apitypes.OpenRPCDocument, error) {
 	return build.OpenRPCDiscoverJSON_Gateway(), nil

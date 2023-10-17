@@ -49,16 +49,12 @@ var UpgradeHyperdriveHeight = abi.ChainEpoch(-16)
 var UpgradeChocolateHeight = abi.ChainEpoch(-17)
 var UpgradeOhSnapHeight = abi.ChainEpoch(-18)
 var UpgradeSkyrHeight = abi.ChainEpoch(-19)
+var UpgradeSharkHeight = abi.ChainEpoch(-20)
+var UpgradeHyggeHeight = abi.ChainEpoch(-21)
+var UpgradeLightningHeight = abi.ChainEpoch(-22)
+var UpgradeThunderHeight = abi.ChainEpoch(-23)
 
-const UpgradeSharkHeight = abi.ChainEpoch(-20)
-
-const UpgradeHyggeHeight = abi.ChainEpoch(100)
-
-// ??????????
-const UpgradeLightningHeight = 200
-
-// ??????????????????
-const UpgradeThunderHeight = 300
+const UpgradeWatermelonHeight = 50
 
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandMainnet,

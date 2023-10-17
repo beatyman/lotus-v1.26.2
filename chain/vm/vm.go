@@ -7,9 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	block "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	cbor "github.com/ipfs/go-ipld-cbor"
-	block "github.com/ipfs/go-libipfs/blocks"
 	logging "github.com/ipfs/go-log/v2"
 	mh "github.com/multiformats/go-multihash"
 	cbg "github.com/whyrusleeping/cbor-gen"
@@ -21,7 +21,6 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	builtin_types "github.com/filecoin-project/go-state-types/builtin"
-	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/go-state-types/exitcode"
 	"github.com/filecoin-project/go-state-types/network"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/account"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/reward"
+	"github.com/filecoin-project/lotus/chain/rand"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/metrics"
@@ -224,7 +224,7 @@ type LegacyVM struct {
 	buf            *blockstore.BufferedBlockstore
 	blockHeight    abi.ChainEpoch
 	areg           *ActorRegistry
-	rand           Rand
+	rand           rand.Rand
 	circSupplyCalc CircSupplyCalculator
 	networkVersion network.Version
 	baseFee        abi.TokenAmount
@@ -238,7 +238,7 @@ type VMOpts struct {
 	StateBase      cid.Cid
 	Epoch          abi.ChainEpoch
 	Timestamp      uint64
-	Rand           Rand
+	Rand           rand.Rand
 	Bstore         blockstore.Blockstore
 	Actors         *ActorRegistry
 	Syscalls       SyscallBuilder
@@ -250,6 +250,8 @@ type VMOpts struct {
 	Tracing        bool
 	// ReturnEvents decodes and returns emitted events.
 	ReturnEvents bool
+	// ExecutionLane specifies the execution priority of the created vm
+	ExecutionLane ExecutionLane
 }
 
 func NewLegacyVM(ctx context.Context, opts *VMOpts) (*LegacyVM, error) {
@@ -283,11 +285,6 @@ func NewLegacyVM(ctx context.Context, opts *VMOpts) (*LegacyVM, error) {
 		baseCircSupply: baseCirc,
 		lbStateGet:     opts.LookbackState,
 	}, nil
-}
-
-type Rand interface {
-	GetChainRandomness(ctx context.Context, pers crypto.DomainSeparationTag, round abi.ChainEpoch, entropy []byte) ([]byte, error)
-	GetBeaconRandomness(ctx context.Context, pers crypto.DomainSeparationTag, round abi.ChainEpoch, entropy []byte) ([]byte, error)
 }
 
 type ApplyRet struct {

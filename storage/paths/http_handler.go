@@ -3,6 +3,7 @@ package paths
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
