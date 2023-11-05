@@ -81,7 +81,8 @@ require (
 	github.com/hannahhoward/go-pubsub v0.0.0-20200423002714-8d62886cc36e
 	github.com/hashicorp/go-hclog v1.3.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/golang-lru/v2 v2.0.2
+	github.com/hashicorp/golang-lru/arc/v2 v2.0.5
+	github.com/hashicorp/golang-lru/v2 v2.0.5
 	github.com/hashicorp/raft v1.3.10
 	github.com/hashicorp/raft-boltdb v0.0.0-20171010151810-6e5ba93211ea
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef
