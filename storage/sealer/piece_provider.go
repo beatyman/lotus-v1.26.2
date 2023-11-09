@@ -6,6 +6,7 @@ import (
 	"golang.org/x/xerrors"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/partialfile"
@@ -293,35 +294,95 @@ func (p *pieceProvider) PieceReader(ctx context.Context, sector storiface.Sector
 			return nil, xerrors.Errorf("opening partial file: %w", err)
 		}
 	}
-
-	ok, err := pf.HasAllocated(storiface.UnpaddedByteIndex(offset.Unpadded()), size.Unpadded())
+	log.Debugf("local partial file opened %+v (+%d,%d)", info, offset, size)
+	// even though we have an unsealed file for the given sector, we still need to determine if we have the unsealed piece
+	// in the unsealed sector file. That is what `HasAllocated` checks for.
+	has, err := pf.HasAllocated(storiface.UnpaddedByteIndex(offset.Unpadded()), size.Unpadded())
 	if err != nil {
-		log.Error(err)
-		_ = pf.Close()
-		return nil, err
+		return nil, xerrors.Errorf("has allocated: %w", err)
 	}
-	if !ok {
-		log.Info("!ok: =============== ")
-		_ = pf.Close()
-		return nil, nil
-	}
-	return func(startOffsetAligned, endOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
-		r, err := pf.Reader(storiface.PaddedByteIndex(offset)+startOffsetAligned, abi.PaddedPieceSize(endOffsetAligned-startOffsetAligned))
-		if err != nil {
-			return nil, err
+	log.Debugf("check if partial file is allocated %+v (+%d,%d)", info, offset, size)
+
+	if has {
+		log.Infof("returning piece reader for local unsealed piece sector=%+v, (offset=%d, size=%d)", info, offset, size)
+		// refs keep track of the currently opened pf
+		// if they drop to 0 for longer than LocalReaderTimeout, pf will be closed
+		var refsLk sync.Mutex
+		refs := 0
+		var LocalReaderTimeout = 5 * time.Second
+		cleanupIdle := func() {
+			lastRefs := 1
+			for range time.After(LocalReaderTimeout) {
+				refsLk.Lock()
+				if refs == 0 && lastRefs == 0 && pf != nil { // pf can't really be nil here, but better be safe
+					log.Infow("closing idle partial file", "path", info)
+					err := pf.Close()
+					if err != nil {
+						log.Errorw("closing idle partial file", "path", info, "error", err)
+					}
+
+					pf = nil
+					refsLk.Unlock()
+					return
+				}
+				lastRefs = refs
+				refsLk.Unlock()
+			}
 		}
 
-		return struct {
-			io.Reader
-			io.Closer
-		}{
-			Reader: r,
-			Closer: funcCloser(func() error {
-				_ = pf.Close()
+		getPF := func() (*partialfile.PartialFile, func() error, error) {
+			refsLk.Lock()
+			defer refsLk.Unlock()
+
+			if pf == nil {
+				// got closed in the meantime, reopen
+
+				var err error
+				pf, err = partialfile.OpenUnsealedPartialFileV2(maxPieceSize, sector, info)
+				if err != nil {
+					return nil, nil, xerrors.Errorf("reopening partial file: %w", err)
+				}
+				log.Debugf("local partial file reopened %+v (+%d,%d)", info, offset, size)
+
+				go cleanupIdle()
+			}
+			refs++
+
+			return pf, func() error {
+				refsLk.Lock()
+				defer refsLk.Unlock()
+
+				refs--
 				return nil
-			}),
+			}, nil
+		}
+
+		return func(startOffsetAligned, endOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
+			pf, done, err := getPF()
+			if err != nil {
+				return nil, xerrors.Errorf("getting partialfile handle: %w", err)
+			}
+
+			r, err := pf.Reader(storiface.PaddedByteIndex(offset)+startOffsetAligned, abi.PaddedPieceSize(endOffsetAligned-startOffsetAligned))
+			if err != nil {
+				return nil, err
+			}
+
+			return struct {
+				io.Reader
+				io.Closer
+			}{
+				Reader: r,
+				Closer: funcCloser(done),
+			}, nil
 		}, nil
-	}, nil
+
+	}
+	log.Debugf("miner has unsealed file but not unseal piece, %+v (+%d,%d)", info, offset, size)
+	if err := pf.Close(); err != nil {
+		return nil, xerrors.Errorf("close partial file: %w", err)
+	}
+	return nil, nil
 }
 func (p *pieceProvider) readPiece(ctx context.Context, sector storiface.SectorRef, pieceOffset storiface.UnpaddedByteIndex, pieceSize abi.UnpaddedPieceSize, ticket abi.SealRandomness, pc cid.Cid) (mount.Reader, bool, error) {
 	// try read the exist unsealed.
