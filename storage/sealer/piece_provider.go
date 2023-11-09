@@ -330,11 +330,11 @@ func (p *pieceProvider) readPiece(ctx context.Context, sector storiface.SectorRe
 	if err != nil {
 		cancel()
 		log.Debugf("did not get storage reader;sector=%+v, err:%s", sector.ID, err)
-		return nil, false, err
+		return nil, true, err
 	}
 	if readerGetter == nil {
 		cancel()
-		return nil, false, nil
+		return nil, true, nil
 	}
 	pr, err := (&pieceReader{
 		getReader: func(startOffset, readSize uint64) (io.ReadCloser, error) {
@@ -390,7 +390,7 @@ func (p *pieceProvider) readPiece(ctx context.Context, sector storiface.SectorRe
 	}).init(ctx)
 	if err != nil || pr == nil { // pr == nil to make sure we don't return typed nil
 		cancel()
-		return nil, false, err
+		return nil, true, err
 	}
-	return pr, true, err
+	return pr, false, err
 }
