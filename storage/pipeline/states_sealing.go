@@ -3,13 +3,13 @@ package sealing
 import (
 	"bytes"
 	"context"
+	rerr "errors"
 	"fmt"
 	"github.com/filecoin-project/go-fil-markets/shared"
+	"github.com/gwaylib/errors"
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/gwaylib/errors"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
@@ -307,7 +307,7 @@ func retrySoftErr(ctx context.Context, cb func() error) error {
 
 		var cerr storiface.WorkError
 
-		if errors.As(err, &cerr) {
+		if rerr.As(err, &cerr) {
 			switch cerr.ErrCode() {
 			case storiface.ErrTempWorkerRestart:
 				fallthrough
