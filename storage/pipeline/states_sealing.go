@@ -8,7 +8,6 @@ import (
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/gwaylib/errors"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -125,40 +124,6 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 		log.Warnf("Creating %d filler pieces for sector %d", len(fillerSizes), sector.SectorNumber)
 	}
 
-	fromPath := ""
-	if sector.hasDeals() {
-		_, s, err := database.PrepareStorage("", "", database.STORAGE_KIND_SEALED)
-		if err == nil {
-			if s.MountType == database.MOUNT_TYPE_OSS {
-				id := m.minerSectorID(sector.SectorNumber)
-				sid := storiface.SectorName(id)
-				filepath.Walk(QINIU_VIRTUAL_MOUNTPOINT,
-					func(path string, f os.FileInfo, err error) error {
-						if f == nil {
-							return err
-						}
-						if f.IsDir() {
-							return nil
-						}
-						if filepath.Base(path) == sid {
-							fromPath = path
-							log.Infof("----------------------------handlePacking fromPath=%s", fromPath)
-						}
-						return nil
-					})
-				toPath := filepath.Join(QINIU_VIRTUAL_MOUNTPOINT, sid, "unsealed", sid)
-				if fromPath == "" {
-					return xerrors.Errorf("failed index unsealed file (%s): %w", fromPath, err)
-				}
-
-				err := uploadToOSS(nil, fromPath, toPath)
-				if err != nil {
-					return xerrors.Errorf("failed upload unsealed file (%s): %w", fromPath, err)
-				}
-			}
-		}
-	}
-
 	cfg, err := m.getConfig()
 	if err != nil {
 		return xerrors.Errorf("getting sealing config: %w", err)
@@ -168,9 +133,6 @@ func (m *Sealing) handlePacking(ctx statemachine.Context, sector SectorInfo) err
 	fillerPieces, err := m.padSector(context.WithValue(sector.sealingCtx(ctx.Context()), "SNAP", sector.CCUpdate), sectorRef, sector.existingPieceSizes(), fillerSizes...)
 	if err != nil {
 		return xerrors.Errorf("filling up the sector (%v): %w", fillerSizes, err)
-	}
-	if fromPath != "" {
-		os.Remove(fromPath)
 	}
 
 	return ctx.Send(SectorPacked{FillerPieces: fillerPieces})
