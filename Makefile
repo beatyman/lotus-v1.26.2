@@ -210,6 +210,12 @@ lotus-health:
 .PHONY: lotus-health
 BINS+=lotus-health
 
+lotus-wallet: $(BUILD_DEPS)
+	rm -f lotus-wallet
+	$(GOCC) build $(GOFLAGS) -o lotus-wallet ./cmd/lotus-wallet
+.PHONY: lotus-wallet
+BINS+=lotus-wallet
+
 leveldb-tools:
 	rm -f leveldb-tools
 	$(GOCC) build -o leveldb-tools ./cmd/tools/leveldb-tools
@@ -221,12 +227,6 @@ lotus-storage:
 	$(GOCC) build $(GOFLAGS) -o lotus-storage ./cmd/lotus-storage
 .PHONY: lotus-storage
 BINS+=lotus-storage
-
-lotus-wallet:
-	rm -f lotus-wallet
-	$(GOCC) build $(GOFLAGS) -o lotus-wallet ./cmd/lotus-wallet
-.PHONY: lotus-wallet
-BINS+=lotus-wallet
 
 lotus-keygen:
 	rm -f lotus-keygen

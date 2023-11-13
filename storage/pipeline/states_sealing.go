@@ -3,6 +3,11 @@ package sealing
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"time"
 	"fmt"
 	"github.com/filecoin-project/go-fil-markets/shared"
 	"os"
@@ -295,6 +300,42 @@ func (m *Sealing) handleGetTicket(ctx statemachine.Context, sector SectorInfo) e
 	})
 }
 
+var SoftErrRetryWait = 5 * time.Second
+
+func retrySoftErr(ctx context.Context, cb func() error) error {
+	for {
+		err := cb()
+		if err == nil {
+			return nil
+		}
+
+		var cerr storiface.WorkError
+
+		if errors.As(err, &cerr) {
+			switch cerr.ErrCode() {
+			case storiface.ErrTempWorkerRestart:
+				fallthrough
+			case storiface.ErrTempAllocateSpace:
+				// retry
+				log.Errorw("retrying soft error", "err", err, "code", cerr.ErrCode())
+			default:
+				// non-temp error
+				return err
+			}
+
+			// check if the context got cancelled early
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+
+			// retry
+			time.Sleep(SoftErrRetryWait)
+		} else {
+			return err
+		}
+	}
+}
+
 func (m *Sealing) handlePreCommit1(ctx statemachine.Context, sector SectorInfo) error {
 	if err := checkPieces(ctx.Context(), m.maddr, sector.SectorNumber, sector.Pieces, m.Api, false); err != nil { // Sanity check state
 		switch err.(type) {
@@ -351,7 +392,11 @@ func (m *Sealing) handlePreCommit1(ctx statemachine.Context, sector SectorInfo) 
 		}
 	}
 
-	pc1o, err := m.sealer.SealPreCommit1(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), sector.TicketValue, sector.pieceInfos())
+	var pc1o storiface.PreCommit1Out
+	err = retrySoftErr(ctx.Context(), func() (err error) {
+		pc1o, err = m.sealer.SealPreCommit1(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), sector.TicketValue, sector.pieceInfos())
+		return err
+	})
 	if err != nil {
 		return ctx.Send(SectorSealPreCommit1Failed{xerrors.Errorf("seal pre commit(1) failed: %w", err)})
 	}
@@ -362,7 +407,12 @@ func (m *Sealing) handlePreCommit1(ctx statemachine.Context, sector SectorInfo) 
 }
 
 func (m *Sealing) handlePreCommit2(ctx statemachine.Context, sector SectorInfo) error {
-	cids, err := m.sealer.SealPreCommit2(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), sector.PreCommit1Out)
+	var cids storiface.SectorCids
+
+	err := retrySoftErr(ctx.Context(), func() (err error) {
+		cids, err = m.sealer.SealPreCommit2(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), sector.PreCommit1Out)
+		return err
+	})
 	if err != nil {
 		return ctx.Send(SectorSealPreCommit2Failed{xerrors.Errorf("seal pre commit(2) failed: %w", err)})
 	}

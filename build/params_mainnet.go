@@ -111,6 +111,8 @@ var PreCommitChallengeDelay = abi.ChainEpoch(150)
 // PropagationDelaySecs change by hlm 10-->6
 var PropagationDelaySecs = uint64(6)
 
+var EquivocationDelaySecs = uint64(2)
+
 func init() {
 	if os.Getenv("LOTUS_USE_TEST_ADDRESSES") != "1" {
 		SetAddressNetwork(address.Mainnet)

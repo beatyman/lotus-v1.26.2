@@ -119,6 +119,10 @@ func (b *Provider) AcquireSector(ctx context.Context, id storiface.SectorRef, ex
 	return out, done, nil
 }
 
+func (b *Provider) AcquireSectorCopy(ctx context.Context, id storiface.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, ptype storiface.PathType) (storiface.SectorPaths, func(), error) {
+	return b.AcquireSector(ctx, id, existing, allocate, ptype)
+}
+
 func PathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {

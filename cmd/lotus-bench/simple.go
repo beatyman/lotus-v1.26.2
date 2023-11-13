@@ -122,6 +122,11 @@ p: pvC0JBrEyUqtIIUvB2UUx/2a24c3Cvnu6AZ0D3IMBYAu...
 
 type benchSectorProvider map[storiface.SectorFileType]string
 
+func (b benchSectorProvider) AcquireSectorCopy(ctx context.Context, id storiface.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, ptype storiface.PathType) (storiface.SectorPaths, func(), error) {
+	// there's no copying in this context
+	return b.AcquireSector(ctx, id, existing, allocate, ptype)
+}
+
 func (b benchSectorProvider) RepoPath() string {
 	sdir, err := homedir.Expand("~/.lotus-bench/simple")
 	if err != nil {
