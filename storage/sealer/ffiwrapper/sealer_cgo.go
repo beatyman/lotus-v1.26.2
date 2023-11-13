@@ -10,8 +10,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
-	"github.com/filecoin-project/go-fil-markets/shared"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 	"io"
@@ -26,7 +24,6 @@ import (
 
 	"github.com/detailyang/go-fallocate"
 	"github.com/ipfs/go-cid"
-	"github.com/ufilesdk-dev/us3-qiniu-go-sdk/syncdata/operation"
 	"golang.org/x/xerrors"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
@@ -313,7 +310,7 @@ func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, exis
 			log.Warnw("closing pieceData in AddPiece", "error", err)
 		}
 	}()
-	isSectorCc:=!sector.SectorFile.IsMarketSector
+	isSectorCc := !sector.SectorFile.IsMarketSector
 	// uprade SectorRef
 	var err error
 	sector, err = database.FillSectorFile(sector, sb.RepoPath())
@@ -722,50 +719,86 @@ func (sb *Sealer) regenerateSectorKey(ctx context.Context, sector storiface.Sect
 	return nil
 }
 
-func (sb *Sealer) UnsealPiece(ctx context.Context, sector storiface.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error {
+func (sb *Sealer) unsealPiece(ctx context.Context, sector storiface.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd cid.Cid) error {
 	// NOTE: This function will copy sealed/unsealed (and possible update) files
 	// into sealing storage. Those copies get cleaned up in LocalWorker.UnsealPiece
 	// after this call exists. The resulting unsealed file is going to be moved to
 	// long-term storage as well.
+	log.Infof("DEBUG:unsealPiece in, sector:%+v", sector)
+	defer log.Infof("DEBUG:unsealPiece out, sector:%+v", sector)
 
+	// uprade SectorRef
+	var err error
+	sector, err = database.FillSectorFile(sector, sb.RepoPath())
+	if err != nil {
+		return errors.As(err)
+	}
+	// implements from hlm
+	sPath := storiface.SectorPaths{
+		ID:          sector.ID,
+		Unsealed:    sector.UnsealedFile(),
+		Sealed:      sector.SealedFile(),
+		Cache:       sector.CachePath(),
+		Update:      sector.UpdateFile(),
+		UpdateCache: sector.UpdateCachePath(),
+	}
 	ssize, err := sector.ProofType.SectorSize()
 	if err != nil {
 		return err
 	}
 	maxPieceSize := abi.PaddedPieceSize(ssize)
-
-	// try finding existing (also move to a sealing path if it's not here)
-	unsealedPath, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, storiface.FTNone, storiface.PathSealing)
 	var pf *partialfile.PartialFile
+	/*
+		// try finding existing (also move to a sealing path if it's not here)
+		unsealedPath, done, err := sb.sectors.AcquireSector(ctx, sector, storiface.FTUnsealed, storiface.FTNone, storiface.PathSealing)
+		var pf *partialfile.PartialFile
 
-	switch {
-	case xerrors.Is(err, storiface.ErrSectorNotFound):
-		// allocate if doesn't exist
-		unsealedPath, done, err = sb.sectors.AcquireSector(ctx, sector, storiface.FTNone, storiface.FTUnsealed, storiface.PathSealing)
-		if err != nil {
-			return xerrors.Errorf("acquire unsealed sector path (allocate): %w", err)
-		}
-	case err == nil:
-		// no-op
-	default:
-		return xerrors.Errorf("acquire unsealed sector path (existing): %w", err)
-	}
-
-	defer done()
-
-	pf, err = partialfile.OpenPartialFile(maxPieceSize, unsealedPath.Unsealed)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			pf, err = partialfile.CreatePartialFile(maxPieceSize, unsealedPath.Unsealed)
+		switch {
+		case xerrors.Is(err, storiface.ErrSectorNotFound):
+			// allocate if doesn't exist
+			unsealedPath, done, err = sb.sectors.AcquireSector(ctx, sector, storiface.FTNone, storiface.FTUnsealed, storiface.PathSealing)
 			if err != nil {
-				return xerrors.Errorf("creating partial file: %w", err)
+				return xerrors.Errorf("acquire unsealed sector path (allocate): %w", err)
 			}
-		} else {
+		case err == nil:
+			// no-op
+		default:
+			return xerrors.Errorf("acquire unsealed sector path (existing): %w", err)
+		}
+
+		defer done()
+
+
+		pf, err = partialfile.OpenPartialFile(maxPieceSize, unsealedPath.Unsealed)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				pf, err = partialfile.CreatePartialFile(maxPieceSize, unsealedPath.Unsealed)
+				if err != nil {
+					return xerrors.Errorf("creating partial file: %w", err)
+				}
+			} else {
+				return xerrors.Errorf("opening partial file: %w", err)
+			}
+		}
+		defer pf.Close() // nolint
+	*/
+	_, err = os.Stat(sPath.Unsealed)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return xerrors.Errorf("acquire unsealed sector path (existing): %w", err)
+		}
+
+		pf, err = partialfile.CreateUnsealedPartialFile(maxPieceSize, sector)
+		if err != nil {
+			return xerrors.Errorf("create unsealed file: %w", err)
+		}
+	} else {
+		pf, err = partialfile.OpenUnsealedPartialFile(maxPieceSize, sector)
+		if err != nil {
 			return xerrors.Errorf("opening partial file: %w", err)
 		}
 	}
 	defer pf.Close() // nolint
-
 	//	// try finding existing
 	//	unsealedPath, done, err := sb.sectors.AcquireSector(ctx, sector, stores.FTUnsealed, stores.FTNone, stores.PathStorage)
 	//	var pf *partialFile
@@ -810,60 +843,47 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storiface.SectorRef, o
 	if !toUnseal.HasNext() {
 		return nil
 	}
-
 	// need to unseal
+	/*
+		// If piece data stored in updated replica decode whole sector
+		upd, updDone, err := sb.acquireUpdatePath(ctx, sector)
+		if err != nil {
+			return xerrors.Errorf("acquiring update path: %w", err)
+		}
 
-	// If piece data stored in updated replica decode whole sector
-	upd, updDone, err := sb.acquireUpdatePath(ctx, sector)
-	if err != nil {
-		return xerrors.Errorf("acquiring update path: %w", err)
-	}
+		if upd != "" {
+			defer updDone()
 
-	if upd != "" {
-		defer updDone()
+			// decodeUpdatedReplica mill modify the unsealed file
+			if err := pf.Close(); err != nil {
+				return err
+			}
 
+			err := sb.decodeUpdatedReplica(ctx, sector, commd, upd, unsealedPath.Unsealed, randomness)
+			if err != nil {
+				return xerrors.Errorf("decoding sector from replica: %w", err)
+			}
+			return nil
+		}
+	*/
+	_, err = os.Stat(sPath.Update)
+	if err == nil {
 		// decodeUpdatedReplica mill modify the unsealed file
 		if err := pf.Close(); err != nil {
 			return err
 		}
-
-		err := sb.decodeUpdatedReplica(ctx, sector, commd, upd, unsealedPath.Unsealed, randomness)
+		err := sb.decodeUpdatedReplica(ctx, sector, commd, sPath.Update, sPath.Unsealed, randomness)
 		if err != nil {
 			return xerrors.Errorf("decoding sector from replica: %w", err)
 		}
 		return nil
 	}
-
-	// Piece data non-upgrade sealed in sector
-	// (copy so that files stay in long-term storage)
-	srcPaths, releaseSector, err := sb.sectors.AcquireSectorCopy(ctx, sector, storiface.FTCache|storiface.FTSealed, storiface.FTNone, storiface.PathSealing)
-	if err != nil {
-		return xerrors.Errorf("acquire sealed sector paths: %w", err)
-	}
-	defer releaseSector()
-
-		sealed, err := os.OpenFile(srcPaths.Sealed, os.O_RDONLY, 0644) // nolint:gosec
-		if err != nil {
-			return xerrors.Errorf("opening sealed file: %w", err)
-		}
-		defer sealed.Close() // nolint
-	*/
-	up := os.Getenv("US3")
 	var sealed *os.File
-	if up != "" {
-		d := operation.NewDownloaderV2()
-		sealed, err = d.DownloadFile(sPath.Sealed, sPath.Sealed)
-		if err != nil {
-			return xerrors.Errorf("opening sealed file: %w", err)
-		}
-		defer sealed.Close() // nolint
-	} else {
-		sealed, err = os.OpenFile(sPath.Sealed, os.O_RDONLY, 0644) // nolint:gosec
-		if err != nil {
-			return xerrors.Errorf("opening sealed file: %w", err)
-		}
-		defer sealed.Close() // nolint
+	sealed, err = os.OpenFile(sPath.Sealed, os.O_RDONLY, 0644) // nolint:gosec
+	if err != nil {
+		return xerrors.Errorf("opening sealed file: %w", err)
 	}
+	defer sealed.Close() // nolint
 	var at, nextat abi.PaddedPieceSize
 	first := true
 	for first || toUnseal.HasNext() {
@@ -985,7 +1005,7 @@ func (sb *Sealer) ReadPieceQiniu(ctx context.Context, sector storiface.SectorRef
 	p.Unsealed = filepath.Join(sp, storiface.FTUnsealed.String(), storiface.SectorName(sector.ID))
 	return partialfile.ReadPieceQiniu(ctx, p.Unsealed, sector, offset, size)
 }
-func (sb *Sealer) PieceReader(ctx context.Context, sector storiface.SectorRef, offset, size abi.PaddedPieceSize) (func(startOffsetAligned, endOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error), bool,error) {
+func (sb *Sealer) PieceReader(ctx context.Context, sector storiface.SectorRef, offset, size abi.PaddedPieceSize) (func(startOffsetAligned, endOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error), bool, error) {
 	up := os.Getenv("US3")
 	if up != "" {
 		return func(startOffsetAligned, endOffsetAligned storiface.PaddedByteIndex) (io.ReadCloser, error) {
@@ -1254,7 +1274,7 @@ func (sb *Sealer) sealPreCommit2(ctx context.Context, sector storiface.SectorRef
 		}
 
 		for i := 0; i < PC2CheckRounds; i++ {
-			log.Infof("path: %+v,sealedCID: %+v,unsealedCID: %+v,sector:%+v,ssize:%+v",paths,sealedCID,unsealedCID,sector,ssize)
+			log.Infof("path: %+v,sealedCID: %+v,unsealedCID: %+v,sector:%+v,ssize:%+v", paths, sealedCID, unsealedCID, sector, ssize)
 			var sd [32]byte
 			_, _ = rand.Read(sd[:])
 

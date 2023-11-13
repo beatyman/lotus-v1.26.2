@@ -46,6 +46,7 @@ type Config struct {
 
 	MaxPreCommitBatch   int
 	MinPreCommitBatch   int
+	BatchPreCommits     bool
 	PreCommitBatchWait  time.Duration
 	PreCommitBatchSlack time.Duration
 
