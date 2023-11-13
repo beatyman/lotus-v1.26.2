@@ -45,6 +45,16 @@ type LotusImpl struct {
 	token  string
 }
 
+func (s *LotusImpl) EthTraceBlock(ctx context.Context, p1 string) ([]*ethtypes.EthTraceBlock, error) {
+	//TODO implement me
+	return bestNodeApi().EthTraceBlock(ctx, p1)
+}
+
+func (s *LotusImpl) EthTraceReplayBlockTransactions(ctx context.Context, p1 string, p2 []string) ([]*ethtypes.EthTraceReplayBlockTransaction, error) {
+	//TODO implement me
+	return bestNodeApi().EthTraceReplayBlockTransactions(ctx, p1, p2)
+}
+
 func (s *LotusImpl) StateGetRandomnessDigestFromTickets(ctx context.Context, p1 abi.ChainEpoch, p2 types.TipSetKey) (abi.Randomness, error) {
 	return bestNodeApi().StateGetRandomnessDigestFromTickets(ctx, p1, p2)
 }

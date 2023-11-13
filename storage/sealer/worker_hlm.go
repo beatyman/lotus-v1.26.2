@@ -40,6 +40,11 @@ type hlmWorker struct {
 	sb              *ffiwrapper.Sealer
 }
 
+func (l *hlmWorker) AcquireSectorCopy(ctx context.Context, id storiface.SectorRef, existing storiface.SectorFileType, allocate storiface.SectorFileType, ptype storiface.PathType) (storiface.SectorPaths, func(), error) {
+	//TODO implement me
+	return storiface.SectorPaths{}, nil, xerrors.Errorf("implement me")
+}
+
 func NewHlmWorker(remoteCfg ffiwrapper.RemoteCfg, store stores.Store, local *stores.Local, sindex stores.SectorIndex) (*hlmWorker, error) {
 	w := &hlmWorker{
 		remoteCfg:       remoteCfg,
@@ -144,7 +149,6 @@ func (l *hlmWorker) ProveReplicaUpdate1(ctx context.Context, sector storiface.Se
 func (l *hlmWorker) ProveReplicaUpdate2(ctx context.Context, sector storiface.SectorRef, sectorKey, newSealed, newUnsealed cid.Cid, vanillaProofs storiface.ReplicaVanillaProofs) (storiface.ReplicaUpdateProof, error) {
 	return l.sb.ProveReplicaUpdate2(ctx, sector, sectorKey, newSealed, newUnsealed, vanillaProofs)
 }
-
 
 func (l *hlmWorker) FinalizeReplicaUpdate(ctx context.Context, sector storiface.SectorRef) error {
 	return l.sb.FinalizeReplicaUpdate(ctx, sector)
@@ -316,7 +320,7 @@ func (l *hlmWorker) readPiece(ctx context.Context, sector storiface.SectorRef, p
 		}).init(ctx)
 		if err != nil || pr == nil { // pr == nil to make sure we don't return typed nil
 			cancel()
-			return nil, false,err
+			return nil, false, err
 		}
 		cancel()
 		return pr, true, nil
