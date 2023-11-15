@@ -6,7 +6,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var SectorHead = "s-t"
+var SectorHead = "s-f"
 
 func MinerID(miner abi.ActorID) string {
 	return fmt.Sprintf("%s0%d", SectorHead, miner)
