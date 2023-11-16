@@ -163,7 +163,7 @@ type WorkerCfg struct {
 	Busy   []string       //p1 worker正在执行中的任务(miner重启->worker重连时需要: checkCache + Busy 恢复miner的busy状态)
 	C2Sids []abi.SectorID //c2 worker正在执行的扇区id (c2断线重连后需要恢复busyOnTasks)
 
-	ParallelFinalize      int
+	ParallelFinalize int
 }
 
 type WorkerQueueKind string
@@ -477,26 +477,26 @@ func (r *remote) limitParallel(typ WorkerTaskType, isSrvCalled bool) bool {
 		// mutex to any other task.
 		return sumWorkingTask > 0
 	}
-	if calculatedWorkingTask >= r.cfg.MaxTaskNum {
-		return true
-	}
-	busyP1GroupNum :=  busyPrecommit1Num +  busyReplicaUpdateNum
+	busyP1GroupNum := busyPrecommit1Num + busyReplicaUpdateNum
 	switch typ {
 	// mutex cpu for addpiece and precommit1
 	case WorkerPledge:
+		if calculatedWorkingTask >= r.cfg.MaxTaskNum {
+			return true
+		}
 		// in full working
 		return busyAddPieceNum >= r.cfg.ParallelPledge
 	case WorkerPreCommit1, WorkerReplicaUpdate:
 		return busyP1GroupNum >= r.cfg.ParallelPrecommit1
 	// mutex gpu for precommit2, commit2.
 	case WorkerPreCommit2, WorkerProveReplicaUpdate1:
-		return busyPrecommit2Num >= r.cfg.ParallelPrecommit2 || (r.cfg.Commit2Srv && busyCommitNum > 0)
+		return busyPrecommit2Num >= r.cfg.ParallelPrecommit2
 	case WorkerCommit, WorkerProveReplicaUpdate2:
 		// ulimit to call commit2 service.
 		if r.cfg.ParallelCommit == 0 {
 			return false
 		}
-		return busyCommitNum >= r.cfg.ParallelCommit || (busyPrecommit2Num > 0)
+		return busyCommitNum >= r.cfg.ParallelCommit
 	}
 	// default is false to pass the logic.
 	return false

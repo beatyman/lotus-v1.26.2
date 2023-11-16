@@ -290,6 +290,7 @@ func (sb *Sealer) DelWorker(ctx context.Context, workerId string) {
 }
 
 func (sb *Sealer) DisableWorker(ctx context.Context, wid string, disable bool) error {
+	log.Infof("start DisableWorker wid: %+v, disable: %+v", wid, disable)
 	if err := database.DisableWorker(wid, disable); err != nil {
 		return errors.As(err, wid, disable)
 	}
@@ -299,6 +300,7 @@ func (sb *Sealer) DisableWorker(ctx context.Context, wid string, disable bool) e
 		// TODO: make sync?
 		r.(*remote).disable = disable
 	}
+	log.Infof("finish DisableWorker wid: %+v, disable: %+v", wid, r.(*remote).disable)
 	return nil
 }
 
@@ -1076,7 +1078,6 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 	}
 
 	checkPledge := func() {
-
 		var (
 			wc *workerCall
 			fn func()
@@ -1111,17 +1112,27 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		r.lock.Unlock()
 		log.Infow("pledge task judge...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "busy", busy, "ok", ok, "limit", !r.LimitParallel(WorkerPledge, false))
 		// search checking is the remote busying
-		if r.disable && (!busy || !ok) {
+		workerInfo, err := database.GetWorkerInfo(r.cfg.ID)
+		if err != nil {
+			log.Infof("pledge task unknown worker id: %+v", r.cfg.ID)
+			return
+		}
+		if workerInfo.Disable && (!busy || !ok) {
 			log.Infow("pledge task fake", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "disable", r.disable)
 			return
 		}
-		if busy || ok || !r.LimitParallel(WorkerPledge, false) {
+		sInfo, err := database.GetSectorInfo(wc.task.SectorName())
+		if err != nil {
+			log.Infow("pledge task not found", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "task", wc.task.SectorName())
+			return
+		}
+		if busy || ok || sInfo.WorkerId == r.cfg.ID || !r.LimitParallel(WorkerPledge, false) {
 			fn()
 			sb.doSealTask(ctx, r, *wc)
 			log.Infow("pledge task do-seal", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
 		} else {
 			log.Infow("pledge task ignore", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
-			wc.task.WorkerID = ""
+			//wc.task.WorkerID = ""
 			sb.returnTaskWithoutCounter(*wc)
 			time.Sleep(time.Second * 3)
 		}
@@ -1152,6 +1163,13 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
 		log.Infow("p1 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+		/*
+			sInfo, err := database.GetSectorInfo(wc.task.SectorName())
+			if err != nil {
+				log.Infow("p1 task not found", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "task", wc.task.SectorName())
+				return
+			}
+		*/
 		r.dictBusyRW.RLock()
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
@@ -1191,6 +1209,12 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
 		log.Infow("p2 task start...", "worker-id", r.cfg.ID, "task-key", (*wc).task.Key(), "snap", (*wc).task.Snap)
+		/*
+			sInfo, err := database.GetSectorInfo(wc.task.SectorName())
+			if err != nil {
+				log.Infow("p2 task not found", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "task", wc.task.SectorName())
+				return
+			}*/
 		r.dictBusyRW.RLock()
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
@@ -1227,6 +1251,13 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		/*
+			sInfo, err := database.GetSectorInfo(wc.task.SectorName())
+			if err != nil {
+				log.Infow("commit task not found", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "task", wc.task.SectorName())
+				return
+			}
+		*/
 		r.dictBusyRW.RLock()
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
@@ -1261,6 +1292,13 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 			return
 		}
 		//允许重复下发worker正在执行的任务(worker自己会过滤) for 断线重连后TaskDone正常工作
+		/*
+			sInfo, err := database.GetSectorInfo(wc.task.SectorName())
+			if err != nil {
+				log.Infow("finalize task not found", "worker-id", r.cfg.ID, "max-task", r.cfg.MaxTaskNum, "task", wc.task.SectorName())
+				return
+			}
+		*/
 		r.dictBusyRW.RLock()
 		_, ok := r.dictBusy[wc.task.SectorName()]
 		r.dictBusyRW.RUnlock()
@@ -1472,7 +1510,7 @@ func (sb *Sealer) loopWorker(ctx context.Context, r *remote, cfg WorkerCfg) {
 		default:
 			// sleep for controlling the loop
 			time.Sleep(5 * time.Second)
-			if  r.isOfflineState() || atomic.LoadInt32(&sb.pauseSeal) != 0 {
+			if r.isOfflineState() || atomic.LoadInt32(&sb.pauseSeal) != 0 {
 				continue
 			}
 
