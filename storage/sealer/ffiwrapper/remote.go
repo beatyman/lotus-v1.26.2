@@ -105,8 +105,8 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 			if dbDeal.FileStorage > 0 {
 				pieceData.ServerStorage = dbDeal.FileStorage // restore from db
 				pieceData.ServerFullUri = dbDeal.FileRemote  // restore from db
-				if len(pieceData.ServerFileName)==0{
-					pieceData.ServerFileName =filepath.Base(dbDeal.FileLocal)
+				if len(pieceData.ServerFileName) == 0 {
+					pieceData.ServerFileName = filepath.Base(dbDeal.FileLocal)
 				}
 				log.Infof("Restore AddPieceData:%+v", pieceData)
 			}
@@ -211,11 +211,11 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storiface.SectorRef
 
 	// if the FIL_PROOFS_MULTICORE_SDR_PRODUCERS is not set, set it by auto.
 	/*
-	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
-		if err := autoPrecommit1Env(ctx); err != nil {
-			return storiface.PreCommit1Out{}, errors.As(err)
+		if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
+			if err := autoPrecommit1Env(ctx); err != nil {
+				return storiface.PreCommit1Out{}, errors.As(err)
+			}
 		}
-	}
 	*/
 	atomic.AddInt32(&_precommit1Wait, 1)
 	if !sb.remoteCfg.SealSector {
@@ -225,9 +225,9 @@ func (sb *Sealer) SealPreCommit1(ctx context.Context, sector storiface.SectorRef
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:         WorkerPreCommit1,
-			ProofType:    sector.ProofType,
-			SectorID:     sector.ID,
+			Type:      WorkerPreCommit1,
+			ProofType: sector.ProofType,
+			SectorID:  sector.ID,
 
 			SealTicket: ticket,
 			Pieces:     pieces,
@@ -265,9 +265,9 @@ func (sb *Sealer) SealPreCommit2(ctx context.Context, sector storiface.SectorRef
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:         WorkerPreCommit2,
-			ProofType:    sector.ProofType,
-			SectorID:     sector.ID,
+			Type:      WorkerPreCommit2,
+			ProofType: sector.ProofType,
+			SectorID:  sector.ID,
 
 			PreCommit1Out: phase1Out,
 
@@ -307,9 +307,9 @@ func (sb *Sealer) SealCommit(ctx context.Context, sector storiface.SectorRef, ti
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:         WorkerCommit,
-			ProofType:    sector.ProofType,
-			SectorID:     sector.ID,
+			Type:      WorkerCommit,
+			ProofType: sector.ProofType,
+			SectorID:  sector.ID,
 
 			SealTicket: ticket,
 			Pieces:     pieces,
@@ -356,10 +356,10 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector storiface.SectorRef
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:         WorkerFinalize,
-			ProofType:    sector.ProofType,
-			SectorID:     sector.ID,
-			StoreUnseal:  sector.StoreUnseal,
+			Type:        WorkerFinalize,
+			ProofType:   sector.ProofType,
+			SectorID:    sector.ID,
+			StoreUnseal: sector.StoreUnseal,
 		},
 		ret: make(chan SealRes),
 	}
@@ -399,12 +399,12 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storiface.SectorRef, o
 	}
 	defer sb.unsealing.Delete(unsealKey)
 	/*
-	if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
-		if err := autoPrecommit1Env(ctx); err != nil {
-			return errors.As(err)
+		if len(os.Getenv("FIL_PROOFS_MULTICORE_SDR_PRODUCERS")) == 0 {
+			if err := autoPrecommit1Env(ctx); err != nil {
+				return errors.As(err)
+			}
 		}
-	}
-	 */
+	*/
 
 	atomic.AddInt32(&_unsealWait, 1)
 	if !sb.remoteCfg.SealSector {
@@ -414,9 +414,9 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storiface.SectorRef, o
 
 	call := workerCall{
 		task: WorkerTask{
-			Type:         WorkerUnseal,
-			ProofType:    sector.ProofType,
-			SectorID:     sector.ID,
+			Type:      WorkerUnseal,
+			ProofType: sector.ProofType,
+			SectorID:  sector.ID,
 
 			UnsealOffset:   offset,
 			UnsealSize:     size,
@@ -455,11 +455,11 @@ func (sb *Sealer) generateWinningPoStWithTimeout(ctx context.Context, minerID ab
 	remotes := []*req{}
 	for i := 0; i < sb.remoteCfg.WinningPoSt; i++ {
 		task := WorkerTask{
-			Type:         WorkerWinningPoSt,
-			ProofType:    sectorInfo[0].ProofType,
-			SectorID:     abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
-			SectorInfo:   sectorInfo,
-			Randomness:   randomness,
+			Type:       WorkerWinningPoSt,
+			ProofType:  sectorInfo[0].ProofType,
+			SectorID:   abi.SectorID{Miner: minerID, Number: abi.SectorNumber(nextSourceID())}, // unique task.Key()
+			SectorInfo: sectorInfo,
+			Randomness: randomness,
 		}
 		sid := task.SectorName()
 
@@ -527,7 +527,8 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, p
 
 	// remote worker is not set, use local mode
 	if sb.remoteCfg.WindowPoSt == 0 {
-		return sb.generateWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
+		return sb.generateHLMWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
+		//return sb.generateWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
 	}
 
 	type req = struct {
@@ -559,7 +560,8 @@ selectWorker:
 
 		if !sb.remoteCfg.EnableForceRemoteWindowPoSt {
 			log.Info("No GpuService for window PoSt, using local mode")
-			return sb.generateWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
+			//return sb.generateWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
+			return sb.generateHLMWindowPoSt(ctx, minerID, postProofType, sectorInfo, randomness)
 		}
 
 		retrycount++
@@ -630,7 +632,7 @@ func (sb *Sealer) SelectCommit2Service(ctx context.Context, sector abi.SectorID)
 	//1.优先从缓存获取
 	if wid, prf, ok := c2cache.get(sid); ok {
 		r, ok := _remotes.Load(wid)
-		if ok && !r.(*remote).disable&& !r.(*remote).isOfflineState(){
+		if ok && !r.(*remote).disable && !r.(*remote).isOfflineState() {
 			return &Commit2Worker{
 				WorkerId: wid,
 				Proof:    prf,

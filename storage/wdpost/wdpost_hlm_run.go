@@ -120,12 +120,16 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, manual bool, 
 				if err != nil {
 					return nil, xerrors.Errorf("adding recoveries to set of sectors to prove: %w", err)
 				}
-
-				good, err := s.checkSectors(ctx, toProve, ts.Key(), build.GetProvingCheckTimeout())
+				good, err := toProve.Copy()
 				if err != nil {
-					return nil, xerrors.Errorf("checking sectors to skip: %w", err)
+					return nil, xerrors.Errorf("copy toProve: %w", err)
 				}
-
+				if !s.disablePreChecks {
+					good, err = s.checkSectors(ctx, toProve, ts.Key(), time.Second*120)
+					if err != nil {
+						return nil, xerrors.Errorf("checking sectors to skip: %w", err)
+					}
+				}
 				good, err = bitfield.SubtractBitField(good, postSkipped)
 				if err != nil {
 					return nil, xerrors.Errorf("toProve - postSkipped: %w", err)
@@ -186,7 +190,7 @@ func (s *WindowPoStScheduler) runHlmPoStCycle(ctx context.Context, manual bool, 
 					return nil, xerrors.Errorf("failed to convert to v1_1 post proof: %w", err)
 				}
 			}
-			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid),pp, sinfos, append(abi.PoStRandomness{}, rand...))
+			postOut, ps, err := s.prover.GenerateWindowPoSt(ctx, abi.ActorID(mid), pp, sinfos, append(abi.PoStRandomness{}, rand...))
 			elapsed := time.Since(tsStart)
 			log.Info(s.PutLogw(di.Index, "computing window post", "index", di.Index, "batch", batchIdx, "elapsed", elapsed, "rand", rand))
 

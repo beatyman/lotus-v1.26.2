@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"github.com/filecoin-project/lotus/storage/sealer/partialfile"
-	"os"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -15,7 +14,6 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/storage/sealer/database"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
-	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 
 	"github.com/gwaylib/errors"
@@ -98,65 +96,64 @@ func CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []st
 		if lp.Sealed == "" || lp.Cache == "" {
 			return errors.New("CheckProvable Sector FAULT: cache an/or sealed paths not found").As(sector, lp.Sealed, lp.Cache)
 		}
-
-		ssize, err := sector.ProofType.SectorSize()
-		if err != nil {
-			return errors.As(err)
-		}
-
-		if sectors[0].SealedStorageType != database.MOUNT_TYPE_OSS {
-			toCheck := map[string]int64{
-				lp.Sealed:                        int64(ssize),
-				filepath.Join(lp.Cache, "p_aux"): 0,
+		/*
+			ssize, err := sector.ProofType.SectorSize()
+			if err != nil {
+				return errors.As(err)
 			}
-			//filepath.Join(lp.Cache, "t_aux"): 0, // no check for fake
-			if _, ok := miner0.SupportedProofTypes[abi.RegisteredSealProof_StackedDrg2KiBV1]; !ok {
-				toCheck[filepath.Join(lp.Cache, "t_aux")] = 0
-			}
+			if sectors[0].SealedStorageType != database.MOUNT_TYPE_OSS {
+				toCheck := map[string]int64{
+					lp.Sealed:                        int64(ssize),
+					filepath.Join(lp.Cache, "p_aux"): 0,
+				}
+				//filepath.Join(lp.Cache, "t_aux"): 0, // no check for fake
+				if _, ok := miner0.SupportedProofTypes[abi.RegisteredSealProof_StackedDrg2KiBV1]; !ok {
+					toCheck[filepath.Join(lp.Cache, "t_aux")] = 0
+				}
 
-			addCachePathsForSectorSize(toCheck, lp.Cache, ssize)
+				addCachePathsForSectorSize(toCheck, lp.Cache, ssize)
 
-			for p, sz := range toCheck {
-				err := func() error {
-					// checking data
-					// TODO: beause the origin ctx has been cancaled by unknow reasons.
-					checkCtx, checkCancel := context.WithTimeout(context.TODO(), timeout)
-					defer checkCancel()
-					checkDone := make(chan error, 1)
-					go func() {
-						st, err := os.Stat(p)
-						if err != nil {
-							checkDone <- errors.As(err, p)
-							return
-						}
-
-						if sz != 0 {
-							if st.Size() < sz {
-								checkDone <- errors.New("CheckProvable Sector FAULT: sector file is wrong size").As(p, st.Size())
+				for p, sz := range toCheck {
+					err := func() error {
+						// checking data
+						// TODO: beause the origin ctx has been cancaled by unknow reasons.
+						checkCtx, checkCancel := context.WithTimeout(context.TODO(), timeout)
+						defer checkCancel()
+						checkDone := make(chan error, 1)
+						go func() {
+							st, err := os.Stat(p)
+							if err != nil {
+								checkDone <- errors.As(err, p)
 								return
 							}
+
+							if sz != 0 {
+								if st.Size() < sz {
+									checkDone <- errors.New("CheckProvable Sector FAULT: sector file is wrong size").As(p, st.Size())
+									return
+								}
+							}
+							checkDone <- nil
+							return
+						}()
+
+						select {
+						case <-checkCtx.Done():
+							return errors.New("check timeout").As(p)
+						case err := <-checkDone:
+							if err != nil {
+								return errors.As(err, p)
+							}
 						}
-						checkDone <- nil
-						return
+						return nil
 					}()
-
-					select {
-					case <-checkCtx.Done():
-						return errors.New("check timeout").As(p)
-					case err := <-checkDone:
-						if err != nil {
-							return errors.As(err, p)
-						}
+					if err != nil {
+						return errors.As(err)
 					}
-					return nil
-				}()
-				if err != nil {
-					return errors.As(err)
+					// continue
 				}
-				// continue
 			}
-		}
-
+		*/
 		if rg != nil {
 			wpp, err := sector.ProofType.RegisteredWindowPoStProof()
 			if err != nil {
