@@ -109,7 +109,7 @@ var ConsensusMinerMinPower = abi.NewStoragePower(10 << 40)
 var PreCommitChallengeDelay = abi.ChainEpoch(150)
 
 // PropagationDelaySecs change by hlm 10-->6
-var PropagationDelaySecs = uint64(6)
+var PropagationDelaySecs = uint64(10)
 
 var EquivocationDelaySecs = uint64(2)
 
