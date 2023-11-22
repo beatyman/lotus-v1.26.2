@@ -233,18 +233,47 @@ loop:
 func (w *worker) workerDone(ctx context.Context, task ffiwrapper.WorkerTask, res ffiwrapper.SealRes) {
 	log.Infow("workerDone Start", "sector", task.SectorName())
 	defer log.Infow("workerDone Finish", "sector", task.SectorName())
-	api, err := GetNodeApi()
-	if err != nil {
-		log.Warn(errors.As(err))
-	}
-	if err := api.RetryWorkerDone(ctx, res); err != nil {
-		if errors.ErrNoData.Equal(err) {
-			err = fmt.Errorf("caller not found, drop this task")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			api, err := GetNodeApi()
+			if err != nil {
+				log.Warn(errors.As(err))
+				continue
+			}
+			if err := api.WorkerDone(ctx, res); err != nil {
+				if errors.ErrNoData.Equal(err) {
+					log.Warn("caller not found, drop this task", errors.As(err, task))
+					return
+				}
+
+				log.Warn(errors.As(err))
+
+				ReleaseNodeApi(false)
+				continue
+			}
+
+			// pass
+			return
+
 		}
-		log.Errorf("Worker done error: worker(%v)  sector(%v)  error(%v)", task.WorkerID, task.SectorID, err)
-	} else {
-		log.Infof("Worker done success: worker(%v)  sector(%v)", task.WorkerID, task.SectorID)
 	}
+	/*
+		api, err := GetNodeApi()
+		if err != nil {
+			log.Warn(errors.As(err))
+		}
+		if err := api.RetryWorkerDone(ctx, res); err != nil {
+			if errors.ErrNoData.Equal(err) {
+				err = fmt.Errorf("caller not found, drop this task")
+			}
+			log.Errorf("Worker done error: worker(%v)  sector(%v)  error(%v)", task.WorkerID, task.SectorID, err)
+		} else {
+			log.Infof("Worker done success: worker(%v)  sector(%v)", task.WorkerID, task.SectorID)
+		}
+	*/
 }
 
 func errRes(err error, res *ffiwrapper.SealRes) ffiwrapper.SealRes {
