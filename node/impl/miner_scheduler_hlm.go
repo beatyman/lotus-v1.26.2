@@ -46,6 +46,7 @@ func (hs *HlmMinerScheduler) Version(context.Context) (api.APIVersion, error) {
 func (hs *HlmMinerScheduler) AuthVerify(ctx context.Context, token string) ([]auth.Permission, error) {
 	var payload jwtPayload
 	if _, err := jwt.Verify([]byte(token), (*jwt.HMACSHA)(hs.sm.WorkerAPISecret), &payload); err != nil {
+		log.Warnf("error token %+v", token)
 		return nil, errors.As(err)
 	}
 
@@ -186,5 +187,6 @@ func (hs *HlmMinerScheduler) GetMarketDealInfoBySid(ctx context.Context, sid str
 	}
 	return m, nil
 }
+
 // for build testing
 var _ api.HlmMinerSchedulerAPI = &HlmMinerScheduler{}
