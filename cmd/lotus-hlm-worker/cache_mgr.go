@@ -990,7 +990,7 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		); err != nil {
 			return tmpFile, errors.As(err)
 		}
-		serverFileName:=strings.TrimLeft(strings.TrimLeft(task.PieceData.ServerFullUri,filepath.Join(ss.MountDir, fmt.Sprintf("%d", ss.ID))),"/")
+		serverFileName := strings.TrimPrefix(strings.TrimPrefix(task.PieceData.ServerFullUri, filepath.Join(ss.MountDir, fmt.Sprintf("%d", ss.ID))), "/")
 		// fetch the staging file
 		//fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
 		// fetch do a quick checksum
