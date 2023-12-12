@@ -14,9 +14,6 @@ const (
 	BuildInteropnet   = 0x5
 	BuildButterflynet = 0x7
 )
-const (
-	BuildHLM = 0xf0
-)
 
 func BuildTypeString() string {
 	switch BuildType {
@@ -26,10 +23,6 @@ func BuildTypeString() string {
 		return "+mainnet"
 	case Build2k:
 		return "+2k"
-
-	case BuildHLM:
-		return "+hlm"
-
 	case BuildDebug:
 		return "+debug"
 	case BuildCalibnet:
@@ -44,7 +37,7 @@ func BuildTypeString() string {
 }
 
 // BuildVersion is the local build version
-const BuildVersion = "1.25.0"
+const BuildVersion = "1.25.1"
 
 func UserVersion() string {
 	if os.Getenv("LOTUS_VERSION_IGNORE_COMMIT") == "1" {
