@@ -128,11 +128,13 @@ func infoCmdAct(cctx *cli.Context) error {
 func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.FullNode, nodeApi api.StorageMiner) error {
 	maddr, err := getActorAddress(ctx, cctx)
 	if err != nil {
+		fmt.Printf("getActorAddress %s", err.Error())
 		return err
 	}
 
 	mact, err := fullapi.StateGetActor(ctx, maddr, types.EmptyTSK)
 	if err != nil {
+		fmt.Printf("StateGetActor %s", err.Error())
 		return err
 	}
 
@@ -140,6 +142,7 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 
 	mas, err := miner.Load(adt.WrapStore(ctx, cbor.NewCborStore(tbs)), mact)
 	if err != nil {
+		fmt.Printf("miner.Load %s", err.Error())
 		return err
 	}
 
@@ -147,6 +150,7 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 	mi, err := fullapi.StateMinerInfo(ctx, maddr, types.EmptyTSK)
 
 	if err != nil {
+		fmt.Printf("StateMinerInfo %s", err.Error())
 		return err
 	}
 
@@ -155,6 +159,7 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 
 	pow, err := fullapi.StateMinerPower(ctx, maddr, types.EmptyTSK)
 	if err != nil {
+		fmt.Printf("StateMinerPower %s", err.Error())
 		return err
 	}
 
@@ -178,6 +183,7 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 	secCounts, err := fullapi.StateMinerSectorCount(ctx, maddr, types.EmptyTSK)
 
 	if err != nil {
+		fmt.Printf("StateMinerSectorCount %s", err.Error())
 		return err
 	}
 
@@ -259,10 +265,12 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 	// vest on deadline boundaries, and they're unlocked by cron.
 	lockedFunds, err := mas.LockedFunds()
 	if err != nil {
+		fmt.Printf("LockedFunds %s", err.Error())
 		return xerrors.Errorf("getting locked funds: %w", err)
 	}
 	availBalance, err := mas.AvailableBalance(mact.Balance)
 	if err != nil {
+		fmt.Printf("AvailableBalance %s", err.Error())
 		return xerrors.Errorf("getting available balance: %w", err)
 	}
 
@@ -279,6 +287,7 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 	mb, err := fullapi.StateMarketBalance(ctx, maddr, types.EmptyTSK)
 
 	if err != nil {
+		fmt.Printf("StateMarketBalance %s", err.Error())
 		return xerrors.Errorf("getting market balance: %w", err)
 	}
 	spendable = big.Add(spendable, big.Sub(mb.Escrow, mb.Locked))
@@ -290,6 +299,7 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 	wb, err := fullapi.WalletBalance(ctx, mi.Worker)
 
 	if err != nil {
+		fmt.Printf("WalletBalance %s", err.Error())
 		return xerrors.Errorf("getting worker balance: %w", err)
 	}
 	spendable = big.Add(spendable, wb)
@@ -340,6 +350,7 @@ func handleMiningInfo(ctx context.Context, cctx *cli.Context, fullapi v1api.Full
 
 	ws, err := nodeApi.WorkerStats(ctx)
 	if err != nil {
+		fmt.Printf("WorkerStats %s", err.Error())
 		fmt.Printf("ERROR: getting worker stats: %s\n", err)
 	} else {
 		workersByType := map[string]int{
