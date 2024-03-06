@@ -2597,6 +2597,8 @@ var sectorsUnsealCmd = &cli.Command{
 			return xerrors.Errorf("could not parse sector number: %w", err)
 		}
 
+		fmt.Printf("Unsealing sector %d\n", sectorNum)
+
 		return minerAPI.SectorUnseal(ctx, abi.SectorNumber(sectorNum))
 	},
 }

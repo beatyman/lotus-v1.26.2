@@ -66,4 +66,9 @@ type Config struct {
 	TerminateBatchWait time.Duration
 
 	UseSyntheticPoRep bool
+
+	RequireActivationSuccess         bool
+	RequireActivationSuccessUpdate   bool
+	RequireNotificationSuccess       bool
+	RequireNotificationSuccessUpdate bool
 }

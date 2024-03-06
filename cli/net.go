@@ -284,7 +284,7 @@ var NetDisconnect = &cli.Command{
 				fmt.Println("failure")
 				return err
 			}
-			fmt.Printf("disconnect %s: ", pid.Pretty())
+			fmt.Printf("disconnect %s: ", pid)
 			err = api.NetDisconnect(ctx, pid)
 			if err != nil {
 				fmt.Println("failure")
@@ -328,6 +328,7 @@ var NetConnect = &cli.Command{
 			}
 			allPis = append(allPis, pis...)
 		}
+
 		done := make(chan string, len(allPis))
 		for _, p := range allPis {
 			go func(pi peer.AddrInfo) {
@@ -875,7 +876,8 @@ var NetStatCmd = &cli.Command{
 			})
 
 			for _, stat := range stats {
-				printScope(&stat.stat, name+stat.name)
+				tmp := stat.stat
+				printScope(&tmp, name+stat.name)
 			}
 
 		}

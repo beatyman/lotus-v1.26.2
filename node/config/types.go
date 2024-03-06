@@ -33,6 +33,7 @@ type FullNode struct {
 	Chainstore    Chainstore
 	Cluster       UserRaftConfig
 	Fevm          FevmConfig
+	Events        EventsConfig
 	Index         IndexConfig
 	FaultReporter FaultReporterConfig
 }
@@ -74,6 +75,40 @@ type StorageMiner struct {
 	Fees          MinerFeeConfig
 	Addresses     MinerAddressConfig
 	DAGStore      DAGStoreConfig
+
+	HarmonyDB HarmonyDB
+}
+
+type LotusProviderConfig struct {
+	Subsystems ProviderSubsystemsConfig
+
+	Fees      LotusProviderFees
+	Addresses LotusProviderAddresses
+	Proving   ProvingConfig
+	Journal   JournalConfig
+	Apis      ApisConfig
+}
+
+type ApisConfig struct {
+	// ChainApiInfo is the API endpoint for the Lotus daemon.
+	ChainApiInfo []string
+
+	// RPC Secret for the storage subsystem.
+	// If integrating with lotus-miner this must match the value from
+	// cat ~/.lotusminer/keystore/MF2XI2BNNJ3XILLQOJUXMYLUMU | jq -r .PrivateKey
+	StorageRPCSecret string
+}
+
+type JournalConfig struct {
+	//Events of the form: "system1:event1,system1:event2[,...]"
+	DisabledEvents string
+}
+
+type ProviderSubsystemsConfig struct {
+	EnableWindowPost    bool
+	WindowPostMaxTasks  int
+	EnableWinningPost   bool
+	WinningPostMaxTasks int
 }
 
 type DAGStoreConfig struct {
@@ -128,8 +163,32 @@ type MinerSubsystemConfig struct {
 	EnableWnPoSt bool
 	EnableWdPoSt bool
 	// end by ft
+	// When enabled, the sector index will reside in an external database
+	// as opposed to the local KV store in the miner process
+	// This is useful to allow workers to bypass the lotus miner to access sector information
+	EnableSectorIndexDB bool
+
 	SealerApiInfo      string // if EnableSealing == false
 	SectorIndexApiInfo string // if EnableSectorStorage == false
+
+	// When window post is enabled, the miner will automatically submit window post proofs
+	// for all sectors that are eligible for window post
+	// IF WINDOW POST IS DISABLED, THE MINER WILL NOT SUBMIT WINDOW POST PROOFS
+	// THIS WILL RESULT IN FAULTS AND PENALTIES IF NO OTHER MECHANISM IS RUNNING
+	// TO SUBMIT WINDOW POST PROOFS.
+	// Note: This option is entirely disabling the window post scheduler,
+	//   not just the builtin PoSt computation like Proving.DisableBuiltinWindowPoSt.
+	//   This option will stop lotus-miner from performing any actions related
+	//   to window post, including scheduling, submitting proofs, and recovering
+	//   sectors.
+	DisableWindowPoSt bool
+
+	// When winning post is disabled, the miner process will NOT attempt to mine
+	// blocks. This should only be set when there's an external process mining
+	// blocks on behalf of the miner.
+	// When disabled and no external block producers are configured, all potential
+	// block rewards will be missed!
+	DisableWinningPoSt bool
 }
 
 type DealmakingConfig struct {
@@ -453,6 +512,15 @@ type SealingConfig struct {
 
 	// UseSyntheticPoRep, when set to true, will reduce the amount of cache data held on disk after the completion of PreCommit 2 to 11GiB.
 	UseSyntheticPoRep bool
+
+	// Whether to abort if any sector activation in a batch fails (newly sealed sectors, only with ProveCommitSectors3).
+	RequireActivationSuccess bool
+	// Whether to abort if any piece activation notification returns a non-zero exit code (newly sealed sectors, only with ProveCommitSectors3).
+	RequireActivationSuccessUpdate bool
+	// Whether to abort if any sector activation in a batch fails (updating sectors, only with ProveReplicaUpdates3).
+	RequireNotificationSuccess bool
+	// Whether to abort if any piece activation notification returns a non-zero exit code (updating sectors, only with ProveReplicaUpdates3).
+	RequireNotificationSuccessUpdate bool
 }
 
 type SealerConfig struct {
@@ -519,10 +587,25 @@ type MinerFeeConfig struct {
 	MaxPublishDealsFee     types.FIL
 	MaxMarketBalanceAddFee types.FIL
 
+	MaximizeWindowPoStFeeCap bool
 	EnableSeparatePartition bool
 	PartitionsPerMsg        int
 }
 
+type LotusProviderFees struct {
+	DefaultMaxFee      types.FIL
+	MaxPreCommitGasFee types.FIL
+	MaxCommitGasFee    types.FIL
+
+	// maxBatchFee = maxBase + maxPerSector * nSectors
+	MaxPreCommitBatchGasFee BatchFeeConfig
+	MaxCommitBatchGasFee    BatchFeeConfig
+
+	MaxTerminateGasFee types.FIL
+	// WindowPoSt is a high-value operation, so the default fee should be high.
+	MaxWindowPoStGasFee types.FIL
+	MaxPublishDealsFee  types.FIL
+}
 type MinerAddressConfig struct {
 	// Addresses to send PreCommit messages from
 	PreCommitControl []string
@@ -539,6 +622,26 @@ type MinerAddressConfig struct {
 	// A control address that doesn't have enough funds will still be chosen
 	// over the worker address if this flag is set.
 	DisableWorkerFallback bool
+}
+
+type LotusProviderAddresses struct {
+	// Addresses to send PreCommit messages from
+	PreCommitControl []string
+	// Addresses to send Commit messages from
+	CommitControl    []string
+	TerminateControl []string
+
+	// DisableOwnerFallback disables usage of the owner address for messages
+	// sent automatically
+	DisableOwnerFallback bool
+	// DisableWorkerFallback disables usage of the worker address for messages
+	// sent automatically, if control addresses are configured.
+	// A control address that doesn't have enough funds will still be chosen
+	// over the worker address if this flag is set.
+	DisableWorkerFallback bool
+
+	// MinerAddresses are the addresses of the miner actors to use for sending messages
+	MinerAddresses []string
 }
 
 // API contains configs for API endpoint
@@ -616,7 +719,7 @@ type Chainstore struct {
 
 type Splitstore struct {
 	// ColdStoreType specifies the type of the coldstore.
-	// It can be "messages" (default) to store only messages, "universal" to store all chain state or "discard" for discarding cold blocks.
+	// It can be "discard" (default) for discarding cold blocks, "messages" to store only messages or "universal" to store all chain state..
 	ColdStoreType string
 	// HotStoreType specifies the type of the hotstore.
 	// Only currently supported value is "badger".
@@ -722,14 +825,13 @@ type FevmConfig struct {
 }
 
 type Events struct {
-	// EnableEthRPC enables APIs that
 	// DisableRealTimeFilterAPI will disable the RealTimeFilterAPI that can create and query filters for actor events as they are emitted.
-	// The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.
+	// The API is enabled when EnableEthRPC or Events.EnableActorEventsAPI is true, but can be disabled selectively with this flag.
 	DisableRealTimeFilterAPI bool
 
 	// DisableHistoricFilterAPI will disable the HistoricFilterAPI that can create and query filters for actor events
 	// that occurred in the past. HistoricFilterAPI maintains a queryable index of events.
-	// The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.
+	// The API is enabled when EnableEthRPC or Events.EnableActorEventsAPI is true, but can be disabled selectively with this flag.
 	DisableHistoricFilterAPI bool
 
 	// FilterTTL specifies the time to live for actor event filters. Filters that haven't been accessed longer than
@@ -758,10 +860,36 @@ type Events struct {
 	// Set upper bound on index size
 }
 
+type EventsConfig struct {
+	// EnableActorEventsAPI enables the Actor events API that enables clients to consume events
+	// emitted by (smart contracts + built-in Actors).
+	// This will also enable the RealTimeFilterAPI and HistoricFilterAPI by default, but they can be
+	// disabled by setting their respective Disable* options in Fevm.Events.
+	EnableActorEventsAPI bool
+}
+
 type IndexConfig struct {
 	// EXPERIMENTAL FEATURE. USE WITH CAUTION
 	// EnableMsgIndex enables indexing of messages on chain.
 	EnableMsgIndex bool
+}
+
+type HarmonyDB struct {
+	// HOSTS is a list of hostnames to nodes running YugabyteDB
+	// in a cluster. Only 1 is required
+	Hosts []string
+
+	// The Yugabyte server's username with full credentials to operate on Lotus' Database. Blank for default.
+	Username string
+
+	// The password for the related username. Blank for default.
+	Password string
+
+	// The database (logical partition) within Yugabyte. Blank for default.
+	Database string
+
+	// The port to find Yugabyte. Blank for default.
+	Port string
 }
 
 type FaultReporterConfig struct {

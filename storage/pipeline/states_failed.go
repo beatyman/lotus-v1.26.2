@@ -237,7 +237,7 @@ func (m *Sealing) handleSubmitReplicaUpdateFailed(ctx statemachine.Context, sect
 		return nil
 	}
 
-	if err := checkReplicaUpdate(ctx.Context(), m.maddr, sector, ts.Key(), m.Api); err != nil {
+	if err := checkReplicaUpdate(ctx.Context(), m.maddr, sector, m.Api); err != nil {
 		switch err.(type) {
 		case *ErrApi:
 			log.Errorf("handleSubmitReplicaUpdateFailed: api error, not proceeding: %+v", err)
@@ -267,7 +267,7 @@ func (m *Sealing) handleSubmitReplicaUpdateFailed(ctx statemachine.Context, sect
 	}
 	if !active {
 		err := xerrors.Errorf("sector marked for upgrade %d no longer active, aborting upgrade", sector.SectorNumber)
-		log.Errorf(err.Error())
+		log.Errorf("%s", err)
 		return ctx.Send(SectorAbortUpgrade{err})
 	}
 
@@ -477,41 +477,44 @@ errApiLoop:
 		time.Sleep(10e9)
 		goto errApiLoop
 	}
-	toFix, paddingPieces, err := recoveryPiecesToFix(ctx.Context(), m.Api, sector, m.maddr)
+	toFix, nonBuiltinMarketPieces, err := recoveryPiecesToFix(ctx.Context(), m.Api, sector, m.maddr)
 	if err != nil {
 		return err
 	}
+
 	failed := map[int]error{}
 	updates := map[int]abi.DealID{}
 
 	for _, i := range toFix {
+		// note: all toFix pieces are builtin-market pieces
+
 		p := sector.Pieces[i]
 
-		if p.DealInfo.PublishCid == nil {
+		if p.Impl().PublishCid == nil {
 			// TODO: check if we are in an early enough state try to remove this piece
-			log.Errorf("can't fix sector deals: piece %d (of %d) of sector %d has nil DealInfo.PublishCid (refers to deal %d)", i, len(sector.Pieces), sector.SectorNumber, p.DealInfo.DealID)
+			log.Errorf("can't fix sector deals: piece %d (of %d) of sector %d has nil DealInfo.PublishCid (refers to deal %d)", i, len(sector.Pieces), sector.SectorNumber, p.Impl().DealID)
 			// Not much to do here (and this can only happen for old spacerace sectors)
 			return ctx.Send(failWith)
 		}
 
 		var dp *market.DealProposal
-		if p.DealInfo.DealProposal != nil {
-			mdp := *p.DealInfo.DealProposal
+		if p.Impl().DealProposal != nil {
+			mdp := *p.Impl().DealProposal
 			dp = &mdp
 		}
-		res, err := m.DealInfo.GetCurrentDealInfo(ctx.Context(), ts.Key(), dp, *p.DealInfo.PublishCid)
+		res, err := m.DealInfo.GetCurrentDealInfo(ctx.Context(), ts.Key(), dp, *p.Impl().PublishCid)
 		if err != nil {
 			failed[i] = xerrors.Errorf("getting current deal info for piece %d: %w", i, err)
 			continue
 		}
 
 		if res.MarketDeal == nil {
-			failed[i] = xerrors.Errorf("nil market deal (%d,%d,%d,%s)", i, sector.SectorNumber, p.DealInfo.DealID, p.Piece.PieceCID)
+			failed[i] = xerrors.Errorf("nil market deal (%d,%d,%d,%s)", i, sector.SectorNumber, p.Impl().DealID, p.Impl().DealProposal.PieceCID)
 			continue
 		}
 
-		if res.MarketDeal.Proposal.PieceCID != p.Piece.PieceCID {
-			failed[i] = xerrors.Errorf("recovered piece (%d) deal in sector %d (dealid %d) has different PieceCID %s != %s", i, sector.SectorNumber, p.DealInfo.DealID, p.Piece.PieceCID, res.MarketDeal.Proposal.PieceCID)
+		if res.MarketDeal.Proposal.PieceCID != p.PieceCID() {
+			failed[i] = xerrors.Errorf("recovered piece (%d) deal in sector %d (dealid %d) has different PieceCID %s != %s", i, sector.SectorNumber, p.Impl().DealID, p.Impl().DealProposal.PieceCID, res.MarketDeal.Proposal.PieceCID)
 			continue
 		}
 
@@ -524,7 +527,7 @@ errApiLoop:
 			merr = multierror.Append(merr, e)
 		}
 
-		if len(failed)+paddingPieces == len(sector.Pieces) {
+		if len(failed)+nonBuiltinMarketPieces == len(sector.Pieces) {
 			log.Errorf("removing sector %d: all deals expired or unrecoverable: %+v", sector.SectorNumber, merr)
 			return ctx.Send(failWith)
 		}
@@ -549,6 +552,7 @@ func (m *Sealing) handleSnapDealsRecoverDealIDs(ctx statemachine.Context, sector
 	return m.handleRecoverDealIDsOrFailWith(ctx, sector, SectorAbortUpgrade{xerrors.New("failed recovering deal ids")})
 }
 
+// recoveryPiecesToFix returns the list of sector piece indexes to fix, and the number of non-builtin-market pieces
 func recoveryPiecesToFix(ctx context.Context, api SealingAPI, sector SectorInfo, maddr address.Address) ([]int, int, error) {
 	ts, err := api.ChainHead(ctx)
 	if err != nil {
@@ -556,51 +560,68 @@ func recoveryPiecesToFix(ctx context.Context, api SealingAPI, sector SectorInfo,
 	}
 
 	var toFix []int
-	paddingPieces := 0
+	nonBuiltinMarketPieces := 0
 
 	for i, p := range sector.Pieces {
-		// if no deal is associated with the piece, ensure that we added it as
-		// filler (i.e. ensure that it has a zero PieceCID)
-		if p.DealInfo == nil {
-			exp := zerocomm.ZeroPieceCommitment(p.Piece.Size.Unpadded())
-			if !p.Piece.PieceCID.Equals(exp) {
-				return nil, 0, xerrors.Errorf("sector %d piece %d had non-zero PieceCID %+v", sector.SectorNumber, i, p.Piece.PieceCID)
-			}
-			paddingPieces++
-			continue
-		}
+		i, p := i, p
 
-		deal, err := api.StateMarketStorageDeal(ctx, p.DealInfo.DealID, ts.Key())
+		err := p.handleDealInfo(handleDealInfoParams{
+			FillerHandler: func(info UniversalPieceInfo) error {
+				// if no deal is associated with the piece, ensure that we added it as
+				// filler (i.e. ensure that it has a zero PieceCID)
+				exp := zerocomm.ZeroPieceCommitment(p.Piece().Size.Unpadded())
+				if !info.PieceCID().Equals(exp) {
+					return xerrors.Errorf("sector %d piece %d had non-zero PieceCID %+v", sector.SectorNumber, i, p.Piece().PieceCID)
+				}
+				nonBuiltinMarketPieces++
+				return nil
+			},
+			BuiltinMarketHandler: func(info UniversalPieceInfo) error {
+				deal, err := api.StateMarketStorageDeal(ctx, p.DealInfo().Impl().DealID, ts.Key())
+				if err != nil {
+					log.Warnf("getting deal %d for piece %d: %+v", p.DealInfo().Impl().DealID, i, err)
+					toFix = append(toFix, i)
+					return nil
+				}
+
+				if deal.Proposal.Provider != maddr {
+					log.Warnf("piece %d (of %d) of sector %d refers deal %d with wrong provider: %s != %s", i, len(sector.Pieces), sector.SectorNumber, p.Impl().DealID, deal.Proposal.Provider, maddr)
+					toFix = append(toFix, i)
+					return nil
+				}
+
+				if deal.Proposal.PieceCID != p.Piece().PieceCID {
+					log.Warnf("piece %d (of %d) of sector %d refers deal %d with wrong PieceCID: %s != %s", i, len(sector.Pieces), sector.SectorNumber, p.Impl().DealID, p.Piece().PieceCID, deal.Proposal.PieceCID)
+					toFix = append(toFix, i)
+					return nil
+				}
+
+				if p.Piece().Size != deal.Proposal.PieceSize {
+					log.Warnf("piece %d (of %d) of sector %d refers deal %d with different size: %d != %d", i, len(sector.Pieces), sector.SectorNumber, p.Impl().DealID, p.Piece().Size, deal.Proposal.PieceSize)
+					toFix = append(toFix, i)
+					return nil
+				}
+
+				if ts.Height() >= deal.Proposal.StartEpoch {
+					// TODO: check if we are in an early enough state (before precommit), try to remove the offending pieces
+					//  (tricky as we have to 'defragment' the sector while doing that, and update piece references for retrieval)
+					return xerrors.Errorf("can't fix sector deals: piece %d (of %d) of sector %d refers expired deal %d - should start at %d, head %d", i, len(sector.Pieces), sector.SectorNumber, p.Impl().DealID, deal.Proposal.StartEpoch, ts.Height())
+				}
+
+				return nil
+			},
+			DDOHandler: func(info UniversalPieceInfo) error {
+				// DDO pieces have no repair strategy
+
+				nonBuiltinMarketPieces++
+				return nil
+			},
+		})
+
 		if err != nil {
-			log.Warnf("getting deal %d for piece %d: %+v", p.DealInfo.DealID, i, err)
-			toFix = append(toFix, i)
-			continue
-		}
-
-		if deal.Proposal.Provider != maddr {
-			log.Warnf("piece %d (of %d) of sector %d refers deal %d with wrong provider: %s != %s", i, len(sector.Pieces), sector.SectorNumber, p.DealInfo.DealID, deal.Proposal.Provider, maddr)
-			toFix = append(toFix, i)
-			continue
-		}
-
-		if deal.Proposal.PieceCID != p.Piece.PieceCID {
-			log.Warnf("piece %d (of %d) of sector %d refers deal %d with wrong PieceCID: %s != %s", i, len(sector.Pieces), sector.SectorNumber, p.DealInfo.DealID, p.Piece.PieceCID, deal.Proposal.PieceCID)
-			toFix = append(toFix, i)
-			continue
-		}
-
-		if p.Piece.Size != deal.Proposal.PieceSize {
-			log.Warnf("piece %d (of %d) of sector %d refers deal %d with different size: %d != %d", i, len(sector.Pieces), sector.SectorNumber, p.DealInfo.DealID, p.Piece.Size, deal.Proposal.PieceSize)
-			toFix = append(toFix, i)
-			continue
-		}
-
-		if ts.Height() >= deal.Proposal.StartEpoch {
-			// TODO: check if we are in an early enough state (before precommit), try to remove the offending pieces
-			//  (tricky as we have to 'defragment' the sector while doing that, and update piece references for retrieval)
-			return nil, 0, xerrors.Errorf("can't fix sector deals: piece %d (of %d) of sector %d refers expired deal %d - should start at %d, head %d", i, len(sector.Pieces), sector.SectorNumber, p.DealInfo.DealID, deal.Proposal.StartEpoch, ts.Height())
+			return nil, 0, xerrors.Errorf("checking piece %d: %w", i, err)
 		}
 	}
 
-	return toFix, paddingPieces, nil
+	return toFix, nonBuiltinMarketPieces, nil
 }

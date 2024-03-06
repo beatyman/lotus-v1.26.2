@@ -31,7 +31,7 @@ const ActorUpgradeNetworkVersion = network.Version4
 /* inline-gen template
 const TestNetworkVersion = network.Version{{.latestNetworkVersion}}
 /* inline-gen start */
-const TestNetworkVersion = network.Version21
+const TestNetworkVersion = network.Version22
 
 /* inline-gen end */
 

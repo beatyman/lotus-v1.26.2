@@ -26,6 +26,7 @@ import (
 	"github.com/filecoin-project/go-state-types/network"
 
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/wallet"
 	"github.com/filecoin-project/lotus/chain/wallet/encode"
@@ -741,7 +742,12 @@ var walletSign = &cli.Command{
 		sig, err := api.WalletSign(ctx, addr, msg)
 
 		if err != nil {
-			return err
+			// Check if the address is a multisig address
+			act, actErr := api.StateGetActor(ctx, addr, types.EmptyTSK)
+			if actErr == nil && builtin.IsMultisigActor(act.Code) {
+				return xerrors.Errorf("specified signer address is a multisig actor, it doesn’t have keys to sign transactions. To send a message with a multisig, signers of the multisig need to propose and approve transactions.")
+			}
+			return xerrors.Errorf("failed to sign message: %w", err)
 		}
 
 		sigBytes := append([]byte{byte(sig.Type)}, sig.Data...)

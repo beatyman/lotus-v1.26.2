@@ -45,9 +45,29 @@ import (
 
 var _ storiface.Storage = &Sealer{}
 
-func New(remoteCfg RemoteCfg, sectors SectorProvider) (*Sealer, error) {
+type FFIWrapperOpts struct {
+	ext ExternalSealer
+}
+
+type FFIWrapperOpt func(*FFIWrapperOpts)
+
+func WithExternalSealCalls(ext ExternalSealer) FFIWrapperOpt {
+	return func(o *FFIWrapperOpts) {
+		o.ext = ext
+	}
+}
+
+func New(remoteCfg RemoteCfg,sectors SectorProvider, opts ...FFIWrapperOpt) (*Sealer, error) {
+	options := &FFIWrapperOpts{}
+
+	for _, o := range opts {
+		o(options)
+	}
+
 	sb := &Sealer{
 		sectors: sectors,
+
+		externCalls: options.ext,
 
 		stopping: make(chan struct{}),
 
@@ -255,8 +275,10 @@ func (sb *Sealer) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, 
 		})
 	}
 
+	/*  #nosec G601 -- length is verified */
 	if len(piecePromises) == 1 {
-		return piecePromises[0]()
+		p := piecePromises[0]
+		return p()
 	}
 
 	var payloadRoundedBytes abi.PaddedPieceSize
@@ -500,20 +522,10 @@ func (sb *Sealer) addPiece(ctx context.Context, sector storiface.SectorRef, exis
 	}
 	stagedFile = nil
 
+	/*  #nosec G601 -- length is verified */
 	if len(piecePromises) == 1 {
-		piece, _ := piecePromises[0]()
-		if isSectorCc {
-			//格式化json cid 写入磁盘中
-			pieceJson, _ := piece.PieceCID.MarshalJSON()
-			err = WriteSectorCC(pathTxt, pieceJson)
-			if err != nil {
-				log.Error("=============================WriteSectorCC ===err: ", err)
-			}
-		}
-		return abi.PieceInfo{
-			Size:     pieceSize.Padded(),
-			PieceCID: piece.PieceCID,
-		}, nil
+		p := piecePromises[0]
+		return p()
 	}
 
 	var payloadRoundedBytes abi.PaddedPieceSize
@@ -1215,9 +1227,18 @@ func (sb *Sealer) sealPreCommit2(ctx context.Context, sector storiface.SectorRef
 	}
 	defer done()
 
-	sealedCID, unsealedCID, err := ffi.SealPreCommitPhase2(phase1Out, paths.Cache, paths.Sealed)
-	if err != nil {
-		return storiface.SectorCids{}, xerrors.Errorf("presealing sector %d (%s): %w", sector.ID.Number, paths.Unsealed, err)
+	var sealedCID, unsealedCID cid.Cid
+
+	if sb.externCalls.PreCommit2 == nil {
+		sealedCID, unsealedCID, err = ffi.SealPreCommitPhase2(phase1Out, paths.Cache, paths.Sealed)
+		if err != nil {
+			return storiface.SectorCids{}, xerrors.Errorf("presealing sector %d (%s): %w", sector.ID.Number, paths.Unsealed, err)
+		}
+	} else {
+		sealedCID, unsealedCID, err = sb.externCalls.PreCommit2(ctx, sector, paths.Cache, paths.Sealed, phase1Out)
+		if err != nil {
+			return storiface.SectorCids{}, xerrors.Errorf("presealing sector (extern-pc2) %d (%s): %w", sector.ID.Number, paths.Unsealed, err)
+		}
 	}
 
 	ssize, err := sector.ProofType.SectorSize()
@@ -1262,7 +1283,7 @@ func (sb *Sealer) sealPreCommit2(ctx context.Context, sector storiface.SectorRef
 				return storiface.SectorCids{}, xerrors.Errorf("generate synth proofs: %w", err)
 			}
 
-			if err = ffi.ClearLayerData(ssize, paths.Cache); err != nil {
+			if err = ffi.ClearCache(uint64(ssize), paths.Cache); err != nil {
 				log.Warn("failed to GenerateSynthProofs(): ", err)
 				log.Warnf("num:%d tkt:%v, sealedCID:%v, unsealedCID:%v", sector.ID.Number, ticket, sealedCID, unsealedCID)
 				return storiface.SectorCids{

@@ -51,6 +51,12 @@ func PermissionedWorkerHlmAPI(a WorkerHlmAPI) WorkerHlmAPI {
 	return &out
 }
 
+func PermissionedAPI[T, P any](a T) *P {
+	var out P
+	permissionedProxies(a, &out)
+	return &out
+}
+
 func PermissionedWalletAPI(a Wallet) Wallet {
 	var out WalletStruct
 	permissionedProxies(a, &out)
