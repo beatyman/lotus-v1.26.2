@@ -64,8 +64,8 @@ func (m *Sealing) RebuildSector(ctx context.Context, sid string, storageId uint6
 		var allocated abi.UnpaddedPieceSize
 		var fillerSizes []abi.UnpaddedPieceSize
 		for _, piece := range sectorInfo.Pieces {
-			if piece.DealInfo != nil {
-				prop, err := piece.DealInfo.DealProposal.Cid()
+			if piece.DealInfo() != nil {
+				prop, err := piece.DealInfo().Impl().DealProposal.Cid()
 				if err != nil {
 					log.Error(err.Error())
 					return errors.As(err)
@@ -81,18 +81,18 @@ func (m *Sealing) RebuildSector(ctx context.Context, sid string, storageId uint6
 					ServerStorage:  deal.FileStorage,
 					ServerFullUri:  deal.FileRemote,
 					ServerFileName: deal.FileRemote,
-					UnpaddedSize:   piece.Piece.Size.Unpadded(),
+					UnpaddedSize:   piece.Piece().Size.Unpadded(),
 				}
-				out, err := sealer.AddPiece(ctx, sector, existingPieceSizes, piece.Piece.Size.Unpadded(), pieceData)
+				out, err := sealer.AddPiece(ctx, sector, existingPieceSizes, piece.Piece().Size.Unpadded(), pieceData)
 				if err != nil {
 					log.Error(err.Error())
 					return errors.As(err)
 				}
 				pieceInfo = append(pieceInfo, out)
 				existingPieceSizes = append(existingPieceSizes, out.Size.Unpadded())
-				allocated += piece.Piece.Size.Unpadded()
+				allocated += piece.Piece().Size.Unpadded()
 			} else {
-				fillerSizes = append(fillerSizes, piece.Piece.Size.Unpadded())
+				fillerSizes = append(fillerSizes, piece.Piece().Size.Unpadded())
 			}
 		}
 		pieceInfoPad, err := m.padSector(ctx, sector, existingPieceSizes, fillerSizes...)

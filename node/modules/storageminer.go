@@ -320,7 +320,6 @@ func SealingPipeline(fc config.MinerFeeConfig) func(params SealingPipelineParams
 func WindowPostScheduler(fc config.MinerFeeConfig, pc config.ProvingConfig) func(params SealingPipelineParams) (*wdpost.WindowPoStScheduler, error) {
 	return func(params SealingPipelineParams) (*wdpost.WindowPoStScheduler, error) {
 		var (
-			ds     = params.MetadataDS
 			mctx   = params.MetricsCtx
 			lc     = params.Lifecycle
 			api    = params.API
@@ -329,11 +328,6 @@ func WindowPostScheduler(fc config.MinerFeeConfig, pc config.ProvingConfig) func
 			j      = params.Journal
 			as     = params.AddrSel
 		)
-		var err error
-		maddr, err= minerAddrFromDS(ds)
-		if err != nil {
-			return nil, err
-		}
 		ctx := helpers.LifecycleCtx(mctx, lc)
 
 		fps, err := wdpost.NewWindowedPoStScheduler(api, fc, pc, as, sealer, verif, sealer, j, []dtypes.MinerAddress{params.Maddr})

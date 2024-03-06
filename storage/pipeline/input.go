@@ -22,7 +22,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/result"
-	"github.com/filecoin-project/lotus/storage/pipeline/lib/nullreader"
 	"github.com/filecoin-project/lotus/storage/pipeline/piece"
 	"github.com/filecoin-project/lotus/storage/pipeline/sealiface"
 	"github.com/filecoin-project/lotus/storage/sealer"
@@ -134,7 +133,7 @@ func (m *Sealing) maybeStartSealing(ctx statemachine.Context, sector SectorInfo,
 	if err != nil {
 		return false, xerrors.Errorf("getting storage config: %w", err)
 	}
-	if cfg.MaxDealsPerSector > 0 && uint64(len(sector.dealIDs())) >= cfg.MaxDealsPerSector {
+	if cfg.MaxDealsPerSector > 0 && uint64(len(sector.nonPaddingPieceInfos())) >= cfg.MaxDealsPerSector {
 		log.Infow("starting to seal deal sector", "sector", sector.SectorNumber, "trigger", "max-per-sector")
 		return true, ctx.Send(SectorStartPacking{})
 	}
@@ -269,7 +268,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 
 		offset += padLength.Unpadded()
 
-		log.Infow("Add pads piece", "deal", deal.deal.DealID, "sector", sector.SectorNumber)
+		log.Infow("Add pads piece", "deal", deal.deal.Impl().DealID, "sector", sector.SectorNumber)
 		for _, p := range pads {
 			expectCid := zerocomm.ZeroPieceCommitment(p.Unpadded())
 			ppi, err := m.sealer.AddPiece(sealer.WithPriority(ctx.Context(), DealSectorPriority),
@@ -277,7 +276,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 				pieceSizes,
 				p.Unpadded(),
 				shared.NewNullPieceData(p.Unpadded()))
-				//nullreader.NewNullReader(p.Unpadded()))
+			//nullreader.NewNullReader(p.Unpadded()))
 			if err != nil {
 				err = xerrors.Errorf("writing padding piece: %w", err)
 				deal.accepted(sector.SectorNumber, offset, err)
@@ -296,7 +295,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 				},
 			})
 		}
-		log.Infow("Add deal data piece", "deal", deal.deal.DealID, "sector", sector.SectorNumber)
+		log.Infow("Add deal data piece", "deal", deal.deal.Impl().DealID, "sector", sector.SectorNumber)
 		if database.HasDB() {
 			sName := storiface.SectorName(m.minerSectorID(sector.SectorNumber))
 			unsealedStorageId := int64(0)
@@ -321,7 +320,7 @@ func (m *Sealing) handleAddPiece(ctx statemachine.Context, sector SectorInfo) er
 		}
 		sectorRef := m.minerSector(sector.SectorType, sector.SectorNumber)
 		sectorRef.StoreUnseal = cfg.AlwaysKeepUnsealedCopy
-		log.Info("=======================cfg.AlwaysKeepUnsealedCopy=========",cfg.AlwaysKeepUnsealedCopy)
+		log.Info("=======================cfg.AlwaysKeepUnsealedCopy=========", cfg.AlwaysKeepUnsealedCopy)
 		ppi, err := m.sealer.AddPiece(sealer.WithPriority(ctx.Context(), DealSectorPriority),
 			sectorRef,
 			pieceSizes,
@@ -362,15 +361,12 @@ func (m *Sealing) handleAddPieceFailed(ctx statemachine.Context, sector SectorIn
 	return ctx.Send(SectorRetryWaitDeals{})
 }
 
-func (m *Sealing) SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.Data, pieceInfo piece.PieceDealInfo) (api.SectorOffset, error) {
+func (m *Sealing) SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.PieceData, pieceInfo piece.PieceDealInfo) (api.SectorOffset, error) {
+	log.Infof("Adding piece for deal %d (publish msg: %s)", pieceInfo.DealID, pieceInfo.PublishCid)
 	return m.sectorAddPieceToAny(ctx, size, data, &pieceInfo)
 }
-/*
 
-func (m *Sealing) SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.PieceData, deal api.PieceDealInfo) (api.SectorOffset, error)  {
-	log.Infof("Adding piece for deal %d (publish msg: %s)", deal.DealID, deal.PublishCid)
- */
-func (m *Sealing) sectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.Data, pieceInfo UniversalPieceInfo) (api.SectorOffset, error) {
+func (m *Sealing) sectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.PieceData, pieceInfo UniversalPieceInfo) (api.SectorOffset, error) {
 	log.Infof("Adding piece %s", pieceInfo.String())
 	if (padreader.PaddedSize(uint64(size))) != size {
 		return api.SectorOffset{}, xerrors.Errorf("cannot allocate unpadded piece")
@@ -424,8 +420,8 @@ func (m *Sealing) sectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPiec
 	if err != nil {
 		return api.SectorOffset{}, err
 	}
-	if data.ServerStorage<=0{
-		return api.SectorOffset{},xerrors.Errorf("illegal deal order parameter storage : %+v", data)
+	if data.ServerStorage <= 0 {
+		return api.SectorOffset{}, xerrors.Errorf("illegal deal order parameter storage : %+v", data)
 	}
 	m.inputLk.Lock()
 	if pp, exist := m.pendingPieces[pieceInfo.Key()]; exist {
@@ -488,8 +484,7 @@ func (m *Sealing) getClaimTerms(ctx context.Context, deal UniversalPieceInfo, ts
 }
 
 // called with m.inputLk; transfers the lock to another goroutine!
-func (m *Sealing) addPendingPiece(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.Data, deal UniversalPieceInfo, ct pieceClaimBounds, sp abi.RegisteredSealProof) *pendingPiece {
-//func (m *Sealing) addPendingPiece(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.PieceData, deal api.PieceDealInfo, ct pieceClaimBounds, sp abi.RegisteredSealProof) *pendingPiece {
+func (m *Sealing) addPendingPiece(ctx context.Context, size abi.UnpaddedPieceSize, data storiface.PieceData, deal UniversalPieceInfo, ct pieceClaimBounds, sp abi.RegisteredSealProof) *pendingPiece {
 	doneCh := make(chan struct{})
 	pp := &pendingPiece{
 		size:       size,
@@ -501,12 +496,12 @@ func (m *Sealing) addPendingPiece(ctx context.Context, size abi.UnpaddedPieceSiz
 		doneCh:   doneCh,
 		assigned: false,
 	}
-	if pp.deal.DealProposal != nil{
-		log.Infof("deal meta=> propid:%s,dealnum:%d ,%+v ",pp.data.PropCid, pp.deal.DealID,data)
+	if pp.deal.Impl().DealProposal != nil {
+		log.Infof("deal meta=> propid:%s,dealnum:%d ,%+v ", pp.data.PropCid, pp.deal.Impl().DealID, data)
 	}
 	pp.accepted = func(sn abi.SectorNumber, offset abi.UnpaddedPieceSize, err error) {
-		if err == nil && database.HasDB() && pp.deal.DealProposal != nil {
-			log.Infof("DEBUG: accepted propid:%s,dealnum:%d,file:%s to sector %d", pp.data.PropCid, pp.deal.DealID, pp.data.LocalPath, sn)
+		if err == nil && database.HasDB() && pp.deal.Impl().DealProposal != nil {
+			log.Infof("DEBUG: accepted propid:%s,dealnum:%d,file:%s to sector %d", pp.data.PropCid, pp.deal.Impl().DealID, pp.data.LocalPath, sn)
 			dbDeal, err := database.GetMarketDealInfo(pp.data.PropCid)
 			if err != nil {
 				if !errors.ErrNoData.Equal(err) {
@@ -515,14 +510,14 @@ func (m *Sealing) addPendingPiece(ctx context.Context, size abi.UnpaddedPieceSiz
 					if err := database.AddMarketDealInfo(&database.MarketDealInfo{
 						ID:          pp.data.PropCid,
 						UpdatedAt:   time.Now(),
-						PieceCid:    pp.deal.DealProposal.PieceCID.String(),
+						PieceCid:    pp.deal.Impl().DealProposal.PieceCID.String(),
 						PieceSize:   int64(pp.data.UnpaddedSize),
-						ClientAddr:  pp.deal.DealProposal.Client.String(),
+						ClientAddr:  pp.deal.Impl().DealProposal.Client.String(),
 						FileLocal:   pp.data.LocalPath,
 						FileRemote:  pp.data.ServerFullUri,
 						FileStorage: pp.data.ServerStorage,
 						Sid:         storiface.SectorName(m.minerSectorID(sn)),
-						DealNum:     int64(pp.deal.DealID),
+						DealNum:     int64(pp.deal.Impl().DealID),
 						Offset:      int64(offset),
 					}); err != nil {
 						log.Error(errors.As(err))
@@ -544,7 +539,7 @@ func (m *Sealing) addPendingPiece(ctx context.Context, size abi.UnpaddedPieceSiz
 					ID:        pp.data.PropCid,
 					UpdatedAt: time.Now(),
 					Sid:       sName,
-					DealNum:   int64(pp.deal.DealID),
+					DealNum:   int64(pp.deal.Impl().DealID),
 					Offset:    int64(offset),
 				}); err != nil {
 					log.Error(errors.As(err))

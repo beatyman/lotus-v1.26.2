@@ -149,6 +149,7 @@ type localWorkerPathProvider struct {
 	w  *LocalWorker
 	op storiface.AcquireMode
 }
+
 func (l *localWorkerPathProvider) RepoPath() string {
 	paths, err := l.w.localStore.Local(context.TODO())
 	if err != nil {
@@ -192,7 +193,7 @@ func (l *localWorkerPathProvider) AcquireSector(ctx context.Context, sector stor
 
 func FFIExec(opts ...ffiwrapper.FFIWrapperOpt) func(l *LocalWorker) (storiface.Storage, error) {
 	return func(l *LocalWorker) (storiface.Storage, error) {
-		return ffiwrapper.New(&localWorkerPathProvider{w: l}, opts...)
+		return ffiwrapper.New(ffiwrapper.RemoteCfg{}, &localWorkerPathProvider{w: l}, opts...)
 	}
 }
 
@@ -375,7 +376,7 @@ func (l *LocalWorker) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSi
 }
 
 func (l *LocalWorker) AddPiece(ctx context.Context, sector storiface.SectorRef, epcs []abi.UnpaddedPieceSize, sz abi.UnpaddedPieceSize, r storiface.PieceData) (storiface.CallID, error) {
-	sb, err := l.executor()
+	sb, err := l.executor(l)
 	if err != nil {
 		return storiface.UndefCall, err
 	}

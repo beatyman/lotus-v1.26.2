@@ -12,6 +12,7 @@ import (
 	abinetwork "github.com/filecoin-project/go-state-types/network"
 	"github.com/filecoin-project/lotus/api"
 	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+	verifregtypes "github.com/filecoin-project/lotus/chain/actors/builtin/verifreg"
 	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 	"github.com/filecoin-project/lotus/journal/alerting"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
@@ -43,6 +44,26 @@ import (
 type LotusImpl struct {
 	secret *dtypes.APIAlg
 	token  string
+}
+
+func (s *LotusImpl) StateGetAllocationIdForPendingDeal(ctx context.Context, p1 abi.DealID, p2 types.TipSetKey) (verifregtypes.AllocationId, error) {
+	return bestNodeApi().StateGetAllocationIdForPendingDeal(ctx, p1, p2)
+}
+
+func (s *LotusImpl) StateGetAllAllocations(ctx context.Context, p1 types.TipSetKey) (map[verifreg.AllocationId]verifreg.Allocation, error) {
+	return bestNodeApi().StateGetAllAllocations(ctx, p1)
+}
+
+func (s *LotusImpl) StateGetAllClaims(ctx context.Context, p1 types.TipSetKey) (map[verifreg.ClaimId]verifreg.Claim, error) {
+	return bestNodeApi().StateGetAllClaims(ctx, p1)
+}
+
+func (s *LotusImpl) GetActorEvents(ctx context.Context, p1 *types.ActorEventFilter) ([]*types.ActorEvent, error) {
+	return bestNodeApi().GetActorEvents(ctx, p1)
+}
+
+func (s *LotusImpl) SubscribeActorEvents(ctx context.Context, p1 *types.ActorEventFilter) (<-chan *types.ActorEvent, error) {
+	return bestNodeApi().SubscribeActorEvents(ctx, p1)
 }
 
 func (s *LotusImpl) EthTraceBlock(ctx context.Context, p1 string) ([]*ethtypes.EthTraceBlock, error) {
@@ -227,7 +248,7 @@ func (s *LotusImpl) EthMaxPriorityFeePerGas(ctx context.Context) (ethtypes.EthBi
 	return bestNodeApi().EthMaxPriorityFeePerGas(ctx)
 }
 
-func (s *LotusImpl) EthEstimateGas(ctx context.Context, p1 ethtypes.EthCall) (ethtypes.EthUint64, error) {
+func (s *LotusImpl) EthEstimateGas(ctx context.Context, p1 jsonrpc.RawParams) (ethtypes.EthUint64, error) {
 	return bestNodeApi().EthEstimateGas(ctx, p1)
 }
 

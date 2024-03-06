@@ -153,7 +153,7 @@ func GetRawAPIMulti(ctx *cli.Context, t repo.RepoType, version string) ([]HttpHe
 	}
 
 	for _, ainfo := range ainfos {
-		addr, err := ainfo.DialArgs(version,t)
+		addr, err := ainfo.DialArgs(version, t)
 		if err != nil {
 			return httpHeads, xerrors.Errorf("could not get DialArgs: %w", err)
 		}
@@ -167,7 +167,7 @@ func GetRawAPIMulti(ctx *cli.Context, t repo.RepoType, version string) ([]HttpHe
 	return httpHeads, nil
 }
 
-func GetRawAPIMultiV2(ctx *cli.Context, ainfoCfg []string, version string) ([]HttpHead, error) {
+func GetRawAPIMultiV2(ctx *cli.Context, ainfoCfg []string, t repo.RepoType, version string) ([]HttpHead, error) {
 	var httpHeads []HttpHead
 
 	if len(ainfoCfg) == 0 {
@@ -175,7 +175,7 @@ func GetRawAPIMultiV2(ctx *cli.Context, ainfoCfg []string, version string) ([]Ht
 	}
 	for _, i := range ainfoCfg {
 		ainfo := ParseApiInfo(i)
-		addr, err := ainfo.DialArgs(version)
+		addr, err := ainfo.DialArgs(version, t)
 		if err != nil {
 			return httpHeads, xerrors.Errorf("could not get DialArgs: %w", err)
 		}
@@ -433,7 +433,7 @@ func GetFullNodeAPIV1LotusProvider(ctx *cli.Context, ainfoCfg []string, opts ...
 		rpcOpts = append(rpcOpts, jsonrpc.WithClientHandler("Filecoin", options.ethSubHandler), jsonrpc.WithClientHandlerAlias("eth_subscription", "Filecoin.EthSubscription"))
 	}
 
-	heads, err := GetRawAPIMultiV2(ctx, ainfoCfg, "v1")
+	heads, err := GetRawAPIMultiV2(ctx, ainfoCfg, repo.FullNode, "v1")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -503,14 +503,14 @@ func GetStorageMinerAPI(ctx *cli.Context, opts ...GetStorageMinerOption) (api.St
 	if err != nil {
 		return nil, nil, err
 	}
-	if ai:=ctx.String("miner_api"); ai!=""  {
+	if ai := ctx.String("miner_api"); ai != "" {
 		ai := strings.TrimSpace(ctx.String("miner_api"))
 		info := ParseApiInfo(ai)
-		addr, err = info.DialArgs("v0",repo.StorageMiner)
+		addr, err = info.DialArgs("v0", repo.StorageMiner)
 		if err != nil {
 			return nil, nil, err
 		}
-		headers=info.AuthHeader()
+		headers = info.AuthHeader()
 	}
 	if options.PreferHttp {
 		u, err := url.Parse(addr)
@@ -588,9 +588,9 @@ func GetHlmMinerSchedulerAPI(ctx *cli.Context) (api.HlmMinerSchedulerAPI, jsonrp
 	if err != nil {
 		return nil, nil, err
 	}
-	log.Infof("addr : %+v",addr)
+	log.Infof("addr : %+v", addr)
 	headers := apiInfo.AuthHeader()
-	log.Infof("headers : %+v",headers)
+	log.Infof("headers : %+v", headers)
 	return client.NewHlmMinerSchedulerRPC(ctx.Context, addr, headers)
 }
 

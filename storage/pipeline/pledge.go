@@ -2,12 +2,13 @@ package sealing
 
 import (
 	"context"
-	"sync"
-	"time"
 	sectorstorage "github.com/filecoin-project/lotus/storage/sealer"
 	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
-	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/gwaylib/errors"
+	cbor "github.com/ipfs/go-ipld-cbor"
+	"golang.org/x/xerrors"
+	"sync"
+	"time"
 
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
@@ -115,7 +116,6 @@ func (m *Sealing) sectorWeight(ctx context.Context, sector SectorInfo, expiratio
 
 	return sectorWeight, nil
 }
-
 
 var (
 	pledgeExit    = make(chan bool, 1)
