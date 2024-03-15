@@ -943,6 +943,22 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 			}
 			// no data to fetch.
 		}
+	case database.MOUNT_TYPE_FCFS:
+		// fetch do a quick checksum
+		fromPath := task.PieceData.ServerFullUri
+		fileInfo, err := os.Stat(fromPath)
+		if err != nil {
+			return tmpFile, errors.As(err)
+		}
+		if fileInfo.IsDir() {
+			return tmpFile, errors.New("path is dir")
+		}
+		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
+			if !errors.ErrNoData.Equal(err) {
+				return tmpFile, errors.As(err)
+			}
+			// no data to fetch.
+		}
 	case database.MOUNT_TYPE_PB:
 		server, err := ParseFileOpt(task.PieceData.ServerFullUri)
 		if err != nil {
