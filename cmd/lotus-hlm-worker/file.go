@@ -232,7 +232,7 @@ func copyFile(ctx context.Context, from, to string) error {
 		return nil
 	}
 	// use the system command because some storage is more suitable
-	cmd := exec.CommandContext(ctx, "/usr/bin/env", "rsync", "-Pat", from, to)
+	cmd := exec.CommandContext(ctx, "/usr/bin/env", "cp", "-vf", from, to)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stderr
 	if err := cmd.Run(); err != nil {
