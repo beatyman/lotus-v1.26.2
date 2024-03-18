@@ -64,6 +64,8 @@ func (sb *Sealer) ExecPreCommit1(ctx context.Context, task WorkerTask) (storifac
 	cmd.Env = append(cmd.Env, fmt.Sprintf("LOTUS_EXEC_CODE=%s", _exec_code))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("FILECOIN_P1_CORES=%s", taskConfig.CPUSet))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("FILECOIN_P1_CORES_LEN=%d", len(orderCpu)))
+	//cmd.Env = append(cmd.Env, fmt.Sprintf("RUST_BACKTRACE=%s", "full"))
+	//cmd.Env = append(cmd.Env, fmt.Sprintf("RUST_LOG=%s", "trace"))
 	if len(orderCpu) < 2 {
 		//cmd.Env = append(cmd.Env, fmt.Sprintf("FIL_PROOFS_USE_MULTICORE_SDR=0"))
 	} else {

@@ -71,6 +71,8 @@ func execPrecommit2WithLotus(ctx context.Context, taskConfig ResourceUnit, sb *S
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, fmt.Sprintf("NEPTUNE_DEFAULT_GPU=%s", getHlmGPUInfo(ctx, gpuIndex)))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("LOTUS_EXEC_CODE=%s", _exec_code))
+	//cmd.Env = append(cmd.Env, fmt.Sprintf("RUST_BACKTRACE=%s", "full"))
+	//cmd.Env = append(cmd.Env, fmt.Sprintf("RUST_LOG=%s", "trace"))
 	if len(os.Getenv("NVIDIA_VISIBLE_DEVICES")) == 0 {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("NVIDIA_VISIBLE_DEVICES=%s", taskConfig.GPU))
 	}
