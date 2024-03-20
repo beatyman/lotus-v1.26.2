@@ -243,7 +243,9 @@ minerLoop:
 				}
 				continue
 			}
-
+			if base != nil && base.TipSet.Height() != prebase.TipSet.Height() {
+				log.Infof("base.TipSet.Height() != prebase.TipSet.Height(): base %+v,prebase: %+v ", base.TipSet.Height(), prebase.TipSet.Height())
+			}
 			// Check if we have a new base or if the current base is still valid.
 			if base != nil && base.TipSet.Height() == prebase.TipSet.Height() && base.NullRounds == prebase.NullRounds {
 				base = prebase
