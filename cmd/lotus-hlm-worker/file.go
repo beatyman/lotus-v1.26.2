@@ -221,6 +221,7 @@ func copyFile(ctx context.Context, from, to string) error {
 		}
 	}
 	if strings.Contains(from, "comm_d") ||
+		strings.Contains(from, "sealed-file") ||
 		strings.Contains(from, "comm_r") ||
 		strings.Contains(from, "p1.out") ||
 		strings.Contains(from, "c1.out") ||
