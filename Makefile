@@ -141,7 +141,7 @@ lotus-gateway: $(BUILD_DEPS)
 .PHONY: lotus-gateway
 BINS+=lotus-gateway
 
-build: lotus lotus-miner lotus-worker etcd etcdctl  lotus-shed lotus-bench leveldb-tools lotus-storage
+build: lotus lotus-miner lotus-worker lotus-provider etcd etcdctl  lotus-shed lotus-bench leveldb-tools lotus-storage
 	@[[ $$(type -P "lotus") ]] && echo "Caution: you have \
 an existing lotus binary in your PATH. This may cause problems if you don't run 'sudo make install'" || true
 
