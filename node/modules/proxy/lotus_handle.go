@@ -46,6 +46,14 @@ type LotusImpl struct {
 	token  string
 }
 
+func (s *LotusImpl) GetActorEventsRaw(ctx context.Context, p1 *types.ActorEventFilter) ([]*types.ActorEvent, error) {
+	return bestNodeApi().GetActorEventsRaw(ctx, p1)
+}
+
+func (s *LotusImpl) SubscribeActorEventsRaw(ctx context.Context, p1 *types.ActorEventFilter) (<-chan *types.ActorEvent, error) {
+	return bestNodeApi().SubscribeActorEventsRaw(ctx, p1)
+}
+
 func (s *LotusImpl) StateGetAllocationIdForPendingDeal(ctx context.Context, p1 abi.DealID, p2 types.TipSetKey) (verifregtypes.AllocationId, error) {
 	return bestNodeApi().StateGetAllocationIdForPendingDeal(ctx, p1, p2)
 }
@@ -56,14 +64,6 @@ func (s *LotusImpl) StateGetAllAllocations(ctx context.Context, p1 types.TipSetK
 
 func (s *LotusImpl) StateGetAllClaims(ctx context.Context, p1 types.TipSetKey) (map[verifreg.ClaimId]verifreg.Claim, error) {
 	return bestNodeApi().StateGetAllClaims(ctx, p1)
-}
-
-func (s *LotusImpl) GetActorEvents(ctx context.Context, p1 *types.ActorEventFilter) ([]*types.ActorEvent, error) {
-	return bestNodeApi().GetActorEvents(ctx, p1)
-}
-
-func (s *LotusImpl) SubscribeActorEvents(ctx context.Context, p1 *types.ActorEventFilter) (<-chan *types.ActorEvent, error) {
-	return bestNodeApi().SubscribeActorEvents(ctx, p1)
 }
 
 func (s *LotusImpl) EthTraceBlock(ctx context.Context, p1 string) ([]*ethtypes.EthTraceBlock, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 	"sync"
 	"time"
 
@@ -36,8 +37,10 @@ func NewSimpleFaultTracker(storage paths.Store, index paths.SectorIndex,
 		partitionCheckTimeout: partitionCheckTimeout,
 	}
 }
-
-func (m *SimpleFaultTracker) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storiface.SectorRef, rg storiface.RGetter) (map[abi.SectorID]string, error) {
+func (m *SimpleFaultTracker) CheckProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storiface.SectorRef, rg storiface.RGetter, timeout time.Duration) ([]ffiwrapper.ProvableStat, []ffiwrapper.ProvableStat, []ffiwrapper.ProvableStat, error) {
+	return ffiwrapper.CheckProvable(ctx, pp, sectors, rg, timeout)
+}
+func (m *SimpleFaultTracker) checkProvable(ctx context.Context, pp abi.RegisteredPoStProof, sectors []storiface.SectorRef, rg storiface.RGetter) (map[abi.SectorID]string, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

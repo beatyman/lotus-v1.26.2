@@ -336,7 +336,7 @@ var NetConnect = &cli.Command{
 				defer func() {
 					done <- result
 				}()
-				result += fmt.Sprintf("connect %s: ", pi.ID.Pretty())
+				result += fmt.Sprintf("connect %s: ", pi.ID.String())
 				err := api.NetConnect(ctx, pi)
 				if err != nil {
 					result += fmt.Sprintf("failure:%s", err.Error())

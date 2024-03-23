@@ -3,6 +3,7 @@ package lpwindow
 import (
 	"bytes"
 	"context"
+	"github.com/gwaylib/errors"
 	"sort"
 	"sync"
 	"time"
@@ -275,20 +276,24 @@ func checkSectors(ctx context.Context, api CheckSectorsAPI, ft sealer.FaultTrack
 		return bitfield.BitField{}, xerrors.Errorf("failed to convert to v1_1 post proof: %w", err)
 	}
 
-	bad, err := ft.CheckProvable(ctx, pp, tocheck, func(ctx context.Context, id abi.SectorID) (cid.Cid, bool, error) {
+	_, _, bad, err := ft.CheckProvable(ctx, pp, tocheck, func(ctx context.Context, id abi.SectorID) (cid.Cid, bool, error) {
 		s, ok := sectors[id.Number]
 		if !ok {
 			return cid.Undef, false, xerrors.Errorf("sealed CID not found")
 		}
 		return s.sealed, s.update, nil
-	})
+	}, build.GetProvingCheckTimeout())
 	if err != nil {
 		return bitfield.BitField{}, xerrors.Errorf("checking provable sectors: %w", err)
 	}
-	for id := range bad {
-		delete(sectors, id.Number)
+	// bad
+	for _, val := range bad {
+		if val.Err != nil {
+			sectorId := val.Sector.SectorID()
+			log.Warnf("sid:%s,storage:%s,used:%s,err:%s", val.Sector.SectorId, val.Sector.SealedRepo, val.Used.String(), errors.ParseError(val.Err))
+			delete(sectors, sectorId.Number)
+		}
 	}
-
 	log.Warnw("Checked sectors", "checked", len(tocheck), "good", len(sectors))
 
 	sbf := bitfield.New()
