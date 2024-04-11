@@ -71,6 +71,7 @@ require (
 	github.com/gdamore/tcell/v2 v2.2.0
 	github.com/georgysavva/scany/v2 v2.0.0
 	github.com/go-openapi/spec v0.19.11
+	github.com/gocarina/gocsv v0.0.0-20231116093920-b87c2d0e983a
 	github.com/golang/mock v1.6.0
 	github.com/google/gops v0.3.28
 	github.com/google/uuid v1.5.0

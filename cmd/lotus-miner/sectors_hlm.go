@@ -3,10 +3,18 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"time"
-
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/chain/actors/policy"
+	"github.com/filecoin-project/lotus/chain/types"
+	cliutil "github.com/filecoin-project/lotus/cli/util"
+	"github.com/gocarina/gocsv"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/gwaylib/errors"
@@ -32,6 +40,7 @@ var hlmSectorCmd = &cli.Command{
 		checkHlmSectorCmd,
 		setHlmSectorStartCmd,
 		getHlmSectorStartCmd,
+		sectorsExportExpireCmd,
 	},
 }
 
@@ -328,3 +337,134 @@ var getHlmSectorByWorker = &cli.Command{
 		return nil
 	},
 }
+
+type ExportSectors struct {
+	ID              uint64 `csv:"id"`
+	SealProof       int64  `csv:"sealProof"`
+	InitialPledge   string `csv:"initialPledge"`
+	ActivationEpoch int64  `csv:"activation_epoch"`
+	ExpirationEpoch int64  `csv:"expiration_epoch"`
+	Activation      string `csv:"activation"`
+	Expiration      string `csv:"expiration"`
+	MaxExpiration   string `csv:"maxExpiration"`
+	MaxExtendNow    string `csv:"maxExtendNow"`
+	DealIDs         string `csv:"dealIDs"`
+	Deadline        uint64 `csv:"deadline"`
+	Partition       uint64 `csv:"partition"`
+	DC              bool   `csv:"dc"`
+}
+
+func DealIDsToString(deals []abi.DealID) string {
+	dls := make([]string, 0)
+	for i := range deals {
+		dls = append(dls, strconv.Itoa(int(deals[i])))
+	}
+	return strings.Join(dls, " ")
+}
+
+var sectorsExportExpireCmd = &cli.Command{
+	Name:  "export-expire",
+	Usage: "export expiring sectors",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:  "cutoff",
+			Usage: "skip sectors whose current expiration is more than <cutoff> epochs from now, defaults to 60 days",
+			Value: 172800,
+		},
+		&cli.StringFlag{
+			Name:  "output",
+			Usage: "output path",
+			Value: "/root/export-expire.csv",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+
+		fullApi, nCloser, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer nCloser()
+
+		ctx := lcli.ReqContext(cctx)
+
+		maddr, err := getActorAddress(ctx, cctx)
+		if err != nil {
+			return err
+		}
+
+		head, err := fullApi.ChainHead(ctx)
+		if err != nil {
+			return err
+		}
+		currEpoch := head.Height()
+
+		nv, err := fullApi.StateNetworkVersion(ctx, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		sectors, err := fullApi.StateMinerActiveSectors(ctx, maddr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		n := 0
+		for _, s := range sectors {
+			if s.Expiration-currEpoch <= abi.ChainEpoch(cctx.Int64("cutoff")) {
+				sectors[n] = s
+				n++
+			}
+		}
+		sectors = sectors[:n]
+
+		sort.Slice(sectors, func(i, j int) bool {
+			if sectors[i].Expiration == sectors[j].Expiration {
+				return sectors[i].SectorNumber < sectors[j].SectorNumber
+			}
+			return sectors[i].Expiration < sectors[j].Expiration
+		})
+		exportList := make([]*ExportSectors, 0)
+		for _, sector := range sectors {
+			MaxExpiration := sector.Activation + policy.GetSectorMaxLifetime(sector.SealProof, nv)
+			maxExtension, err := policy.GetMaxSectorExpirationExtension(nv)
+			if err != nil {
+				return xerrors.Errorf("failed to get max extension: %w", err)
+			}
+			MaxExtendNow := currEpoch + maxExtension
+			if MaxExtendNow > MaxExpiration {
+				MaxExtendNow = MaxExpiration
+			}
+			si, err := fullApi.StateSectorGetInfo(ctx, maddr, sector.SectorNumber, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+			sp, err := fullApi.StateSectorPartition(ctx, maddr, sector.SectorNumber, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+			exportList = append(exportList, &ExportSectors{
+				ID:              uint64(sector.SectorNumber),
+				SealProof:       int64(sector.SealProof),
+				InitialPledge:   types.FIL(sector.InitialPledge).Short(),
+				ActivationEpoch: int64(sector.Activation),
+				ExpirationEpoch: int64(sector.Expiration),
+				Activation:      cliutil.EpochTime(currEpoch, sector.Activation),
+				Expiration:      cliutil.EpochTime(currEpoch, sector.Expiration),
+				MaxExpiration:   cliutil.EpochTime(currEpoch, MaxExpiration),
+				MaxExtendNow:    cliutil.EpochTime(currEpoch, MaxExtendNow),
+				DealIDs:         DealIDsToString(si.DealIDs),
+				Deadline:        sp.Deadline,
+				Partition:       sp.Partition,
+				DC:              len(si.DealIDs) > 0,
+			})
+		}
+		file, err := os.Create(cctx.String("output"))
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		if err := gocsv.MarshalFile(&exportList, file); err != nil {
+			return err
+		}
+		return nil
+	}}
