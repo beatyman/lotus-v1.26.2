@@ -99,6 +99,11 @@ func main() {
 				Value:   true,
 				EnvVars: []string{"LOTUS_WORKER_ENABLE_GPU_PROVING"},
 			},
+			&cli.BoolFlag{
+				Name:  "remote-c2",
+				Usage: "remote c2",
+				Value: false,
+			},
 		},
 
 		After: func(c *cli.Context) error {
@@ -511,6 +516,11 @@ Example invocation of lotus-bench as external executor:
 			if taskType.WorkerType() != workerType {
 				return xerrors.Errorf("expected all task types to be for %s worker, but task %s is for %s worker", workerType, taskType, taskType.WorkerType())
 			}
+		}
+
+		remoteC2 := cctx.Bool("remote-c2")
+		if remoteC2 {
+			needParams = false
 		}
 
 		if needParams {

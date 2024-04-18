@@ -536,6 +536,13 @@ func (m *Sealing) handleRecoverDealIDsOrFailWith(ctx statemachine.Context, secto
 	return ctx.Send(SectorUpdateDealIDs{Updates: updates})
 }
 
+func (m *Sealing) handleC2RemoteFailed(ctx statemachine.Context, sector SectorInfo) error {
+	if err := failedCooldown(ctx, sector); err != nil {
+		return err
+	}
+	return ctx.Send(SectorRetryC2Remote{})
+}
+
 func (m *Sealing) HandleRecoverDealIDs(ctx statemachine.Context, sector SectorInfo) error {
 	return m.handleRecoverDealIDsOrFailWith(ctx, sector, SectorRemove{})
 }
