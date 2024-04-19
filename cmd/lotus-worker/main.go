@@ -99,11 +99,6 @@ func main() {
 				Value:   true,
 				EnvVars: []string{"LOTUS_WORKER_ENABLE_GPU_PROVING"},
 			},
-			&cli.BoolFlag{
-				Name:  "remote-c2",
-				Usage: "remote c2",
-				Value: false,
-			},
 		},
 
 		After: func(c *cli.Context) error {
@@ -293,6 +288,11 @@ var runCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:  "external-pc2",
 			Usage: "command for computing PC2 externally",
+		},
+		&cli.BoolFlag{
+			Name:  "remote-c2",
+			Usage: "remote c2",
+			Value: true,
 		},
 	},
 	Description: `Run lotus-worker.
