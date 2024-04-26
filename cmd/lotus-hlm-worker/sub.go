@@ -509,13 +509,14 @@ reAllocate:
 			}
 			task.Pieces = pieces
 		}
-
-	retryConfirmStaging:
-		if err := w.ConfirmStaging(ctx, sealer, task.SectorName()); err != nil {
-			log.Warn(errors.As(err))
-			time.Sleep(10e9)
-			goto retryConfirmStaging
-		}
+		/*
+			retryConfirmStaging:
+				if err := w.ConfirmStaging(ctx, sealer, task.SectorName()); err != nil {
+					log.Warn(errors.As(err))
+					time.Sleep(10e9)
+					goto retryConfirmStaging
+				}
+		*/
 		rspco, err := sealer.ExecPreCommit1(ctx, task)
 		res.PreCommit1Out = rspco
 		if err != nil {
@@ -619,6 +620,12 @@ reAllocate:
 	case ffiwrapper.WorkerFinalize:
 		w.TryLockFinalize()
 		defer w.TryReleaseFinalize()
+	retryConfirmStaging:
+		if err := w.ConfirmStaging(ctx, sealer, task.SectorName()); err != nil {
+			log.Warn(errors.As(err))
+			time.Sleep(10e9)
+			goto retryConfirmStaging
+		}
 		if task.Snap {
 			updateFile := sealer.SectorPath("update", task.SectorName())
 			_, err := os.Stat(string(updateFile))

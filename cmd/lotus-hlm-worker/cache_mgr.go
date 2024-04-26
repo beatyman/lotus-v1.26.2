@@ -1079,6 +1079,20 @@ func (w *worker) confirmStaging(ctx context.Context, workerSB *ffiwrapper.Sealer
 		if err := BHConfirm(server.FileRemote, string(fileId), sid); err != nil {
 			return errors.As(err)
 		}
+	case database.MOUNT_TYPE_FCFS:
+		log.Infof("try remove car %s", pieceData.ServerFullUri)
+		fromPath := pieceData.ServerFullUri
+		fileInfo, err := os.Stat(fromPath)
+		if err != nil {
+			return errors.As(err)
+		}
+		if fileInfo.IsDir() {
+			return errors.New("path is dir")
+		}
+		if err := os.Remove(fromPath); err != nil {
+			return err
+		}
+		log.Infof("remove car %s", fromPath)
 	default:
 		return nil
 	}
