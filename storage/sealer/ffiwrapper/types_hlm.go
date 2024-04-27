@@ -164,6 +164,7 @@ type WorkerCfg struct {
 	C2Sids []abi.SectorID //c2 worker正在执行的扇区id (c2断线重连后需要恢复busyOnTasks)
 
 	ParallelFinalize int
+	AlwaysDeleteCar  bool
 }
 
 type WorkerQueueKind string

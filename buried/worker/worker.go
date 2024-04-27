@@ -135,6 +135,7 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 		WdPoStSrv:          cctx.Bool("wdpost-srv"),
 		WnPoStSrv:          cctx.Bool("wnpost-srv"),
 		ParallelFinalize:   2,
+		AlwaysDeleteCar:    cctx.Bool("always-delete-car"),
 	}
 	//判断文件是否存在，如果存在则使用文件里面的任务数，如果不存在，则使用第一次配置的。
 	log.Info("=========================WORKER_WATCH_FILE====================", WORKER_WATCH_FILE)
@@ -175,6 +176,7 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 		workerCfg.WdPoStSrv = t.WdPoStSrv
 		workerCfg.WnPoStSrv = t.WnPoStSrv
 		workerCfg.ParallelFinalize = t.ParallelFinalize
+		workerCfg.AlwaysDeleteCar = t.AlwaysDeleteCar
 		if workerCfg.ParallelFinalize < 2 {
 			workerCfg.ParallelFinalize = 2
 		}
@@ -195,6 +197,7 @@ func GetConfigWorker(cctx *cli.Context, workerId string, netIp string, serverAdd
 		t.IP = workerCfg.IP
 		t.SvcUri = workerCfg.SvcUri
 		t.ParallelFinalize = workerCfg.ParallelFinalize
+		t.AlwaysDeleteCar = workerCfg.AlwaysDeleteCar
 		if t.ParallelFinalize < 2 {
 			t.ParallelFinalize = 2
 		}

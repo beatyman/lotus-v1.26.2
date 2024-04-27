@@ -620,11 +620,10 @@ reAllocate:
 	case ffiwrapper.WorkerFinalize:
 		w.TryLockFinalize()
 		defer w.TryReleaseFinalize()
-	retryConfirmStaging:
-		if err := w.ConfirmStaging(ctx, sealer, task.SectorName()); err != nil {
-			log.Warn(errors.As(err))
-			time.Sleep(10e9)
-			goto retryConfirmStaging
+		if w.workerCfg.AlwaysDeleteCar {
+			if err := w.ConfirmStaging(ctx, sealer, task.SectorName()); err != nil {
+				log.Warn(errors.As(err))
+			}
 		}
 		if task.Snap {
 			updateFile := sealer.SectorPath("update", task.SectorName())

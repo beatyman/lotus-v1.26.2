@@ -56,7 +56,7 @@ func closeNodeApi() {
 	nodeCloser = nil
 }
 
-//shutdown之外的地方都需要复用api（断线重连）不能关闭连接
+// shutdown之外的地方都需要复用api（断线重连）不能关闭连接
 func ReleaseNodeApi(shutdown bool) {
 	nodeSync.Lock()
 	defer nodeSync.Unlock()
@@ -227,6 +227,11 @@ var runCmd = &cli.Command{
 			Usage: "Timer time try. The time is minutes. The default is 1 minutes",
 			Value: "",
 		},
+		&cli.BoolFlag{
+			Name:  "always-delete-car",
+			Usage: "delete deals car file",
+			Value: true,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
@@ -384,7 +389,6 @@ var runCmd = &cli.Command{
 		go func() {
 			worker2.InitWatch(ctx, workerId, nodeApi)
 		}()
-
 
 		if err := database.LockMount(minerRepo); err != nil {
 			log.Infof("mount lock failed, skip mount the storages:%s", errors.As(err, minerRepo).Code())
