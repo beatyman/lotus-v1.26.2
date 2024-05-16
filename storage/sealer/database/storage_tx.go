@@ -222,3 +222,49 @@ func ClearStorageWork() error {
 	allocateMux.Unlock()
 	return nil
 }
+
+func AcquireStorageConnCount(sectorId string, kind int) error {
+	ssInfo, err := GetSectorStorage(sectorId)
+	if err != nil {
+		return err
+	}
+
+	tx := &StorageTx{SectorId: sectorId, Kind: kind}
+	var info *StorageInfo
+	switch tx.Kind {
+	case STORAGE_KIND_SEALED:
+		info = &ssInfo.SealedStorage
+	case STORAGE_KIND_UNSEALED:
+		info = &ssInfo.UnsealedStorage
+	default:
+		return errors.New("unknow kind")
+	}
+	db := GetDB()
+	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work-1 WHERE id=? and cur_work<max_work and cur_work>0", info.ID); err != nil {
+		return errors.As(err, *tx, info.ID)
+	}
+	return nil
+}
+
+func ReleaseStorageConnCount(sectorId string, kind int) error {
+	ssInfo, err := GetSectorStorage(sectorId)
+	if err != nil {
+		return err
+	}
+
+	tx := &StorageTx{SectorId: sectorId, Kind: kind}
+	var info *StorageInfo
+	switch tx.Kind {
+	case STORAGE_KIND_SEALED:
+		info = &ssInfo.SealedStorage
+	case STORAGE_KIND_UNSEALED:
+		info = &ssInfo.UnsealedStorage
+	default:
+		return errors.New("unknow kind")
+	}
+	db := GetDB()
+	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work+1 WHERE id=? and cur_work<max_work", info.ID); err != nil {
+		return errors.As(err, *tx, info.ID)
+	}
+	return nil
+}

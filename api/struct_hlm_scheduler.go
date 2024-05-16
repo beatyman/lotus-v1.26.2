@@ -46,13 +46,15 @@ type HlmMinerSchedulerStruct struct {
 		WorkerLock   func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error `perm:"write"`
 		WorkerUnlock func(ctx context.Context, workerId, taskKey, memo string, sectorState int) error `perm:"write"`
 
-		ChecksumStorage      func(ctx context.Context, ver int64) ([]database.StorageInfo, error)                          `perm:"read"`
-		NewHLMStorageTmpAuth func(ctx context.Context, id int64, sid string) (string, error)                               `perm:"admin"`
-		DelHLMStorageTmpAuth func(ctx context.Context, id int64, sid string) error                                         `perm:"admin"`
-		PreStorageNode       func(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) `perm:"write"`
-		CommitStorageNode    func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
-		CancelStorageNode    func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
-		HlmSectorGetState    func(ctx context.Context, sid string) (*database.SectorInfo, error)                           `perm:"read"`
+		ChecksumStorage         func(ctx context.Context, ver int64) ([]database.StorageInfo, error)                          `perm:"read"`
+		NewHLMStorageTmpAuth    func(ctx context.Context, id int64, sid string) (string, error)                               `perm:"admin"`
+		DelHLMStorageTmpAuth    func(ctx context.Context, id int64, sid string) error                                         `perm:"admin"`
+		PreStorageNode          func(ctx context.Context, sectorId, clientIp string, kind int) (*database.StorageInfo, error) `perm:"write"`
+		CommitStorageNode       func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
+		CancelStorageNode       func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
+		AcquireStorageConnCount func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
+		ReleaseStorageConnCount func(ctx context.Context, sectorId string, kind int) error                                    `perm:"write"`
+		HlmSectorGetState       func(ctx context.Context, sid string) (*database.SectorInfo, error)                           `perm:"read"`
 
 		//check worker busyTask
 		GetWorkerBusyTask func(ctx context.Context, wid string) (int, error) `perm:"read"`
@@ -146,6 +148,12 @@ func (c *HlmMinerSchedulerStruct) CommitStorageNode(ctx context.Context, sectorI
 
 func (c *HlmMinerSchedulerStruct) CancelStorageNode(ctx context.Context, sectorId string, kind int) error {
 	return c.Internal.CancelStorageNode(ctx, sectorId, kind)
+}
+func (c *HlmMinerSchedulerStruct) AcquireStorageConnCount(ctx context.Context, sectorId string, kind int) error {
+	return c.Internal.AcquireStorageConnCount(ctx, sectorId, kind)
+}
+func (c *HlmMinerSchedulerStruct) ReleaseStorageConnCount(ctx context.Context, sectorId string, kind int) error {
+	return c.Internal.ReleaseStorageConnCount(ctx, sectorId, kind)
 }
 func (c *HlmMinerSchedulerStruct) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
 	return c.Internal.HlmSectorGetState(ctx, sid)

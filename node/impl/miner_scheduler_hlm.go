@@ -154,6 +154,12 @@ func (hs *HlmMinerScheduler) CommitStorageNode(ctx context.Context, sectorId str
 func (hs *HlmMinerScheduler) CancelStorageNode(ctx context.Context, sectorId string, kind int) error {
 	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).CancelStorageNode(sectorId, kind)
 }
+func (hs *HlmMinerScheduler) AcquireStorageConnCount(ctx context.Context, sectorId string, kind int) error {
+	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).AcquireStorageConnCount(sectorId, kind)
+}
+func (hs *HlmMinerScheduler) ReleaseStorageConnCount(ctx context.Context, sectorId string, kind int) error {
+	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).ReleaseStorageConnCount(sectorId, kind)
+}
 func (hs *HlmMinerScheduler) HlmSectorGetState(ctx context.Context, sid string) (*database.SectorInfo, error) {
 	return hs.sm.StorageMgr.Prover.(*ffiwrapper.Sealer).HlmSectorGetState(sid)
 }

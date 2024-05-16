@@ -26,7 +26,7 @@ func (sb *Sealer) MakeLink(task *WorkerTask) error {
 	if up != "" {
 		return nil
 	}
-	up=os.Getenv("UFILE_CONFIG")
+	up = os.Getenv("UFILE_CONFIG")
 	if up != "" {
 		return nil
 	}
@@ -215,8 +215,8 @@ func (sb *Sealer) UMountStorage(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (sb *Sealer) RelinkStorage(ctx context.Context, storageId int64,minerAddr string) error {
-	return database.RebuildSectorFromStorage(ctx,storageId,minerAddr)
+func (sb *Sealer) RelinkStorage(ctx context.Context, storageId int64, minerAddr string) error {
+	return database.RebuildSectorFromStorage(ctx, storageId, minerAddr)
 	storageInfo, err := database.GetStorageInfo(storageId)
 	if err != nil {
 		return err
@@ -312,7 +312,12 @@ func (sb *Sealer) CancelStorageNode(sectorId string, kind int) error {
 	tx := &database.StorageTx{SectorId: sectorId, Kind: kind}
 	return tx.Rollback()
 }
-
+func (sb *Sealer) AcquireStorageConnCount(sectorId string, kind int) error {
+	return database.AcquireStorageConnCount(sectorId, kind)
+}
+func (sb *Sealer) ReleaseStorageConnCount(sectorId string, kind int) error {
+	return database.ReleaseStorageConnCount(sectorId, kind)
+}
 func (sb *Sealer) ChecksumStorage(sumVer int64) ([]database.StorageInfo, error) {
 	return database.ChecksumStorage(sumVer)
 }

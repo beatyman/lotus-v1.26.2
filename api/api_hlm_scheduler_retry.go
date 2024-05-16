@@ -225,7 +225,32 @@ func (a *RetryHlmMinerSchedulerAPI) RetryPreStorageNode(ctx context.Context, sec
 	}
 	return out, err
 }
-
+func (a *RetryHlmMinerSchedulerAPI) RetryAcquireStorageConnCount(ctx context.Context, sectorId string, kind int) error {
+	var err error
+	for i := 0; true; i++ {
+		if err = a.HlmMinerSchedulerAPI.AcquireStorageConnCount(ctx, sectorId, kind); err == nil {
+			return nil
+		}
+		if !a.RetryEnable(err) {
+			return err
+		}
+		time.Sleep(time.Second * 10)
+	}
+	return err
+}
+func (a *RetryHlmMinerSchedulerAPI) RetryReleaseStorageConnCount(ctx context.Context, sectorId string, kind int) error {
+	var err error
+	for i := 0; true; i++ {
+		if err = a.HlmMinerSchedulerAPI.ReleaseStorageConnCount(ctx, sectorId, kind); err == nil {
+			return nil
+		}
+		if !a.RetryEnable(err) {
+			return err
+		}
+		time.Sleep(time.Second * 10)
+	}
+	return err
+}
 func (a *RetryHlmMinerSchedulerAPI) RetryDelHLMStorageTmpAuth(ctx context.Context, id int64, sid string) error {
 	var err error
 	for i := 0; true; i++ {
@@ -307,7 +332,7 @@ func (a *RetryHlmMinerSchedulerAPI) RetryGetStorage(ctx context.Context, storage
 	return out, err
 }
 
-func (a *RetryHlmMinerSchedulerAPI)RetryGetMarketDealInfo(ctx context.Context, propID string) (*database.MarketDealInfo, error) {
+func (a *RetryHlmMinerSchedulerAPI) RetryGetMarketDealInfo(ctx context.Context, propID string) (*database.MarketDealInfo, error) {
 	var (
 		err error
 		out *database.MarketDealInfo

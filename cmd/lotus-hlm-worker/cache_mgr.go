@@ -278,7 +278,19 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		// no unsealed storage to mount
 		return nil
 	}
-
+	api, err := GetNodeApi()
+	if err != nil {
+		return errors.As(err)
+	}
+	err = api.RetryAcquireStorageConnCount(ctx, sid, database.STORAGE_KIND_UNSEALED)
+	if err != nil {
+		return errors.As(err)
+	}
+	defer func() {
+		if err := api.RetryReleaseStorageConnCount(ctx, sid, database.STORAGE_KIND_UNSEALED); err != nil {
+			log.Error(err.Error())
+		}
+	}()
 	switch ss.MountType {
 	case database.MOUNT_TYPE_HLM:
 		api, err := GetNodeApi()
