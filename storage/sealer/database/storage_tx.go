@@ -263,7 +263,7 @@ func ReleaseStorageConnCount(sectorId string, kind int) error {
 		return errors.New("unknow kind")
 	}
 	db := GetDB()
-	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work-1 WHERE id=? and cur_work<max_work and cur_work>0", info.ID); err != nil {
+	if _, err := db.Exec("UPDATE storage_info SET cur_work=cur_work-1 WHERE id=? and cur_work<=max_work and cur_work>0", info.ID); err != nil {
 		return errors.As(err, *tx, info.ID)
 	}
 	return nil
