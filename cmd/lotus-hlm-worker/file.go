@@ -196,7 +196,7 @@ func travelFile(path string) (os.FileInfo, []string, error) {
 	return fStat, result, nil
 }
 
-func copyFile(ctx context.Context, from, to string) error {
+func copyFile(ctx context.Context, from, to string, method TRANSFER_METHOD) error {
 	if from == to {
 		return errors.New("Same file").As(from, to)
 	}
@@ -232,8 +232,15 @@ func copyFile(ctx context.Context, from, to string) error {
 		log.Infof("ignore local file:%s", from)
 		return nil
 	}
-	// use the system command because some storage is more suitable
-	cmd := exec.CommandContext(ctx, "/usr/bin/env", "cp", "-vf", from, to)
+	var cmd *exec.Cmd
+	if method == POLICY_CP {
+		// use the system command because some storage is more suitable
+		cmd = exec.CommandContext(ctx, "/usr/bin/env", "cp", "-vf", from, to)
+	} else if method == POLICY_RSYNC {
+		// use the system command because some storage is more suitable
+		cmd = exec.CommandContext(ctx, "/usr/bin/env", "rsync", "-Pat", from, to)
+	}
+
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stderr
 	if err := cmd.Run(); err != nil {

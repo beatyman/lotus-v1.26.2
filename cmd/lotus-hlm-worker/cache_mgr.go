@@ -23,6 +23,14 @@ import (
 
 var PushRepoPath = "/data/lotus-push/tmp"
 
+type TRANSFER_METHOD string
+
+const (
+	POLICY_RSYNC TRANSFER_METHOD = "rsync"
+	POLICY_CP    TRANSFER_METHOD = "cp"
+	POLICY_SDK   TRANSFER_METHOD = "sdk"
+)
+
 // remove cache of the sector
 func (w *worker) RemoveRepoSector(ctx context.Context, repo, sid string) error {
 	return w.removeRepoSector(ctx, repo, sid)
@@ -198,7 +206,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := os.MkdirAll(sealedToPath, 0755); err != nil {
 			return errors.As(err)
 		}
-		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid), POLICY_CP); err != nil {
 			return errors.As(err)
 		}
 		// send the cache
@@ -208,7 +216,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 		// push do a deep checksum
-		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+		if err := w.rsync(ctx, cacheFromPath, cacheToPath, POLICY_CP); err != nil {
 			return errors.As(err)
 		}
 		//成功之后删除软连接
@@ -247,7 +255,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := os.MkdirAll(sealedToPath, 0755); err != nil {
 			return errors.As(err)
 		}
-		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid), POLICY_RSYNC); err != nil {
 			return errors.As(err)
 		}
 
@@ -257,7 +265,7 @@ func (w *worker) pushSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := os.MkdirAll(cacheToPath, 0755); err != nil {
 			return errors.As(err)
 		}
-		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+		if err := w.rsync(ctx, cacheFromPath, cacheToPath, POLICY_RSYNC); err != nil {
 			return errors.As(err)
 		}
 
@@ -338,7 +346,7 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if err := os.MkdirAll(unsealedToPath, 0755); err != nil {
 			return errors.As(err)
 		}
-		if err := w.rsync(ctx, unsealedFromPath, filepath.Join(unsealedToPath, sid)); err != nil {
+		if err := w.rsync(ctx, unsealedFromPath, filepath.Join(unsealedToPath, sid), POLICY_CP); err != nil {
 			return errors.As(err)
 		}
 		//成功之后删除软连接
@@ -369,7 +377,7 @@ func (w *worker) pushUnsealed(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if err := os.MkdirAll(unsealedToPath, 0755); err != nil {
 			return errors.As(err)
 		}
-		if err := w.rsync(ctx, unsealedFromPath, filepath.Join(unsealedToPath, sid)); err != nil {
+		if err := w.rsync(ctx, unsealedFromPath, filepath.Join(unsealedToPath, sid), POLICY_RSYNC); err != nil {
 			return errors.As(err)
 		}
 
@@ -442,7 +450,7 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		unsealedFromPath := filepath.Join(mountDir, "unsealed", sid)
 		isExist, _ := ffiwrapper.PathExists(unsealedFromPath)
 		if isExist {
-			if err := w.rsync(ctx, unsealedFromPath, unsealedToPath); err != nil {
+			if err := w.rsync(ctx, unsealedFromPath, unsealedToPath, POLICY_CP); err != nil {
 				return errors.As(err)
 			}
 		} else {
@@ -474,7 +482,7 @@ func (w *worker) fetchUnseal(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		// fetch the unsealed file
 		unsealedFromPath := filepath.Join(mountDir, "unsealed", sid)
 		unsealedToPath := workerSB.SectorPath("unsealed", sid)
-		if err := w.rsync(ctx, unsealedFromPath, unsealedToPath); err != nil {
+		if err := w.rsync(ctx, unsealedFromPath, unsealedToPath, POLICY_RSYNC); err != nil {
 			if !errors.ErrNoData.Equal(err) {
 				return errors.As(err)
 			}
@@ -550,14 +558,14 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		sealedToPath := workerSB.SectorPath("sealed", sid)
 		sealedFromPath := filepath.Join(mountDir, "sealed", sid)
 
-		if err := w.rsync(ctx, sealedFromPath, sealedToPath); err != nil {
+		if err := w.rsync(ctx, sealedFromPath, sealedToPath, POLICY_CP); err != nil {
 			return errors.As(err)
 		}
 
 		cacheToPath := workerSB.SectorPath("cache", sid)
 		cacheFromPath := filepath.Join(mountDir, "cache", sid)
 
-		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+		if err := w.rsync(ctx, cacheFromPath, cacheToPath, POLICY_CP); err != nil {
 			return errors.As(err)
 		}
 		log.Info("sealedToPath = ", sealedToPath, " ====== cacheToPath", cacheToPath)
@@ -595,12 +603,12 @@ func (w *worker) fetchSealed(ctx context.Context, workerSB *ffiwrapper.Sealer, t
 		// fetch the unsealed file
 		sealedFromPath := filepath.Join(mountDir, "sealed", sid)
 		sealedToPath := workerSB.SectorPath("sealed", sid)
-		if err := w.rsync(ctx, sealedFromPath, sealedToPath); err != nil {
+		if err := w.rsync(ctx, sealedFromPath, sealedToPath, POLICY_RSYNC); err != nil {
 			return errors.As(err)
 		}
 		cacheFromPath := filepath.Join(mountDir, "cache", sid)
 		cacheToPath := workerSB.SectorPath("cache", sid)
-		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+		if err := w.rsync(ctx, cacheFromPath, cacheToPath, POLICY_RSYNC); err != nil {
 			return errors.As(err)
 		}
 
@@ -823,7 +831,7 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := os.MkdirAll(sealedToPath, 0755); err != nil {
 			return errors.As(err)
 		}
-		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid), POLICY_CP); err != nil {
 			return errors.As(err)
 		}
 		// send the cache
@@ -833,7 +841,7 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 			return errors.As(err)
 		}
 		// push do a deep checksum
-		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+		if err := w.rsync(ctx, cacheFromPath, cacheToPath, POLICY_CP); err != nil {
 			return errors.As(err)
 		}
 		//成功之后删除软连接
@@ -873,7 +881,7 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := os.MkdirAll(sealedToPath, 0755); err != nil {
 			return errors.As(err)
 		}
-		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid)); err != nil {
+		if err := w.rsync(ctx, sealedFromPath, filepath.Join(sealedToPath, sid), POLICY_RSYNC); err != nil {
 			return errors.As(err)
 		}
 
@@ -883,7 +891,7 @@ func (w *worker) pushUpdate(ctx context.Context, workerSB *ffiwrapper.Sealer, ta
 		if err := os.MkdirAll(cacheToPath, 0755); err != nil {
 			return errors.As(err)
 		}
-		if err := w.rsync(ctx, cacheFromPath, cacheToPath); err != nil {
+		if err := w.rsync(ctx, cacheFromPath, cacheToPath, POLICY_RSYNC); err != nil {
 			return errors.As(err)
 		}
 
@@ -949,7 +957,7 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		mountDir := filepath.Join(w.sealedRepo, fmt.Sprintf("%d", ss.ID))
 		fromPath := filepath.Join(mountDir, "deal-staging", task.PieceData.ServerFileName)
 		// fetch do a quick checksum
-		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
+		if err := w.rsync(ctx, fromPath, tmpFile, POLICY_CP); err != nil {
 			if !errors.ErrNoData.Equal(err) {
 				return tmpFile, errors.As(err)
 			}
@@ -965,7 +973,7 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		if fileInfo.IsDir() {
 			return tmpFile, errors.New("path is dir")
 		}
-		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
+		if err := w.rsync(ctx, fromPath, tmpFile, POLICY_CP); err != nil {
 			if !errors.ErrNoData.Equal(err) {
 				return tmpFile, errors.As(err)
 			}
@@ -1024,7 +1032,7 @@ func (w *worker) fetchStaging(ctx context.Context, workerSB *ffiwrapper.Sealer, 
 		// fetch do a quick checksum
 		fromPath := filepath.Join(mountDir, serverFileName)
 		log.Infof("from : %+v => to : %+v", fromPath, tmpFile)
-		if err := w.rsync(ctx, fromPath, tmpFile); err != nil {
+		if err := w.rsync(ctx, fromPath, tmpFile, POLICY_RSYNC); err != nil {
 			if !errors.ErrNoData.Equal(err) {
 				return tmpFile, errors.As(err)
 			}

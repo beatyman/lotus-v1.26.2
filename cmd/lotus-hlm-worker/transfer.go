@@ -164,7 +164,7 @@ func (w *worker) tryFetchRemote(serverUri string, sectorID, toRepo string, typ f
 	return nil
 }
 
-func (w *worker) rsync(ctx context.Context, fromPath, toPath string) error {
+func (w *worker) rsync(ctx context.Context, fromPath, toPath string, method TRANSFER_METHOD) error {
 	stat, err := os.Stat(fromPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -175,11 +175,11 @@ func (w *worker) rsync(ctx context.Context, fromPath, toPath string) error {
 
 	log.Infof("rsync, from: %s, to: %s", fromPath, toPath)
 	if stat.IsDir() {
-		if err := CopyFile(ctx, fromPath+"/", toPath+"/"); err != nil {
+		if err := CopyFile(ctx, fromPath+"/", toPath+"/", method); err != nil {
 			return err
 		}
 	} else {
-		if err := CopyFile(ctx, fromPath, toPath); err != nil {
+		if err := CopyFile(ctx, fromPath, toPath, method); err != nil {
 			return err
 		}
 	}
@@ -197,11 +197,11 @@ func (w *worker) upload(ctx context.Context, fromPath, toPath string) error {
 
 	log.Infof("upload from: %s, to: %s", fromPath, toPath)
 	if stat.IsDir() {
-		if err := CopyFile(ctx, fromPath+"/", toPath+"/", NewTransferer(travelFile, uploadToOSS)); err != nil {
+		if err := CopyFile(ctx, fromPath+"/", toPath+"/", POLICY_SDK, NewTransferer(travelFile, uploadToOSS)); err != nil {
 			return err
 		}
 	} else {
-		if err := CopyFile(ctx, fromPath, toPath, NewTransferer(travelFile, uploadToOSS)); err != nil {
+		if err := CopyFile(ctx, fromPath, toPath, POLICY_SDK, NewTransferer(travelFile, uploadToOSS)); err != nil {
 			return err
 		}
 	}
@@ -289,13 +289,12 @@ func GetDownloadFilesKeys(ctx context.Context, key string) ([]string, error) {
 	return result, nil
 }
 
-
 type Transferer struct {
 	travel func(path string) (os.FileInfo, []string, error)
-	copy   func(ctx context.Context, from, to string) error
+	copy   func(ctx context.Context, from, to string, method TRANSFER_METHOD) error
 }
 
-func NewTransferer(t func(path string) (os.FileInfo, []string, error), h func(ctx context.Context, from, to string) error) *Transferer {
+func NewTransferer(t func(path string) (os.FileInfo, []string, error), h func(ctx context.Context, from, to string, method TRANSFER_METHOD) error) *Transferer {
 	tran := &Transferer{
 		travel: t,
 		copy:   h,
@@ -303,7 +302,7 @@ func NewTransferer(t func(path string) (os.FileInfo, []string, error), h func(ct
 	return tran
 }
 
-func CopyFile(ctx context.Context, from, to string, t ...*Transferer) error {
+func CopyFile(ctx context.Context, from, to string, method TRANSFER_METHOD, t ...*Transferer) error {
 	copyfunc := &Transferer{copy: copyFile, travel: travelFile}
 	if len(t) != 0 {
 		copyfunc = t[0]
@@ -317,13 +316,13 @@ func CopyFile(ctx context.Context, from, to string, t ...*Transferer) error {
 		toFile := strings.Replace(src, from, to, 1)
 		tCtx, cancel := context.WithTimeout(ctx, time.Hour)
 		log.Infof("src: %+v ,toFile : %+v", src, toFile)
-		if err := copyfunc.copy(tCtx, src, toFile); err != nil {
+		if err := copyfunc.copy(tCtx, src, toFile, method); err != nil {
 			cancel()
 			log.Warn(errors.As(err))
 
 			// try again
 			tCtx, cancel = context.WithTimeout(ctx, time.Hour)
-			if err := copyfunc.copy(tCtx, src, toFile); err != nil {
+			if err := copyfunc.copy(tCtx, src, toFile, method); err != nil {
 				cancel()
 				return errors.As(err)
 			}
@@ -334,7 +333,7 @@ func CopyFile(ctx context.Context, from, to string, t ...*Transferer) error {
 }
 
 // upload file from filesystem to us3 oss cluster
-func uploadToOSS(ctx context.Context, from, to string) error {
+func uploadToOSS(ctx context.Context, from, to string, method TRANSFER_METHOD) error {
 	up := os.Getenv("US3")
 	if up == "" {
 		log.Info("please set US3 environment variable first!")

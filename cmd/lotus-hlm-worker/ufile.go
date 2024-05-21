@@ -16,7 +16,7 @@ const (
 )
 
 // upload file from filesystem to us3 oss cluster
-func uploadToUfile(ctx context.Context, FilePath, KeyName string) error {
+func uploadToUfile(ctx context.Context, FilePath, KeyName string, method TRANSFER_METHOD) error {
 	if strings.Contains(FilePath, "comm_d") ||
 		strings.Contains(FilePath, "comm_r") ||
 		strings.Contains(FilePath, "p1.out") ||
@@ -121,11 +121,11 @@ func (w *worker) uploadToUfile(ctx context.Context, fromPath, toPath string) err
 
 	log.Infof("upload from: %s, to: %s", fromPath, toPath)
 	if stat.IsDir() {
-		if err := CopyFile(ctx, fromPath+"/", toPath+"/", NewTransferer(travelFile, uploadToUfile)); err != nil {
+		if err := CopyFile(ctx, fromPath+"/", toPath+"/", POLICY_SDK, NewTransferer(travelFile, uploadToUfile)); err != nil {
 			return err
 		}
 	} else {
-		if err := CopyFile(ctx, fromPath, toPath, NewTransferer(travelFile, uploadToUfile)); err != nil {
+		if err := CopyFile(ctx, fromPath, toPath, POLICY_SDK, NewTransferer(travelFile, uploadToUfile)); err != nil {
 			return err
 		}
 	}
@@ -164,8 +164,8 @@ func (w *worker) downloadFromUfile(ctx context.Context, fromPath, toPath string)
 			needDownloads = append(needDownloads, key.FileName)
 			break
 		}
-		if strings.Contains(key.FileName,"cache") {
-			if strings.Contains(key.FileName,fromPath+"/"){
+		if strings.Contains(key.FileName, "cache") {
+			if strings.Contains(key.FileName, fromPath+"/") {
 				needDownloads = append(needDownloads, key.FileName)
 			}
 		}
