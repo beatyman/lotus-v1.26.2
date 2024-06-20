@@ -289,6 +289,11 @@ var runCmd = &cli.Command{
 			Name:  "external-pc2",
 			Usage: "command for computing PC2 externally",
 		},
+		&cli.BoolFlag{
+			Name:  "remote-c2",
+			Usage: "remote c2",
+			Value: true,
+		},
 	},
 	Description: `Run lotus-worker.
 
@@ -511,6 +516,11 @@ Example invocation of lotus-bench as external executor:
 			if taskType.WorkerType() != workerType {
 				return xerrors.Errorf("expected all task types to be for %s worker, but task %s is for %s worker", workerType, taskType, taskType.WorkerType())
 			}
+		}
+
+		remoteC2 := cctx.Bool("remote-c2")
+		if remoteC2 {
+			needParams = false
 		}
 
 		if needParams {

@@ -121,6 +121,7 @@ const (
 	ReceiveSector SectorState = "ReceiveSector"
 
 	// error modes
+	C2RemoteFailed       SectorState = "C2RemoteFailed"
 	FailedUnrecoverable  SectorState = "FailedUnrecoverable"
 	AddPieceFailed       SectorState = "AddPieceFailed"
 	SealPreCommit1Failed SectorState = "SealPreCommit1Failed"

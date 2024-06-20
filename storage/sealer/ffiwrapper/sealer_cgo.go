@@ -11,12 +11,17 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/google/uuid"
 	"io"
 	"math/bits"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/detailyang/go-fallocate"
 	"github.com/ipfs/go-cid"
@@ -1032,6 +1037,59 @@ func (sb *Sealer) SealCommit1(ctx context.Context, sector storiface.SectorRef, t
 }
 
 func (sb *Sealer) SealCommit2(ctx context.Context, sector storiface.SectorRef, phase1Out storiface.Commit1Out) (storiface.Proof, error) {
+	c2RemoteToken, ok1 := os.LookupEnv("C2_REMOTE_TOKEN")
+	c2AdvertiseAddress, ok2 := os.LookupEnv("C2_ADVERTISE_ADDRESS")
+	if ok1 && ok2 {
+		sectorSize, err := sector.ProofType.SectorSize()
+		if err != nil {
+			return nil, err
+		}
+		log.Info("remote c2 phase1Out size byte: ", len(phase1Out))
+		url := fmt.Sprintf("http://%s/dispatch/c2/%s", c2AdvertiseAddress, sectorSize.ShortString())
+		for i := 0; i < 30; i++ {
+			request := c2BodyRequest{}
+			request.ActorID = uint64(sector.ID.Miner)
+			request.SectorID = uint64(sector.ID.Number)
+			request.Phase1Out = phase1Out
+			phase1Out = []byte{}
+			request.Timestamp = time.Now().Unix()
+			uid, err := uuid.NewUUID()
+			if err != nil {
+				log.Error("new uid err: ", err)
+				continue
+			}
+			request.Nonce = strings.Replace(uid.String(), "-", "", -1)
+			request.Sign, err = sign(request, c2RemoteToken)
+			if err != nil {
+				log.Error("sign err:", err)
+				continue
+			}
+			payload, err := json.Marshal(request)
+			if err != nil {
+				log.Error("parse json err: ", err)
+			}
+			body, err := requestHttpGzip(http.MethodPost, url, payload)
+			if err != nil {
+				log.Error("requestHttp err: ", err)
+				continue
+			}
+			response := c2BodyResponse{}
+			err = json.Unmarshal(body, &response)
+			if err != nil {
+				log.Error("response parse json err:", err)
+				continue
+			}
+			switch response.State {
+			case Fail:
+				return nil, errors.New("remote c2 proof error")
+			case Success:
+				return response.Proof, nil
+			default:
+				continue
+			}
+		}
+		return nil, errors.New("remote c2 failed")
+	}
 	return ffi.SealCommitPhase2(phase1Out, sector.ID.Number, sector.ID.Miner)
 }
 

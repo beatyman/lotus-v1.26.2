@@ -178,6 +178,10 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 		on(SectorFinalizeFailed{}, FinalizeFailed),
 	),
 
+	C2RemoteFailed: planOne(
+		on(SectorRetryC2Remote{}, Committing),
+	),
+
 	// Snap deals
 	SnapDealsWaitDeals: planOne(
 		on(SectorAddPiece{}, SnapDealsAddPiece),
@@ -272,6 +276,7 @@ var fsmPlanners = map[SectorState]func(events []statemachine.Event, state *Secto
 		on(SectorRetryWaitSeed{}, WaitSeed),
 		on(SectorRetryComputeProof{}, Committing),
 		on(SectorRetryInvalidProof{}, Committing),
+		on(SectorRetryC2Remote{}, Committing),
 		on(SectorRetryPreCommitWait{}, PreCommitWait),
 		on(SectorChainPreCommitFailed{}, PreCommitFailed),
 		on(SectorRetryPreCommit{}, PreCommitting),
@@ -584,6 +589,8 @@ func (m *Sealing) plan(events []statemachine.Event, state *SectorInfo) (func(sta
 		return m.handleRemoteCommitFailed, processed, nil
 	case CommitFailed:
 		return m.handleCommitFailed, processed, nil
+	case C2RemoteFailed:
+		return m.handleC2RemoteFailed, processed, nil
 	case CommitFinalizeFailed:
 		fallthrough
 	case FinalizeFailed:
@@ -708,6 +715,11 @@ func planCommitting(events []statemachine.Event, state *SectorInfo) (uint64, err
 			e.apply(state)
 			state.State = Committing
 			return uint64(i + 1), nil
+		case SectorRetryC2Remote:
+			log.Warn("SectorRetryC2Remote!")
+			state.State = Committing
+		case SectorC2RemoteFailed:
+			state.State = C2RemoteFailed
 		case SectorComputeProofFailed:
 			state.State = ComputeProofFailed
 		case SectorRemoteCommit1Failed, SectorRemoteCommit2Failed:

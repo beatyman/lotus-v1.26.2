@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ipfs/go-cid"
@@ -675,6 +676,10 @@ func (m *Sealing) handleCommitting(ctx statemachine.Context, sector SectorInfo) 
 
 		porepProof, err = m.sealer.SealCommit2(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorType, sector.SectorNumber), c2in)
 		if err != nil {
+			if strings.Contains(err.Error(), "remote c2") {
+				log.Error("SectorC2RemoteFailed...")
+				return ctx.Send(SectorC2RemoteFailed{})
+			}
 			log.Errorw("Commit2 error", "error", err)
 			return ctx.Send(SectorComputeProofFailed{xerrors.Errorf("computing seal proof failed(2): %w", err)})
 		}
